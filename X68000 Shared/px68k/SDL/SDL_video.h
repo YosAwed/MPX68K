@@ -87,6 +87,11 @@ typedef struct
  *  \sa SDL_SetWindowTitle()
  *  \sa SDL_ShowWindow()
  */
+
+struct SDL_Window { //Added by @GOROman
+    int x;
+    int y;
+};
 typedef struct SDL_Window SDL_Window;
 
 /**

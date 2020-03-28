@@ -223,7 +223,7 @@ file_getcd(LPSTR filename)
 FILEH
 file_open_c(LPSTR filename)
 {
-
+    printf("file_open_c:%s\n", filename);   //@
 	strncpy(curfilep, filename, curfilep - curpath);
 	return file_open(curpath);
 }

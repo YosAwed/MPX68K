@@ -2,7 +2,7 @@
 extern "C" {
 #endif 
 
-#include <SDL.h>
+#include "SDL.h"
 #ifdef USE_OGLES11
 #include <SDL_opengles.h>
 #endif
@@ -567,10 +567,24 @@ int SetupCallbacks(void)
 
 PSP_HEAP_SIZE_KB(-1024);
 
+
 extern "C" int
 SDL_main(int argc, char *argv[])
 #else
-int main(int argc, char *argv[])
+
+//@int main(int argc, char *argv[])
+int original_main(int argc, char *argv[]);
+
+extern "C" void X68000() {
+    char* arg[] = {
+      "",
+    };
+    original_main(1, arg);
+
+}
+
+
+int original_main(int argc, char *argv[])
 #endif
 {
 #ifndef PSP
@@ -631,7 +645,7 @@ int main(int argc, char *argv[])
 #endif
 
 #if !SDL_VERSION_ATLEAST(2, 0, 0)
-	SDL_WM_SetCaption(APPNAME" SDL", NULL);
+//@	SDL_WM_SetCaption(APPNAME" SDL", NULL);
 #ifndef PSP
         if (SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 16, SDL_SWSURFACE) == NULL) {
 #else
@@ -660,11 +674,11 @@ int main(int argc, char *argv[])
 	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN);
 #endif
 #else
-	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+//@	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 #endif
-	if (sdl_window == NULL) {
-		p6logd("sdl_window: %ld", sdl_window);
-	}
+//@	if (sdl_window == NULL) {
+//@		p6logd("sdl_window: %ld", sdl_window);
+//@	}
 
 #ifdef USE_OGLES11
 	SDL_GLContext glcontext = SDL_GL_CreateContext(sdl_window);

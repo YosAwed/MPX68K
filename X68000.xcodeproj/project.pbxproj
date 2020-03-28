@@ -15,6 +15,8 @@
 		07A2F339242FB92E002C9D1A /* fmg_wrap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07A2F337242FB92E002C9D1A /* fmg_wrap.cpp */; };
 		07A2F33A242FB935002C9D1A /* mercury.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86446242F978700CBB224 /* mercury.c */; };
 		07A2F33B242FB936002C9D1A /* mercury.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86446242F978700CBB224 /* mercury.c */; };
+		07A2F33E242FBB3C002C9D1A /* SDL_Dummy.c in Sources */ = {isa = PBXBuildFile; fileRef = 07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */; };
+		07A2F33F242FBB3C002C9D1A /* SDL_Dummy.c in Sources */ = {isa = PBXBuildFile; fileRef = 07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */; };
 		07F863AE242F93EA00CBB224 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863AD242F93EA00CBB224 /* AppDelegate.swift */; };
 		07F863B0242F93EA00CBB224 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863AF242F93EA00CBB224 /* GameViewController.swift */; };
 		07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863B1242F93EA00CBB224 /* Main.storyboard */; };
@@ -64,8 +66,6 @@
 		07F86460242F978800CBB224 /* gvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86425242F978600CBB224 /* gvram.c */; };
 		07F86461242F978800CBB224 /* fdd.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86427242F978600CBB224 /* fdd.c */; };
 		07F86462242F978800CBB224 /* fdd.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86427242F978600CBB224 /* fdd.c */; };
-		07F86463242F978800CBB224 /* cpu_glue.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8642A242F978600CBB224 /* cpu_glue.c */; };
-		07F86464242F978800CBB224 /* cpu_glue.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8642A242F978600CBB224 /* cpu_glue.c */; };
 		07F86465242F978800CBB224 /* tvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8642B242F978600CBB224 /* tvram.c */; };
 		07F86466242F978800CBB224 /* tvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8642B242F978600CBB224 /* tvram.c */; };
 		07F86467242F978800CBB224 /* scsi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8642F242F978600CBB224 /* scsi.c */; };
@@ -114,8 +114,6 @@
 		07F864BD242F97BE00CBB224 /* windraw.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86494242F97BC00CBB224 /* windraw.c */; };
 		07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649B242F97BC00CBB224 /* winx68k.cpp */; };
 		07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649B242F97BC00CBB224 /* winx68k.cpp */; };
-		07F864C0242F97BE00CBB224 /* mk_kbdtbl.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649F242F97BC00CBB224 /* mk_kbdtbl.c */; };
-		07F864C1242F97BE00CBB224 /* mk_kbdtbl.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649F242F97BC00CBB224 /* mk_kbdtbl.c */; };
 		07F864C2242F97BE00CBB224 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A3242F97BD00CBB224 /* keyboard.c */; };
 		07F864C3242F97BE00CBB224 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A3242F97BD00CBB224 /* keyboard.c */; };
 		07F864C4242F97BE00CBB224 /* dswin.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A5242F97BD00CBB224 /* dswin.c */; };
@@ -230,6 +228,8 @@
 		07A2F331242FB6CF002C9D1A /* SDL_gesture.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_gesture.h; sourceTree = "<group>"; };
 		07A2F336242FB92D002C9D1A /* fmg_wrap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fmg_wrap.h; path = ../../../../../../../Work/github/px68k/fmgen/fmg_wrap.h; sourceTree = "<group>"; };
 		07A2F337242FB92E002C9D1A /* fmg_wrap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fmg_wrap.cpp; path = ../../../../../../../Work/github/px68k/fmgen/fmg_wrap.cpp; sourceTree = "<group>"; };
+		07A2F33C242FBB3C002C9D1A /* SDL_Dummy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SDL_Dummy.h; sourceTree = "<group>"; };
+		07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SDL_Dummy.c; sourceTree = "<group>"; };
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		07F863A3242F93E800CBB224 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -723,6 +723,8 @@
 				07A2F2E0242FB6CA002C9D1A /* SDL_video.h */,
 				07A2F2F1242FB6CB002C9D1A /* SDL_vulkan.h */,
 				07A2F31B242FB6CE002C9D1A /* SDL.h */,
+				07A2F33C242FBB3C002C9D1A /* SDL_Dummy.h */,
+				07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */,
 			);
 			path = SDL;
 			sourceTree = "<group>";
@@ -866,6 +868,7 @@
 				07F8646F242F978800CBB224 /* midi.c in Sources */,
 				07F86487242F978800CBB224 /* disk_d88.c in Sources */,
 				07F864CC242F97BE00CBB224 /* mouse.c in Sources */,
+				07A2F33E242FBB3C002C9D1A /* SDL_Dummy.c in Sources */,
 				07F863F8242F944300CBB224 /* psg.cpp in Sources */,
 				07F8645B242F978800CBB224 /* disk_xdf.c in Sources */,
 				07F863FC242F944300CBB224 /* opna.cpp in Sources */,
@@ -876,7 +879,6 @@
 				07F864BA242F97BE00CBB224 /* winui.c in Sources */,
 				07F86477242F978800CBB224 /* mem_wrap.c in Sources */,
 				07F8646D242F978800CBB224 /* sasi.c in Sources */,
-				07F864C0242F97BE00CBB224 /* mk_kbdtbl.c in Sources */,
 				07F86481242F978800CBB224 /* ioc.c in Sources */,
 				07F8645F242F978800CBB224 /* gvram.c in Sources */,
 				07F8645D242F978800CBB224 /* disk_dim.c in Sources */,
@@ -896,7 +898,6 @@
 				07F864D2242F97BE00CBB224 /* common.c in Sources */,
 				07F863AE242F93EA00CBB224 /* AppDelegate.swift in Sources */,
 				07F864C2242F97BE00CBB224 /* keyboard.c in Sources */,
-				07F86463242F978800CBB224 /* cpu_glue.c in Sources */,
 				07F863FA242F944300CBB224 /* fmtimer.cpp in Sources */,
 				07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */,
 			);
@@ -930,6 +931,7 @@
 				07F86470242F978800CBB224 /* midi.c in Sources */,
 				07F86488242F978800CBB224 /* disk_d88.c in Sources */,
 				07F864CD242F97BE00CBB224 /* mouse.c in Sources */,
+				07A2F33F242FBB3C002C9D1A /* SDL_Dummy.c in Sources */,
 				07F863F9242F944300CBB224 /* psg.cpp in Sources */,
 				07F8645C242F978800CBB224 /* disk_xdf.c in Sources */,
 				07F863FD242F944300CBB224 /* opna.cpp in Sources */,
@@ -940,7 +942,6 @@
 				07F864BB242F97BE00CBB224 /* winui.c in Sources */,
 				07F86478242F978800CBB224 /* mem_wrap.c in Sources */,
 				07F8646E242F978800CBB224 /* sasi.c in Sources */,
-				07F864C1242F97BE00CBB224 /* mk_kbdtbl.c in Sources */,
 				07F86482242F978800CBB224 /* ioc.c in Sources */,
 				07F86460242F978800CBB224 /* gvram.c in Sources */,
 				07F8645E242F978800CBB224 /* disk_dim.c in Sources */,
@@ -960,7 +961,6 @@
 				07F864D3242F97BE00CBB224 /* common.c in Sources */,
 				07F863BF242F93EA00CBB224 /* AppDelegate.swift in Sources */,
 				07F864C3242F97BE00CBB224 /* keyboard.c in Sources */,
-				07F86464242F978800CBB224 /* cpu_glue.c in Sources */,
 				07F863FB242F944300CBB224 /* fmtimer.cpp in Sources */,
 				07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */,
 			);

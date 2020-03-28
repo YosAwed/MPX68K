@@ -52,6 +52,10 @@
 #include "../icons/keropi.xpm"
 #endif
 
+//@added @GOROman
+//SDL_Window sdl_window;
+//
+
 extern BYTE Debug_Text, Debug_Grp, Debug_Sp;
 
 #ifdef PSP
