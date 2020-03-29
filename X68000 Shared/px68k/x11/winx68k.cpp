@@ -178,6 +178,7 @@ WinX68k_LoadROMs(void)
 	FILEH fp;
 	int i;
 	BYTE tmp;
+#if 0
 
 	for (fp = 0, i = 0; fp == 0 && i < NELEMENTS(BIOSFILE); ++i) {
 		fp = File_OpenCurDir((char *)BIOSFILE[i]);
@@ -190,7 +191,10 @@ WinX68k_LoadROMs(void)
 
 	File_Read(fp, &IPL[0x20000], 0x20000);
 	File_Close(fp);
-
+#else
+    extern const unsigned char IPLROM_DAT[];
+    memcpy( &IPL[0x20000], IPLROM_DAT, 0x20000);
+#endif
 	WinX68k_SCSICheck();	// SCSI IPLなら、$fc0000〜にSCSI BIOSを置く
 
 	for (i = 0; i < 0x40000; i += 2) {
@@ -198,39 +202,26 @@ WinX68k_LoadROMs(void)
 		IPL[i] = IPL[i + 1];
 		IPL[i + 1] = tmp;
 	}
-
+#if 0
 	fp = File_OpenCurDir((char *)FONTFILE);
 	if (fp == 0) {
 		// cgrom.tmpがある？
 		fp = File_OpenCurDir((char *)FONTFILETMP);
 		if (fp == 0) {
-#if 1
 			// フォント生成 XXX
 			printf("フォントROMイメージが見つかりません\n");
 			return FALSE;
-#else
-			MessageBox(hWndMain,
-				"フォントROMイメージが見つかりません.\nWindowsフォントから新規に作成します.",
-				"けろぴーのメッセージ", MB_ICONWARNING | MB_OK);
-			SSTP_SendMes(SSTPMES_MAKEFONT);
-			make_cgromdat(FONT, FALSE, "ＭＳ ゴシック", "ＭＳ 明朝");
-			//WinX68k_MakeFont();
-			//DialogBox(hInst, MAKEINTRESOURCE(IDD_PROGBAR),
-			//		hWndMain, (DLGPROC)MakeFontProc);
-			fp = File_CreateCurDir(FONTFILETMP);
-			if (fp)
-			{
-				File_Write(fp, FONT, 0xc0000);
-				File_Close(fp);
-				return TRUE;
-			}
-			return TRUE;
-#endif
 		}
 	}
 	File_Read(fp, FONT, 0xc0000);
 	File_Close(fp);
+#else
+    extern const unsigned char CGROM_DAT[];
+    memcpy( FONT, CGROM_DAT, 0xc0000);
 
+#endif
+    
+    
 	return TRUE;
 }
 

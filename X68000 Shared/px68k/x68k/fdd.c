@@ -59,6 +59,7 @@ static int GetDiskType(char* file)
 		if ( (!strncmp(tmp, "D88", 3))||(!strncmp(tmp, "88D", 3)) )
 			ret = FD_D88;
 		else if ( !strncmp(tmp, "DIM", 3) )
+            printf(".dim\n");
 			ret = FD_DIM;
 	}
 	return ret;
@@ -86,6 +87,8 @@ DWORD FASTCALL FDD_Int(BYTE irq)
 void FDD_SetFD(int drive, char* filename, int readonly)
 {
 	int type = GetDiskType(filename);
+    printf("FDD_SetFD(%d,\"%s\",%d)\n", drive, filename, readonly);
+    
 	if ( (drive<0)||(drive>3) ) return;
 	FDD_EjectFD(drive);
 	if ( SetFD[type] ) {
@@ -181,6 +184,7 @@ void FDD_Cleanup(void)
 void FDD_Reset(void)
 {
 	int i;
+    printf("FDD_Reset\n");
 	FDD_SetAccess(-1);
 	for (i=0; i<4; i++) {
 		FDD_SetEMask(i, 0);
@@ -195,6 +199,7 @@ void FDD_Reset(void)
 void FDD_SetFDInt(void)
 {
 	int i;
+//    printf("FDD_SetFDInt\n");
 	for (i=0; i<4; i++) {
 		if ( fdd.SetDelay[i] ) {
 			fdd.SetDelay[i]--;
@@ -244,7 +249,8 @@ int FDD_WriteID(int drv, int trk, unsigned char* buf, int num)
 int FDD_Read(int drv, FDCID* id, unsigned char* buf)
 {
 	int type;
-	if ( (drv<0)||(drv>3) ) return FALSE;
+
+    if ( (drv<0)||(drv>3) ) return FALSE;
 	type = fdd.Types[drv];
 	if ( Read[type] )
 		return Read[type](drv, id, buf);

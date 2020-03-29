@@ -58,6 +58,7 @@ file_open(LPSTR filename)
 {
 	FILEH	ret;
 
+    printf("file_open(\"%s\")\n",filename);
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (ret == (FILEH)INVALID_HANDLE_VALUE) {
@@ -223,8 +224,8 @@ file_getcd(LPSTR filename)
 FILEH
 file_open_c(LPSTR filename)
 {
-    printf("file_open_c:%s\n", filename);   //@
 	strncpy(curfilep, filename, curfilep - curpath);
+    printf("file_open_c:%s %s\n", filename, curpath);   //@
 	return file_open(curpath);
 }
 

@@ -13,6 +13,12 @@
 		07A2F335242FB6D0002C9D1A /* SDL_config.h.cmake in Resources */ = {isa = PBXBuildFile; fileRef = 07A2F32E242FB6CF002C9D1A /* SDL_config.h.cmake */; };
 		07A2F33E242FBB3C002C9D1A /* SDL_Dummy.c in Sources */ = {isa = PBXBuildFile; fileRef = 07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */; };
 		07A2F33F242FBB3C002C9D1A /* SDL_Dummy.c in Sources */ = {isa = PBXBuildFile; fileRef = 07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */; };
+		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
+		07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
+		07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
+		07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
+		07E6EF352430CFE60034E485 /* Salamander_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF342430CFE60034E485 /* Salamander_dim.c */; };
+		07E6EF362430CFE60034E485 /* Salamander_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF342430CFE60034E485 /* Salamander_dim.c */; };
 		07F4C695243065EE002CF5CA /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C67A243065ED002CF5CA /* c68k.c */; };
 		07F4C696243065EE002CF5CA /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C67A243065ED002CF5CA /* c68k.c */; };
 		07F4C6AF243065EE002CF5CA /* c68kexec.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C68A243065EE002CF5CA /* c68kexec.c */; };
@@ -230,6 +236,9 @@
 		07A2F331242FB6CF002C9D1A /* SDL_gesture.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_gesture.h; sourceTree = "<group>"; };
 		07A2F33C242FBB3C002C9D1A /* SDL_Dummy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SDL_Dummy.h; sourceTree = "<group>"; };
 		07A2F33D242FBB3C002C9D1A /* SDL_Dummy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SDL_Dummy.c; sourceTree = "<group>"; };
+		07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = IPLROM_DAT.c; sourceTree = "<group>"; };
+		07E6EF312430CCAE0034E485 /* CGROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = CGROM_DAT.c; sourceTree = "<group>"; };
+		07E6EF342430CFE60034E485 /* Salamander_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Salamander_dim.c; sourceTree = "<group>"; };
 		07F4C67A243065ED002CF5CA /* c68k.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = c68k.c; sourceTree = "<group>"; };
 		07F4C67B243065ED002CF5CA /* c68k_opB.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opB.inc; sourceTree = "<group>"; };
 		07F4C67D243065ED002CF5CA /* core.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = core.h; sourceTree = "<group>"; };
@@ -629,6 +638,9 @@
 		07F8648F242F97A700CBB224 /* x11 */ = {
 			isa = PBXGroup;
 			children = (
+				07E6EF312430CCAE0034E485 /* CGROM_DAT.c */,
+				07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */,
+				07E6EF342430CFE60034E485 /* Salamander_dim.c */,
 				07F864A8242F97BD00CBB224 /* about.c */,
 				07F8649E242F97BC00CBB224 /* about.h */,
 				07F864A1242F97BC00CBB224 /* cdaspi.h */,
@@ -887,9 +899,11 @@
 				07F864CA242F97BE00CBB224 /* about.c in Sources */,
 				07F4C6C7243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B8242F97BE00CBB224 /* joystick.c in Sources */,
+				07E6EF352430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C7292430667D002CF5CA /* irqh.c in Sources */,
 				07F864D6242F97BE00CBB224 /* juliet.c in Sources */,
+				07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */,
 				07F4C7512430667D002CF5CA /* rtc.c in Sources */,
 				07F4C7472430667D002CF5CA /* sram.c in Sources */,
 				07F864CE242F97BE00CBB224 /* prop.c in Sources */,
@@ -940,6 +954,7 @@
 				07F4C7372430667D002CF5CA /* palette.c in Sources */,
 				07F864C2242F97BE00CBB224 /* keyboard.c in Sources */,
 				07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */,
+				07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -952,9 +967,11 @@
 				07F864CB242F97BE00CBB224 /* about.c in Sources */,
 				07F4C6C8243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B9242F97BE00CBB224 /* joystick.c in Sources */,
+				07E6EF362430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C72A2430667D002CF5CA /* irqh.c in Sources */,
 				07F864D7242F97BE00CBB224 /* juliet.c in Sources */,
+				07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */,
 				07F4C7522430667D002CF5CA /* rtc.c in Sources */,
 				07F4C7482430667D002CF5CA /* sram.c in Sources */,
 				07F864CF242F97BE00CBB224 /* prop.c in Sources */,
@@ -1005,6 +1022,7 @@
 				07F4C7382430667D002CF5CA /* palette.c in Sources */,
 				07F864C3242F97BE00CBB224 /* keyboard.c in Sources */,
 				07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */,
+				07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1154,6 +1172,13 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1177,6 +1202,11 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
 				LD_RUNPATH_SEARCH_PATHS = (

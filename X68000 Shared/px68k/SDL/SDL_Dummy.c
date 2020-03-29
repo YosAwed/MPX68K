@@ -86,7 +86,7 @@ void X68000_AudioCallBack(void* buffer, const unsigned int sample)
 //        rk_sema_wait(&s_sdl_r_sema);
         //  void fill_audio(void *udata, Uint8 *stream, int len)
 //        printf("Callback! %p %d\n", buffer, sample);
-        int size = sample*2*2;
+        int size = sample * sizeof(Sint16) * 2;
         
         s_audio_spec.callback(NULL, buffer, size);
         if ( s_sound_buffer ) {
@@ -121,7 +121,6 @@ void SDL_LockAudio(void)
 {
 //    TRACE_FUNC;
 //    rk_sema_wait(&s_sdl_w_sema);
-
 }
 
 
@@ -307,6 +306,10 @@ int SDL_NumJoysticks(void)
     return 0;
 }
 
+SDL_Finger * SDL_GetTouchFinger(SDL_TouchID touchID, int index)
+{
+    return NULL;
+}
 
 
 //sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_SHOWN);

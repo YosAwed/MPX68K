@@ -186,9 +186,9 @@ set_dir:
 	return 0;
 #endif
 #if TARGET_OS_IPHONE && TARGET_IPHONE_SIMULATOR == 0
-        puts("Iphone...");
-        sprintf(path, "/var/mobile/px68k");
-        sprintf(winx68k_ini, "/var/mobile/px68k/config");
+        puts("iPhone...");
+        sprintf(path, "ipm");
+        sprintf(winx68k_ini, "%s/config",path);
         return 0;
 #endif
 
