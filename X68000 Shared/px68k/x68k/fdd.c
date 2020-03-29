@@ -59,7 +59,6 @@ static int GetDiskType(char* file)
 		if ( (!strncmp(tmp, "D88", 3))||(!strncmp(tmp, "88D", 3)) )
 			ret = FD_D88;
 		else if ( !strncmp(tmp, "DIM", 3) )
-            printf(".dim\n");
 			ret = FD_DIM;
 	}
 	return ret;

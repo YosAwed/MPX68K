@@ -693,9 +693,9 @@ WinDraw_Draw(void)
 	// 2倍に拡大する
 	if (TextDotX <= 256 && TextDotY <= 256) {
 		for (y = 0; y < 256; y++) {
-			p = ScrBuf + 800 * y;
+			p = ScrBuf + sdl_surface->w * y;
 			// surface->pixelsはvoid *
-			dst16 = sdl_surface->pixels + sdl_surface->w * Bpp * y * 2;
+			dst16 = sdl_surface->pixels + 768 * Bpp * y * 2;
 			dst32 = (DWORD *)dst16;
             unsigned char* dst8 = (unsigned char*)dst16;
 
@@ -744,12 +744,12 @@ WinDraw_Draw(void)
 		}
 	} else {
 		for (y = 0; y < 512; y++) {
-			p = ScrBuf + 800 * y;
+			p = ScrBuf + 768 * y;
 			// surface->pixelsはvoid *
 			dst16 = sdl_surface->pixels + sdl_surface->w * Bpp * y;
 			dst32 = (DWORD *)dst16;
             unsigned char* dst8 = (unsigned char*)dst16;
-			for (x = 0; x < 800; x++) {
+			for (x = 0; x < 768; x++) {
 #if 0
 				if (Bpp == 4) {
 					*dst32++ = (DWORD)(*p & 0xf800) << 8 | (*p & 0x07e0) << 5 | (*p & 0x001f) << 3;
@@ -1719,7 +1719,8 @@ int WinDraw_MenuInit(void)
 #else
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
-	menu_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, 800, 600, 16, WinDraw_Pal16R, WinDraw_Pal16G, WinDraw_Pal16B, 0);
+	menu_surface = SDL_CreateRGBSurface(SDL_SWSURFACE, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT
+                                        , 16, WinDraw_Pal16R, WinDraw_Pal16G, WinDraw_Pal16B, 0);
 #else
 	menu_surface = SDL_GetVideoSurface();
 #endif

@@ -590,11 +590,31 @@ SDL_main(int argc, char *argv[])
 //@int main(int argc, char *argv[])
 int original_main(int argc, char *argv[]);
 
+extern "C" {
+
+void X68000_Key_Down( unsigned int vkcode ) {
+    Keyboard_KeyDown(vkcode);
+}
+void X68000_Key_Up( unsigned int vkcode ) {
+    Keyboard_KeyUp(vkcode);
+}
+const int X68000_GetScreenWidth()
+{
+    return TextDotX;
+}
+const int X68000_GetScreenHeight()
+{
+    return TextDotY;
+}
+
+} // extern "C"
+
 extern "C" void X68000_Init() {
     char* arg[] = {
       "X68000",
-//        "/Users/goroman/Retro/Human302.xdf",
-        "/Users/goroman/Retro/Salamander.dim",
+//        "/Users/goroman/Retro/human302.xdf",
+//        "/Users/goroman/Retro/Salamander.dim",
+        "/Users/goroman/Retro/BubbleBobble.dim",
     };
     original_main(2, arg);
 
@@ -605,7 +625,6 @@ void Update( unsigned char* d );
 extern "C" void X68000_Update( unsigned char* d ) {
     Update( d );
 }
-
 
 int original_main(int argc, char *argv[])
 #endif
@@ -1064,7 +1083,7 @@ void Update(unsigned char* d ) {
     #endif
         SDL_Surface* s = SDL_GetWindowSurface(NULL);
         
-        memcpy( d, s->pixels, 800*600*3);
+        memcpy( d, s->pixels, 768*512*3);
         break;  //@ while(1)
         }
 end_loop:

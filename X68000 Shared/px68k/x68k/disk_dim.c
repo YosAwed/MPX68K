@@ -67,7 +67,7 @@ int DIM_SetFD(int drv, char* filename)
 	DIMImg[drv] = (unsigned char*)malloc(1024*9*170+sizeof(DIM_HEADER));		// Maximum size
 	if ( !DIMImg[drv] ) return FALSE;
 	memset(DIMImg[drv], 0xe5, 1024*9*170+sizeof(DIM_HEADER));
-#if 0
+#if 1 // from file
 	fp = File_Open(DIMFile[drv]);
 	if ( !fp ) {
 		ZeroMemory(DIMFile[drv], MAX_PATH);
@@ -78,9 +78,15 @@ int DIM_SetFD(int drv, char* filename)
 	File_Seek(fp, 0, FSEEK_SET);
 	if ( File_Read(fp, DIMImg[drv], sizeof(DIM_HEADER))!=sizeof(DIM_HEADER) ) goto dim_set_error;
 	dh = (DIM_HEADER*)DIMImg[drv];
-	if ( dh->type>9 ) goto dim_set_error;
+    if ( dh->type>9 ) {
+        printf("dim_set_error\n");
+        goto dim_set_error;
+    }
 	len = SctLength[dh->type];
-	if ( !len ) goto dim_set_error;
+    if ( !len ) {
+        printf("dim_set_error\n");
+        goto dim_set_error;
+    }
 	p = DIMImg[drv]+sizeof(DIM_HEADER);
 	for (i=0; i<170; i++) {
 		if ( dh->trkflag[i] ) {

@@ -173,7 +173,7 @@ Uint32 Bmask,
 Uint32 Amask){
     TRACE_FUNC;
     
-    printf("SDL_CreateRGBSurface( flags:%d, width:%d, height:%d, depth:%d\n",
+	    printf("SDL_CreateRGBSurface( flags:%d, width:%d, height:%d, depth:%d\n",
            flags, width, height, depth);
     SDL_Surface* s = malloc(sizeof(SDL_Surface));
     memset( s, 0x00, sizeof(SDL_Surface));
