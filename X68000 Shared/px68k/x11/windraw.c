@@ -697,7 +697,10 @@ WinDraw_Draw(void)
 			// surface->pixelsはvoid *
 			dst16 = sdl_surface->pixels + sdl_surface->w * Bpp * y * 2;
 			dst32 = (DWORD *)dst16;
-			for (x = 0; x < 256; x++) {
+            unsigned char* dst8 = (unsigned char*)dst16;
+
+            for (x = 0; x < 256; x++) {
+#if 0
 				if  (Bpp == 4) {
 					dat32 = (DWORD)(*p & 0xf800) << 8 | (*p & 0x07e0) << 5 | (*p & 0x001f) << 3;
 					*dst32++ = dat32;
@@ -720,6 +723,23 @@ WinDraw_Draw(void)
 				} else {
 					// xxx 未サポート
 				}
+#else
+                
+#define DOTCOPY                 *dst8++ /*R*/= (*p & 0xf800)>>8; /*R*/ \
+                                *dst8++ /*G*/= (*p & 0x07e0)>>3; /*G*/ \
+                                *dst8++ /*B*/= (*p & 0x001f)<<3; /*B*/
+
+                // for MacOS(Bpp==3)
+                DOTCOPY
+                DOTCOPY
+                dst8 += sdl_surface->w * 3 - 6;
+                DOTCOPY
+                DOTCOPY
+                dst8 -= sdl_surface->w * 3;
+
+
+                p++;
+#endif
 			}
 		}
 	} else {
@@ -728,13 +748,20 @@ WinDraw_Draw(void)
 			// surface->pixelsはvoid *
 			dst16 = sdl_surface->pixels + sdl_surface->w * Bpp * y;
 			dst32 = (DWORD *)dst16;
+            unsigned char* dst8 = (unsigned char*)dst16;
 			for (x = 0; x < 800; x++) {
+#if 0
 				if (Bpp == 4) {
 					*dst32++ = (DWORD)(*p & 0xf800) << 8 | (*p & 0x07e0) << 5 | (*p & 0x001f) << 3;
 				} else if (Bpp == 2) {
 					*dst16++ = *p;
 				}
-				p++;
+#else
+                // for MacOS(Bpp==3)
+                DOTCOPY
+
+#endif
+                p++;
 			}
 		}
 	}

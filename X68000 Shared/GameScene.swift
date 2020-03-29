@@ -17,6 +17,7 @@ class GameScene: SKScene {
     var tex : SKTexture?
     var image : CGImage?
 
+    fileprivate var audioStream : AudioStream?
     
     class func newGameScene() -> GameScene {
         // Load 'GameScene.sks' as an SKScene.
@@ -28,7 +29,7 @@ class GameScene: SKScene {
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFill
         
-        
+
         X68000_Init();
         return scene
     }
@@ -36,7 +37,7 @@ class GameScene: SKScene {
      func RBGImage(data: [UInt8], width: Int, height: Int) -> CGImage? {
 
          let bitsPerComponent = 8
-         let numberOfComponents = 4
+         let numberOfComponents = 3
          let bitsPerPixel = bitsPerComponent * numberOfComponents
          let bytesPerPixel = bitsPerPixel / 8
 
@@ -61,16 +62,23 @@ class GameScene: SKScene {
     
     var count = 0
     func setUpScene() {
+        
+        self.audioStream = AudioStream.init();
+
+        self.audioStream?.play();
+
         self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 800, height: 600));
         self.addChild(spr!);
 
 
         // Get label node from scene and store it for use later
+        #if false
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
             label.run(SKAction.fadeIn(withDuration: 2.0))
-        }
+                    }
+        #endif
         
         // Create shape node to use during mouse interaction
         let w = (self.size.width + self.size.height) * 0.05
@@ -117,19 +125,14 @@ class GameScene: SKScene {
     
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
-        var d = [UInt8](repeating: 0xff, count:800*600 * 4 )
+        var d = [UInt8](repeating: 0x00, count:800*600 * 3 )
+
         X68000_Update( &d );
 
-
-            
-        
-            self.image = RBGImage( data:d, width:800, height:600 )
+        self.image = RBGImage( data:d, width:800, height:600 )
         self.tex = SKTexture.init( cgImage : self.image! )
         self.spr?.texture = self.tex!;// = SKSpriteNode.init(texture: self.tex);
-        //        spr?.alpha = 0.5
-        
-        //self.addChild(spr!);
-
+  
     }
 }
 

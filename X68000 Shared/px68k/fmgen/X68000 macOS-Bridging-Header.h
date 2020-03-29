@@ -4,3 +4,4 @@
 
 void X68000_Init();
 void X68000_Update( unsigned char* data );
+void X68000_AudioCallBack(void* buffer, const unsigned int sample);

@@ -602,7 +602,8 @@ int original_main(int argc, char *argv[]);
 extern "C" void X68000_Init() {
     char* arg[] = {
       "X68000",
-        "/Users/goroman/Retro/Human302.xdf",
+//        "/Users/goroman/Retro/Human302.xdf",
+        "/Users/goroman/Retro/Salamander.dim",
     };
     original_main(2, arg);
 
@@ -889,9 +890,9 @@ void Update(unsigned char* d ) {
                     break;
                 case SDL_FINGERDOWN:
                     //p6logd("FINGERDOWN: tid: %lld,,, x:%f y:%f", ev.tfinger.touchId, ev.tfinger.x, ev.tfinger.y);
-                    if (touchId == -1) {
-                        touchId = ev.tfinger.touchId;
-                    }
+//@                    if (touchId == -1) {
+//@                        touchId = ev.tfinger.touchId;
+//@                    }
                     break;
                 case SDL_FINGERMOTION:
                     float kx, ky, dx, dy;
@@ -1072,7 +1073,7 @@ void Update(unsigned char* d ) {
     #endif
         SDL_Surface* s = SDL_GetWindowSurface(NULL);
         
-        memcpy( d, s->pixels, 800*600*4 );
+        memcpy( d, s->pixels, 800*600*3);
         break;  //@ while(1)
         }
 end_loop:
