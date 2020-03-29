@@ -606,6 +606,10 @@ const int X68000_GetScreenHeight()
 {
     return TextDotY;
 }
+void X68000_GetImage( unsigned char* data ) {
+    SDL_Surface* s = SDL_GetWindowSurface(NULL);
+    memcpy( data, s->pixels, TextDotX*TextDotY*3);
+}
 
 } // extern "C"
 
@@ -620,10 +624,10 @@ extern "C" void X68000_Init() {
 
 }
 
-void Update( unsigned char* d );
+void Update();
 
-extern "C" void X68000_Update( unsigned char* d ) {
-    Update( d );
+extern "C" void X68000_Update() {
+    Update();
 }
 
 int original_main(int argc, char *argv[])
@@ -839,7 +843,7 @@ int original_main(int argc, char *argv[])
 }
 
 
-void Update(unsigned char* d ) {
+void Update() {
 #if 1
 
 #ifndef PSP
@@ -1081,9 +1085,6 @@ void Update(unsigned char* d ) {
                 }
             }
     #endif
-        SDL_Surface* s = SDL_GetWindowSurface(NULL);
-        
-        memcpy( d, s->pixels, 768*512*3);
         break;  //@ while(1)
         }
 end_loop:
@@ -1091,6 +1092,8 @@ end_loop:
     static int count;
     count++;
  }
+
+
 
 void Finalize() {
         Memory_WriteB(0xe8e00d, 0x31);    // SRAM書き込み許可

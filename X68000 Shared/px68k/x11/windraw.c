@@ -695,9 +695,10 @@ WinDraw_Draw(void)
 		for (y = 0; y < 256; y++) {
 			p = ScrBuf + sdl_surface->w * y;
 			// surface->pixels¤Ïvoid *
-			dst16 = sdl_surface->pixels + 768 * Bpp * y * 2;
-			dst32 = (DWORD *)dst16;
-            unsigned char* dst8 = (unsigned char*)dst16;
+//			dst16 = sdl_surface->pixels + 256 * Bpp * y * 1;
+	//		dst32 = (DWORD *)dst16;
+            unsigned char* dst8 = (unsigned char*)sdl_surface->pixels;
+            dst8 += 256*Bpp*y;
 
             for (x = 0; x < 256; x++) {
 #if 0
@@ -731,11 +732,11 @@ WinDraw_Draw(void)
 
                 // for MacOS(Bpp==3)
                 DOTCOPY
-                DOTCOPY
-                dst8 += sdl_surface->w * 3 - 6;
-                DOTCOPY
-                DOTCOPY
-                dst8 -= sdl_surface->w * 3;
+//                DOTCOPY
+  //              dst8 += sdl_surface->w * 3 - 6;
+    //            DOTCOPY
+      //          DOTCOPY
+        //        dst8 -= sdl_surface->w * 3;
 
 
                 p++;

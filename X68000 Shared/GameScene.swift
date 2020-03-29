@@ -69,14 +69,24 @@ class GameScene: SKScene {
         self.audioStream?.play();
 
         self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 768, height: 512));
-//        self.spr?.alpha = 0.5
+        self.spr?.alpha = 0.5
         self.spr?.xScale = 1.7
         self.spr?.yScale = 1.7
-        self.addChild(spr!)
-//        self.spr256 = SKSpriteNode.init(color:.blue, size: CGSize(width: 256, height: 256));
-//        self.spr256?.alpha = 0.5
-//        self.addChild(spr256!);
+        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
+                                          SKAction.fadeOut(withDuration: 0.1),
+                                          SKAction.removeFromParent()]))
 
+        self.addChild(spr!)
+        /*
+        self.spr256 = SKSpriteNode.init(color:.blue, size: CGSize(width: 256, height: 256));
+        self.spr256?.alpha = 0.5
+        self.spr256?.xScale = 1.7 * 2.0
+        self.spr256?.yScale = 1.7 * 2.0
+        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
+                                          SKAction.fadeOut(withDuration: 0.1),
+                                          SKAction.removeFromParent()]))
+        self.addChild(spr256!);
+*/
 
         // Get label node from scene and store it for use later
         #if false
@@ -131,23 +141,52 @@ class GameScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
-        // Called before each frame is rendered
-        var d = [UInt8](repeating: 0x00, count:768*512 * 3 )
+        X68000_Update()
 
-        X68000_Update( &d );
-        
+        // Called before each frame is rendered
         let w = X68000_GetScreenWidth();
-//        if ( w == 256 ) {
-//            let image = RBGImage( data:d, size:256*256*3, width:256, height:256 )
-//            self.tex256 = SKTexture.init( cgImage : image! )
-//            self.spr256?.texture = self.tex256!;// = SKSpriteNode.init(texture: self.tex);
-//        } else {
-            let image = RBGImage( data:d, size:768*512*3, width:768, height:512 )
+        let h = X68000_GetScreenHeight();
+        let size = Int(w) * Int(h) * 3
+        var d = [UInt8](repeating: 0xff, count: size )
+
+        X68000_GetImage( &d )
+        
+        let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
+        self.tex = SKTexture.init( cgImage : image! )
+
+        self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
+        self.spr?.texture = self.tex!;
+        self.spr?.alpha = 1.0
+        if ( w == 256 ) {
+        
+            self.spr?.xScale = 1.7 * 2.0
+            self.spr?.yScale = 1.7 * 2.0
+        } else {
+        self.spr?.xScale = 1.7
+        self.spr?.yScale = 1.7
+
+        }
+        self.spr?.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.016),
+//                            SKAction.wait(forDuration: 0.1),
+      //      SKAction.scale(to:  4.5, duration: 0.5),
+        //                    SKAction.fadeOut(withDuration: 0.1),
+
+                                          SKAction.removeFromParent()]))
+
+        self.addChild(spr!)
+/*
+        if ( w == 256 ) {
+            let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
+            self.tex256 = SKTexture.init( cgImage : image! )
+            self.spr256?.texture = self.tex256!;// = SKSpriteNode.init(texture: self.tex);
+        } else {
+            let image = RBGImage( data:d, size: size, width:Int(w), height:Int(h) )
             self.tex = SKTexture.init( cgImage : image! )
         
             self.spr?.texture = self.tex!;// = SKSpriteNode.init(texture: self.tex);
-//        }
-  
+        }
+*/
     }
 }
 
