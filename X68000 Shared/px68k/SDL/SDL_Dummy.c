@@ -32,7 +32,7 @@ void SDL_PauseAudio(int pause_on)
 
 void SDL_LockAudio(void)
 {
-    TRACE_FUNC;
+//    TRACE_FUNC;
 
 }
 
@@ -44,13 +44,14 @@ void SDL_CloseAudio(void)
 
 void SDL_UnlockAudio(void)
 {
-    TRACE_FUNC;
+//    TRACE_FUNC;
 }
 
 void SDL_MixAudio(Uint8*       dst,
 const Uint8* src,
 Uint32       len,
 int          volume) {
+    
     
     TRACE_FUNC;
 }
@@ -70,35 +71,9 @@ int SDL_Init(Uint32 flags)
     return 0;
 }
 
-/*
- Undefined symbol: _SDL_CreateRGBSurface
- Undefined symbol: _SDL_FillRect
- Undefined symbol: _SDL_GetWindowSurface
- Undefined symbol: _SDL_JoystickClose
- Undefined symbol: _SDL_JoystickGetAttached
- Undefined symbol: _SDL_JoystickGetAxis
- 
- Undefined symbol: _SDL_JoystickGetButton
- Undefined symbol: _SDL_JoystickGetHat
- 
- Undefined symbol: _SDL_JoystickNameForIndex
- 
- Undefined symbol: _SDL_JoystickNumAxes
- 
- Undefined symbol: _SDL_JoystickNumButtons
- Undefined symbol: _SDL_JoystickNumHats
 
- Undefined symbol: _SDL_JoystickOpen
- Undefined symbol: _SDL_JoystickUpdate
- Undefined symbol: _SDL_NumJoysticks
- 
- Undefined symbol: _SDL_PollEvent
- Undefined symbol: _SDL_UpdateWindowSurface
- Undefined symbol: _SDL_UpperBlit
- Undefined symbol: _sdl_window
- */
-
-static SDL_Surface surface;
+static SDL_Surface* window_surface;
+static SDL_PixelFormat  format;
 
 SDL_Surface* SDL_CreateRGBSurface(Uint32 flags,
 int    width,
@@ -109,7 +84,28 @@ Uint32 Gmask,
 Uint32 Bmask,
 Uint32 Amask){
     TRACE_FUNC;
-    return &surface;
+    
+    printf("SDL_CreateRGBSurface( flags:%d, width:%d, height:%d, depth:%d\n",
+           flags, width, height, depth);
+    SDL_Surface* s = malloc(sizeof(SDL_Surface));
+    memset( s, 0x00, sizeof(SDL_Surface));
+    
+    format.BitsPerPixel = 32;
+    format.BytesPerPixel = 4;
+
+    s->format = &format;
+    s->flags = flags;
+    s->w = width;
+    s->h = height;
+    int bufsize = format.BytesPerPixel * width * height;
+    s->pixels = malloc(bufsize);
+    memset( s->pixels, 0x00, sizeof(bufsize) );
+    
+    if ( window_surface == NULL) {
+        window_surface = s;
+    }
+    
+    return s;
 }
 
 int SDL_FillRect(SDL_Surface*    dst,
@@ -122,8 +118,8 @@ Uint32          color)
 
 SDL_Surface* SDL_GetWindowSurface(SDL_Window* window)
 {
-    TRACE_FUNC;
-    return NULL;
+//    TRACE_FUNC;
+    return window_surface;
 }
 
 
@@ -135,15 +131,12 @@ void SDL_JoystickClose(SDL_Joystick* joystick)
 
 int SDL_PollEvent(SDL_Event* event)
 {
-    TRACE_FUNC;
-
-
     return 0;
 }
 
 int SDL_UpdateWindowSurface(SDL_Window* window)
 {
-    TRACE_FUNC;
+ //   TRACE_FUNC;
     return 0;
 }
 

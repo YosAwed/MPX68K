@@ -33,7 +33,7 @@ static double Mcry_VolumeShift = 65536;
 static int Mcry_SampleCnt = 0;
 static BYTE Mcry_Vector = 255;
 
-extern BYTE BusErrFlag;
+extern DWORD BusErrFlag;
 extern	m68k_regs regs;
 
 
@@ -256,6 +256,7 @@ fclose(fp);
 	else if ( adr>=0xecc100 )
 	{				// Bus Error?
 		BusErrFlag = 1;
+		printf("func = %s addr = %x flag = %d\n", __func__, adr, BusErrFlag);
 	}
 	return ret;
 }

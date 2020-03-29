@@ -26,6 +26,7 @@ static const char* copyright_notice =
 #include <string.h>
 #include "d68k.h"
 #include "d68kconf.h"
+#include "x68kmemory.h"
 
 #ifndef CLIB_DECL
 #define CLIB_DECL

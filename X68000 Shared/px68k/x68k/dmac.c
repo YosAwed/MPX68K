@@ -6,7 +6,7 @@
 #include "common.h"
 #include "winx68k.h"
 #include "m68000.h"
-#include "memory.h"
+#include "x68kmemory.h"
 #include "irqh.h"
 #include "fdc.h"
 #include "sasi.h"

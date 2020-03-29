@@ -16,7 +16,7 @@
 	WORD	Grp_LineBuf[1024];
 	WORD	Grp_LineBufSP[1024];		// 特殊プライオリティ／半透明用バッファ
 	WORD	Grp_LineBufSP2[1024];		// 半透明ベースプレーン用バッファ（非半透明ビット格納）
-
+	WORD	Grp_LineBufSP_Tr[1024];
 	WORD	Pal16Adr[256];			// 16bit color パレットアドレス計算用
 
 // xxx: for little endian only
@@ -1800,10 +1800,16 @@ pop	edi
 
 	for (i = 0; i < TextDotX; ++i) {
 		v = (GVRAM[off] & 0x0f) | (GVRAM[off0] & 0xf0);
+		Grp_LineBufSP_Tr[i] = 0;
+
 		if ((v & 1) == 0) {
 			v &= 0xfe;
-			if (v != 0x00)
-				v = GrphPal[v];
+			if (v != 0x00) {
+ 				v = GrphPal[v];
+				if (!v)
+					Grp_LineBufSP_Tr[i] = 0x1234;
+			}
+
 			Grp_LineBufSP[i] = 0;
 			Grp_LineBufSP2[i] = v;
 		} else {
@@ -2591,6 +2597,29 @@ Grp_DrawLine8TR(int page, int opaq)
 		}
 	}
 #endif /* USE_ASM */
+}
+
+LABEL void FASTCALL
+Grp_DrawLine8TR_GT(int page, int opaq)
+{
+	if (opaq) {
+		DWORD x, y;
+		DWORD v, v0;
+		DWORD i;
+
+		page &= 1;
+
+		y = GrphScrollY[page * 2] + VLINE;
+		if ((CRTC_Regs[0x29] & 0x1c) == 0x1c)
+			y += VLINE;
+		y = ((y & 0x1ff) << 10) + page;
+		x = GrphScrollX[page * 2] & 0x1ff;
+
+		for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
+			Grp_LineBuf[i] = (Grp_LineBufSP[i] || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
+			Grp_LineBufSP_Tr[i] = 0;
+		}
+	}
 }
 
 LABEL void FASTCALL

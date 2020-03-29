@@ -13,6 +13,9 @@ class GameScene: SKScene {
     
     fileprivate var label : SKLabelNode?
     fileprivate var spinnyNode : SKShapeNode?
+    var spr : SKSpriteNode?
+    var tex : SKTexture?
+    var image : CGImage?
 
     
     class func newGameScene() -> GameScene {
@@ -25,12 +28,43 @@ class GameScene: SKScene {
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFill
         
-        X68000();
         
+        X68000_Init();
         return scene
     }
     
+     func RBGImage(data: [UInt8], width: Int, height: Int) -> CGImage? {
+
+         let bitsPerComponent = 8
+         let numberOfComponents = 4
+         let bitsPerPixel = bitsPerComponent * numberOfComponents
+         let bytesPerPixel = bitsPerPixel / 8
+
+         guard width > 0, height > 0 else { return nil }
+         guard width * height * numberOfComponents == data.count else { return nil }
+
+         return CGDataProvider(dataInfo: nil, data: data, size: data.count) { _,_,_ in }
+             .flatMap {
+                 CGImage(width: width,
+                         height: height,
+                         bitsPerComponent: bitsPerComponent,
+                         bitsPerPixel: bitsPerPixel,
+                         bytesPerRow: width * bytesPerPixel,
+                         space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: [],
+                         provider: $0,
+                         decode: nil,
+                         shouldInterpolate: false,
+                         intent: .defaultIntent)
+         }
+     }
+    
+    var count = 0
     func setUpScene() {
+        self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 800, height: 600));
+        self.addChild(spr!);
+
+
         // Get label node from scene and store it for use later
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
@@ -83,6 +117,19 @@ class GameScene: SKScene {
     
     override func update(_ currentTime: TimeInterval) {
         // Called before each frame is rendered
+        var d = [UInt8](repeating: 0xff, count:800*600 * 4 )
+        X68000_Update( &d );
+
+
+            
+        
+            self.image = RBGImage( data:d, width:800, height:600 )
+        self.tex = SKTexture.init( cgImage : self.image! )
+        self.spr?.texture = self.tex!;// = SKSpriteNode.init(texture: self.tex);
+        //        spr?.alpha = 0.5
+        
+        //self.addChild(spr!);
+
     }
 }
 

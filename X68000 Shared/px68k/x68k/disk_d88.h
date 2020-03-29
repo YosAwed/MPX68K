@@ -6,8 +6,8 @@ typedef struct {			// Header Part (size:2B0h)
 	BYTE	reserved1[9]; 		// Reserved
 	BYTE	protect;		// Write Protect bit:4
 	BYTE	fd_type;		// Disk Format
-	long	fd_size;		// Disk Size
-	long	trackp[164];		// Track_pointer
+	DWORD	fd_size;		// Disk Size
+	DWORD	trackp[164];		// Track_pointer
 } D88_HEADER;
 
 void D88_Init(void);
