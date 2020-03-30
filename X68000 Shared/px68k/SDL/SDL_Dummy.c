@@ -81,7 +81,9 @@ static Uint8* s_sound_buffer;
 
 void X68000_AudioCallBack(void* buffer, const unsigned int sample)
 {
-
+    int size = sample * sizeof(Sint16) * 2;
+    audio_callback(buffer, size);
+    /*
     if ( s_audio_spec.callback ) {
 //        rk_sema_wait(&s_sdl_r_sema);
         //  void fill_audio(void *udata, Uint8 *stream, int len)
@@ -95,6 +97,7 @@ void X68000_AudioCallBack(void* buffer, const unsigned int sample)
         }
 //        rk_sema_post(&s_sdl_w_sema);
     }
+ */
 }
 
 int SDL_OpenAudio(SDL_AudioSpec* desired, SDL_AudioSpec* obtained) {

@@ -15,3 +15,4 @@ void DS_SetVolumeADPCM(long vol);
 void DS_SetVolumeMercury(long vol);
 
 #endif /* dswin_h__ */
+
