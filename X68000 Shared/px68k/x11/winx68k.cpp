@@ -476,9 +476,6 @@ void WinX68k_Exec(void)
 			ADPCM_PreUpdate(clk_line);
 			OPM_Timer(clk_line);
 			MIDI_Timer(clk_line);
-#ifndef	NO_MERCURY
-			Mcry_PreUpdate(clk_line);
-#endif
 
 			KeyIntCnt++;
 			if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
@@ -515,16 +512,24 @@ void WinX68k_Exec(void)
 
 	Joystick_Update(FALSE, SDLK_UNKNOWN);
 	FDD_SetFDInt();
-	if ( !DispFrame )
+    if ( !DispFrame ) {
 		WinDraw_Draw();
+    } else {
+        printf("DispFrame\n");
+    }
 	TimerICount += clk_total;
-
 	t_end = timeGetTime();
-	if ( (int)(t_end-t_start)>((CRTC_Regs[0x29]&0x10)?14:16) ) {
+    int dt = (int)(t_end-t_start);
+    printf("dt=%d\n",dt);
+	if ( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) {
 		FrameSkipQueue += ((t_end-t_start)/((CRTC_Regs[0x29]&0x10)?14:16))+1;
 		if ( FrameSkipQueue>100 )
 			FrameSkipQueue = 100;
 	}
+    
+    if ( FrameSkipQueue != 0 ) {
+        printf("FrameSkipQueue:%d\n", FrameSkipQueue);
+    }
 }
 
 //
@@ -729,15 +734,9 @@ int original_main(int argc, char *argv[])
 	if ( SoundSampleRate ) {
 		ADPCM_Init(SoundSampleRate);
 		OPM_Init(4000000/*3579545*/, SoundSampleRate);
-#ifndef	NO_MERCURY
-		Mcry_Init(SoundSampleRate, winx68k_dir);
-#endif
 	} else {
 		ADPCM_Init(100);
 		OPM_Init(4000000/*3579545*/, 100);
-#ifndef	NO_MERCURY
-		Mcry_Init(100, winx68k_dir);
-#endif
 	}
 
 	FDD_Init();
@@ -762,9 +761,6 @@ int original_main(int argc, char *argv[])
 
 	ADPCM_SetVolume((BYTE)Config.PCM_VOL);
 	OPM_SetVolume((BYTE)Config.OPM_VOL);
-#ifndef	NO_MERCURY
-	Mcry_SetVolume((BYTE)Config.MCR_VOL);
-#endif
 	DSound_Play();
 
 	// command line から指定した場合
@@ -1044,9 +1040,6 @@ void Finalize() {
         Memory_WriteD(0xed0044, Memory_ReadD(0xed0044)+1); // 積算起動回数
 
         OPM_Cleanup();
-    #ifndef    NO_MERCURY
-        Mcry_Cleanup();
-    #endif
 
         Joystick_Cleanup();
         SRAM_Cleanup();

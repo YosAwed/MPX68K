@@ -100,56 +100,6 @@ void X68000_AudioCallBack(void* buffer, const unsigned int sample)
  */
 }
 
-int SDL_OpenAudio(SDL_AudioSpec* desired, SDL_AudioSpec* obtained) {
-    TRACE_FUNC;
-    
-    memcpy( &s_audio_spec, desired, sizeof(SDL_AudioSpec) );
-
-    printf("AUDIO: samples %d\n", s_audio_spec.samples);
-    printf("AUDIO: freq    %d\n", s_audio_spec.freq);
-
-    rk_sema_init(&s_sdl_r_sema, 0);
-    rk_sema_init(&s_sdl_w_sema, 0);
-
-    return 0;
-}
-
-void SDL_PauseAudio(int pause_on)
-{
-    TRACE_FUNC;
-
-}
-
-void SDL_LockAudio(void)
-{
-//    TRACE_FUNC;
-//    rk_sema_wait(&s_sdl_w_sema);
-}
-
-
-void SDL_UnlockAudio(void)
-{
-//    TRACE_FUNC;
-//    rk_sema_post(&s_sdl_r_sema);
-}
-
-void SDL_CloseAudio(void)
-{
-    TRACE_FUNC;
-
-}
-
-void SDL_MixAudio(Uint8*       dst,
-const Uint8* src,
-Uint32       len,
-int          volume) {
-
-    s_sound_buffer = src;
-}
-
-
-
-
 int SDL_InitSubSystem(Uint32 flags)
 {
     TRACE_FUNC;

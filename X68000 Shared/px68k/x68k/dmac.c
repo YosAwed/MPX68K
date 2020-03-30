@@ -84,12 +84,7 @@ BYTE FASTCALL DMA_Read(DWORD adr)
 	switch ( off ) {
 	case 0x00:
 		if ( (ch==2)&&(off==0) ) {
-#ifndef	NO_MERCURY
-			DMA[ch].CSR = (DMA[ch].CSR&0xfe)|(Mcry_LRTiming&1);
-#else
 			DMA[ch].CSR = (DMA[ch].CSR&0xfe);
-//@			Mcry_LRTiming ^= 1;
-#endif
 		}
 		break;
 	case 0x0a: case 0x0b: case 0x1a: case 0x1b:
@@ -401,8 +396,5 @@ void DMA_Init(void)
 	}
 	DMA_SetReadyCB(0, FDC_IsDataReady);
 	DMA_SetReadyCB(1, SASI_IsReady);
-#ifndef	NO_MERCURY
-	DMA_SetReadyCB(2, Mcry_IsReady);
-#endif
 	DMA_SetReadyCB(3, ADPCM_IsReady);
 }
