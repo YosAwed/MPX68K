@@ -1091,7 +1091,6 @@
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "X68000\\ Shared/px68k/SDL";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
@@ -1123,7 +1122,6 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "X68000\\ Shared/px68k/SDL";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
@@ -1159,7 +1157,6 @@
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					NO_MERCURY,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;
@@ -1194,7 +1191,6 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					NO_MERCURY,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;

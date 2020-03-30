@@ -50,16 +50,6 @@ int WinX68k_Reset(void);
 #include <unistd.h>
 #include <signal.h>
 
-#if 0
-#include <gdk/gdk.h>
-#include <gtk/gtk.h>
-
-extern GtkWidget *window;
-extern GtkWidget *main_vbox;
-extern GtkWidget *menubar;
-extern GtkWidget *drawarea;
-extern GdkPixmap *splash_pixmap;
-#endif
 
 BOOL is_installed_idle_process(void);
 void install_idle_process(void);

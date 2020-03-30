@@ -3,9 +3,6 @@ extern "C" {
 #endif 
 
 #include "SDL.h"
-#ifdef USE_OGLES11
-#include <SDL_opengles.h>
-#endif
 #include "common.h"
 #include "fileio.h"
 #include "timer.h"
@@ -69,10 +66,6 @@ extern	WORD	BG_BGTOP;
 extern	WORD	BG_BGEND;
 extern	BYTE	BG_CHRSIZE;
 
-#if defined(ANDROID) || TARGET_OS_IPHONE
-//@extern SDL_TouchID touchId;
-#endif
-
 const	BYTE	PrgName[] = "Keropi";
 const	BYTE	PrgTitle[] = APPNAME;
 
@@ -83,7 +76,6 @@ WORD	VLINE_TOTAL = 567;
 DWORD	VLINE = 0;
 DWORD	vline = 0;
 
-extern	int	SplashFlag;
 
 BYTE DispFrame = 0;
 DWORD SoundSampleRate;
@@ -296,11 +288,6 @@ WinX68k_Init(void)
 		return TRUE;
 	} else
 		return FALSE;
-}
-
-void WinX68k_Debug()
-{
-    printf("@PC:%08x\n",C68K.PC);
 }
 
 void
@@ -519,9 +506,9 @@ void WinX68k_Exec(void)
     }
 	TimerICount += clk_total;
 	t_end = timeGetTime();
-    int dt = (int)(t_end-t_start);
-    printf("dt=%d\n",dt);
-	if ( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) {
+    const int dt = (int)(t_end-t_start);
+
+    if ( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) {
 		FrameSkipQueue += ((t_end-t_start)/((CRTC_Regs[0x29]&0x10)?14:16))+1;
 		if ( FrameSkipQueue>100 )
 			FrameSkipQueue = 100;
@@ -536,8 +523,6 @@ void WinX68k_Exec(void)
 // main
 //
 
-//@int main(int argc, char *argv[])
-int original_main(int argc, char *argv[]);
 
 extern "C" {
 
@@ -562,8 +547,10 @@ void X68000_GetImage( unsigned char* data ) {
 
 } // extern "C"
 
+int original_main(int argc, const char *argv[]);
+
 extern "C" void X68000_Init() {
-    char* arg[] = {
+    const char* arg[] = {
       "X68000",
 //        "/Users/goroman/Retro/human302.xdf",
 //        "/Users/goroman/Retro/Salamander.dim",
@@ -579,31 +566,15 @@ extern "C" void X68000_Update() {
     Update();
 }
 
-int original_main(int argc, char *argv[])
+int original_main(int argc, const char *argv[])
 {
-#ifndef PSP
 	SDL_Event ev;
 	SDL_Keycode menu_key_down;
-#endif
-#if defined(ANDROID) || TARGET_OS_IPHONE
-	int vk_cnt = -1;
-	int menu_cnt = -1;
-	BYTE state;
-#endif
 	int sdlaudio = -1;
 	enum {menu_out, menu_enter, menu_in};
 	int menu_mode = menu_out;
 
-#ifdef PSP
-	SetupCallbacks();
-	scePowerSetClockFrequency(333, 333, 166);
-
-	sceCtrlSetSamplingCycle(0);
-	sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
-#endif
-
 	p6logd("PX68K Ver.%s\n", PX68KVERSTR);
-    WinX68k_Debug();
 
 #ifdef RFMDRV
 	struct sockaddr_in dest;
@@ -623,7 +594,6 @@ int original_main(int argc, char *argv[])
 	dosio_init();
 	file_setcd(winx68k_dir);
     puts(winx68k_dir);
-    WinX68k_Debug();
 	LoadConfig();
 
 #ifndef NOSOUND
@@ -641,11 +611,7 @@ int original_main(int argc, char *argv[])
 
 #if !SDL_VERSION_ATLEAST(2, 0, 0)
 //@	SDL_WM_SetCaption(APPNAME" SDL", NULL);
-#ifndef PSP
         if (SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 16, SDL_SWSURFACE) == NULL) {
-#else
-        if (SDL_SetVideoMode(480, 272, 16, SDL_SWSURFACE) == NULL) {
-#endif
 		puts("SDL_SetVideoMode() failed");
 		return 1;
 	}
@@ -675,24 +641,6 @@ int original_main(int argc, char *argv[])
 //@		p6logd("sdl_window: %ld", sdl_window);
 //@	}
 
-#ifdef USE_OGLES11
-	SDL_GLContext glcontext = SDL_GL_CreateContext(sdl_window);
-
-        glClearColor( 0, 0, 0, 0 );
-
-	glEnable(GL_TEXTURE_2D);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	//glViewport(0, 0, 800, 600); //ここを増やさないとOpenGLの画面はせまい
-	glViewport(0, 0, sdl_dispmode.w, sdl_dispmode.h);
-	// スマホやタブの実画面に関係なくOpenGLの描画領域を800x600とする。
-	// 800x600にした意味は特にない。
-	glOrthof(0, 800, 600, 0, -1, 1);
-	//  glOrthof(0, 1024, 0, 1024, -1, 1);
-	glMatrixMode(GL_MODELVIEW);
-#endif
 #endif // !SDL_VERSION_ATLEAST(2, 0, 0)
 
 	if (!WinDraw_MenuInit()) {
@@ -701,7 +649,6 @@ int original_main(int argc, char *argv[])
 		return 1;
 	}
 
-	SplashFlag = 20;
 	SoundSampleRate = Config.SampleRate;
 
 	StatBar_Show(Config.WindowFDDStat);
@@ -744,11 +691,9 @@ int original_main(int argc, char *argv[])
 	Mouse_Init();
 	Joystick_Init();
 	SRAM_Init();
-            WinX68k_Debug();
 
 	WinX68k_Reset();
 	Timer_Init();
-            WinX68k_Debug();
 
 	MIDI_Init();
 	MIDI_SetMimpiMap(Config.ToneMapFile);	// 音色設定ファイル使用反映
@@ -783,18 +728,10 @@ int original_main(int argc, char *argv[])
 
 
 void Update() {
-#if 1
-
-#ifndef PSP
+    
     SDL_Event ev;
     SDL_Keycode menu_key_down;
-#endif
 
-#if defined(ANDROID) || TARGET_OS_IPHONE
-    int vk_cnt = -1;
-    int menu_cnt = -1;
-    BYTE state;
-#endif
     int sdlaudio = -1;
     enum {menu_out, menu_enter, menu_in};
     int menu_mode = menu_out;
@@ -804,27 +741,7 @@ void Update() {
             if (menu_mode == menu_out
                 && (Config.NoWaitMode || Timer_GetCount())) {
                 WinX68k_Exec();
-    #if defined(ANDROID) || TARGET_OS_IPHONE
-                if (vk_cnt > 0) {
-                    vk_cnt--;
-                    if (vk_cnt == 0) {
-                        p6logd("vk_cnt 0");
-                    }
-                }
-                if  (menu_cnt > 0) {
-                    menu_cnt--;
-                    if (menu_cnt == 0) {
-                        p6logd("menu_cnt 0");
-                    }
-                }
-    #endif
-                if (SplashFlag) {
-                    SplashFlag--;
-                    if (SplashFlag == 0)
-                        WinDraw_HideSplash();
-                }
             }
-    #ifndef PSP
             menu_key_down = SDLK_UNKNOWN;
 
             while (SDL_PollEvent(&ev)) {
@@ -834,66 +751,7 @@ void Update() {
                 case SDL_MOUSEMOTION:
                     p6logd("x:%d y:%d xrel:%d yrel:%d\n", ev.motion.x, ev.motion.y, ev.motion.xrel, ev.motion.yrel);
                     break;
-    #if defined(ANDROID) || TARGET_OS_IPHONE
-                case SDL_APP_WILLENTERBACKGROUND:
-                    DSound_Stop();
-                    break;
-                case SDL_APP_WILLENTERFOREGROUND:
-                    DSound_Play();
-                    break;
-                case SDL_FINGERDOWN:
-                    //p6logd("FINGERDOWN: tid: %lld,,, x:%f y:%f", ev.tfinger.touchId, ev.tfinger.x, ev.tfinger.y);
-//@                    if (touchId == -1) {
-//@                        touchId = ev.tfinger.touchId;
-//@                    }
-                    break;
-                case SDL_FINGERMOTION:
-                    float kx, ky, dx, dy;
-                    p6logd("FM: x:%f y:%f dx:%f dy:%f\n", ev.tfinger.x, ev.tfinger.y, ev.tfinger.dx, ev.tfinger.dy);
-                    if (vk_cnt == 0) {
-                        kx = ev.tfinger.x * 800;
-                        ky = ev.tfinger.y * 600;
-                        dx = ev.tfinger.dx * 800;
-                        dy = ev.tfinger.dy * 600;
-                        if (kbd_x < kx && kbd_x + kbd_w > kx &&
-                            kbd_y < ky && kbd_y + kbd_h > ky) {
-                            kbd_x += dx;
-                            kbd_y += dy;
-                            if (kbd_x < 0) kbd_x = 0;
-                            if (kbd_y < 0) kbd_y = 0;
-                            if (kbd_x > 700) {
-                                vk_cnt = -1;
-                            }
-                            if (kbd_y > 550) kbd_y = 550;
-                        }
-                    } else if (Config.JoyOrMouse) { // Mouse mode is off when the keyboard is active
-                        Mouse_Event(0, ev.tfinger.dx * 50 * Config.MouseSpeed, ev.tfinger.dy * 50 * Config.MouseSpeed);
-                    }
-                    break;
-    #endif
                 case SDL_KEYDOWN:
-    #if defined(ANDROID) || TARGET_OS_IPHONE
-                    static DWORD bef = 0;
-                    DWORD now;
-                    switch (ev.key.keysym.sym) {
-                    case SDLK_AC_BACK:
-                        now = timeGetTime();
-                        if (now - bef < 1000) {
-                            goto end_loop;
-                        }
-                        bef = now;
-                        break;
-                    case SDLK_MENU:
-                        if (menu_mode == menu_out) {
-                            menu_mode = menu_enter;
-                            DSound_Stop();
-                        } else {
-                            DSound_Play();
-                            menu_mode = menu_out;
-                        }
-                        break;
-                    }
-    #endif
                     printf("keydown: 0x%x\n", ev.key.keysym.sym);
                     printf("font %d %d\n", FONT[100], FONT[101]);
                     if (ev.key.keysym.sym == SDLK_F12) {
@@ -923,71 +781,12 @@ void Update() {
                     break;
                 }
             }
-    #endif //PSP
 
-    #ifdef PSP
-            if (Joystick_get_downstate_psp(PSP_CTRL_START)) {
-                if (menu_mode == menu_out) {
-                    menu_mode = menu_enter;
-                    DSound_Stop();
-                } else {
-                    DSound_Play();
-                    menu_mode = menu_out;
-                }
-            }
-
-            if (menu_mode == menu_out
-                && Joystick_get_downstate_psp(PSP_CTRL_SELECT)) {
-                Keyboard_ToggleSkbd();
-                // 2度読み除け
-                Joystick_reset_downstate_psp(PSP_CTRL_SELECT);
-            }
-
-            if (menu_mode == menu_out && Keyboard_IsSwKeyboard()) {
-                Joystick_mv_anapad_psp();
-                Joystatic_reset_anapad_psp();
-                Keyboard_skbd();
-            }
-    #endif
-
-    #if defined(ANDROID) || TARGET_OS_IPHONE
-
-            state = Joystick_get_vbtn_state(7);
-
-            if (menu_mode == menu_in) {
-                if (state == VBTN_OFF && menu_cnt == 0) {
-                    menu_cnt = -2;
-                }
-                if (state == VBTN_ON && menu_cnt == -2) {
-                    DSound_Play();
-                    menu_mode = menu_out;
-                }
-            } else if (menu_mode == menu_out) {
-                if (state == VBTN_OFF && menu_cnt == -2) {
-                    menu_cnt = -1;
-                }
-                if (menu_cnt == -1 && state == VBTN_ON) {
-                    p6logd("menu_cnt start");
-                    menu_cnt = 20;
-                } else if (menu_cnt > 0 && state == VBTN_OFF) {
-                    menu_cnt = -1;
-                }
-                if (menu_cnt == 0) {
-                    p6logd("menu mode on");
-                    menu_mode = menu_enter;
-                    DSound_Stop();
-                }
-            }
-
-    #endif
             if (menu_mode != menu_out) {
                 int ret;
 
-    #ifdef PSP
-                Joystick_Update(TRUE);
-    #else
                 Joystick_Update(TRUE, menu_key_down);
-    #endif
+
                 ret = WinUI_Menu(menu_mode == menu_enter);
                 menu_mode = menu_in;
                 if (ret == WUM_MENU_END) {
@@ -997,37 +796,11 @@ void Update() {
                     goto end_loop;
                 }
             }
-    #ifdef PSP
-            if (exit_flag) {
-                goto end_loop;
-            }
-    #endif
 
-    #if defined(ANDROID) || TARGET_OS_IPHONE
-
-            if (menu_mode == menu_out) {
-                state = Joystick_get_vbtn_state(6);
-                if (vk_cnt == -1 && state == VBTN_ON) {
-                    p6logd("vk_cnt start");
-                    vk_cnt = 20;
-                } else if (vk_cnt > 0 && state == VBTN_OFF) {
-                    vk_cnt = -1;
-                }
-                if (kbd_x > 700 && vk_cnt == 0) {
-                    kbd_x = 0, kbd_y = 0;
-                    p6logd("do_kbd");
-                }
-                if (kbd_x < 700) {
-    #ifdef USE_OGLES11
-                    Keyboard_skbd();
-    #endif
-                }
-            }
-    #endif
         break;  //@ while(1)
         }
 end_loop:
-#endif
+
     static int count;
     count++;
  }
@@ -1053,11 +826,5 @@ void Finalize() {
 
         SaveConfig();
 
-    #if defined(PSP)
-        puts("before end");
-        sceKernelExitGame();
-    #elif defined(ANDROID) || TARGET_OS_IPHONE
         exit(0);
-    #endif
-
 }

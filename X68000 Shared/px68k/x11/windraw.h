@@ -24,7 +24,6 @@ void WinDraw_Redraw(void);
 void FASTCALL WinDraw_Draw(void);
 void WinDraw_ShowMenu(int flag);
 void WinDraw_DrawLine(void);
-void WinDraw_HideSplash(void);
 void WinDraw_ChangeSize(void);
 
 void WinDraw_StartupScreen(void);

@@ -86,7 +86,6 @@ int winx = 0, winy = 0;
 DWORD winh = 0, winw = 0;
 DWORD root_width, root_height;
 WORD FrameCount = 0;
-int SplashFlag = 0;
 
 WORD WinDraw_Pal16B, WinDraw_Pal16R, WinDraw_Pal16G;
 
@@ -209,13 +208,6 @@ void WinDraw_ChangeMode(int flag)
 	(void)flag;
 }
 
-void WinDraw_ShowSplash(void)
-{
-}
-
-void WinDraw_HideSplash(void)
-{
-}
 
 #ifdef PSP
 
@@ -781,8 +773,6 @@ WinDraw_Draw(void)
 		return;
 	Draw_DrawFlag = 0;
 
-	if (SplashFlag)
-		WinDraw_ShowSplash();
 }
 
 #ifdef PSP
