@@ -78,8 +78,8 @@
             filePath = "X68000 Shared/px68k/x11/joystick.c"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "137"
-            endingLineNumber = "137"
+            startingLineNumber = "134"
+            endingLineNumber = "134"
             landmarkName = "Joystick_Update(is_menu, key)"
             landmarkType = "9">
          </BreakpointContent>

@@ -301,113 +301,11 @@ int WinDraw_Init(void)
 #endif
 
 #if defined(USE_OGLES11)
-	ScrBuf = malloc(1024*1024*2); // OpenGL ES 1.1 needs 2^x pixels
-	if (ScrBuf == NULL) {
-		return FALSE;
-	}
-
-	kbd_buffer = malloc(1024*1024*2); // OpenGL ES 1.1 needs 2^x pixels
-	if (kbd_buffer == NULL) {
-		return FALSE;
-	}
-
-	p6logd("kbd_buffer 0x%x", kbd_buffer);
-
-	memset(texid, 0, sizeof(texid));
-	glGenTextures(11, &texid[0]);
-
-	// texid[0] for the main screen
-	glBindTexture(GL_TEXTURE_2D, texid[0]);
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-//	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-//	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1024, 1024, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, ScrBuf);
-
-	WORD BtnTex[32*32];
-	//とりあえず薄めの緑で。
-	for (i = 0; i < 32*32; i++) {
-		BtnTex[i] = 0x03e0;
-	}
-
-	// ボタン用テクスチャ。とりあえず全部同じ色。
-	for (i = 1; i < 9; i++) {
-		glBindTexture(GL_TEXTURE_2D, texid[i]);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		if (i == 7) {
-			// とりあえずキーボードonボタンは薄めの黄色で。
-			for (j = 0; j < 32*32; j++) {
-				BtnTex[j] = (0x7800 | 0x03e0);
-			}
-		}
-		if (i == 8) {
-			// とりあえずmenu onボタンは薄めの白色で。
-			for (j = 0; j < 32*32; j++) {
-				BtnTex[j] = (0x7800 | 0x03e0 | 0x0f);
-			}
-		}
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 32, 32, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, BtnTex);
-	}
-
-	// メニュー描画用テクスチャ。
-	glBindTexture(GL_TEXTURE_2D, texid[9]);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1024, 1024, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, menu_buffer);
-
-	draw_kbd_to_tex();
-
-	// ソフトウェアキーボード描画用テクスチャ。
-	glBindTexture(GL_TEXTURE_2D, texid[10]);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1024, 1024, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, kbd_buffer);
-
 #elif defined(PSP)
-
-	fbp0 = 0; // offset 0
-	fbp1 = (void *)((unsigned int)fbp0 + PSP_BUF_WIDTH * PSP_SCR_HEIGHT * 2);
-	zbp = (void *)((unsigned int)fbp1 + PSP_BUF_WIDTH * PSP_SCR_HEIGHT * 2);
-
-	sceGuInit();
-
-	sceGuStart(GU_DIRECT,list);
-	sceGuDrawBuffer(GU_PSM_5650, fbp0, PSP_BUF_WIDTH);
-	sceGuDispBuffer(PSP_SCR_WIDTH, PSP_SCR_HEIGHT, fbp1, PSP_BUF_WIDTH);
-	sceGuDepthBuffer(zbp, PSP_BUF_WIDTH);
-	sceGuOffset(2048 - (PSP_SCR_WIDTH/2), 2048 - (PSP_SCR_HEIGHT/2));
-	sceGuViewport(2048, 2048, PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
-	sceGuDepthRange(65535, 0);
-	sceGuScissor(0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
-	sceGuEnable(GU_SCISSOR_TEST);
-	sceGuFrontFace(GU_CW);
-	sceGuEnable(GU_TEXTURE_2D);
-	sceGuClear(GU_COLOR_BUFFER_BIT|GU_DEPTH_BUFFER_BIT);
-	sceGuFinish();
-	sceGuSync(0, 0);
-
-	sceDisplayWaitVblankStart();
-	sceGuDisplay(GU_TRUE);
-
-	ScrBufL = (WORD *)0x040cc000;
-	ScrBufR = (WORD *)0x0414c000;
-	kbd_buffer = (WORD *)0x418c000;
-
-	draw_kbd_to_tex();
 #else
 
 #ifdef USE_SDLGFX
-	sdl_rgbsurface = SDL_CreateRGBSurface(SDL_SWSURFACE, 800, 600, 16, WinDraw_Pal16R, WinDraw_Pal16G, WinDraw_Pal16B, 0);
 
-	if (sdl_rgbsurface == 0) {
-		puts("ScrBuf allocate failed");
-		exit(1);
-	}
-	ScrBuf = sdl_rgbsurface->pixels;
-
-	printf("drawbuf: 0x%x, ScrBuf: 0x%x\n", sdl_surface->pixels, ScrBuf);
 #else
 	ScrBuf = malloc(800 * 600 * 2);
 #endif
@@ -474,7 +372,7 @@ void draw_all_buttons(GLfloat *tex, GLfloat *ver, GLfloat scale, int is_menu)
 #endif // USE_OGLES11
 
 void FASTCALL
-WinDraw_Draw(void)
+WinDraw_Draw(unsigned char* data)
 {
 	SDL_Surface *sdl_surface;
 	static int oldtextx = -1, oldtexty = -1;
@@ -489,163 +387,7 @@ WinDraw_Draw(void)
 	}
 
 #if defined(USE_OGLES11)
-	GLfloat texture_coordinates[8];
-	GLfloat vertices[8];
-	GLfloat w;
-
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glEnable(GL_BLEND);
-
-	// アルファブレンドしない(上のテクスチャが下のテクスチャを隠す)
-	glBlendFunc(GL_ONE, GL_ZERO);
-
-	glBindTexture(GL_TEXTURE_2D, texid[0]);
-	//ScrBufから800x600の領域を切り出してテクスチャに転送
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 800, 600, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, ScrBuf);
-
-	// magic numberがやたら多いが、テクスチャのサイズが1024x1024
-	// OpenGLでの描画領域がglOrthof()で定義した800x600
-
-	// X68K 画面描画
-
-	// Texture から必要な部分を抜き出す
-	// Texutre座標は0.0fから1.0fの間
-	SET_GLFLOATS(texture_coordinates,
-		     0.0f, (GLfloat)TextDotY/1024,
-		     0.0f, 0.0f,
-		     (GLfloat)TextDotX/1024, (GLfloat)TextDotY/1024,
-		     (GLfloat)TextDotX/1024, 0.0f);
-
-	// 実機の解像度(realdisp_w x realdisp_h)に関係なく、
-	// 座標は800x600
-	w = (realdisp_h * 1.33333) / realdisp_w * 800;
-	SET_GLFLOATS(vertices,
-		     (800.0f - w)/2, (GLfloat)600,
-		     (800.0f - w)/2, 0.0f,
-		     (800.0f - w)/2 + w, (GLfloat)600,
-		     (800.0f - w)/2 + w, 0.0f);
-
-	draw_texture(texture_coordinates, vertices);
-
-	// ソフトウェアキーボード描画
-
-	if (Keyboard_IsSwKeyboard()) {
-		glBindTexture(GL_TEXTURE_2D, texid[10]);
-		//kbd_bufferから800x600の領域を切り出してテクスチャに転送
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 800, 600, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, kbd_buffer);
-
-		// Texture から必要な部分を抜き出す
-		// Texutre座標は0.0fから1.0fの間
-		SET_GLFLOATS(texture_coordinates,
-			     0.0f, (GLfloat)kbd_h/1024,
-			     0.0f, 0.0f,
-			     (GLfloat)kbd_w/1024, (GLfloat)kbd_h/1024,
-			     (GLfloat)kbd_w/1024, 0.0f);
-
-		// 実機の解像度(realdisp_w x realdisp_h)に関係なく、
-		// 座標は800x600
-
-		float kbd_scale = 0.8;
-		SET_GLFLOATS(vertices,
-			     (GLfloat)kbd_x, (GLfloat)(kbd_h * kbd_scale + kbd_y),
-			     (GLfloat)kbd_x, (GLfloat)kbd_y,
-			     (GLfloat)(kbd_w * kbd_scale + kbd_x), (GLfloat)(kbd_h * kbd_scale + kbd_y),
-			     (GLfloat)(kbd_w * kbd_scale + kbd_x), (GLfloat)kbd_y);
-
-		draw_texture(texture_coordinates, vertices);
-	}
-
-	// 仮想パッド/ボタン描画
-
-	// アルファブレンドする(スケスケいやん)
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
-	draw_all_buttons(texture_coordinates, vertices, (GLfloat)WinUI_get_vkscale(), 0);
-
-	//	glDeleteTextures(1, &texid);
-
-	SDL_GL_SwapWindow(sdl_window);
-
 #elif defined(PSP)
-	sceGuStart(GU_DIRECT, list);
-
-	sceGuClearColor(0);
-	sceGuClearDepth(0);
-	sceGuClear(GU_COLOR_BUFFER_BIT|GU_DEPTH_BUFFER_BIT);
-
-	// 左半分
-	vtxl->u = 0;
-	vtxl->v = 0;
-	vtxl->color = 0;
-	vtxl->x = (480 - (272 * 1.33333)) / 2; // 1.3333 = 4 : 3
-	vtxl->y = 0;
-	vtxl->z = 0;
-	vtxl->u2 = (TextDotX >= 512)? 512 : TextDotX;
-	vtxl->v2 = TextDotY;
-	vtxl->color2 = 0;
-	vtxl->x2 = (TextDotX >= 512)?
-		vtxl->x + 272 * 1.33333 * (512.0 / TextDotX) :
-		vtxl->x + 272 * 1.33333;
-	vtxl->y2 = 272;
-	vtxl->z2 = 0;
-
-	sceGuTexMode(GU_PSM_5650, 0, 0, 0);
-	sceGuTexImage(0, 512, 512, 512, ScrBufL);
-	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
-	sceGuTexFilter(GU_LINEAR, GU_LINEAR);
-
-	sceGuDrawArray(GU_SPRITES, GU_TEXTURE_16BIT|GU_COLOR_5650|GU_VERTEX_16BIT|GU_TRANSFORM_2D, 2, 0, vtxl);
-
-	if (TextDotX > 512) {
-		// 右半分
-		vtxr->u = 0;
-		vtxr->v = 0;
-		vtxr->color = 0;
-		vtxr->x = vtxl->x2;
-		vtxr->y = 0;
-		vtxr->z = 0;
-		vtxr->u2 = TextDotX - 512;
-		vtxr->v2 = TextDotY;
-		vtxr->color2 = 0;
-		vtxr->x2 = vtxl->x + 272 * 1.33333;
-		vtxr->y2 = 272;
-		vtxr->z2 = 0;
-
-		sceGuTexMode(GU_PSM_5650, 0, 0, 0);
-		sceGuTexImage(0, 256, 512, 256, ScrBufR);
-		sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
-		sceGuTexFilter(GU_LINEAR, GU_LINEAR);
-
-		sceGuDrawArray(GU_SPRITES, GU_TEXTURE_16BIT|GU_COLOR_5650|GU_VERTEX_16BIT|GU_TRANSFORM_2D, 2, 0, vtxr);
-	}
-
-	if (Keyboard_IsSwKeyboard()) {
-		vtxk->u = 0;
-		vtxk->v = 0;
-		vtxk->color = 0;
-		vtxk->x = kbd_x;
-		vtxk->y = kbd_y;
-		vtxk->z = 0;
-		vtxk->u2 = kbd_w;
-		vtxk->v2 = kbd_h;
-		vtxk->color2 = 0;
-		vtxk->x2 = kbd_x + kbd_w;
-		vtxk->y2 = kbd_y + kbd_h;
-		vtxk->z2 = 0;
-
-		sceGuTexImage(0, 512, 256, 512, kbd_buffer);
-		sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGB);
-		sceGuTexFilter(GU_LINEAR, GU_LINEAR);
-
-		sceGuDrawArray(GU_SPRITES, GU_TEXTURE_16BIT|GU_COLOR_5650|GU_VERTEX_16BIT|GU_TRANSFORM_2D, 2, 0, vtxk);
-	}
-
-	sceGuFinish();
-	sceGuSync(0, 0);
-
-	sceGuSwapBuffers();
-
 #else // OpenGL ES 未使用
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -655,41 +397,19 @@ WinDraw_Draw(void)
 #endif
 
 #ifdef USE_SDLGFX
-	SDL_Surface *roto_surface = NULL;
-	int ret;
-
-	if (sdl_rgbsurface == NULL) {
-		puts("xxx sdl_rgbsurface not allocated yet");
-		return;
-	}
-
-	if (TextDotX <= 512) {
-		roto_surface = rotozoomSurfaceXY(sdl_rgbsurface, 0.0, 512.0*1.33333/TextDotX, 512.0/TextDotY, 0);
-	}
-	if (roto_surface) {
-		ret = SDL_BlitSurface(roto_surface, NULL, sdl_surface, NULL);
-		SDL_FreeSurface(roto_surface);
-	} else {
-		ret = SDL_BlitSurface(sdl_rgbsurface, NULL, sdl_surface, NULL);
-	}
-	if (ret < 0) {
-		printf("SDL_BlitSurface() failed %d\n", ret);
-	}
 #else
 	int x, y, Bpp;
 //	WORD c, *p, *p2, dummy, *dst16;
 	WORD *p, *dst16;
 	DWORD *dst32, dat32;
 
-	Bpp = sdl_surface->format->BytesPerPixel;
+    Bpp = 3;//sdl_surface->format->BytesPerPixel;
+    int Width = SCREEN_WIDTH;
 	// 2倍に拡大する
 	if (TextDotX <= 256 && TextDotY <= 256) {
 		for (y = 0; y < 256; y++) {
-			p = ScrBuf + sdl_surface->w * y;
-			// surface->pixelsはvoid *
-//			dst16 = sdl_surface->pixels + 256 * Bpp * y * 1;
-	//		dst32 = (DWORD *)dst16;
-            unsigned char* dst8 = (unsigned char*)sdl_surface->pixels;
+			p = ScrBuf + Width * y;
+            unsigned char* dst8 = data;//(unsigned char*)sdl_surface->pixels;
             dst8 += 256*Bpp*y;
 
             for (x = 0; x < 256; x++) {
@@ -739,8 +459,8 @@ WinDraw_Draw(void)
 		for (y = 0; y < 512; y++) {
 			p = ScrBuf + 768 * y;
 			// surface->pixelsはvoid *
-			dst16 = sdl_surface->pixels + sdl_surface->w * Bpp * y;
-			dst32 = (DWORD *)dst16;
+			dst16 = data + Width * Bpp * y;
+//			dst32 = (DWORD *)dst16;
             unsigned char* dst8 = (unsigned char*)dst16;
 			for (x = 0; x < 768; x++) {
 #if 0

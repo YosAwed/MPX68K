@@ -499,12 +499,9 @@ void WinX68k_Exec(void)
 
 	Joystick_Update(FALSE, SDLK_UNKNOWN);
 	FDD_SetFDInt();
-    if ( !DispFrame ) {
-		WinDraw_Draw();
-    } else {
-        printf("DispFrame\n");
-    }
-	TimerICount += clk_total;
+/*@GOROman
+*/
+    TimerICount += clk_total;
 	t_end = timeGetTime();
     const int dt = (int)(t_end-t_start);
 
@@ -541,8 +538,14 @@ const int X68000_GetScreenHeight()
     return TextDotY;
 }
 void X68000_GetImage( unsigned char* data ) {
-    SDL_Surface* s = SDL_GetWindowSurface(NULL);
-    memcpy( data, s->pixels, TextDotX*TextDotY*3);
+//    SDL_Surface* s = SDL_GetWindowSurface(NULL);
+//    memcpy( data, s->pixels, TextDotX*TextDotY*3);
+    if ( !DispFrame ) {
+        WinDraw_Draw(data);
+    } else {
+        printf("DispFrame\n");
+    }
+
 }
 
 } // extern "C"
@@ -605,14 +608,6 @@ int original_main(int argc, const char *argv[])
 		sdlaudio = 0;
 	}
 */
-#if !SDL_VERSION_ATLEAST(2, 0, 0)
-    if (SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 16, SDL_SWSURFACE) == NULL) {
-		puts("SDL_SetVideoMode() failed");
-		return 1;
-	}
-#else
-
-#endif // !SDL_VERSION_ATLEAST(2, 0, 0)
 
 	if (!WinDraw_MenuInit()) {
 		WinX68k_Cleanup();
