@@ -11,7 +11,7 @@
 #include "fdc.h"
 #include "sasi.h"
 #include "adpcm.h"
-#include "mercury.h"
+//@#include "mercury.h"
 #include "dmac.h"
 
 dmac_ch	DMA[4];
@@ -88,7 +88,7 @@ BYTE FASTCALL DMA_Read(DWORD adr)
 			DMA[ch].CSR = (DMA[ch].CSR&0xfe)|(Mcry_LRTiming&1);
 #else
 			DMA[ch].CSR = (DMA[ch].CSR&0xfe);
-			Mcry_LRTiming ^= 1;
+//@			Mcry_LRTiming ^= 1;
 #endif
 		}
 		break;

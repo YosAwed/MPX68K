@@ -8,7 +8,6 @@
 
 #include "fmgen.h"
 #include "fmtimer.h"
-#include "psg.h"
 
 // ---------------------------------------------------------------------------
 //	class OPM

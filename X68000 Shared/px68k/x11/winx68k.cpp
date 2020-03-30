@@ -24,7 +24,7 @@ extern "C" {
 #include "opm.h"
 #include "bg.h"
 #include "adpcm.h"
-#include "mercury.h"
+//#include "mercury.h"
 #include "crtc.h"
 #include "mfp.h"
 #include "fdc.h"

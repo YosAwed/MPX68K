@@ -39,10 +39,6 @@
 		07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CA2430664A002CF5CA /* fmtimer.cpp */; };
 		07F4C6E02430664B002CF5CA /* opm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CB2430664A002CF5CA /* opm.cpp */; };
 		07F4C6E12430664B002CF5CA /* opm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CB2430664A002CF5CA /* opm.cpp */; };
-		07F4C6E22430664B002CF5CA /* opna.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CE2430664A002CF5CA /* opna.cpp */; };
-		07F4C6E32430664B002CF5CA /* opna.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CE2430664A002CF5CA /* opna.cpp */; };
-		07F4C6E42430664B002CF5CA /* psg.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CF2430664A002CF5CA /* psg.cpp */; };
-		07F4C6E52430664B002CF5CA /* psg.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CF2430664A002CF5CA /* psg.cpp */; };
 		07F4C6E62430664B002CF5CA /* fmgen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6D62430664B002CF5CA /* fmgen.cpp */; };
 		07F4C6E72430664B002CF5CA /* fmgen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6D62430664B002CF5CA /* fmgen.cpp */; };
 		07F4C6E82430664B002CF5CA /* file.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6DB2430664B002CF5CA /* file.cpp */; };
@@ -61,8 +57,6 @@
 		07F4C72C2430667D002CF5CA /* d68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F52430667A002CF5CA /* d68k.c */; };
 		07F4C72D2430667D002CF5CA /* adpcm.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F62430667A002CF5CA /* adpcm.c */; };
 		07F4C72E2430667D002CF5CA /* adpcm.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F62430667A002CF5CA /* adpcm.c */; };
-		07F4C72F2430667D002CF5CA /* mercury.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F72430667A002CF5CA /* mercury.c */; };
-		07F4C7302430667D002CF5CA /* mercury.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F72430667A002CF5CA /* mercury.c */; };
 		07F4C7312430667D002CF5CA /* scsi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F92430667A002CF5CA /* scsi.c */; };
 		07F4C7322430667D002CF5CA /* scsi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F92430667A002CF5CA /* scsi.c */; };
 		07F4C7332430667D002CF5CA /* disk_d88.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FA2430667A002CF5CA /* disk_d88.c */; };
@@ -144,8 +138,6 @@
 		07F864D3242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
 		07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
-		07F864D6242F97BE00CBB224 /* juliet.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B3242F97BE00CBB224 /* juliet.c */; };
-		07F864D7242F97BE00CBB224 /* juliet.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B3242F97BE00CBB224 /* juliet.c */; };
 		07F864D8242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864DA242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
@@ -279,13 +271,9 @@
 		07F4C6CB2430664A002CF5CA /* opm.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = opm.cpp; sourceTree = "<group>"; };
 		07F4C6CC2430664A002CF5CA /* fmgeninl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fmgeninl.h; sourceTree = "<group>"; };
 		07F4C6CD2430664A002CF5CA /* fmg_wrap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fmg_wrap.h; sourceTree = "<group>"; };
-		07F4C6CE2430664A002CF5CA /* opna.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = opna.cpp; sourceTree = "<group>"; };
-		07F4C6CF2430664A002CF5CA /* psg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = psg.cpp; sourceTree = "<group>"; };
-		07F4C6D02430664A002CF5CA /* psg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = psg.h; sourceTree = "<group>"; };
 		07F4C6D12430664A002CF5CA /* diag.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = diag.h; sourceTree = "<group>"; };
 		07F4C6D22430664A002CF5CA /* misc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = misc.h; sourceTree = "<group>"; };
 		07F4C6D32430664A002CF5CA /* fmgen_types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fmgen_types.h; sourceTree = "<group>"; };
-		07F4C6D42430664A002CF5CA /* opna.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = opna.h; sourceTree = "<group>"; };
 		07F4C6D52430664B002CF5CA /* opm.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = opm.h; sourceTree = "<group>"; };
 		07F4C6D62430664B002CF5CA /* fmgen.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = fmgen.cpp; sourceTree = "<group>"; };
 		07F4C6D72430664B002CF5CA /* fmgen.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fmgen.h; sourceTree = "<group>"; };
@@ -306,7 +294,6 @@
 		07F4C6F42430667A002CF5CA /* palette.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = palette.h; sourceTree = "<group>"; };
 		07F4C6F52430667A002CF5CA /* d68k.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = d68k.c; sourceTree = "<group>"; };
 		07F4C6F62430667A002CF5CA /* adpcm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = adpcm.c; sourceTree = "<group>"; };
-		07F4C6F72430667A002CF5CA /* mercury.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = mercury.c; sourceTree = "<group>"; };
 		07F4C6F82430667A002CF5CA /* d68kconf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = d68kconf.h; sourceTree = "<group>"; };
 		07F4C6F92430667A002CF5CA /* scsi.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = scsi.c; sourceTree = "<group>"; };
 		07F4C6FA2430667A002CF5CA /* disk_d88.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disk_d88.c; sourceTree = "<group>"; };
@@ -317,7 +304,6 @@
 		07F4C6FF2430667B002CF5CA /* sram.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sram.h; sourceTree = "<group>"; };
 		07F4C7002430667B002CF5CA /* ioc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ioc.h; sourceTree = "<group>"; };
 		07F4C7012430667B002CF5CA /* tvram.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = tvram.c; sourceTree = "<group>"; };
-		07F4C7022430667B002CF5CA /* mercury.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mercury.h; sourceTree = "<group>"; };
 		07F4C7032430667B002CF5CA /* dmac.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dmac.c; sourceTree = "<group>"; };
 		07F4C7042430667B002CF5CA /* pia.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pia.c; sourceTree = "<group>"; };
 		07F4C7052430667B002CF5CA /* fdd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fdd.h; sourceTree = "<group>"; };
@@ -408,9 +394,7 @@
 		07F864B0242F97BD00CBB224 /* common.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = common.c; sourceTree = "<group>"; };
 		07F864B1242F97BE00CBB224 /* mouse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mouse.h; sourceTree = "<group>"; };
 		07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = menu_str_sjis.txt; sourceTree = "<group>"; };
-		07F864B3242F97BE00CBB224 /* juliet.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = juliet.c; sourceTree = "<group>"; };
 		07F864B4242F97BE00CBB224 /* status.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = status.c; sourceTree = "<group>"; };
-		07F864B5242F97BE00CBB224 /* juliet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = juliet.h; sourceTree = "<group>"; };
 		07F864B6242F97BE00CBB224 /* mkcgrom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mkcgrom.h; sourceTree = "<group>"; };
 		07F864B7242F97BE00CBB224 /* timer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = timer.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -551,10 +535,6 @@
 				07F4C6D22430664A002CF5CA /* misc.h */,
 				07F4C6CB2430664A002CF5CA /* opm.cpp */,
 				07F4C6D52430664B002CF5CA /* opm.h */,
-				07F4C6CE2430664A002CF5CA /* opna.cpp */,
-				07F4C6D42430664A002CF5CA /* opna.h */,
-				07F4C6CF2430664A002CF5CA /* psg.cpp */,
-				07F4C6D02430664A002CF5CA /* psg.h */,
 				07F863D8242F944100CBB224 /* X68000 iOS-Bridging-Header.h */,
 				07F863D9242F944100CBB224 /* X68000 macOS-Bridging-Header.h */,
 			);
@@ -619,8 +599,6 @@
 				07F4C71A2430667C002CF5CA /* irqh.h */,
 				07F4C7062430667B002CF5CA /* m68000.h */,
 				07F4C6FB2430667A002CF5CA /* mem_wrap.c */,
-				07F4C6F72430667A002CF5CA /* mercury.c */,
-				07F4C7022430667B002CF5CA /* mercury.h */,
 				07F4C70B2430667B002CF5CA /* mfp.c */,
 				07F4C6EC2430667A002CF5CA /* mfp.h */,
 				07F4C6EE2430667A002CF5CA /* midi.c */,
@@ -668,8 +646,6 @@
 				07F864AC242F97BD00CBB224 /* fileio.h */,
 				07F86491242F97BC00CBB224 /* joystick.c */,
 				07F86499242F97BC00CBB224 /* joystick.h */,
-				07F864B3242F97BE00CBB224 /* juliet.c */,
-				07F864B5242F97BE00CBB224 /* juliet.h */,
 				07F864A3242F97BD00CBB224 /* keyboard.c */,
 				07F8649D242F97BC00CBB224 /* keyboard.h */,
 				07F864A6242F97BD00CBB224 /* keyconf.c */,
@@ -918,7 +894,6 @@
 				07E6EF352430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C7292430667D002CF5CA /* irqh.c in Sources */,
-				07F864D6242F97BE00CBB224 /* juliet.c in Sources */,
 				07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */,
 				07F4C7512430667D002CF5CA /* rtc.c in Sources */,
 				07F4C7472430667D002CF5CA /* sram.c in Sources */,
@@ -955,13 +930,10 @@
 				07F8640D242F94BB00CBB224 /* peace.c in Sources */,
 				07F864BA242F97BE00CBB224 /* winui.c in Sources */,
 				07F4C7492430667D002CF5CA /* scc.c in Sources */,
-				07F4C6E22430664B002CF5CA /* opna.cpp in Sources */,
 				07F8640B242F94BB00CBB224 /* dosio.c in Sources */,
 				07F4C7392430667D002CF5CA /* tvram.c in Sources */,
-				07F4C72F2430667D002CF5CA /* mercury.c in Sources */,
 				0771C5A12431B129002D40F0 /* JoyController.swift in Sources */,
 				07F4C6AF243065EE002CF5CA /* c68kexec.c in Sources */,
-				07F4C6E42430664B002CF5CA /* psg.cpp in Sources */,
 				07F4C6DE2430664B002CF5CA /* fmtimer.cpp in Sources */,
 				07F4C7552430667D002CF5CA /* disk_xdf.c in Sources */,
 				07F864BC242F97BE00CBB224 /* windraw.c in Sources */,
@@ -988,7 +960,6 @@
 				07E6EF362430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C72A2430667D002CF5CA /* irqh.c in Sources */,
-				07F864D7242F97BE00CBB224 /* juliet.c in Sources */,
 				07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */,
 				07F4C7522430667D002CF5CA /* rtc.c in Sources */,
 				07F4C7482430667D002CF5CA /* sram.c in Sources */,
@@ -1025,13 +996,10 @@
 				07F8640E242F94BB00CBB224 /* peace.c in Sources */,
 				07F864BB242F97BE00CBB224 /* winui.c in Sources */,
 				07F4C74A2430667D002CF5CA /* scc.c in Sources */,
-				07F4C6E32430664B002CF5CA /* opna.cpp in Sources */,
 				07F8640C242F94BB00CBB224 /* dosio.c in Sources */,
 				07F4C73A2430667D002CF5CA /* tvram.c in Sources */,
-				07F4C7302430667D002CF5CA /* mercury.c in Sources */,
 				0771C5A22431B129002D40F0 /* JoyController.swift in Sources */,
 				07F4C6B0243065EE002CF5CA /* c68kexec.c in Sources */,
-				07F4C6E52430664B002CF5CA /* psg.cpp in Sources */,
 				07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */,
 				07F4C7562430667D002CF5CA /* disk_xdf.c in Sources */,
 				07F864BD242F97BE00CBB224 /* windraw.c in Sources */,
@@ -1198,6 +1166,7 @@
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
@@ -1228,6 +1197,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
@@ -1261,6 +1231,7 @@
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 macOS/Info.plist";
@@ -1290,6 +1261,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					NO_MERCURY,
 				);
 				HEADER_SEARCH_PATHS = "./**";
 				INFOPLIST_FILE = "X68000 macOS/Info.plist";

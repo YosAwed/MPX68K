@@ -11,17 +11,17 @@ extern "C" {
 #include "winx68k.h"
 #include "dswin.h"
 #include "prop.h"
-#include "juliet.h"
+//#include "juliet.h"
 #include "mfp.h"
 #include "adpcm.h"
-#include "mercury.h"
+//#include "mercury.h"
 #include "fdc.h"
 #include "fmg_wrap.h"
 
 #include "opm.h"
-#include "opna.h"
+//#include "opna.h"
 
-
+/*
 #define RMBUFSIZE (256*1024)
 
 typedef struct {
@@ -29,13 +29,13 @@ typedef struct {
 	int reg;
 	BYTE data;
 } RMDATA;
-
+*/
 };
-
+/*
 static RMDATA RMData[RMBUFSIZE];
 static int RMPtrW;
 static int RMPtrR;
-
+*/
 class MyOPM : public FM::OPM
 {
 public:
@@ -63,17 +63,10 @@ void MyOPM::WriteIO(DWORD adr, BYTE data)
 			::FDC_SetForceReady((data>>6)&1);
 		}
 		SetReg((int)CurReg, (int)data);
+#if 0
 		if ( (juliet_YM2151IsEnable())&&(Config.SoundROMEO) ) {
 			int newptr = (RMPtrW+1)%RMBUFSIZE;
 			if ( newptr!=RMPtrR ) {
-#if 0
-				RMData[RMPtrW].time = timeGetTime();
-				RMData[RMPtrW].reg  = CurReg;
-if ( CurReg==0x14 ) data &= 0xf3;	// Int Enableはマスクする
-				RMData[RMPtrW].data = data;
-				RMPtrW = newptr;
-			}
-#else
 				OPM_RomeoOut(Config.BufferSize*5);
 			}
 			RMData[RMPtrW].time = timeGetTime();
@@ -81,9 +74,10 @@ if ( CurReg==0x14 ) data &= 0xf3;	// Int Enableはマスクする
 if ( CurReg==0x14 ) data &= 0xf3;	// Int Enableはマスクする
 			RMData[RMPtrW].data = data;
 			RMPtrW = newptr;
-#endif
 		}
-	} else {
+#endif
+        
+    } else {
 		CurReg = (int)data;
 	}
 }
@@ -106,12 +100,13 @@ static MyOPM* opm = NULL;
 
 int OPM_Init(int clock, int rate)
 {
+/*
 	juliet_load();
 	juliet_prepare();
 
 	RMPtrW = RMPtrR = 0;
 	memset(RMData, 0, sizeof(RMData));
-
+*/
 	opm = new MyOPM();
 	if ( !opm ) return FALSE;
 	if ( !opm->Init(clock, rate, TRUE) ) {
@@ -125,9 +120,11 @@ int OPM_Init(int clock, int rate)
 
 void OPM_Cleanup(void)
 {
-	juliet_YM2151Reset();
+/*
+    juliet_YM2151Reset();
 	juliet_unload();
-	delete opm;
+*/
+    delete opm;
 	opm = NULL;
 }
 
@@ -140,11 +137,14 @@ void OPM_SetRate(int clock, int rate)
 
 void OPM_Reset(void)
 {
+/*
 	RMPtrW = RMPtrR = 0;
 	memset(RMData, 0, sizeof(RMData));
-
+*/
 	if ( opm ) opm->Reset();
-	juliet_YM2151Reset();
+/*
+ juliet_YM2151Reset();
+ */
 }
 
 
@@ -153,11 +153,13 @@ BYTE FASTCALL OPM_Read(WORD adr)
 	BYTE ret = 0;
 	(void)adr;
 	if ( opm ) ret = opm->ReadStatus();
+/*
 	if ( (juliet_YM2151IsEnable())&&(Config.SoundROMEO) ) {
 		int newptr = (RMPtrW+1)%RMBUFSIZE;
 		ret = (ret&0x7f)|((newptr==RMPtrR)?0x80:0x00);
 	}
-	return ret;
+*/
+    return ret;
 }
 
 
@@ -169,7 +171,7 @@ void FASTCALL OPM_Write(DWORD adr, BYTE data)
 
 void OPM_Update(short *buffer, int length, int rate, BYTE *pbsp, BYTE *pbep)
 {
-	if ( (!juliet_YM2151IsEnable())||(!Config.SoundROMEO) )
+//@	if ( (!juliet_YM2151IsEnable())||(!Config.SoundROMEO) )
 		if ( opm ) opm->Mix((FM::Sample*)buffer, length, rate, pbsp, pbep);
 }
 
@@ -185,7 +187,7 @@ void OPM_SetVolume(BYTE vol)
 	int v = (vol)?((16-vol)*4):192;		// このくらいかなぁ
 	if ( opm ) opm->SetVolume(-v);
 }
-
+/*
 
 void OPM_RomeoOut(unsigned int delay)
 {
@@ -362,3 +364,4 @@ void M288_SetVolume(BYTE vol)
 		ymf288b->SetVolumePSG(-v2);
 	}
 }
+*/

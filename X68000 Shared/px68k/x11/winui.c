@@ -42,7 +42,7 @@
 #include "mouse.h"
 #include "winx68k.h"
 #include "version.h"
-#include "juliet.h"
+//#include "juliet.h"
 #include "fdd.h"
 #include "irqh.h"
 #include "../m68000/m68000.h"
@@ -61,7 +61,7 @@
 #include "scc.h"
 #include "midi.h"
 #include "adpcm.h"
-#include "mercury.h"
+//#include "mercury.h"
 #include "tvram.h"
 #include "winui.h"
 

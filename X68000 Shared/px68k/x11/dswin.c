@@ -28,7 +28,7 @@
 #include	"dswin.h"
 #include	"prop.h"
 #include	"adpcm.h"
-#include	"mercury.h"
+//#include	"mercury.h"
 #include	"fmg_wrap.h"
 
 short	playing = FALSE;
