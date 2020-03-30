@@ -7,6 +7,7 @@
 //
 
 import GameController
+import UserNotifications
 
 let  JOY_UP   : UInt8 = 0x01
 let  JOY_DOWN : UInt8 = 0x02
@@ -19,8 +20,21 @@ class JoyController {
 
     var joydata : UInt8 = 0;
 
+    func initNotificationSetupCheck() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
+        { (success, error) in
+            if success {
+                print("Permission Granted")
+            } else {
+                print("There was a problem!")
+            }
+        }
+    }
     // Setup: Game Controller
     func setup() {
+        
+        initNotificationSetupCheck()
+        
         NotificationCenter.default.addObserver(
             self, selector: #selector(self.handleControllerDidConnect),
             name: NSNotification.Name.GCControllerDidConnect, object: nil)
@@ -65,9 +79,30 @@ class JoyController {
 
     // Connection
     func registerGameController(_ gameController: GCController){
+#if false
+        let center = UNUserNotificationCenter.current()
+        // ① NotificationContent
+        let content = UNMutableNotificationContent()
+        content.title = "サンプルのローカルPushです"
+        content.subtitle = "サンプルのsubtitleです"
+        content.body = "サンプルのbodyです"
+        content.badge = 1
+//        content.sound = .default()
+
+        // ② NotificationTrigger
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+
+        // ③ NotificationRequest
+        let request = UNNotificationRequest(identifier: "SamplePush", content: content, trigger: trigger)
+
+        // ④ 通知の追加
+        center.add(request)
+#endif
+        print(gameController)
         print("ゲームコントローラーが接続されました")
         print("Name: \(gameController.vendorName!)")
         print("Category: \(gameController.productCategory)")
+//        print("PlayerIndex: \(gameController.playerIndex)")
         
         var leftThumbstick:  GCControllerDirectionPad?
         var rightThumbstick: GCControllerDirectionPad?
@@ -132,8 +167,8 @@ class JoyController {
         
         // Buttons
         buttonMenu!.valueChangedHandler = buttonResetScene()
-        buttonA!.valueChangedHandler = buttonAttack()
-        buttonB!.valueChangedHandler = buttonHide()
+        buttonA!.valueChangedHandler = onButtonB()
+        buttonB!.valueChangedHandler = onButtonA()
         
         if buttonX != nil {
             buttonX!.valueChangedHandler = buttonPutBox()
@@ -145,20 +180,20 @@ class JoyController {
         
         // Shoulder
         if leftTrigger != nil {
-            leftShoulder!.valueChangedHandler = buttonHide()
+            leftShoulder!.valueChangedHandler = onButtonA()
         }
         
         if leftTrigger != nil {
-            rightShoulder!.valueChangedHandler = buttonHide()
+            rightShoulder!.valueChangedHandler = onButtonA()
         }
         
         // Trigger
         if leftTrigger != nil {
-            leftTrigger!.valueChangedHandler = buttonAttack()
+            leftTrigger!.valueChangedHandler = onButtonB()
         }
         
         if rightTrigger != nil {
-            rightTrigger!.valueChangedHandler = buttonAttack()
+            rightTrigger!.valueChangedHandler = onButtonB()
         }
         
         // Option
@@ -178,6 +213,7 @@ class JoyController {
     func directionPadValue() -> GCControllerDirectionPadValueChangedHandler {
         return {(_ dpad: GCControllerDirectionPad, _ xValue: Float, _ yValue: Float) -> Void in
 
+//            print(dpad)
             self.JoySet(0, JOY_UP,    ( yValue >  0.5 ) )
             self.JoySet(0, JOY_DOWN,  ( yValue < -0.5 ) )
             self.JoySet(0, JOY_LEFT,  ( xValue < -0.5 ) )
@@ -192,10 +228,10 @@ class JoyController {
         }
     }
     
-    // Closure: Attack
-    func buttonAttack() -> GCControllerButtonValueChangedHandler {
+    // Closure: B
+    func onButtonB() -> GCControllerButtonValueChangedHandler {
         return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
-            print("B")  // ❌
+            // ❌
             self.JoySet(0, JOY_TRG2, pressed )
         }
     }
@@ -210,9 +246,9 @@ class JoyController {
 
     }
     // Closure: Hide
-    func buttonHide() -> GCControllerButtonValueChangedHandler {
+    func onButtonA() -> GCControllerButtonValueChangedHandler {
         return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
-            print("A")  // ○
+            // ○
             self.JoySet(0, JOY_TRG1, pressed )
         }
     }

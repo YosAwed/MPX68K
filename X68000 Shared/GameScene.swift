@@ -87,6 +87,7 @@ class GameScene: SKScene {
         self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
                                           SKAction.fadeOut(withDuration: 0.1),
                                           SKAction.removeFromParent()]))
+        self.spr?.zPosition = 2.0
 
         self.addChild(spr!)
         /*
@@ -148,6 +149,8 @@ class GameScene: SKScene {
         if let spinny = self.spinnyNode?.copy() as! SKShapeNode? {
             spinny.position = pos
             spinny.strokeColor = color
+            spinny.zPosition = 1.0
+
             self.addChild(spinny)
         }
     }
@@ -215,6 +218,7 @@ extension GameScene {
         
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
+            
         }
         X68000_Key_Down(0x20);
     }
