@@ -227,7 +227,7 @@ class GameScene: SKScene {
             let scale_y : CGFloat = 256.0 / CGFloat(h)
             let aspect : CGFloat = 768.0 / 512.0
             self.spr?.xScale = scale * 2.0 * aspect
-            self.spr?.yScale = scale * 2.0 * (scale_y+0.3)
+            self.spr?.yScale = scale * (2.0 * scale_y)+0.3
         } else {
             self.spr?.xScale = scale
             self.spr?.yScale = scale
