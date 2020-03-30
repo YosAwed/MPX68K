@@ -834,6 +834,7 @@ void Keyboard_skbd(void)
 {
 	static kx = 1, ky = 2;
 	BYTE joy;
+    printf("Keyboard_skbd\n");
 
 	joy = get_joy_downstate();
 	reset_joy_downstate();

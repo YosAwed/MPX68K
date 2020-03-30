@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
+		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
+		0771C5A42431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */; };
+		0771C5A52431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */; };
 		07A2F332242FB6D0002C9D1A /* SDL_config.h.in in Resources */ = {isa = PBXBuildFile; fileRef = 07A2F2EA242FB6CA002C9D1A /* SDL_config.h.in */; };
 		07A2F333242FB6D0002C9D1A /* SDL_config.h.in in Resources */ = {isa = PBXBuildFile; fileRef = 07A2F2EA242FB6CA002C9D1A /* SDL_config.h.in */; };
 		07A2F334242FB6D0002C9D1A /* SDL_config.h.cmake in Resources */ = {isa = PBXBuildFile; fileRef = 07A2F32E242FB6CF002C9D1A /* SDL_config.h.cmake */; };
@@ -147,6 +151,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
+		0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = BubbleBobble_dim.c; sourceTree = "<group>"; };
 		07A2F2DB242FB6C9002C9D1A /* SDL_mutex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_mutex.h; sourceTree = "<group>"; };
 		07A2F2DC242FB6C9002C9D1A /* SDL_opengles.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_opengles.h; sourceTree = "<group>"; };
 		07A2F2DD242FB6CA002C9D1A /* SDL_test_md5.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_test_md5.h; sourceTree = "<group>"; };
@@ -469,6 +475,7 @@
 				07F863A2242F93E800CBB224 /* Actions.sks */,
 				07F863A3242F93E800CBB224 /* GameScene.sks */,
 				07F863A4242F93E800CBB224 /* GameScene.swift */,
+				0771C5A02431B129002D40F0 /* JoyController.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
 				07F863A5242F93EA00CBB224 /* Assets.xcassets */,
 			);
@@ -641,6 +648,7 @@
 				07E6EF312430CCAE0034E485 /* CGROM_DAT.c */,
 				07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */,
 				07E6EF342430CFE60034E485 /* Salamander_dim.c */,
+				0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */,
 				07F864A8242F97BD00CBB224 /* about.c */,
 				07F8649E242F97BC00CBB224 /* about.h */,
 				07F864A1242F97BC00CBB224 /* cdaspi.h */,
@@ -929,6 +937,7 @@
 				07F4C7432430667D002CF5CA /* sysport.c in Sources */,
 				07F4C6E62430664B002CF5CA /* fmgen.cpp in Sources */,
 				07F4C72B2430667D002CF5CA /* d68k.c in Sources */,
+				0771C5A42431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */,
 				07F864DA242F97BE00CBB224 /* timer.c in Sources */,
 				07F864C4242F97BE00CBB224 /* dswin.c in Sources */,
 				07F4C7352430667D002CF5CA /* mem_wrap.c in Sources */,
@@ -942,6 +951,7 @@
 				07F8640B242F94BB00CBB224 /* dosio.c in Sources */,
 				07F4C7392430667D002CF5CA /* tvram.c in Sources */,
 				07F4C72F2430667D002CF5CA /* mercury.c in Sources */,
+				0771C5A12431B129002D40F0 /* JoyController.swift in Sources */,
 				07F4C6AF243065EE002CF5CA /* c68kexec.c in Sources */,
 				07F4C6E42430664B002CF5CA /* psg.cpp in Sources */,
 				07F4C6DE2430664B002CF5CA /* fmtimer.cpp in Sources */,
@@ -997,6 +1007,7 @@
 				07F4C7442430667D002CF5CA /* sysport.c in Sources */,
 				07F4C6E72430664B002CF5CA /* fmgen.cpp in Sources */,
 				07F4C72C2430667D002CF5CA /* d68k.c in Sources */,
+				0771C5A52431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */,
 				07F864DB242F97BE00CBB224 /* timer.c in Sources */,
 				07F864C5242F97BE00CBB224 /* dswin.c in Sources */,
 				07F4C7362430667D002CF5CA /* mem_wrap.c in Sources */,
@@ -1010,6 +1021,7 @@
 				07F8640C242F94BB00CBB224 /* dosio.c in Sources */,
 				07F4C73A2430667D002CF5CA /* tvram.c in Sources */,
 				07F4C7302430667D002CF5CA /* mercury.c in Sources */,
+				0771C5A22431B129002D40F0 /* JoyController.swift in Sources */,
 				07F4C6B0243065EE002CF5CA /* c68kexec.c in Sources */,
 				07F4C6E52430664B002CF5CA /* psg.cpp in Sources */,
 				07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */,

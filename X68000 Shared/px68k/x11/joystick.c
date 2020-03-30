@@ -251,7 +251,14 @@ BYTE FASTCALL Joystick_Read(BYTE num)
 
 void FASTCALL Joystick_Write(BYTE num, BYTE data)
 {
+    printf("Joystick %d:%02x\n", num, data);
 	if ( (num==0)||(num==1) ) JoyPortData[num] = data;
+}
+
+static BYTE s_JoyData[2] = { 0xff, 0xff };
+void X68000_Joystick_Set(BYTE num, BYTE data)
+{
+    if ( (num==0)||(num==1) ) s_JoyData[num] = ~data;   // Neg. Logic
 }
 
 #ifdef PSP
@@ -512,8 +519,8 @@ skip_vpad:
 #endif //defined(PSP)
 	// disable Joystick when software keyboard is active
 	if (!is_menu && !Keyboard_IsSwKeyboard()) {
-		JoyState0[num] = ret0;
-		JoyState1[num] = ret1;
+        JoyState0[num] = s_JoyData[num];//ret0
+        JoyState1[num] = ret1;
 	}
 
 #if defined(USE_OGLES11) || defined(PSP)

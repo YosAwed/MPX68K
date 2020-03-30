@@ -7,6 +7,7 @@
 //
 
 import SpriteKit
+import GameController
 
 class GameScene: SKScene {
     
@@ -17,10 +18,19 @@ class GameScene: SKScene {
     var spr256 : SKSpriteNode?
     var tex : SKTexture?
     var tex256 : SKTexture?
+    let joycontroller : JoyController = JoyController()
 
     fileprivate var audioStream : AudioStream?
     
+    
     class func newGameScene() -> GameScene {
+
+        func buttonHandler() -> GCControllerButtonValueChangedHandler {
+            return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
+                print("A!")  // ○
+            }
+        }
+
         // Load 'GameScene.sks' as an SKScene.
         guard let scene = SKScene(fileNamed: "GameScene") as? GameScene else {
             print("Failed to load GameScene.sks")
@@ -30,7 +40,8 @@ class GameScene: SKScene {
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFit//.aspectFill
         scene.backgroundColor = .black
-
+        scene.joycontroller.setup();
+        
         X68000_Init();
         return scene
     }
@@ -60,6 +71,7 @@ class GameScene: SKScene {
                          intent: .defaultIntent)
          }
      }
+    
     
     var count = 0
     func setUpScene() {
@@ -157,13 +169,15 @@ class GameScene: SKScene {
         self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
         self.spr?.texture = self.tex!;
         self.spr?.alpha = 1.0
+        let scale : CGFloat  = 1.78
         if ( w == 256 ) {
-        
-            self.spr?.xScale = 1.7 * 2.0
-            self.spr?.yScale = 1.7 * 2.0
+            let scale_y : CGFloat = 256.0 / CGFloat(h)
+            let aspect : CGFloat = 768.0 / 512.0
+            self.spr?.xScale = scale * 2.0 * aspect
+            self.spr?.yScale = scale * 2.0 * scale_y
         } else {
-        self.spr?.xScale = 1.7
-        self.spr?.yScale = 1.7
+        self.spr?.xScale = scale
+        self.spr?.yScale = scale
 
         }
         self.spr?.run(SKAction.sequence([
@@ -202,6 +216,7 @@ extension GameScene {
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
         }
+        X68000_Key_Down(0x20);
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -214,6 +229,7 @@ extension GameScene {
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.red)
         }
+        X68000_Key_Up(0x20);
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {

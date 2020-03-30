@@ -97,10 +97,13 @@ int DIM_SetFD(int drv, char* filename)
 	File_Close(fp);
 #else
     extern const unsigned char Salamander_dim[];
+    extern const unsigned char BubbleBobble_dim[];
+    
+    const unsigned char* Game = Salamander_dim;
+    
     int ptr = 0;
-    memcpy( DIMImg[drv], &Salamander_dim[ptr], sizeof(DIM_HEADER) );
+    memcpy( DIMImg[drv], &Game[ptr], sizeof(DIM_HEADER) );
     ptr += sizeof(DIM_HEADER);
-//    if ( File_Read(fp, DIMImg[drv], sizeof(DIM_HEADER))!=sizeof(DIM_HEADER) ) goto dim_set_error;
     dh = (DIM_HEADER*)DIMImg[drv];
     if ( dh->type>9 ) goto dim_set_error;
     len = SctLength[dh->type];
@@ -108,8 +111,7 @@ int DIM_SetFD(int drv, char* filename)
     p = DIMImg[drv]+sizeof(DIM_HEADER);
     for (i=0; i<170; i++) {
         if ( dh->trkflag[i] ) {
- //           if ( File_Read(fp, p, len)!=len ) goto dim_set_error;
-            memcpy( p, &Salamander_dim[ptr], len);
+            memcpy( p, &Game[ptr], len);
             ptr += len;
         }
         p += len;
