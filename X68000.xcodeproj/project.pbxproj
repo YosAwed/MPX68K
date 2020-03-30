@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
+		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0771C5A42431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */; };
@@ -151,6 +153,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
 		0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = BubbleBobble_dim.c; sourceTree = "<group>"; };
 		07A2F2DB242FB6C9002C9D1A /* SDL_mutex.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDL_mutex.h; sourceTree = "<group>"; };
@@ -517,6 +520,7 @@
 		07F863D6242F940200CBB224 /* px68k */ = {
 			isa = PBXGroup;
 			children = (
+				0753E5AB2431DF4600E14A81 /* X68000LogoW.png */,
 				07F864DC242F986700CBB224 /* SDL */,
 				07F8648F242F97A700CBB224 /* x11 */,
 				07F86421242F970100CBB224 /* x68k */,
@@ -878,6 +882,7 @@
 				07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */,
 				07A2F334242FB6D0002C9D1A /* SDL_config.h.cmake in Resources */,
 				07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */,
+				0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -885,6 +890,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
 				07F863C9242F93EA00CBB224 /* GameScene.sks in Resources */,
