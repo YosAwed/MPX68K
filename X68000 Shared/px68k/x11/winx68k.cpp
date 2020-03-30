@@ -13,7 +13,7 @@ extern "C" {
 #include "prop.h"
 #include "status.h"
 #include "joystick.h"
-#include "mkcgrom.h"
+//#include "mkcgrom.h"
 #include "winx68k.h"
 #include "windraw.h"
 #include "winui.h"
