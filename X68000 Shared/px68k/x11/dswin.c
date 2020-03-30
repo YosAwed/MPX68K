@@ -39,7 +39,7 @@ BYTE *pcmbufp = pcmbuffer;
 BYTE *pbsp = pcmbuffer;
 BYTE *pbrp = pcmbuffer, *pbwp = pcmbuffer;
 BYTE *pbep = &pcmbuffer[PCMBUF_SIZE];
-DWORD ratebase = 22050;
+DWORD ratebase = 44100;
 long DSound_PreCounter = 0;
 BYTE rsndbuf[PCMBUF_SIZE];
 
@@ -52,7 +52,7 @@ void audio_callback(void *buffer, int len);
 int
 DSound_Init(unsigned long rate, unsigned long buflen)
 {
-    DWORD samples;
+//    DWORD samples;
     
     printf("Sound Init Sampling Rate:%dHz buflen:%d\n", rate, buflen );
 
@@ -67,7 +67,7 @@ DSound_Init(unsigned long rate, unsigned long buflen)
 
     ratebase = rate;
 
-    samples = 2048;
+//    samples = 2048;
 
     playing = TRUE;
     return TRUE;

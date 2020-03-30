@@ -41,7 +41,7 @@ class AudioStream {
     init () {
 
         dataFormat = AudioStreamBasicDescription(
-            mSampleRate:        44100/2,
+            mSampleRate:        44100,
             mFormatID:          kAudioFormatLinearPCM,
             mFormatFlags:       kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, // Bigendian??
             mBytesPerPacket:    4,
