@@ -595,51 +595,22 @@ int original_main(int argc, const char *argv[])
 	file_setcd(winx68k_dir);
     puts(winx68k_dir);
 	LoadConfig();
-
-#ifndef NOSOUND
+/*
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
 		p6logd("SDL_Init error\n");		
-#endif
 		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 			return 1;
 		}
-#ifndef NOSOUND
 	} else {
 		sdlaudio = 0;
 	}
-#endif
-
+*/
 #if !SDL_VERSION_ATLEAST(2, 0, 0)
-//@	SDL_WM_SetCaption(APPNAME" SDL", NULL);
-        if (SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 16, SDL_SWSURFACE) == NULL) {
+    if (SDL_SetVideoMode(FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, 16, SDL_SWSURFACE) == NULL) {
 		puts("SDL_SetVideoMode() failed");
 		return 1;
 	}
 #else
-#ifdef USE_OGLES11
-	SDL_DisplayMode sdl_dispmode;
-	SDL_GetCurrentDisplayMode(0, &sdl_dispmode);
-	p6logd("width: %d height: %d", sdl_dispmode.w, sdl_dispmode.h);
-	// ナビゲーションバーを除くアプリが触れる画面
-	realdisp_w = sdl_dispmode.w, realdisp_h = sdl_dispmode.h;
-
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 1 );
-	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 1 );
-
-	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 ); 
-
-#if TARGET_OS_IPHONE
-	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN|SDL_WINDOW_BORDERLESS);
-#else
-	// for Android: window sizeの指定は関係なくフルスクリーンになるみたい
-	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN);
-#endif
-#else
-//@	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-#endif
-//@	if (sdl_window == NULL) {
-//@		p6logd("sdl_window: %ld", sdl_window);
-//@	}
 
 #endif // !SDL_VERSION_ATLEAST(2, 0, 0)
 
@@ -678,14 +649,9 @@ int original_main(int argc, const char *argv[])
 		return 1;
 	}
 
-	if ( SoundSampleRate ) {
-		ADPCM_Init(SoundSampleRate);
-		OPM_Init(4000000/*3579545*/, SoundSampleRate);
-	} else {
-		ADPCM_Init(100);
-		OPM_Init(4000000/*3579545*/, 100);
-	}
-
+    ADPCM_Init(SoundSampleRate);
+    OPM_Init(4000000/*3579545*/, SoundSampleRate);
+	
 	FDD_Init();
 	SysPort_Init();
 	Mouse_Init();
@@ -699,10 +665,7 @@ int original_main(int argc, const char *argv[])
 	MIDI_SetMimpiMap(Config.ToneMapFile);	// 音色設定ファイル使用反映
 	MIDI_EnableMimpiDef(Config.ToneMap);
 
-	if (sdlaudio == 0 && !DSound_Init(Config.SampleRate, Config.BufferSize)) {
-		if (Config.DSAlert)
-			fprintf(stderr, "Can't init sound.\n");
-	}
+    DSound_Init(Config.SampleRate, Config.BufferSize);
 
 	ADPCM_SetVolume((BYTE)Config.PCM_VOL);
 	OPM_SetVolume((BYTE)Config.OPM_VOL);
@@ -728,81 +691,13 @@ int original_main(int argc, const char *argv[])
 
 
 void Update() {
+
     
-    SDL_Event ev;
-    SDL_Keycode menu_key_down;
 
-    int sdlaudio = -1;
-    enum {menu_out, menu_enter, menu_in};
-    int menu_mode = menu_out;
+    if ((Config.NoWaitMode || Timer_GetCount())) {
+        WinX68k_Exec();
+    }
 
-    while (1) {
-            // OPM_RomeoOut(Config.BufferSize * 5);
-            if (menu_mode == menu_out
-                && (Config.NoWaitMode || Timer_GetCount())) {
-                WinX68k_Exec();
-            }
-            menu_key_down = SDLK_UNKNOWN;
-
-            while (SDL_PollEvent(&ev)) {
-                switch (ev.type) {
-                case SDL_QUIT:
-                    goto end_loop;
-                case SDL_MOUSEMOTION:
-                    p6logd("x:%d y:%d xrel:%d yrel:%d\n", ev.motion.x, ev.motion.y, ev.motion.xrel, ev.motion.yrel);
-                    break;
-                case SDL_KEYDOWN:
-                    printf("keydown: 0x%x\n", ev.key.keysym.sym);
-                    printf("font %d %d\n", FONT[100], FONT[101]);
-                    if (ev.key.keysym.sym == SDLK_F12) {
-                        if (menu_mode == menu_out) {
-                            menu_mode = menu_enter;
-                            DSound_Stop();
-                        } else {
-                            DSound_Play();
-                            menu_mode = menu_out;
-                        }
-                    }
-    #ifdef WIN68DEBUG
-                    if (ev.key.keysym.sym == SDLK_F10) {
-                        traceflag ^= 1;
-                        printf("trace %s\n", (traceflag)?"on":"off");
-                    }
-    #endif
-                    if (menu_mode != menu_out) {
-                        menu_key_down = ev.key.keysym.sym;
-                    } else {
-                        Keyboard_KeyDown(ev.key.keysym.sym);
-                    }
-                    break;
-                case SDL_KEYUP:
-                    printf("keyup: 0x%x\n", ev.key.keysym.sym);
-                    Keyboard_KeyUp(ev.key.keysym.sym);
-                    break;
-                }
-            }
-
-            if (menu_mode != menu_out) {
-                int ret;
-
-                Joystick_Update(TRUE, menu_key_down);
-
-                ret = WinUI_Menu(menu_mode == menu_enter);
-                menu_mode = menu_in;
-                if (ret == WUM_MENU_END) {
-                    DSound_Play();
-                    menu_mode = menu_out;
-                } else if (ret == WUM_EMU_QUIT) {
-                    goto end_loop;
-                }
-            }
-
-        break;  //@ while(1)
-        }
-end_loop:
-
-    static int count;
-    count++;
  }
 
 

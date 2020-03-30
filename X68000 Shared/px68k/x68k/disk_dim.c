@@ -67,7 +67,7 @@ int DIM_SetFD(int drv, char* filename)
 	DIMImg[drv] = (unsigned char*)malloc(1024*9*170+sizeof(DIM_HEADER));		// Maximum size
 	if ( !DIMImg[drv] ) return FALSE;
 	memset(DIMImg[drv], 0xe5, 1024*9*170+sizeof(DIM_HEADER));
-#if 0 // from file
+#if !defined(__IPHONEOS__)
 	fp = File_Open(DIMFile[drv]);
 	if ( !fp ) {
 		ZeroMemory(DIMFile[drv], MAX_PATH);

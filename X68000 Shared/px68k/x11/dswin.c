@@ -145,6 +145,13 @@ static void FASTCALL DSound_Send(int length)
     sound_send(length);
 }
 
+void X68000_AudioCallBack(void* buffer, const unsigned int sample)
+{
+    int size = sample * sizeof(unsigned short) * 2;
+    audio_callback(buffer, size);
+}
+
+
 void audio_callback(void *buffer, int len)
 {
    int lena, lenb, datalen, rate;

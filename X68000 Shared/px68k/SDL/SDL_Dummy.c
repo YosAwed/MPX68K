@@ -79,26 +79,6 @@ void SDL_Quit()
 static SDL_AudioSpec s_audio_spec;
 static Uint8* s_sound_buffer;
 
-void X68000_AudioCallBack(void* buffer, const unsigned int sample)
-{
-    int size = sample * sizeof(Sint16) * 2;
-    audio_callback(buffer, size);
-    /*
-    if ( s_audio_spec.callback ) {
-//        rk_sema_wait(&s_sdl_r_sema);
-        //  void fill_audio(void *udata, Uint8 *stream, int len)
-//        printf("Callback! %p %d\n", buffer, sample);
-        int size = sample * sizeof(Sint16) * 2;
-        
-        s_audio_spec.callback(NULL, buffer, size);
-        if ( s_sound_buffer ) {
-//            printf("->Copy %p %d\n", old, s_sound_buffer-old );
-            memcpy( buffer, s_sound_buffer, size);
-        }
-//        rk_sema_post(&s_sdl_w_sema);
-    }
- */
-}
 
 int SDL_InitSubSystem(Uint32 flags)
 {

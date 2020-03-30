@@ -52,7 +52,7 @@ class AudioStream {
             mReserved:          0
         )
 
-        bufferByteSize   = 512 * dataFormat.mBytesPerFrame
+        bufferByteSize   = 1024 * dataFormat.mBytesPerFrame
         packetsToPlay    = 1
 
         AudioQueueNewOutput(
