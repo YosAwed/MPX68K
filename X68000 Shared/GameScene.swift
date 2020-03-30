@@ -9,17 +9,19 @@
 import SpriteKit
 import GameController
 
+
 class GameScene: SKScene {
     
     
     fileprivate var label : SKLabelNode?
+    fileprivate var labelStatus : SKLabelNode?
     fileprivate var spinnyNode : SKShapeNode?
     var titleSprite : SKSpriteNode?
     var spr : SKSpriteNode?
     var spr256 : SKSpriteNode?
     var tex : SKTexture?
     var tex256 : SKTexture?
-    let joycontroller : JoyController = JoyController()
+    var joycontroller : JoyController?
 
     fileprivate var audioStream : AudioStream?
     
@@ -41,7 +43,7 @@ class GameScene: SKScene {
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFit//.aspectFill
         scene.backgroundColor = .black
-        scene.joycontroller.setup();
+        
         
         X68000_Init();
         return scene
@@ -75,11 +77,31 @@ class GameScene: SKScene {
     
     
     var count = 0
+    
+    func controller_event( status : JoyController.Status ) {
+        print( status )
+        var msg = ""
+        if ( status == .Conntected  ) {
+            msg = "Controller Connected"
+        } else if ( status == .Disconnected ) {
+            msg = "Controller Disconnected"
+
+        }
+        if let t = self.labelStatus {
+            t.text = msg
+            t.run(SKAction.init(named: "Notify")!, withKey: "fadeInOut")
+        }
+    }
+    
     func setUpScene() {
+        
+        self.joycontroller = JoyController.init()
+        self.joycontroller?.setup(callback: controller_event(status:) );
         
         self.audioStream = AudioStream.init();
         self.audioStream?.play();
         
+        self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
@@ -213,6 +235,7 @@ class GameScene: SKScene {
         self.spr?.zPosition = 0.1
 //        self.spr?.alpha = 1.0
 //        self.spr?.blendMode = .add
+        self.spr?.zPosition = -1.0
         
 //        self.spr?.run(SKAction.sequence([
 //            SKAction.wait(forDuration: 0.016),

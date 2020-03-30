@@ -19,6 +19,8 @@ let  JOY_TRG1 : UInt8 = 0x40
 class JoyController {
 
     var joydata : UInt8 = 0x00
+    
+    
 
     func initNotificationSetupCheck() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
@@ -30,9 +32,21 @@ class JoyController {
             }
         }
     }
+    enum Status {
+        case Unknown
+        case Conntected
+        case Disconnected
+    }
+    var event : Optional<(Status) -> Void>
+    
+    init() {
+        event = nil
+    }
+    //callback: () -> Void
     // Setup: Game Controller
-    func setup() {
-        
+    func setup( callback: @escaping (Status) -> Void ) {
+        self.event = callback
+
         initNotificationSetupCheck()
         
         NotificationCenter.default.addObserver(
@@ -52,6 +66,7 @@ class JoyController {
     // Notification: Connection
     @objc
     func handleControllerDidConnect(_ notification: Notification){
+        self.event?(.Conntected)
         print("ゲームコントローラーの接続が通知されました")
 
         guard let gameController = notification.object as? GCController else {
@@ -64,6 +79,7 @@ class JoyController {
     // Notification: Disconnection
     @objc
     func handleControllerDidDisconnect(_ notification: Notification){
+        self.event?(.Disconnected)
         print("ゲームコントローラーの切断が通知されました")
         
         guard let gameController = notification.object as? GCController else {
