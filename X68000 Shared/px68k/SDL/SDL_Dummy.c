@@ -72,27 +72,6 @@ rk_sema_post(struct rk_sema *s)
 static struct rk_sema  s_sdl_r_sema;
 static struct rk_sema  s_sdl_w_sema;
 
-void SDL_Quit()
-{
-    TRACE_FUNC;
-}
-static SDL_AudioSpec s_audio_spec;
-static Uint8* s_sound_buffer;
-
-
-int SDL_InitSubSystem(Uint32 flags)
-{
-    TRACE_FUNC;
-    return 0;
-}
-
-int SDL_Init(Uint32 flags)
-{
-    TRACE_FUNC;
-    return 0;
-}
-
-
 static SDL_Surface* window_surface;
 static SDL_PixelFormat  format;
 
