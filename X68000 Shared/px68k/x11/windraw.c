@@ -48,30 +48,12 @@
 #include "joystick.h"
 #include "keyboard.h"
 
-#if 0
-#include "../icons/keropi.xpm"
-#endif
-
-//@added @GOROman
-//SDL_Window sdl_window;
-//
 
 extern BYTE Debug_Text, Debug_Grp, Debug_Sp;
 
-#ifdef PSP
-WORD *ScrBufL = 0, *ScrBufR = 0;
-#else
 WORD *ScrBuf = 0;
-#endif
 
-#if defined(PSP) || defined(USE_OGLES11)
-WORD *menu_buffer;
-WORD *kbd_buffer;
-#endif
 
-#ifdef  USE_SDLGFX
-SDL_Surface *sdl_rgbsurface;
-#endif
 
 int Draw_Opaque;
 int FullScreenFlag = 0;
@@ -92,9 +74,6 @@ WORD WinDraw_Pal16B, WinDraw_Pal16R, WinDraw_Pal16G;
 DWORD WindowX = 0;
 DWORD WindowY = 0;
 
-#ifdef USE_OGLES11
-static GLuint texid[11];
-#endif
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 extern SDL_Window *sdl_window;
@@ -209,62 +188,6 @@ void WinDraw_ChangeMode(int flag)
 }
 
 
-#ifdef PSP
-
-/*
-          <----- 512byte ------>
-0x04000000+--------------------+
-          |                    |A
-          | draw/disp 0 buffer ||272*2byte (16bit color)
-          |                    |V
-0x04044000+--------------------+
-          |                    |A
-          | draw/disp 1 buffer ||272*2byte
-          |                    |V
-0x04088000+--------------------+
-          |                    |A
-          | z bufer            ||272*2byte
-          |                    |V
-0x040cc000+--------------------+
-          |                    |A
-          | ScrBufL (left)     ||512*2byte (x68k screen size: 756x512)
-          |                    |V
-0x0414c000+----------+---------+
-          |<- 256B ->|A
-          |  ScrBufR ||512*2byte (x68k screen size: 756x512)
-          |  (right) |V
-0x0418c000+----------+---------+A
-          |仮想キーボード用    || 512*256*2byte
-          |    に使うかも領域  |V
-0x041cc000+--------------------+
-          |                    |
-          | Virtexes           |
-          |                    |
-          +--------------------+
-*/
-
-static unsigned int __attribute__((aligned(16))) list[262144];
-
-void *fbp0, *fbp1, *zbp;
-struct Vertexes {
-	unsigned short u, v;   // Texture (sx, sy)
-	unsigned short color;
-	short x, y, z;         // Screen (sx, sy, sz)
-	unsigned short u2, v2; // Texture (ex, ey)
-	unsigned short color2;
-	short x2, y2, z2;      // Screen (ex, ey, ez)
-};
-
-struct Vertexes *vtxl = (struct Vertexes *)0x41cc000;
-struct Vertexes *vtxr = (struct Vertexes *)(0x41cc000 + sizeof(struct Vertexes));
-struct Vertexes *vtxm = (struct Vertexes *)(0x41cc000 + sizeof(struct Vertexes) * 2);
-struct Vertexes *vtxk = (struct Vertexes *)(0x41cc000 + sizeof(struct Vertexes) * 3);
-
-#define PSP_BUF_WIDTH (512)
-#define PSP_SCR_WIDTH (480)
-#define PSP_SCR_HEIGHT (272)
-
-#endif // PSP
 
 static void draw_kbd_to_tex(void);
 
@@ -326,55 +249,9 @@ WinDraw_Redraw(void)
 	TVRAM_SetAllDirty();
 }
 
-#ifdef USE_OGLES11
-#define SET_GLFLOATS(dst, a, b, c, d, e, f, g, h)		\
-{								\
-	dst[0] = (a); dst[1] = (b); dst[2] = (c); dst[3] = (d);	\
-	dst[4] = (e); dst[5] = (f); dst[6] = (g); dst[7] = (h);	\
-}
 
-static void draw_texture(GLfloat *coor, GLfloat *vert)
+void FASTCALL WinDraw_Draw(unsigned char* data)
 {
-	glTexCoordPointer(2, GL_FLOAT, 0, coor);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glVertexPointer(2, GL_FLOAT, 0, vert);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-}
-
-void draw_button(GLuint texid, GLfloat x, GLfloat y, GLfloat s, GLfloat *tex, GLfloat *ver)
-{
-	glBindTexture(GL_TEXTURE_2D, texid);
-	// Texture から必要な部分を抜き出す(32x32を全部使う)
-	SET_GLFLOATS(tex, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f);
-	// s倍にして貼り付ける
-	SET_GLFLOATS(ver, x, y + 32.0f * s, x, y, x + 32.0f * s, y + 32.0f * s, x + 32.0f * s, y + 0.0f);
-	draw_texture(tex, ver);
-}
-
-void draw_all_buttons(GLfloat *tex, GLfloat *ver, GLfloat scale, int is_menu)
-{
-	int i;
-	VBTN_POINTS *p;
-
-	p = Joystick_get_btn_points(scale);
-
-	// 仮想キーはtexid: 1から6まで、キーボードonボタンが7、menuボタンが8
-	for (i = 1; i < 9; i++) {
-		if (need_Vpad() || i >= 7 || (Config.JoyOrMouse && i >= 5)) {
-			draw_button(texid[i], p->x, p->y, scale, tex, ver);
-		}
-		p++;
-	}
-}
-#endif // USE_OGLES11
-
-void FASTCALL
-WinDraw_Draw(unsigned char* data)
-{
-	SDL_Surface *sdl_surface;
 	static int oldtextx = -1, oldtexty = -1;
 
 	if (oldtextx != TextDotX) {
@@ -386,18 +263,8 @@ WinDraw_Draw(unsigned char* data)
 		p6logd("TextDotY: %d\n", TextDotY);
 	}
 
-#if defined(USE_OGLES11)
-#elif defined(PSP)
-#else // OpenGL ES 未使用
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
-	sdl_surface = SDL_GetWindowSurface(sdl_window);
-#else
-	sdl_surface = SDL_GetVideoSurface();
-#endif
 
-#ifdef USE_SDLGFX
-#else
 	int x, y, Bpp;
 //	WORD c, *p, *p2, dummy, *dst16;
 	WORD *p, *dst16;
@@ -413,30 +280,6 @@ WinDraw_Draw(unsigned char* data)
             dst8 += 256*Bpp*y;
 
             for (x = 0; x < 256; x++) {
-#if 0
-				if  (Bpp == 4) {
-					dat32 = (DWORD)(*p & 0xf800) << 8 | (*p & 0x07e0) << 5 | (*p & 0x001f) << 3;
-					*dst32++ = dat32;
-					*dst32 = dat32;
-					dst32 += sdl_surface->w;
-					*dst32-- = dat32;
-					*dst32 = dat32;
-					p++;
-					dst32 -= sdl_surface->w;
-					dst32 += 2;
-				} else if (Bpp == 2) {
-					*dst16++ = *p;
-					*dst16 = *p;
-					dst16 += sdl_surface->w;
-					*dst16-- = *p;
-					*dst16 = *p;
-					p++;
-					dst16 -= sdl_surface->w;
-					dst16 += 2;
-				} else {
-					// xxx 未サポート
-				}
-#else
                 
 #define DOTCOPY                 *dst8++ /*R*/= (*p & 0xf800)>>8; /*R*/ \
                                 *dst8++ /*G*/= (*p & 0x07e0)>>3; /*G*/ \
@@ -444,15 +287,7 @@ WinDraw_Draw(unsigned char* data)
 
                 // for MacOS(Bpp==3)
                 DOTCOPY
-//                DOTCOPY
-  //              dst8 += sdl_surface->w * 3 - 6;
-    //            DOTCOPY
-      //          DOTCOPY
-        //        dst8 -= sdl_surface->w * 3;
-
-
                 p++;
-#endif
 			}
 		}
 	} else {
@@ -463,30 +298,12 @@ WinDraw_Draw(unsigned char* data)
 //			dst32 = (DWORD *)dst16;
             unsigned char* dst8 = (unsigned char*)dst16;
 			for (x = 0; x < 768; x++) {
-#if 0
-				if (Bpp == 4) {
-					*dst32++ = (DWORD)(*p & 0xf800) << 8 | (*p & 0x07e0) << 5 | (*p & 0x001f) << 3;
-				} else if (Bpp == 2) {
-					*dst16++ = *p;
-				}
-#else
                 // for MacOS(Bpp==3)
                 DOTCOPY
-
-#endif
                 p++;
 			}
 		}
 	}
-#endif
-
-#if SDL_VERSION_ATLEAST(2, 0, 0)
-	SDL_UpdateWindowSurface(sdl_window);
-#else
-	SDL_UpdateRect(sdl_surface, 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT);
-#endif
-
-#endif
 
 	FrameCount++;
 	if (!Draw_DrawFlag/* && is_installed_idle_process()*/)
@@ -495,17 +312,6 @@ WinDraw_Draw(unsigned char* data)
 
 }
 
-#ifdef PSP
-#ifdef FULLSCREEN_WIDTH
-#undef FULLSCREEN_WIDTH
-#endif
-//PSPのテクスチャは一辺が最大512なので、X68000の768x512画面を
-//512x512と256x512の左右二つに分ける。
-//以下のDrawLine系の関数処理もPSPは左右のテクスチャを別々に
-//処理しなければならない。
-//ということで、以下のdefineは左側テクスチャの横幅を表している。
-#define FULLSCREEN_WIDTH 512
-#endif
 
 #ifdef PSP
 #define WD_MEMCPY(src)						\
