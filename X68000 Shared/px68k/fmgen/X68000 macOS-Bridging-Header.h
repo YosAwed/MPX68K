@@ -12,4 +12,4 @@ const int X68000_GetScreenWidth();
 const int X68000_GetScreenHeight();
 
 
-void X68000_Joystick_Set(BYTE num, BYTE data);
+void X68000_Joystick_Set( unsigned char num, unsigned char data);

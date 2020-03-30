@@ -180,8 +180,7 @@ class JoyController {
 
             self.JoySet(0, JOY_UP,    ( yValue >  0.5 ) )
             self.JoySet(0, JOY_DOWN,  ( yValue < -0.5 ) )
-/
-                io)o009,tself.JoySet(0, JOY_LEFT,  ( xValue < -0.5 ) )
+            self.JoySet(0, JOY_LEFT,  ( xValue < -0.5 ) )
             self.JoySet(0, JOY_RIGHT, ( xValue >  0.5 ) )
         }
     }
