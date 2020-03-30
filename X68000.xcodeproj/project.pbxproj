@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		073F76E52431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
+		073F76E62431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
 		0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
@@ -108,8 +110,6 @@
 		07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863C2242F93EA00CBB224 /* Main.storyboard */; };
 		07F863C6242F93EA00CBB224 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A2242F93E800CBB224 /* Actions.sks */; };
 		07F863C7242F93EA00CBB224 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A2242F93E800CBB224 /* Actions.sks */; };
-		07F863C8242F93EA00CBB224 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A3242F93E800CBB224 /* GameScene.sks */; };
-		07F863C9242F93EA00CBB224 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A3242F93E800CBB224 /* GameScene.sks */; };
 		07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863A4242F93E800CBB224 /* GameScene.swift */; };
 		07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863A4242F93E800CBB224 /* GameScene.swift */; };
 		07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A5242F93EA00CBB224 /* Assets.xcassets */; };
@@ -153,6 +153,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		073F76E42431F438005B1F18 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
 		0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = BubbleBobble_dim.c; sourceTree = "<group>"; };
@@ -348,10 +349,9 @@
 		07F4C7202430667D002CF5CA /* disk_xdf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disk_xdf.c; sourceTree = "<group>"; };
 		07F4C7572430A73C002CF5CA /* AudioStream.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioStream.swift; sourceTree = "<group>"; };
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
-		07F863A3242F93E800CBB224 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		07F863A5242F93EA00CBB224 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		07F863AA242F93EA00CBB224 /* X68000.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = X68000.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		07F863AA242F93EA00CBB224 /* X68000 iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "X68000 iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		07F863AD242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		07F863AF242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		07F863B2242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -476,7 +476,7 @@
 			children = (
 				07F863D6242F940200CBB224 /* px68k */,
 				07F863A2242F93E800CBB224 /* Actions.sks */,
-				07F863A3242F93E800CBB224 /* GameScene.sks */,
+				073F76E42431F438005B1F18 /* GameScene.sks */,
 				07F863A4242F93E800CBB224 /* GameScene.swift */,
 				0771C5A02431B129002D40F0 /* JoyController.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
@@ -488,7 +488,7 @@
 		07F863AB242F93EA00CBB224 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				07F863AA242F93EA00CBB224 /* X68000.app */,
+				07F863AA242F93EA00CBB224 /* X68000 iOS.app */,
 				07F863BC242F93EA00CBB224 /* X68000.app */,
 			);
 			name = Products;
@@ -810,7 +810,7 @@
 			);
 			name = "X68000 iOS";
 			productName = "X68000 iOS";
-			productReference = 07F863AA242F93EA00CBB224 /* X68000.app */;
+			productReference = 07F863AA242F93EA00CBB224 /* X68000 iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 		07F863BB242F93EA00CBB224 /* X68000 macOS */ = {
@@ -876,12 +876,12 @@
 			files = (
 				07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07A2F332242FB6D0002C9D1A /* SDL_config.h.in in Resources */,
-				07F863C8242F93EA00CBB224 /* GameScene.sks in Resources */,
 				07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */,
 				07F863C6242F93EA00CBB224 /* Actions.sks in Resources */,
 				07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */,
 				07A2F334242FB6D0002C9D1A /* SDL_config.h.cmake in Resources */,
 				07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */,
+				073F76E52431F438005B1F18 /* GameScene.sks in Resources */,
 				0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -893,8 +893,8 @@
 				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
-				07F863C9242F93EA00CBB224 /* GameScene.sks in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,
+				073F76E62431F438005B1F18 /* GameScene.sks in Resources */,
 				07A2F333242FB6D0002C9D1A /* SDL_config.h.in in Resources */,
 				07F863C7242F93EA00CBB224 /* Actions.sks in Resources */,
 				07A2F335242FB6D0002C9D1A /* SDL_config.h.cmake in Resources */,
@@ -1203,8 +1203,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
-				PRODUCT_NAME = X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
+				PRODUCT_NAME = "X68000 iOS";
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1231,8 +1231,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
-				PRODUCT_NAME = X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
+				PRODUCT_NAME = "X68000 iOS";
 				SDKROOT = iphoneos;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

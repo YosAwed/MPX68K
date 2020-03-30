@@ -25,6 +25,7 @@ class GameViewController: UIViewController {
         skView.showsFPS = true
         skView.showsNodeCount = true
         skView.showsDrawCount = true
+        skView.preferredFramesPerSecond = 120
     }
 
     override var shouldAutorotate: Bool {

@@ -80,14 +80,38 @@ class GameScene: SKScene {
         self.audioStream = AudioStream.init();
         self.audioStream?.play();
         
+        self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
+        if let label = self.label {
+            label.alpha = 0.0
+            label.zPosition = 3.0
+            label.blendMode = .add
+            label.run(
+            SKAction.sequence([
+                SKAction.wait(forDuration: 1.0),
+                SKAction.fadeIn(withDuration: 2.0),
+                SKAction.wait(forDuration: 0.5),
+                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
+            ]
+            ))
+        
+        }
+
         self.titleSprite = SKSpriteNode.init( imageNamed: "X68000LogoW.png" )
         self.titleSprite?.zPosition = 3.0
-        self.titleSprite?.alpha = 0.3
+        self.titleSprite?.alpha = 0.0
         self.titleSprite?.blendMode = .add
         self.titleSprite?.setScale( 1.0 )
+        self.titleSprite?.run(
+            
+            SKAction.sequence([
+                SKAction.fadeIn(withDuration: 2.0),
+                SKAction.wait(forDuration: 1.5),
+                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
+            ]
+            ))
         self.addChild(titleSprite!)
-
-        self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 768, height: 512));
+/*
+        self.spr = SKSpriteNode.init(color:.black, size: CGSize(width: 768, height: 512));
         self.spr?.alpha = 0.5
         self.spr?.xScale = 1.7
         self.spr?.yScale = 1.7
@@ -97,6 +121,7 @@ class GameScene: SKScene {
         self.spr?.zPosition = 2.0
 
         self.addChild(spr!)
+*/
         /*
         self.spr256 = SKSpriteNode.init(color:.blue, size: CGSize(width: 256, height: 256));
         self.spr256?.alpha = 0.5
@@ -109,13 +134,6 @@ class GameScene: SKScene {
 */
 
         // Get label node from scene and store it for use later
-        #if false
-        self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
-        if let label = self.label {
-            label.alpha = 0.0
-            label.run(SKAction.fadeIn(withDuration: 2.0))
-                    }
-        #endif
         
         // Create shape node to use during mouse interaction
         let w = (self.size.width + self.size.height) * 0.05
@@ -177,6 +195,8 @@ class GameScene: SKScene {
         let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
         self.tex = SKTexture.init( cgImage : image! )
 
+        self.spr?.removeFromParent()
+
         self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
         self.spr?.texture = self.tex!;
 //        self.spr?.alpha = 1.0
@@ -191,10 +211,13 @@ class GameScene: SKScene {
             self.spr?.yScale = scale
         }
         self.spr?.zPosition = 0.1
-        self.spr?.run(SKAction.sequence([
-            SKAction.wait(forDuration: 0.016),
-            SKAction.removeFromParent()]))
-
+//        self.spr?.alpha = 1.0
+//        self.spr?.blendMode = .add
+        
+//        self.spr?.run(SKAction.sequence([
+//            SKAction.wait(forDuration: 0.016),
+//            SKAction.removeFromParent()]))
+//
         self.addChild(spr!)
 /*
         if ( w == 256 ) {
@@ -216,9 +239,9 @@ class GameScene: SKScene {
 extension GameScene {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let label = self.label {
-            label.run(SKAction.init(named: "Pulse")!, withKey: "fadeInOut")
-        }
+//        if let label = self.label {
+//            label.run(SKAction.init(named: "Pulse")!, withKey: "fadeInOut")
+//        }
         
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
