@@ -94,7 +94,7 @@
 		073F7717243237AD005B1F18 /* c68k_op0.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op0.inc; sourceTree = "<group>"; };
 		073F7718243237AD005B1F18 /* c68k_opF.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opF.inc; sourceTree = "<group>"; };
 		073F7719243237AD005B1F18 /* c68k_op1.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op1.inc; sourceTree = "<group>"; };
-		07E2E67824324103007EFB06 /* libc68k_mac.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k_mac.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k_mac_DEBUG.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,7 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				073F76F124323762005B1F18 /* libc68k.a */,
-				07E2E67824324103007EFB06 /* libc68k_mac.a */,
+				07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -212,7 +212,7 @@
 			);
 			name = c68k_mac;
 			productName = c68k;
-			productReference = 07E2E67824324103007EFB06 /* libc68k_mac.a */;
+			productReference = 07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 /* End PBXNativeTarget section */
@@ -473,7 +473,7 @@
 					C68K_NO_JUMP_TABLE,
 				);
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)_DEBUG";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
