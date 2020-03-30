@@ -73,22 +73,12 @@ DSound_Init(unsigned long rate, unsigned long buflen)
 	samples = 2048;
 
 	memset(&fmt, 0, sizeof(fmt));
-#ifdef PSP
-	// PSPは常に44kを要求するので、rateが22Kの場合はデータを2倍にする
-	// r0, l0, r1, l1, ... -> r0, l0, r0, l0, r1, l1, r1, l1, ...
-	fmt.freq = 44100;
-#else
 	fmt.freq = rate;
-#endif
 	fmt.format = AUDIO_S16SYS;
 	fmt.channels = 2;
 	fmt.samples = samples;
 	fmt.callback = sdlaudio_callback;
-#ifdef PSP
-	fmt.userdata = rate;
-#else
 	fmt.userdata = NULL;
-#endif
 	audio_fd = SDL_OpenAudio(&fmt, NULL);
 	if (audio_fd < 0) {
 		SDL_Quit();
@@ -129,28 +119,17 @@ static void sound_send(int length)
 {
 	int rate;
 
-#ifdef PSP
-	rate = Config.SampleRate;
-#else
 	rate = 0;
-#endif
 	SDL_LockAudio();
 	ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
 	OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
 #ifndef	NO_MERCURY
 	//Mcry_Update((short *)pcmbufp, length);
 #endif
-#ifdef PSP
-	pbwp += length * sizeof(WORD) * 2 * (44100 / rate);
-	if (pbwp >= pbep) {
-		pbwp = pbsp + (pbwp - pbep);
-	}
-#else
 	pbwp += length * sizeof(WORD) * 2;
 	if (pbwp >= pbep) {
 		pbwp = pbsp + (pbwp - pbep);
 	}
-#endif
 	SDL_UnlockAudio();
 }
 
@@ -196,9 +175,6 @@ sdlaudio_callback(void *userdata, unsigned char *stream, int len)
 
 	//p6logd("tdiff %4d : len %d ", now - bef, len);
 
-#ifdef PSP
-	rate = (int)userdata;
-#endif
 
 cb_start:
 	if (pbrp <= pbwp) {
@@ -213,11 +189,7 @@ cb_start:
 		datalen = pbwp - pbrp;
 		if (datalen < len) {
 			// needs more data
-#ifdef PSP
-			DSound_Send((len - datalen) / 4 / (44100 / rate));
-#else
 			DSound_Send((len - datalen) / 4);
-#endif
 		}
 #if 0
 		datalen = pbwp - pbrp;
@@ -252,11 +224,7 @@ cb_start:
 		} else {
 			lenb = len - lena;
 			if (pbwp - pbsp < lenb) {
-#ifdef PSP
-				DSound_Send((lenb - (pbwp - pbsp)) / 4 / (44100 / rate));
-#else
 				DSound_Send((lenb - (pbwp - pbsp)) / 4);
-#endif
 			}
 #if 0
 			if (pbwp - pbsp < lenb) {

@@ -14,7 +14,7 @@ func bridge<T : AnyObject>(_ ptr : UnsafeRawPointer) -> T {
 
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
 
-    let stream: AudioStream = bridge(UnsafeRawPointer(data)!)
+//    let stream: AudioStream = bridge(UnsafeRawPointer(data)!)
     
     let size = buffer.pointee.mAudioDataBytesCapacity / 4
     let opaquePtr = OpaquePointer(buffer.pointee.mAudioData)

@@ -5,11 +5,8 @@
 #include "joystick.h"
 #include "winui.h"
 #include "keyboard.h"
-#ifdef PSP
-#include <pspctrl.h>
-#else
 #include <SDL.h>
-#endif
+
 #if defined(ANDROID) || TARGET_OS_IPHONE || defined(PSP)
 #include "mouse.h"
 #endif
@@ -37,12 +34,6 @@ BYTE MouseDownState0;
 BYTE JoyUpState0;
 BYTE MouseUpState0;
 
-#ifdef PSP
-DWORD JoyDownStatePSP;
-BYTE JoyAnaPadX;
-BYTE JoyAnaPadY;
-static void mouse_update_psp(SceCtrlData psppad);
-#endif
 BYTE JoyPortData[2];
 
 #if defined(ANDROID) || TARGET_OS_IPHONE
@@ -150,15 +141,11 @@ BYTE Joystick_get_vbtn_state(WORD n)
 
 #endif
 
-#ifndef PSP
 SDL_Joystick *sdl_joy;
-#endif
 
 void Joystick_Init(void)
 {
-#ifndef PSP
 	int i, nr_joys, nr_axes, nr_btns, nr_hats;
-#endif
 
 	joy[0] = 1;  // active only one
 	joy[1] = 0;

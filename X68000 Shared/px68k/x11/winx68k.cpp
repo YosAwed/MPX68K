@@ -283,11 +283,7 @@ WinX68k_Reset(void)
 int
 WinX68k_Init(void)
 {
-#ifdef PSP
-#define MEM_SIZE 0x400000
-#else
 #define MEM_SIZE 0xc00000
-#endif
 	IPL = (BYTE*)malloc(0x40000);
 	MEM = (BYTE*)malloc(MEM_SIZE);
 	FONT = (BYTE*)malloc(0xc0000);
@@ -517,11 +513,7 @@ void WinX68k_Exec(void)
 		}
 	}
 
-#ifdef PSP
-	Joystick_Update(FALSE);
-#else
 	Joystick_Update(FALSE, SDLK_UNKNOWN);
-#endif
 	FDD_SetFDInt();
 	if ( !DispFrame )
 		WinDraw_Draw();
@@ -538,54 +530,6 @@ void WinX68k_Exec(void)
 //
 // main
 //
-#ifdef PSP
-
-#include <pspmoduleinfo.h>
-#include <psppower.h>
-#include <pspctrl.h>
-#include <pspkernel.h>
-#include <pspgu.h>
-
-int exit_flag = 0;
-
-int exit_callback(int arg1, int arg2, void *common)
-{
-	exit_flag = 1;
-
-	return 0;
-}
-
-int CallbackThread(SceSize args, void *argp)
-{
-	int cbid;
-
-	cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
-	sceKernelRegisterExitCallback(cbid); //SetExitCallback(cbid);
-
-	sceKernelSleepThreadCB(); //KernelPollCallbacks();
-
-	return 0;
-}
-
-int SetupCallbacks(void)
-{
-	int thid;
-
-	thid = sceKernelCreateThread("update_thread", CallbackThread,
-				     0x11, 0xFA0, 0, 0);
-	if (thid >= 0) {
-		sceKernelStartThread(thid, 0, 0);
-	}
-
-	return thid;
-}
-
-PSP_HEAP_SIZE_KB(-1024);
-
-
-extern "C" int
-SDL_main(int argc, char *argv[])
-#else
 
 //@int main(int argc, char *argv[])
 int original_main(int argc, char *argv[]);
@@ -631,7 +575,6 @@ extern "C" void X68000_Update() {
 }
 
 int original_main(int argc, char *argv[])
-#endif
 {
 #ifndef PSP
 	SDL_Event ev;

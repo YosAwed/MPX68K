@@ -228,11 +228,7 @@ void LoadConfig(void)
 	winx = GetPrivateProfileInt(ini_title, "WinPosX", 0, winx68k_ini);
 	winy = GetPrivateProfileInt(ini_title, "WinPosY", 0, winx68k_ini);
 
-#ifdef PSP
-	Config.FrameRate = (BYTE)GetPrivateProfileInt(ini_title, "FrameRate", 5, winx68k_ini);
-#else
 	Config.FrameRate = (BYTE)GetPrivateProfileInt(ini_title, "FrameRate", 7, winx68k_ini);
-#endif
 	if (!Config.FrameRate) Config.FrameRate = 7;
 	GetPrivateProfileString(ini_title, "StartDir", "", buf, MAX_PATH, winx68k_ini);
 	if (buf[0] != 0)
@@ -243,11 +239,7 @@ void LoadConfig(void)
 	Config.OPM_VOL = GetPrivateProfileInt(ini_title, "OPM_Volume", 12, winx68k_ini);
 	Config.PCM_VOL = GetPrivateProfileInt(ini_title, "PCM_Volume", 15, winx68k_ini);
 	Config.MCR_VOL = GetPrivateProfileInt(ini_title, "MCR_Volume", 13, winx68k_ini);
-#ifdef PSP
-	Config.SampleRate = GetPrivateProfileInt(ini_title, "SampleRate", 11025, winx68k_ini);
-#else
 	Config.SampleRate = GetPrivateProfileInt(ini_title, "SampleRate", 22050, winx68k_ini);
-#endif
 	Config.BufferSize = GetPrivateProfileInt(ini_title, "BufferSize", 50, winx68k_ini);
 
 	Config.MouseSpeed = GetPrivateProfileInt(ini_title, "MouseSpeed", 10, winx68k_ini);

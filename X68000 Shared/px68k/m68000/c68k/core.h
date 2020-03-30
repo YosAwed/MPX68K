@@ -241,12 +241,6 @@ static INLINE int StateCheckRetrieveHeader(FILE *fp, const char *name, int *vers
  * optimization for them; the defaults below will then be used instead.
  */
 
-#ifdef PSP
-# define BSWAP16(x)  ((typeof(x)) __builtin_allegrex_wsbh((x)))
-# define BSWAP16L(x)  BSWAP16(x)
-# define BSWAP32(x)  ((typeof(x)) __builtin_allegrex_wsbw((x)))
-# define WSWAP32(x)  ((typeof(x)) __builtin_allegrex_rotr((x), 16))
-#endif
 
 #ifdef __GNUC__
 #ifdef HAVE_BUILTIN_BSWAP16
