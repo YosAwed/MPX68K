@@ -14,6 +14,7 @@ class GameScene: SKScene {
     
     fileprivate var label : SKLabelNode?
     fileprivate var spinnyNode : SKShapeNode?
+    var titleSprite : SKSpriteNode?
     var spr : SKSpriteNode?
     var spr256 : SKSpriteNode?
     var tex : SKTexture?
@@ -77,8 +78,14 @@ class GameScene: SKScene {
     func setUpScene() {
         
         self.audioStream = AudioStream.init();
-
         self.audioStream?.play();
+        
+        self.titleSprite = SKSpriteNode.init( imageNamed: "X68000LogoW.png" )
+        self.titleSprite?.zPosition = 3.0
+        self.titleSprite?.alpha = 0.3
+        self.titleSprite?.blendMode = .add
+        self.titleSprite?.setScale( 1.0 )
+        self.addChild(titleSprite!)
 
         self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 768, height: 512));
         self.spr?.alpha = 0.5
@@ -149,6 +156,7 @@ class GameScene: SKScene {
         if let spinny = self.spinnyNode?.copy() as! SKShapeNode? {
             spinny.position = pos
             spinny.strokeColor = color
+            spinny.lineWidth = 0.1
             spinny.zPosition = 1.0
 
             self.addChild(spinny)
@@ -171,25 +179,21 @@ class GameScene: SKScene {
 
         self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
         self.spr?.texture = self.tex!;
-        self.spr?.alpha = 1.0
-        let scale : CGFloat  = 1.78
+//        self.spr?.alpha = 1.0
+        let scale : CGFloat  = 1.7
         if ( w == 256 ) {
             let scale_y : CGFloat = 256.0 / CGFloat(h)
             let aspect : CGFloat = 768.0 / 512.0
             self.spr?.xScale = scale * 2.0 * aspect
-            self.spr?.yScale = scale * 2.0 * scale_y
+            self.spr?.yScale = scale * 2.0 * (scale_y+0.3)
         } else {
-        self.spr?.xScale = scale
-        self.spr?.yScale = scale
-
+            self.spr?.xScale = scale
+            self.spr?.yScale = scale
         }
+        self.spr?.zPosition = 0.1
         self.spr?.run(SKAction.sequence([
             SKAction.wait(forDuration: 0.016),
-//                            SKAction.wait(forDuration: 0.1),
-      //      SKAction.scale(to:  4.5, duration: 0.5),
-        //                    SKAction.fadeOut(withDuration: 0.1),
-
-                                          SKAction.removeFromParent()]))
+            SKAction.removeFromParent()]))
 
         self.addChild(spr!)
 /*

@@ -18,15 +18,15 @@ let  JOY_TRG1 : UInt8 = 0x40
 
 class JoyController {
 
-    var joydata : UInt8 = 0;
+    var joydata : UInt8 = 0x00
 
     func initNotificationSetupCheck() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
         { (success, error) in
             if success {
-                print("Permission Granted")
+                print("許可")
             } else {
-                print("There was a problem!")
+                print("拒否")
             }
         }
     }
@@ -98,7 +98,6 @@ class JoyController {
         // ④ 通知の追加
         center.add(request)
 #endif
-        print(gameController)
         print("ゲームコントローラーが接続されました")
         print("Name: \(gameController.vendorName!)")
         print("Category: \(gameController.productCategory)")
