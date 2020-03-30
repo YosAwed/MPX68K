@@ -7,7 +7,7 @@
 #include	"prop.h"
 #include	"winx68k.h"
 #include	"sysport.h"
-#include	"memory.h"
+#include	"x68kmemory.h"
 #include	"sram.h"
 
 	BYTE	SRAM[0x4000];
@@ -24,7 +24,7 @@ void SRAM_VirusCheck(void)
 	if (!Config.SRAMWarning) return;				// Warning発生モードでなければ帰る
 
 	if ( (cpu_readmem24_dword(0xed3f60)==0x60000002)
-	   &&(cpu_readmem24_dword(0xed0010)==0x00ed3f60) )		// 特定うぃるすにしか効かないよ〜
+	   &&(cpu_readmem24_dword(0xed0010)==0x00ed3f60) )		// 特定うぃるすにしか効かないよ~
 	{
 #if 0 /* XXX */
 		ret = MessageBox(hWndMain,
@@ -33,7 +33,7 @@ void SRAM_VirusCheck(void)
 		if (ret == IDYES)
 		{
 			for (i=0x3c00; i<0x4000; i++)
-				SRAM[i] = 0;
+				SRAM[i] = 0xFF;
 			SRAM[0x11] = 0x00;
 			SRAM[0x10] = 0xed;
 			SRAM[0x13] = 0x01;
@@ -57,7 +57,7 @@ void SRAM_Init(void)
 	FILEH fp;
 
 	for (i=0; i<0x4000; i++)
-		SRAM[i] = 0;
+		SRAM[i] = 0xFF;
 
 	fp = File_OpenCurDir(SRAMFILE);
 	if (fp)
@@ -75,7 +75,7 @@ void SRAM_Init(void)
 
 
 // -----------------------------------------------------------------------
-//   撤収〜
+//   撤収~
 // -----------------------------------------------------------------------
 void SRAM_Cleanup(void)
 {

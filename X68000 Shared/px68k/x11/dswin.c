@@ -273,7 +273,7 @@ cb_start:
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)	
 	// SDL2.0ではstream bufferのクリアが必要
-	memset(stream, 0, len);
+//@	memset(stream, 0, len);
 #endif
 	SDL_MixAudio(stream, buf, len, SDL_MIX_MAXVOLUME);
 

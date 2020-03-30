@@ -239,7 +239,7 @@ WinUI_Init(void)
 #if defined(ANDROID)
 #define CUR_DIR_STR winx68k_dir
 #elif TARGET_OS_IPHONE && TARGET_IPHONE_SIMULATOR == 0
-#define CUR_DIR_STR "/var/mobile/px68k/"
+#define CUR_DIR_STR "/var/mobile/Media/general_storage/"
 #else
 #define CUR_DIR_STR "./"
 #endif

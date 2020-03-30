@@ -7,7 +7,7 @@
 #include	"tvram.h"
 #include	"bg.h"
 #include	"crtc.h"
-#include	"memory.h"
+#include	"x68kmemory.h"
 #include	"m68000.h"
 #include	"palette.h"
 

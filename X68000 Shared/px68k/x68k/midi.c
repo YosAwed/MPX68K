@@ -21,7 +21,7 @@
 #include "winx68k.h"
 #include "fileio.h"
 #include "mmsystem.h"
-#include "memory.h"
+#include "x68kmemory.h"
 #include "irqh.h"
 #include "midi.h"
 #include "m68000.h"

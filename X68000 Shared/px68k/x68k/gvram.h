@@ -24,6 +24,7 @@ void FASTCALL Grp_DrawLine8SP(int page/*, int opaq*/);
 void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/);
 void FASTCALL Grp_DrawLine4hSP(void);
 void FASTCALL Grp_DrawLine8TR(int page, int opaq);
+void FASTCALL Grp_DrawLine8TR_GT(int page, int opaq);
 void FASTCALL Grp_DrawLine4TR(DWORD page, int opaq);
 #endif
 

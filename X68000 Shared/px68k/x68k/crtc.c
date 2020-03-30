@@ -38,6 +38,8 @@ static WORD FastClearMask[16] = {
 
 	BYTE	CRTC_RCFlag[2] = {0, 0};
 	int HSYNC_CLK = 324;
+//    extern int VID_MODE, CHANGEAV_TIMING;
+ int VID_MODE, CHANGEAV_TIMING;
 
 
 // -----------------------------------------------------------------------
@@ -336,6 +338,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 {
 	BYTE old;
 	BYTE reg = (BYTE)(adr&0x3f);
+	int old_vidmode = VID_MODE;
 	if (adr<0xe80400)
 	{
 		if ( reg>=0x30 ) return;
@@ -405,6 +408,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			break;
 		case 0x29:
 			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/VLINE_TOTAL;
+			VID_MODE = CRTC_Regs[0x29]&0x10;
 			TextDotY = CRTC_VEND-CRTC_VSTART;
 			if ((CRTC_Regs[0x29]&0x14)==0x10)
 			{
@@ -418,6 +422,11 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			}
 			else
 				CRTC_VStep = 2;
+			if (VID_MODE != old_vidmode)
+			{
+				old_vidmode = VID_MODE;
+				CHANGEAV_TIMING=1;
+			}
 			WinDraw_ChangeSize();
 			break;
 		case 0x12:

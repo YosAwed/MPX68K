@@ -19,7 +19,7 @@ extern "C" {
 #include "winui.h"
 #include "../x68k/m68000.h" // xxx これはいずれいらなくなるはず
 #include "../m68000/m68000.h"
-#include "../x68k/memory.h"
+#include "../x68k/x68kmemory.h"
 #include "mfp.h"
 #include "opm.h"
 #include "bg.h"
@@ -178,6 +178,7 @@ WinX68k_LoadROMs(void)
 	FILEH fp;
 	int i;
 	BYTE tmp;
+#if 0
 
 	for (fp = 0, i = 0; fp == 0 && i < NELEMENTS(BIOSFILE); ++i) {
 		fp = File_OpenCurDir((char *)BIOSFILE[i]);
@@ -190,7 +191,10 @@ WinX68k_LoadROMs(void)
 
 	File_Read(fp, &IPL[0x20000], 0x20000);
 	File_Close(fp);
-
+#else
+    extern const unsigned char IPLROM_DAT[];
+    memcpy( &IPL[0x20000], IPLROM_DAT, 0x20000);
+#endif
 	WinX68k_SCSICheck();	// SCSI IPLなら、$fc0000〜にSCSI BIOSを置く
 
 	for (i = 0; i < 0x40000; i += 2) {
@@ -198,81 +202,81 @@ WinX68k_LoadROMs(void)
 		IPL[i] = IPL[i + 1];
 		IPL[i + 1] = tmp;
 	}
-
+#if 0
 	fp = File_OpenCurDir((char *)FONTFILE);
 	if (fp == 0) {
 		// cgrom.tmpがある？
 		fp = File_OpenCurDir((char *)FONTFILETMP);
 		if (fp == 0) {
-#if 1
 			// フォント生成 XXX
 			printf("フォントROMイメージが見つかりません\n");
 			return FALSE;
-#else
-			MessageBox(hWndMain,
-				"フォントROMイメージが見つかりません.\nWindowsフォントから新規に作成します.",
-				"けろぴーのメッセージ", MB_ICONWARNING | MB_OK);
-			SSTP_SendMes(SSTPMES_MAKEFONT);
-			make_cgromdat(FONT, FALSE, "ＭＳ ゴシック", "ＭＳ 明朝");
-			//WinX68k_MakeFont();
-			//DialogBox(hInst, MAKEINTRESOURCE(IDD_PROGBAR),
-			//		hWndMain, (DLGPROC)MakeFontProc);
-			fp = File_CreateCurDir(FONTFILETMP);
-			if (fp)
-			{
-				File_Write(fp, FONT, 0xc0000);
-				File_Close(fp);
-				return TRUE;
-			}
-			return TRUE;
-#endif
 		}
 	}
 	File_Read(fp, FONT, 0xc0000);
 	File_Close(fp);
+#else
+    extern const unsigned char CGROM_DAT[];
+    memcpy( FONT, CGROM_DAT, 0xc0000);
 
+#endif
+    
+    
 	return TRUE;
 }
 
 int
 WinX68k_Reset(void)
 {
-	OPM_Reset();
+    OPM_Reset();
 
-	C68k_Reset(&C68K);
-	C68k_Set_Reg(&C68K, C68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
-	C68k_Set_Reg(&C68K, C68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+#if defined (HAVE_CYCLONE)
+    m68000_reset();
+    m68000_set_reg(M68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
+    m68000_set_reg(M68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+#elif defined (HAVE_C68K)
+    C68k_Reset(&C68K);
+/*
+    C68k_Set_Reg(&C68K, C68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
+    C68k_Set_Reg(&C68K, C68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+*/
+    C68k_Set_AReg(&C68K, 7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
+    C68k_Set_PC(&C68K, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+#endif /* HAVE_C68K */
 
-	Memory_Init();
-	CRTC_Init();
-	DMA_Init();
-	MFP_Init();
-	FDC_Init();
-	FDD_Reset();
-	SASI_Init();
-	SCSI_Init();
-	IOC_Init();
-	SCC_Init();
-	PIA_Init();
-	RTC_Init();
-	TVRAM_Init();
-	GVRAM_Init();
-	BG_Init();
-	Pal_Init();
-	IRQH_Init();
-	MIDI_Init();
-	//WinDrv_Init();
+    Memory_Init();
+    CRTC_Init();
+    DMA_Init();
+    MFP_Init();
+    FDC_Init();
+    FDD_Reset();
+    SASI_Init();
+    SCSI_Init();
+    IOC_Init();
+    SCC_Init();
+    PIA_Init();
+    RTC_Init();
+    TVRAM_Init();
+    GVRAM_Init();
+    BG_Init();
+    Pal_Init();
+    IRQH_Init();
+    MIDI_Init();
+    //WinDrv_Init();
 
-	C68K.ICount = 0;
-	m68000_ICountBk = 0;
-	ICount = 0;
+//    C68K.ICount = 0;
+    m68000_ICountBk = 0;
+    ICount = 0;
 
-	DSound_Stop();
-	SRAM_VirusCheck();
-	//CDROM_Init();
-	DSound_Play();
+    DSound_Stop();
+    SRAM_VirusCheck();
+    //CDROM_Init();
+    DSound_Play();
 
-	return TRUE;
+    // add retro log
+    p6logd("Restarting PX68K...\n");
+
+    return TRUE;
 }
 
 
@@ -296,6 +300,11 @@ WinX68k_Init(void)
 		return TRUE;
 	} else
 		return FALSE;
+}
+
+void WinX68k_Debug()
+{
+    printf("@PC:%08x\n",C68K.PC);
 }
 
 void
@@ -327,7 +336,7 @@ void WinX68k_Exec(void)
 	int KeyIntCnt = 0, MouseIntCnt = 0;
 	DWORD t_start = timeGetTime(), t_end;
 
-	if ( Config.FrameRate != 7 ) {
+    if ( Config.FrameRate != 7 ) {
 		DispFrame = (DispFrame+1)%Config.FrameRate;
 	} else {				// Auto Frame Skip
 		if ( FrameSkipQueue ) {
@@ -364,7 +373,7 @@ void WinX68k_Exec(void)
 
 	do {
 		int m, n = (ICount>CLOCK_SLICE)?CLOCK_SLICE:ICount;
-		C68K.ICount = m68000_ICountBk = 0;			// 割り込み発生前に与えておかないとダメ（CARAT）
+//		C68K.ICount = m68000_ICountBk = 0;			// 割り込み発生前に与えておかないとダメ（CARAT）
 
 		if ( hsync ) {
 			hsync = 0;
@@ -398,7 +407,7 @@ void WinX68k_Exec(void)
 			fp=fopen("_trace68.txt", "a");
 			for (i=0; i<HSYNC_CLK; i++)
 			{
-				m68k_disassemble(buf, C68k_Get_Reg(&C68K, C68K_PC));
+///				m68k_disassemble(buf, C68k_Get_Reg(&C68K, C68K_PC));
 //				if (MEM[0xa84c0]) /**test=1; */tracing=1000;
 //				if (regs.pc==0x9d2a) tracing=5000;
 //				if ((regs.pc>=0x2000)&&((regs.pc<=0x8e0e0))) tracing=50000;
@@ -410,9 +419,9 @@ void WinX68k_Exec(void)
 				if (/*fdctrace&&*/(oldpc != C68k_Get_Reg(&C68K, C68K_PC)))
 				{
 //					//tracing--;
-				  fprintf(fp, "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx とりあえず0 C68K.ccr */);
-				  fprintf(fp, "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
-					fprintf(fp, "<%04X> (%08X ->) %08X : %s\n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC), buf);
+				  printf( "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx とりあえず0 C68K.ccr */);
+				  printf( "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
+					printf( "<%04X> (%08X ->) %08X : \n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC));
 				}
 				oldpc = C68k_Get_Reg(&C68K, C68K_PC);
 				C68K.ICount = 1;
@@ -424,18 +433,24 @@ void WinX68k_Exec(void)
 		}
 		else
 #endif
-		{
-			C68K.ICount = n;
-			C68k_Exec(&C68K, C68K.ICount);
-			m = (n-C68K.ICount-m68000_ICountBk);			// 経過クロック数
-			ClkUsed += m*10;
-			usedclk = ClkUsed/clkdiv;
-			clk_line += usedclk;
-			ClkUsed -= usedclk*clkdiv;
-			ICount -= m;
-			clk_count += m;
-			C68K.ICount = m68000_ICountBk = 0;
-		}
+                    {
+            //            C68K.ICount = n;
+            //            C68k_Exec(&C68K, C68K.ICount);
+            #if defined (HAVE_CYCLONE)
+                        m68000_execute(n);
+            #elif defined (HAVE_C68K)
+                        C68k_Exec(&C68K, n);
+            #endif /* HAVE_C68K */
+                        m = (n-m68000_ICountBk);
+            //            m = (n-C68K.ICount-m68000_ICountBk);            // clockspeed progress
+                        ClkUsed += m*10;
+                        usedclk = ClkUsed/clkdiv;
+                        clk_line += usedclk;
+                        ClkUsed -= usedclk*clkdiv;
+                        ICount -= m;
+                        clk_count += m;
+            //            C68K.ICount = m68000_ICountBk = 0;
+                    }
 
 		MFP_Timer(usedclk);
 		RTC_Timer(usedclk);
@@ -575,14 +590,45 @@ SDL_main(int argc, char *argv[])
 //@int main(int argc, char *argv[])
 int original_main(int argc, char *argv[]);
 
-extern "C" void X68000() {
+extern "C" {
+
+void X68000_Key_Down( unsigned int vkcode ) {
+    Keyboard_KeyDown(vkcode);
+}
+void X68000_Key_Up( unsigned int vkcode ) {
+    Keyboard_KeyUp(vkcode);
+}
+const int X68000_GetScreenWidth()
+{
+    return TextDotX;
+}
+const int X68000_GetScreenHeight()
+{
+    return TextDotY;
+}
+void X68000_GetImage( unsigned char* data ) {
+    SDL_Surface* s = SDL_GetWindowSurface(NULL);
+    memcpy( data, s->pixels, TextDotX*TextDotY*3);
+}
+
+} // extern "C"
+
+extern "C" void X68000_Init() {
     char* arg[] = {
-      "",
+      "X68000",
+//        "/Users/goroman/Retro/human302.xdf",
+//        "/Users/goroman/Retro/Salamander.dim",
+        "/Users/goroman/Retro/BubbleBobble.dim",
     };
-    original_main(1, arg);
+    original_main(2, arg);
 
 }
 
+void Update();
+
+extern "C" void X68000_Update() {
+    Update();
+}
 
 int original_main(int argc, char *argv[])
 #endif
@@ -609,6 +655,7 @@ int original_main(int argc, char *argv[])
 #endif
 
 	p6logd("PX68K Ver.%s\n", PX68KVERSTR);
+    WinX68k_Debug();
 
 #ifdef RFMDRV
 	struct sockaddr_in dest;
@@ -628,7 +675,7 @@ int original_main(int argc, char *argv[])
 	dosio_init();
 	file_setcd(winx68k_dir);
     puts(winx68k_dir);
-
+    WinX68k_Debug();
 	LoadConfig();
 
 #ifndef NOSOUND
@@ -755,8 +802,11 @@ int original_main(int argc, char *argv[])
 	Mouse_Init();
 	Joystick_Init();
 	SRAM_Init();
+            WinX68k_Debug();
+
 	WinX68k_Reset();
 	Timer_Init();
+            WinX68k_Debug();
 
 	MIDI_Init();
 	MIDI_SetMimpiMap(Config.ToneMapFile);	// 音色設定ファイル使用反映
@@ -783,266 +833,295 @@ int original_main(int argc, char *argv[])
 		break;
 	}
 
-	FDD_SetFD(0, Config.FDDImage[0], 0);
+    printf("FD:%s\n",Config.FDDImage[0] );
+    
+    FDD_SetFD(0, Config.FDDImage[0], 0);
 	FDD_SetFD(1, Config.FDDImage[1], 0);
 
 	//SDL_StartTextInput();
-
-	while (1) {
-		// OPM_RomeoOut(Config.BufferSize * 5);
-		if (menu_mode == menu_out
-		    && (Config.NoWaitMode || Timer_GetCount())) {
-			WinX68k_Exec();
-#if defined(ANDROID) || TARGET_OS_IPHONE
-			if (vk_cnt > 0) {
-				vk_cnt--;
-				if (vk_cnt == 0) {
-					p6logd("vk_cnt 0");
-				}
-			}
-			if  (menu_cnt > 0) {
-				menu_cnt--;
-				if (menu_cnt == 0) {
-					p6logd("menu_cnt 0");
-				}
-			}
-#endif
-			if (SplashFlag) {
-				SplashFlag--;
-				if (SplashFlag == 0)
-					WinDraw_HideSplash();
-			}
-		}
-#ifndef PSP
-		menu_key_down = SDLK_UNKNOWN;
-
-		while (SDL_PollEvent(&ev)) {
-			switch (ev.type) {
-			case SDL_QUIT:
-				goto end_loop;
-			case SDL_MOUSEMOTION:
-				p6logd("x:%d y:%d xrel:%d yrel:%d\n", ev.motion.x, ev.motion.y, ev.motion.xrel, ev.motion.yrel);
-				break;
-#if defined(ANDROID) || TARGET_OS_IPHONE
-			case SDL_APP_WILLENTERBACKGROUND:
-				DSound_Stop();
-				break;
-			case SDL_APP_WILLENTERFOREGROUND:
-				DSound_Play();
-				break;
-			case SDL_FINGERDOWN:
-				//p6logd("FINGERDOWN: tid: %lld,,, x:%f y:%f", ev.tfinger.touchId, ev.tfinger.x, ev.tfinger.y);
-				if (touchId == -1) {
-					touchId = ev.tfinger.touchId;
-				}
-				break;
-			case SDL_FINGERMOTION:
-				float kx, ky, dx, dy;
-				p6logd("FM: x:%f y:%f dx:%f dy:%f\n", ev.tfinger.x, ev.tfinger.y, ev.tfinger.dx, ev.tfinger.dy);
-				if (vk_cnt == 0) {
-					kx = ev.tfinger.x * 800;
-					ky = ev.tfinger.y * 600;
-					dx = ev.tfinger.dx * 800;
-					dy = ev.tfinger.dy * 600;
-					if (kbd_x < kx && kbd_x + kbd_w > kx &&
-					    kbd_y < ky && kbd_y + kbd_h > ky) {
-						kbd_x += dx;
-						kbd_y += dy;
-						if (kbd_x < 0) kbd_x = 0;
-						if (kbd_y < 0) kbd_y = 0;
-						if (kbd_x > 700) {
-							vk_cnt = -1;
-						}
-						if (kbd_y > 550) kbd_y = 550;
-					}
-				} else if (Config.JoyOrMouse) { // Mouse mode is off when the keyboard is active
-					Mouse_Event(0, ev.tfinger.dx * 50 * Config.MouseSpeed, ev.tfinger.dy * 50 * Config.MouseSpeed);
-				}
-				break;
-#endif
-			case SDL_KEYDOWN:
-#if defined(ANDROID) || TARGET_OS_IPHONE
-				static DWORD bef = 0;
-				DWORD now;
-				switch (ev.key.keysym.sym) {
-				case SDLK_AC_BACK:
-					now = timeGetTime();
-					if (now - bef < 1000) {
-						goto end_loop;
-					}
-					bef = now;
-					break;
-				case SDLK_MENU:
-					if (menu_mode == menu_out) {
-						menu_mode = menu_enter;
-						DSound_Stop();
-					} else {
-						DSound_Play();
-						menu_mode = menu_out;
-					}
-					break;
-				}
-#endif
-				printf("keydown: 0x%x\n", ev.key.keysym.sym);
-				printf("font %d %d\n", FONT[100], FONT[101]);
-				if (ev.key.keysym.sym == SDLK_F12) {
-					if (menu_mode == menu_out) {
-						menu_mode = menu_enter;
-						DSound_Stop();
-					} else {
-						DSound_Play();
-						menu_mode = menu_out;
-					}
-				}
-#ifdef WIN68DEBUG
-				if (ev.key.keysym.sym == SDLK_F10) {
-					traceflag ^= 1;
-					printf("trace %s\n", (traceflag)?"on":"off");
-				}
-#endif
-				if (menu_mode != menu_out) {
-					menu_key_down = ev.key.keysym.sym;
-				} else {
-					Keyboard_KeyDown(ev.key.keysym.sym);
-				}
-				break;
-			case SDL_KEYUP:
-				printf("keyup: 0x%x\n", ev.key.keysym.sym);
-				Keyboard_KeyUp(ev.key.keysym.sym);
-				break;
-			}
-		}
-#endif //PSP
-
-#ifdef PSP
-		if (Joystick_get_downstate_psp(PSP_CTRL_START)) {
-			if (menu_mode == menu_out) { 
-				menu_mode = menu_enter;
-				DSound_Stop();
-			} else {
-				DSound_Play();
-				menu_mode = menu_out;
-			}
-		}
-
-		if (menu_mode == menu_out
-		    && Joystick_get_downstate_psp(PSP_CTRL_SELECT)) {
-			Keyboard_ToggleSkbd();
-			// 2度読み除け
-			Joystick_reset_downstate_psp(PSP_CTRL_SELECT);
-		}
-
-		if (menu_mode == menu_out && Keyboard_IsSwKeyboard()) {
-			Joystick_mv_anapad_psp();
-			Joystatic_reset_anapad_psp();
-			Keyboard_skbd();
-		}
-#endif
-
-#if defined(ANDROID) || TARGET_OS_IPHONE
-
-		state = Joystick_get_vbtn_state(7);
-
-		if (menu_mode == menu_in) {
-			if (state == VBTN_OFF && menu_cnt == 0) {
-				menu_cnt = -2;
-			}
-			if (state == VBTN_ON && menu_cnt == -2) {
-				DSound_Play();
-				menu_mode = menu_out;
-			}
-		} else if (menu_mode == menu_out) {
-			if (state == VBTN_OFF && menu_cnt == -2) {
-				menu_cnt = -1;
-			}
-			if (menu_cnt == -1 && state == VBTN_ON) {
-				p6logd("menu_cnt start");
-				menu_cnt = 20;
-			} else if (menu_cnt > 0 && state == VBTN_OFF) {
-				menu_cnt = -1;
-			}
-			if (menu_cnt == 0) {
-				p6logd("menu mode on");
-				menu_mode = menu_enter;
-				DSound_Stop();
-			}
-		}
-
-#endif
-		if (menu_mode != menu_out) {
-			int ret; 
-
-#ifdef PSP
-			Joystick_Update(TRUE);
-#else
-			Joystick_Update(TRUE, menu_key_down);
-#endif
-			ret = WinUI_Menu(menu_mode == menu_enter);
-			menu_mode = menu_in;
-			if (ret == WUM_MENU_END) {
-				DSound_Play();
-				menu_mode = menu_out;
-			} else if (ret == WUM_EMU_QUIT) {
-				goto end_loop;
-			}
-		}
-#ifdef PSP
-		if (exit_flag) {
-			goto end_loop;
-		}
-#endif
-
-#if defined(ANDROID) || TARGET_OS_IPHONE
-
-		if (menu_mode == menu_out) {
-			state = Joystick_get_vbtn_state(6);
-			if (vk_cnt == -1 && state == VBTN_ON) {
-				p6logd("vk_cnt start");
-				vk_cnt = 20;
-			} else if (vk_cnt > 0 && state == VBTN_OFF) {
-				vk_cnt = -1;
-			}
-			if (kbd_x > 700 && vk_cnt == 0) {
-				kbd_x = 0, kbd_y = 0;
-				p6logd("do_kbd");
-			}
-			if (kbd_x < 700) {
-#ifdef USE_OGLES11
-				Keyboard_skbd();
-#endif
-			}
-		}
-#endif
-
-	}
-end_loop:
-	Memory_WriteB(0xe8e00d, 0x31);	// SRAM書き込み許可
-	Memory_WriteD(0xed0040, Memory_ReadD(0xed0040)+1); // 積算稼働時間(min.)
-	Memory_WriteD(0xed0044, Memory_ReadD(0xed0044)+1); // 積算起動回数
-
-	OPM_Cleanup();
-#ifndef	NO_MERCURY
-	Mcry_Cleanup();
-#endif
-
-	Joystick_Cleanup();
-	SRAM_Cleanup();
-	FDD_Cleanup();
-	//CDROM_Cleanup();
-	MIDI_Cleanup();
-	DSound_Cleanup();
-	WinX68k_Cleanup();
-	WinDraw_Cleanup();
-	WinDraw_CleanupScreen();
-
-	SaveConfig();
-
-#if defined(PSP)
-	puts("before end");
-	sceKernelExitGame();
-#elif defined(ANDROID) || TARGET_OS_IPHONE
-	exit(0);
-#endif
-	return 0;
+    return 0;
 }
 
+
+void Update() {
+#if 1
+
+#ifndef PSP
+    SDL_Event ev;
+    SDL_Keycode menu_key_down;
+#endif
+
+#if defined(ANDROID) || TARGET_OS_IPHONE
+    int vk_cnt = -1;
+    int menu_cnt = -1;
+    BYTE state;
+#endif
+    int sdlaudio = -1;
+    enum {menu_out, menu_enter, menu_in};
+    int menu_mode = menu_out;
+
+    while (1) {
+            // OPM_RomeoOut(Config.BufferSize * 5);
+            if (menu_mode == menu_out
+                && (Config.NoWaitMode || Timer_GetCount())) {
+                WinX68k_Exec();
+    #if defined(ANDROID) || TARGET_OS_IPHONE
+                if (vk_cnt > 0) {
+                    vk_cnt--;
+                    if (vk_cnt == 0) {
+                        p6logd("vk_cnt 0");
+                    }
+                }
+                if  (menu_cnt > 0) {
+                    menu_cnt--;
+                    if (menu_cnt == 0) {
+                        p6logd("menu_cnt 0");
+                    }
+                }
+    #endif
+                if (SplashFlag) {
+                    SplashFlag--;
+                    if (SplashFlag == 0)
+                        WinDraw_HideSplash();
+                }
+            }
+    #ifndef PSP
+            menu_key_down = SDLK_UNKNOWN;
+
+            while (SDL_PollEvent(&ev)) {
+                switch (ev.type) {
+                case SDL_QUIT:
+                    goto end_loop;
+                case SDL_MOUSEMOTION:
+                    p6logd("x:%d y:%d xrel:%d yrel:%d\n", ev.motion.x, ev.motion.y, ev.motion.xrel, ev.motion.yrel);
+                    break;
+    #if defined(ANDROID) || TARGET_OS_IPHONE
+                case SDL_APP_WILLENTERBACKGROUND:
+                    DSound_Stop();
+                    break;
+                case SDL_APP_WILLENTERFOREGROUND:
+                    DSound_Play();
+                    break;
+                case SDL_FINGERDOWN:
+                    //p6logd("FINGERDOWN: tid: %lld,,, x:%f y:%f", ev.tfinger.touchId, ev.tfinger.x, ev.tfinger.y);
+//@                    if (touchId == -1) {
+//@                        touchId = ev.tfinger.touchId;
+//@                    }
+                    break;
+                case SDL_FINGERMOTION:
+                    float kx, ky, dx, dy;
+                    p6logd("FM: x:%f y:%f dx:%f dy:%f\n", ev.tfinger.x, ev.tfinger.y, ev.tfinger.dx, ev.tfinger.dy);
+                    if (vk_cnt == 0) {
+                        kx = ev.tfinger.x * 800;
+                        ky = ev.tfinger.y * 600;
+                        dx = ev.tfinger.dx * 800;
+                        dy = ev.tfinger.dy * 600;
+                        if (kbd_x < kx && kbd_x + kbd_w > kx &&
+                            kbd_y < ky && kbd_y + kbd_h > ky) {
+                            kbd_x += dx;
+                            kbd_y += dy;
+                            if (kbd_x < 0) kbd_x = 0;
+                            if (kbd_y < 0) kbd_y = 0;
+                            if (kbd_x > 700) {
+                                vk_cnt = -1;
+                            }
+                            if (kbd_y > 550) kbd_y = 550;
+                        }
+                    } else if (Config.JoyOrMouse) { // Mouse mode is off when the keyboard is active
+                        Mouse_Event(0, ev.tfinger.dx * 50 * Config.MouseSpeed, ev.tfinger.dy * 50 * Config.MouseSpeed);
+                    }
+                    break;
+    #endif
+                case SDL_KEYDOWN:
+    #if defined(ANDROID) || TARGET_OS_IPHONE
+                    static DWORD bef = 0;
+                    DWORD now;
+                    switch (ev.key.keysym.sym) {
+                    case SDLK_AC_BACK:
+                        now = timeGetTime();
+                        if (now - bef < 1000) {
+                            goto end_loop;
+                        }
+                        bef = now;
+                        break;
+                    case SDLK_MENU:
+                        if (menu_mode == menu_out) {
+                            menu_mode = menu_enter;
+                            DSound_Stop();
+                        } else {
+                            DSound_Play();
+                            menu_mode = menu_out;
+                        }
+                        break;
+                    }
+    #endif
+                    printf("keydown: 0x%x\n", ev.key.keysym.sym);
+                    printf("font %d %d\n", FONT[100], FONT[101]);
+                    if (ev.key.keysym.sym == SDLK_F12) {
+                        if (menu_mode == menu_out) {
+                            menu_mode = menu_enter;
+                            DSound_Stop();
+                        } else {
+                            DSound_Play();
+                            menu_mode = menu_out;
+                        }
+                    }
+    #ifdef WIN68DEBUG
+                    if (ev.key.keysym.sym == SDLK_F10) {
+                        traceflag ^= 1;
+                        printf("trace %s\n", (traceflag)?"on":"off");
+                    }
+    #endif
+                    if (menu_mode != menu_out) {
+                        menu_key_down = ev.key.keysym.sym;
+                    } else {
+                        Keyboard_KeyDown(ev.key.keysym.sym);
+                    }
+                    break;
+                case SDL_KEYUP:
+                    printf("keyup: 0x%x\n", ev.key.keysym.sym);
+                    Keyboard_KeyUp(ev.key.keysym.sym);
+                    break;
+                }
+            }
+    #endif //PSP
+
+    #ifdef PSP
+            if (Joystick_get_downstate_psp(PSP_CTRL_START)) {
+                if (menu_mode == menu_out) {
+                    menu_mode = menu_enter;
+                    DSound_Stop();
+                } else {
+                    DSound_Play();
+                    menu_mode = menu_out;
+                }
+            }
+
+            if (menu_mode == menu_out
+                && Joystick_get_downstate_psp(PSP_CTRL_SELECT)) {
+                Keyboard_ToggleSkbd();
+                // 2度読み除け
+                Joystick_reset_downstate_psp(PSP_CTRL_SELECT);
+            }
+
+            if (menu_mode == menu_out && Keyboard_IsSwKeyboard()) {
+                Joystick_mv_anapad_psp();
+                Joystatic_reset_anapad_psp();
+                Keyboard_skbd();
+            }
+    #endif
+
+    #if defined(ANDROID) || TARGET_OS_IPHONE
+
+            state = Joystick_get_vbtn_state(7);
+
+            if (menu_mode == menu_in) {
+                if (state == VBTN_OFF && menu_cnt == 0) {
+                    menu_cnt = -2;
+                }
+                if (state == VBTN_ON && menu_cnt == -2) {
+                    DSound_Play();
+                    menu_mode = menu_out;
+                }
+            } else if (menu_mode == menu_out) {
+                if (state == VBTN_OFF && menu_cnt == -2) {
+                    menu_cnt = -1;
+                }
+                if (menu_cnt == -1 && state == VBTN_ON) {
+                    p6logd("menu_cnt start");
+                    menu_cnt = 20;
+                } else if (menu_cnt > 0 && state == VBTN_OFF) {
+                    menu_cnt = -1;
+                }
+                if (menu_cnt == 0) {
+                    p6logd("menu mode on");
+                    menu_mode = menu_enter;
+                    DSound_Stop();
+                }
+            }
+
+    #endif
+            if (menu_mode != menu_out) {
+                int ret;
+
+    #ifdef PSP
+                Joystick_Update(TRUE);
+    #else
+                Joystick_Update(TRUE, menu_key_down);
+    #endif
+                ret = WinUI_Menu(menu_mode == menu_enter);
+                menu_mode = menu_in;
+                if (ret == WUM_MENU_END) {
+                    DSound_Play();
+                    menu_mode = menu_out;
+                } else if (ret == WUM_EMU_QUIT) {
+                    goto end_loop;
+                }
+            }
+    #ifdef PSP
+            if (exit_flag) {
+                goto end_loop;
+            }
+    #endif
+
+    #if defined(ANDROID) || TARGET_OS_IPHONE
+
+            if (menu_mode == menu_out) {
+                state = Joystick_get_vbtn_state(6);
+                if (vk_cnt == -1 && state == VBTN_ON) {
+                    p6logd("vk_cnt start");
+                    vk_cnt = 20;
+                } else if (vk_cnt > 0 && state == VBTN_OFF) {
+                    vk_cnt = -1;
+                }
+                if (kbd_x > 700 && vk_cnt == 0) {
+                    kbd_x = 0, kbd_y = 0;
+                    p6logd("do_kbd");
+                }
+                if (kbd_x < 700) {
+    #ifdef USE_OGLES11
+                    Keyboard_skbd();
+    #endif
+                }
+            }
+    #endif
+        break;  //@ while(1)
+        }
+end_loop:
+#endif
+    static int count;
+    count++;
+ }
+
+
+
+void Finalize() {
+        Memory_WriteB(0xe8e00d, 0x31);    // SRAM書き込み許可
+        Memory_WriteD(0xed0040, Memory_ReadD(0xed0040)+1); // 積算稼働時間(min.)
+        Memory_WriteD(0xed0044, Memory_ReadD(0xed0044)+1); // 積算起動回数
+
+        OPM_Cleanup();
+    #ifndef    NO_MERCURY
+        Mcry_Cleanup();
+    #endif
+
+        Joystick_Cleanup();
+        SRAM_Cleanup();
+        FDD_Cleanup();
+        //CDROM_Cleanup();
+        MIDI_Cleanup();
+        DSound_Cleanup();
+        WinX68k_Cleanup();
+        WinDraw_Cleanup();
+        WinDraw_CleanupScreen();
+
+        SaveConfig();
+
+    #if defined(PSP)
+        puts("before end");
+        sceKernelExitGame();
+    #elif defined(ANDROID) || TARGET_OS_IPHONE
+        exit(0);
+    #endif
+
+}

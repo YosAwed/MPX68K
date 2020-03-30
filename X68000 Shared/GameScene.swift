@@ -13,7 +13,12 @@ class GameScene: SKScene {
     
     fileprivate var label : SKLabelNode?
     fileprivate var spinnyNode : SKShapeNode?
+    var spr : SKSpriteNode?
+    var spr256 : SKSpriteNode?
+    var tex : SKTexture?
+    var tex256 : SKTexture?
 
+    fileprivate var audioStream : AudioStream?
     
     class func newGameScene() -> GameScene {
         // Load 'GameScene.sks' as an SKScene.
@@ -23,20 +28,74 @@ class GameScene: SKScene {
         }
         
         // Set the scale mode to scale to fit the window
-        scene.scaleMode = .aspectFill
-        
-        X68000();
-        
+        scene.scaleMode = .aspectFit//.aspectFill
+        scene.backgroundColor = .black
+
+        X68000_Init();
         return scene
     }
     
+    func RBGImage(data: [UInt8], size:Int, width: Int, height: Int) -> CGImage? {
+
+         let bitsPerComponent = 8
+         let numberOfComponents = 3
+         let bitsPerPixel = bitsPerComponent * numberOfComponents
+         let bytesPerPixel = bitsPerPixel / 8
+
+         guard width > 0, height > 0 else { return nil }
+//         guard width * height * numberOfComponents == data.count else { return nil }
+
+         return CGDataProvider(dataInfo: nil, data: data, size: size) { _,_,_ in }
+             .flatMap {
+                 CGImage(width: width,
+                         height: height,
+                         bitsPerComponent: bitsPerComponent,
+                         bitsPerPixel: bitsPerPixel,
+                         bytesPerRow: width * bytesPerPixel,
+                         space: CGColorSpaceCreateDeviceRGB(),
+                         bitmapInfo: [],
+                         provider: $0,
+                         decode: nil,
+                         shouldInterpolate: false,
+                         intent: .defaultIntent)
+         }
+     }
+    
+    var count = 0
     func setUpScene() {
+        
+        self.audioStream = AudioStream.init();
+
+        self.audioStream?.play();
+
+        self.spr = SKSpriteNode.init(color:.blue, size: CGSize(width: 768, height: 512));
+        self.spr?.alpha = 0.5
+        self.spr?.xScale = 1.7
+        self.spr?.yScale = 1.7
+        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
+                                          SKAction.fadeOut(withDuration: 0.1),
+                                          SKAction.removeFromParent()]))
+
+        self.addChild(spr!)
+        /*
+        self.spr256 = SKSpriteNode.init(color:.blue, size: CGSize(width: 256, height: 256));
+        self.spr256?.alpha = 0.5
+        self.spr256?.xScale = 1.7 * 2.0
+        self.spr256?.yScale = 1.7 * 2.0
+        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
+                                          SKAction.fadeOut(withDuration: 0.1),
+                                          SKAction.removeFromParent()]))
+        self.addChild(spr256!);
+*/
+
         // Get label node from scene and store it for use later
+        #if false
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
             label.run(SKAction.fadeIn(withDuration: 2.0))
-        }
+                    }
+        #endif
         
         // Create shape node to use during mouse interaction
         let w = (self.size.width + self.size.height) * 0.05
@@ -82,7 +141,52 @@ class GameScene: SKScene {
     }
     
     override func update(_ currentTime: TimeInterval) {
+        X68000_Update()
+
         // Called before each frame is rendered
+        let w = X68000_GetScreenWidth();
+        let h = X68000_GetScreenHeight();
+        let size = Int(w) * Int(h) * 3
+        var d = [UInt8](repeating: 0xff, count: size )
+
+        X68000_GetImage( &d )
+        
+        let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
+        self.tex = SKTexture.init( cgImage : image! )
+
+        self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
+        self.spr?.texture = self.tex!;
+        self.spr?.alpha = 1.0
+        if ( w == 256 ) {
+        
+            self.spr?.xScale = 1.7 * 2.0
+            self.spr?.yScale = 1.7 * 2.0
+        } else {
+        self.spr?.xScale = 1.7
+        self.spr?.yScale = 1.7
+
+        }
+        self.spr?.run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.016),
+//                            SKAction.wait(forDuration: 0.1),
+      //      SKAction.scale(to:  4.5, duration: 0.5),
+        //                    SKAction.fadeOut(withDuration: 0.1),
+
+                                          SKAction.removeFromParent()]))
+
+        self.addChild(spr!)
+/*
+        if ( w == 256 ) {
+            let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
+            self.tex256 = SKTexture.init( cgImage : image! )
+            self.spr256?.texture = self.tex256!;// = SKSpriteNode.init(texture: self.tex);
+        } else {
+            let image = RBGImage( data:d, size: size, width:Int(w), height:Int(h) )
+            self.tex = SKTexture.init( cgImage : image! )
+        
+            self.spr?.texture = self.tex!;// = SKSpriteNode.init(texture: self.tex);
+        }
+*/
     }
 }
 
@@ -140,6 +244,46 @@ extension GameScene {
     override func mouseUp(with event: NSEvent) {
         self.makeSpinny(at: event.location(in: self), color: SKColor.red)
     }
+
+    func keyConv(_ keyCode:UInt16 ) -> UInt32
+    {
+        var ret : UInt32 = 0;
+        switch(keyCode){
+        case 6:            ret = 0x5a;            break;    // Z
+        case 7:            ret = 0x58;            break;    // X
+        case 18:           ret = 0x31;            break;    // 1
+        case 122:          ret = 0x1be;           break;    // F1
+        case 123:          ret = 0x114;           break;    // ←
+        case 124:          ret = 0x113;           break;    // →
+        case 125:          ret = 0x112;           break;    // ↓
+        case 126:          ret = 0x111;           break;    // ↑
+        case 49:           ret = 0x20;            break;    // Space
+        case 36:           ret = 0x0d;            break;    // return
+        default:
+          break;
+        }
+        return ret
+    }
+    override func keyDown(with event: NSEvent) {
+               print("key press: \(event)")
+
+        X68000_Key_Down(keyConv(event.keyCode));
+        /*
+         left arrow    123
+         right arrow    124
+         up arrow    126
+         down arrow    125
+         */
+         
+    }
+    override func keyUp(with event: NSEvent) {
+        X68000_Key_Up(keyConv(event.keyCode));
+
+    }
+
+//    void X68000_Key_Down( unsigned int vkcode );
+//    void X68000_Key_Up( unsigned int vkcode );
+
 
 }
 #endif

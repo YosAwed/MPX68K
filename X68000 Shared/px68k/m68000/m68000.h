@@ -9,7 +9,13 @@
 #ifndef M68000_H
 #define M68000_H
 
-#include "c68k.h"
+#include "common.h"
+
+#if defined (HAVE_CYCLONE)
+#include "cyclone.h"
+#elif defined (HAVE_C68K)
+#include "c68k/c68k.h"
+#endif /* HAVE_C68K */
 
 // MAME互換のレジスタ番号 (一部未対応)
 enum
@@ -25,17 +31,12 @@ void m68000_init(void);
 void m68000_reset(void);
 void m68000_exit(void);
 int  m68000_execute(int cycles);
-#if (EMU_SYSTEM == NCDZ)
-void m68000_execute2(UINT32 start_pc, UINT32 break_point);
-#endif
+
 void m68000_set_irq_line(int irqline, int state);
 void m68000_set_irq_callback(int (*callback)(int irqline));
 UINT32  m68000_get_reg(int regnum);
 void m68000_set_reg(int regnum, UINT32 val);
 
-#if (EMU_SYSTEM == CPS2)
-void m68000_set_encrypted_range(UINT32 start, UINT32 end, void *decrypted_rom);
-#endif
 
 #ifdef SAVE_STATE
 STATE_SAVE( m68000 );

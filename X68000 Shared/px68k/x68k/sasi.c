@@ -40,7 +40,7 @@ int SASI_IsReady(void)
 
 
 // -----------------------------------------------------------------------
-//   わりこみ〜
+//   わりこみ~
 // -----------------------------------------------------------------------
 DWORD FASTCALL SASI_Int(BYTE irq)
 {
@@ -170,7 +170,7 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 	}
 	else if (adr ==0xe96001)
 	{
-		if ((SASI_Phase==3)&&(SASI_RW))	// データリード中〜
+		if ((SASI_Phase==3)&&(SASI_RW))	// データリード中~
 		{
 			ret = SASI_Buf[SASI_BufPtr++];
 			if (SASI_BufPtr==256)
@@ -201,7 +201,7 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 		}
 		else if (SASI_Phase==5)				// MessagePhase
 		{
-			SASI_Phase = 0;				// 0を返すだけ〜。BusFreeに帰ります
+			SASI_Phase = 0;				// 0を返すだけ~。BusFreeに帰ります
 		}
 		else if (SASI_Phase==9)				// DataPhase(SenseStat専用)
 		{
@@ -219,12 +219,19 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 		}
 	}
 
-if (hddtrace&&((SASI_Phase!=3)||(adr!=0xe96001))) {
-FILE *fp;
-fp=fopen("_trace68.txt", "a");
-fprintf(fp, "Read  - Adr:%08X  Ret:%02X  Phase:%d BufPtr:%d  (Time:%08X)  @ $%08X\n", adr, ret, SASI_Phase, SASI_BufPtr, timeGetTime(), C68k_Get_Reg(&C68K, C68K_PC));
-fclose(fp);
-}
+	if (hddtrace&&((SASI_Phase!=3)||(adr!=0xe96001)))
+	{
+		FILE *fp;
+		fp=fopen("_trace68.txt", "a");
+		//fprintf(fp, "Read  - Adr:%08X  Ret:%02X  Phase:%d BufPtr:%d  (Time:%08X)  @ $%08X\n", adr, ret, SASI_Phase, SASI_BufPtr, timeGetTime(), C68k_Get_Reg(&C68K, C68K_PC));
+
+#if defined (HAVE_CYCLONE)	
+		fprintf(fp, "Read  - Adr:%08X  Ret:%02X  Phase:%d BufPtr:%d  (Time:%08X)  @ $%08X\n", adr, ret, SASI_Phase, SASI_BufPtr, timeGetTime(), m68000_get_reg(M68K_PC));
+#elif defined (HAVE_C68K)
+		fprintf(fp, "Read  - Adr:%08X  Ret:%02X  Phase:%d BufPtr:%d  (Time:%08X)  @ $%08X\n", adr, ret, SASI_Phase, SASI_BufPtr, timeGetTime(), C68k_Get_PC(&C68K));
+#endif /* HAVE_C68K */
+		fclose(fp);
+	}
 
 	StatBar_HDD((SASI_Phase)?2:0);
 
@@ -354,12 +361,19 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 	int i;
 	BYTE bit;
 
-if (hddtrace&&((SASI_Phase!=3)||(adr!=0xe96001))) {
-FILE *fp;
-fp=fopen("_trace68.txt", "a");
-fprintf(fp, "Write - Adr:%08X Data:%02X  Phase:%d  (Time:%08X)  @ $%08X\n", adr, data, SASI_Phase, timeGetTime(), C68k_Get_Reg(&C68K, C68K_PC));
-fclose(fp);
-}
+	if (hddtrace&&((SASI_Phase!=3)||(adr!=0xe96001)))
+	{
+		FILE *fp;
+		fp=fopen("_trace68.txt", "a");
+		//fprintf(fp, "Write - Adr:%08X Data:%02X  Phase:%d  (Time:%08X)  @ $%08X\n", adr, data, SASI_Phase, timeGetTime(), C68k_Get_Reg(&C68K, C68K_PC));
+
+#if defined (HAVE_CYCLONE)
+		fprintf(fp, "Write - Adr:%08X Data:%02X  Phase:%d  (Time:%08X)  @ $%08X\n", adr, data, SASI_Phase, timeGetTime(), m68000_get_reg(M68K_PC));
+#elif defined (HAVE_C68K)
+		fprintf(fp, "Write - Adr:%08X Data:%02X  Phase:%d  (Time:%08X)  @ $%08X\n", adr, data, SASI_Phase, timeGetTime(), C68k_Get_PC(&C68K));
+#endif
+		fclose(fp);
+	}
 	if ( (adr==0xe96007)&&(SASI_Phase==0) )
 	{
 		SASI_Device = 0x7f;
@@ -413,7 +427,7 @@ fclose(fp);
 				SASI_CheckCmd();
 			}
 		}
-		else if ((SASI_Phase==3)&&(!SASI_RW))		// データライト中〜
+		else if ((SASI_Phase==3)&&(!SASI_RW))		// データライト中~
 		{
 			SASI_Buf[SASI_BufPtr++] = data;
 			if (SASI_BufPtr==256)

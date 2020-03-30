@@ -1981,7 +1981,7 @@ bool Y288::LoadRhythmSample(const char* path)
 	{
 		FileIO file;
 		uint32 fsize;
-		char buf[MAX_PATH] = "";
+		char buf[MAX_PATH + 1] = "";
 		if (path)
 			strncpy(buf, path, MAX_PATH);
 		strncat(buf, "2608_", MAX_PATH);
