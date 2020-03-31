@@ -24,7 +24,6 @@
  */
 
 #include "common.h"
-#include <SDL.h>
 #include "winx68k.h"
 #include "winui.h"
 
@@ -66,9 +65,6 @@ DWORD WindowX = 0;
 DWORD WindowY = 0;
 
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
-extern SDL_Window *sdl_window;
-#endif
 
 void WinDraw_InitWindowSize(WORD width, WORD height)
 {
@@ -183,33 +179,12 @@ int WinDraw_Init(void)
 {
 	int i, j;
 
-#ifndef USE_OGLES11
-	SDL_Surface *sdl_surface;
-
-#if SDL_VERSION_ATLEAST(2, 0, 0)
-//@    sdl_surface = SDL_GetWindowSurface(sdl_window);
-#else
-	sdl_surface = SDL_GetVideoSurface();
-#endif
-	if (sdl_surface == NULL) {
-		fprintf(stderr, "can't create surface.\n");
-		return 1;
-	}
-
-#endif
 	WindowX = 768;
 	WindowY = 512;
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 	WinDraw_Pal16R = 0xf800;
 	WinDraw_Pal16G = 0x07e0;
 	WinDraw_Pal16B = 0x001f;
-#else
-	WinDraw_Pal16R = sdl_surface->format->Rmask;
-	WinDraw_Pal16G = sdl_surface->format->Gmask;
-	WinDraw_Pal16B = sdl_surface->format->Bmask;
-	printf("R: %x, G: %x, B: %x\n", WinDraw_Pal16R, WinDraw_Pal16G, WinDraw_Pal16B);
-#endif
 
 
 #ifdef USE_SDLGFX

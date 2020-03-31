@@ -2,7 +2,6 @@
 extern "C" {
 #endif 
 
-#include "SDL.h"
 #include "common.h"
 #include "fileio.h"
 #include "timer.h"
@@ -96,10 +95,6 @@ static int FrameSkipQueue = 0;
 };
 #endif
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
-//@SDL_Window *sdl_window;
-int realdisp_w, realdisp_h;
-#endif
 
 void
 WinX68k_SCSICheck(void)
@@ -162,15 +157,15 @@ WinX68k_SCSICheck(void)
 int
 WinX68k_LoadROMs(void)
 {
-	static const char *BIOSFILE[] = {
-		"iplrom.dat", "iplrom30.dat", "iplromco.dat", "iplromxv.dat"
-	};
-	static const char FONTFILE[] = "cgrom.dat";
-	static const char FONTFILETMP[] = "cgrom.tmp";
-	FILEH fp;
 	int i;
 	BYTE tmp;
 #if 0
+    static const char *BIOSFILE[] = {
+        "iplrom.dat", "iplrom30.dat", "iplromco.dat", "iplromxv.dat"
+    };
+    static const char FONTFILE[] = "cgrom.dat";
+    static const char FONTFILETMP[] = "cgrom.tmp";
+    FILEH fp;
 
 	for (fp = 0, i = 0; fp == 0 && i < NELEMENTS(BIOSFILE); ++i) {
 		fp = File_OpenCurDir((char *)BIOSFILE[i]);
@@ -571,12 +566,6 @@ extern "C" void X68000_Update() {
 
 int original_main(int argc, const char *argv[])
 {
-	SDL_Event ev;
-	SDL_Keycode menu_key_down;
-	int sdlaudio = -1;
-	enum {menu_out, menu_enter, menu_in};
-	int menu_mode = menu_out;
-
 	p6logd("PX68K Ver.%s\n", PX68KVERSTR);
 
 #ifdef RFMDRV
@@ -598,24 +587,8 @@ int original_main(int argc, const char *argv[])
 	file_setcd(winx68k_dir);
     puts(winx68k_dir);
 	LoadConfig();
-/*
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
-		p6logd("SDL_Init error\n");		
-		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-			return 1;
-		}
-	} else {
-		sdlaudio = 0;
-	}
-*/
-/*
-	if (!WinDraw_MenuInit()) {
-		WinX68k_Cleanup();
-		WinDraw_Cleanup();
-		return 1;
-	}
-*/
-	SoundSampleRate = Config.SampleRate;
+
+    SoundSampleRate = Config.SampleRate;
 
 	StatBar_Show(Config.WindowFDDStat);
 	WinDraw_ChangeSize();
@@ -645,7 +618,7 @@ int original_main(int argc, const char *argv[])
 	}
 
     ADPCM_Init(SoundSampleRate);
-    OPM_Init(4000000/*3579545*/, SoundSampleRate);
+    OPM_Init(4000000, SoundSampleRate);
 	
 	FDD_Init();
 	SysPort_Init();
