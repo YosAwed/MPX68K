@@ -497,7 +497,7 @@ void WinX68k_Exec(void)
 		}
 	}
 
-	Joystick_Update(FALSE, SDLK_UNKNOWN);
+	Joystick_Update();
 	FDD_SetFDInt();
 /*@GOROman
 */

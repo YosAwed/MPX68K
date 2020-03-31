@@ -67,12 +67,8 @@ void FASTCALL PIA_Write(DWORD adr, BYTE data)
 // -----------------------------------------------------------------------
 BYTE FASTCALL PIA_Read(DWORD adr)
 {
-	BYTE ret=0xff;
-	if ( adr==0xe9a001 )
-		ret = Joystick_Read(0);
-	if ( adr==0xe9a003 )
-		ret = Joystick_Read(1);
-	if ( adr==0xe9a005 )
-		ret = pia.PortC;
-	return ret;
+	if ( adr == 0xe9a001 ) return Joystick_Read(0);
+	if ( adr == 0xe9a003 ) return Joystick_Read(1);
+	if ( adr == 0xe9a005 ) return pia.PortC;
+	return 0xff;
 }
