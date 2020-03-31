@@ -17,16 +17,11 @@
 #define	JOY_TRG8	0x20
 #define	JOY_TRG6	0x40
 
-#define JOYAXISPLAY 2048
-
-
 void Joystick_Init(void);
 void Joystick_Cleanup(void);
 BYTE FASTCALL Joystick_Read(BYTE num);
 void FASTCALL Joystick_Write(BYTE num, BYTE data);
-void FASTCALL Joystick_Update();
+void FASTCALL Joystick_Update(void);
 
-
-extern BYTE JoyKeyState;
 
 #endif
