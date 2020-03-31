@@ -68,10 +68,12 @@ class FileSystem {
 
             for n in dir {
                 if let filename = n {
-                    if filename.absoluteString.contains("SX-") {
-                        loadBinary( filename )
-
-                    }
+                                      if filename.absoluteString.contains("A.dim") {
+                                           loadBDisk( 0, filename )
+                                       }
+                                      if filename.absoluteString.contains("B.dim") {
+                                           loadBDisk( 1, filename )
+                                       }
                     
                 }
             }
@@ -97,7 +99,7 @@ class FileSystem {
         return fileNames
     }
     
-    func loadBinary(_ dataURL : URL )
+    func loadBDisk(_ drive : Int, _ dataURL : URL )
     {
         print("loadBinary:\(dataURL)")
         
@@ -111,14 +113,7 @@ class FileSystem {
                 d[i] = data[i]
             }
 
-            X68000_LoadFDD(0, dataURL.absoluteString ?? "", &d, data.count );
-            // 先頭から1024バイトを抽出。
-//            let kbData = binaryData.subdata(in: 0..<256)
-            // 各バイトを16進数の文字列に変換。
-  //          let stringArray = kbData.map{String(format: "%02X", $0)}
-            // ハイフォンで16進数を結合する。
-    //        let binaryString = stringArray.joined(separator: " ")
-      //      print(binaryString)
+            X68000_LoadFDD(drive, dataURL.absoluteString ?? "", &d, data.count );
         } catch {
             print("Failed to read the file.")
         }

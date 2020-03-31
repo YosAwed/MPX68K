@@ -223,7 +223,17 @@ class JoyController {
     func unregisterGameController() {
         print("ゲームコントローラーが切断されました")
     }
-    
+    func JoySet(_ port:UInt8,_ type:UInt8,_ pressed: Bool )
+    {
+        if ( pressed ) {
+            joydata |= type
+        } else {
+            joydata &= ~type
+        }
+        X68000_Joystick_Set(port, joydata)
+
+    }
+
     // Closure: DirectionPad
     func directionPadValue() -> GCControllerDirectionPadValueChangedHandler {
         return {(_ dpad: GCControllerDirectionPad, _ xValue: Float, _ yValue: Float) -> Void in
@@ -249,16 +259,6 @@ class JoyController {
             // ❌
             self.JoySet(0, JOY_TRG2, pressed )
         }
-    }
-    func JoySet(_ port:UInt8,_ type:UInt8,_ pressed: Bool )
-    {
-        if ( pressed ) {
-            joydata |= type
-        } else {
-            joydata &= ~type
-        }
-        X68000_Joystick_Set(port, joydata)
-
     }
     // Closure: Hide
     func onButtonA() -> GCControllerButtonValueChangedHandler {
