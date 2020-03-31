@@ -49,7 +49,6 @@ int Draw_Opaque;
 int FullScreenFlag = 0;
 extern BYTE Draw_RedrawAllFlag;
 BYTE Draw_DrawFlag = 1;
-BYTE Draw_ClrMenu = 0;
 
 BYTE Draw_BitMask[800];
 BYTE Draw_TextBitMask[800];
@@ -910,5 +909,4 @@ void WinDraw_DrawLine(void)
 	}
 }
 
-/********** menu 関連ルーチン **********/
 
