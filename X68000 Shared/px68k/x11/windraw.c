@@ -199,7 +199,7 @@ int WinDraw_Init(void)
 	SDL_Surface *sdl_surface;
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
-	sdl_surface = SDL_GetWindowSurface(sdl_window);
+//@    sdl_surface = SDL_GetWindowSurface(sdl_window);
 #else
 	sdl_surface = SDL_GetVideoSurface();
 #endif
@@ -1480,10 +1480,10 @@ void WinDraw_DrawMenu(int menu_state, int mkey_pos, int mkey_y, int *mval_y)
 #else
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
-	SDL_Surface *sdl_surface;
-	sdl_surface = SDL_GetWindowSurface(sdl_window);
-	SDL_BlitSurface(menu_surface, NULL, sdl_surface, NULL);
-	SDL_UpdateWindowSurface(sdl_window);
+//@	SDL_Surface *sdl_surface;
+//@	sdl_surface = SDL_GetWindowSurface(sdl_window);
+//@	SDL_BlitSurface(menu_surface, NULL, sdl_surface, NULL);
+//@	SDL_UpdateWindowSurface(sdl_window);
 #else
 	SDL_UpdateRect(menu_surface, 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT);
 #endif
@@ -1536,10 +1536,10 @@ void WinDraw_DrawMenufile(struct menu_flist *mfl)
 #else
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
-	SDL_Surface *sdl_surface;
-	sdl_surface = SDL_GetWindowSurface(sdl_window);
-	SDL_BlitSurface(menu_surface, NULL, sdl_surface, NULL);
-	SDL_UpdateWindowSurface(sdl_window);
+//@	SDL_Surface *sdl_surface;
+//@	sdl_surface = SDL_GetWindowSurface(sdl_window);
+//@	SDL_BlitSurface(menu_surface, NULL, sdl_surface, NULL);
+//@	SDL_UpdateWindowSurface(sdl_window);
 #else
 	SDL_UpdateRect(menu_surface, 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT);
 #endif
@@ -1554,7 +1554,7 @@ void WinDraw_ClearMenuBuffer(void)
 #elif defined(USE_OGLES11)
 	memset(menu_buffer, 0, 800*600*2);
 #else
-	SDL_FillRect(menu_surface, NULL, 0);
+//@	SDL_FillRect(menu_surface, NULL, 0);
 #endif
 
 }
