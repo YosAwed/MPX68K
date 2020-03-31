@@ -118,12 +118,8 @@
 		07F864CD242F97BE00CBB224 /* mouse.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A9242F97BD00CBB224 /* mouse.c */; };
 		07F864CE242F97BE00CBB224 /* prop.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AA242F97BD00CBB224 /* prop.c */; };
 		07F864CF242F97BE00CBB224 /* prop.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AA242F97BD00CBB224 /* prop.c */; };
-		07F864D0242F97BE00CBB224 /* keytbl.inc in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AD242F97BD00CBB224 /* keytbl.inc */; };
-		07F864D1242F97BE00CBB224 /* keytbl.inc in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AD242F97BD00CBB224 /* keytbl.inc */; };
 		07F864D2242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
 		07F864D3242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
-		07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
-		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D8242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864DA242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
@@ -244,7 +240,6 @@
 		07F86403242F94BB00CBB224 /* dosio.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dosio.c; sourceTree = "<group>"; };
 		07F86404242F94BB00CBB224 /* peace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = peace.c; sourceTree = "<group>"; };
 		07F86405242F94BB00CBB224 /* peace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = peace.h; sourceTree = "<group>"; };
-		07F86406242F94BB00CBB224 /* mmsystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mmsystem.h; sourceTree = "<group>"; };
 		07F86407242F94BB00CBB224 /* dosio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dosio.h; sourceTree = "<group>"; };
 		07F86408242F94BB00CBB224 /* fake.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fake.c; sourceTree = "<group>"; };
 		07F86409242F94BB00CBB224 /* appftype.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = appftype.h; sourceTree = "<group>"; };
@@ -417,7 +412,6 @@
 				07F86403242F94BB00CBB224 /* dosio.c */,
 				07F86407242F94BB00CBB224 /* dosio.h */,
 				07F86408242F94BB00CBB224 /* fake.c */,
-				07F86406242F94BB00CBB224 /* mmsystem.h */,
 				07F86404242F94BB00CBB224 /* peace.c */,
 				07F86405242F94BB00CBB224 /* peace.h */,
 				07F8640A242F94BB00CBB224 /* windows.h */,
@@ -641,7 +635,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */,
 				07F863C6242F93EA00CBB224 /* Actions.sks in Resources */,
 				07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */,
@@ -656,7 +649,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
-				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,
 				073F76E62431F438005B1F18 /* GameScene.sks in Resources */,
@@ -684,7 +676,6 @@
 				07F864CE242F97BE00CBB224 /* prop.c in Sources */,
 				07F4C7312430667D002CF5CA /* scsi.c in Sources */,
 				07F4C73D2430667D002CF5CA /* pia.c in Sources */,
-				07F864D0242F97BE00CBB224 /* keytbl.inc in Sources */,
 				07F4C74F2430667D002CF5CA /* gvram.c in Sources */,
 				07F4C7272430667D002CF5CA /* crtc.c in Sources */,
 				07F4C7232430667D002CF5CA /* sasi.c in Sources */,
@@ -745,7 +736,6 @@
 				07F864CF242F97BE00CBB224 /* prop.c in Sources */,
 				07F4C7322430667D002CF5CA /* scsi.c in Sources */,
 				07F4C73E2430667D002CF5CA /* pia.c in Sources */,
-				07F864D1242F97BE00CBB224 /* keytbl.inc in Sources */,
 				07F4C7502430667D002CF5CA /* gvram.c in Sources */,
 				07F4C7282430667D002CF5CA /* crtc.c in Sources */,
 				07F4C7242430667D002CF5CA /* sasi.c in Sources */,

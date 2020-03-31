@@ -20,7 +20,7 @@
 #include "prop.h"
 #include "winx68k.h"
 #include "fileio.h"
-#include "mmsystem.h"
+//#include "mmsystem.h"
 #include "x68kmemory.h"
 #include "irqh.h"
 #include "midi.h"
@@ -47,8 +47,6 @@ enum {						// 各機種リセット用に一応。
 	MIDI_XG,
 };
 
-HMIDIOUT	hOut = 0;
-MIDIHDR		hHdr;
 int		MIDI_CTRL;
 int		MIDI_POS;
 int		MIDI_SYSCOUNT;
@@ -225,6 +223,7 @@ void MIDI_SetModule(void)
 // -----------------------------------------------------------------------
 void MIDI_Sendexclusive(BYTE *excv, int length)
 {
+#if 0
 	// エクスクルーシヴを送ります
 	CopyMemory(MIDI_EXCVBUF, excv, length);
 	hHdr.lpData = MIDI_EXCVBUF;
@@ -233,6 +232,8 @@ void MIDI_Sendexclusive(BYTE *excv, int length)
 	midiOutPrepareHeader(hOut, &hHdr, sizeof(MIDIHDR));
 	midiOutLongMsg(hOut, &hHdr, sizeof(MIDIHDR));
 	MIDI_EXCVWAIT = 1;
+#endif
+    
 }
 
 
@@ -240,13 +241,14 @@ void MIDI_Sendexclusive(BYTE *excv, int length)
 //   えくすくるーしぶを送り終えるまで待つお
 // -----------------------------------------------------------------------
 void MIDI_Waitlastexclusiveout(void) {
-
+#if 0
 	// エクスクルーシヴ送信完了まで待ちましょう〜
 	if (MIDI_EXCVWAIT) {
 		while(midiOutUnprepareHeader(hOut, &hHdr, sizeof(MIDIHDR))
 						== MIDIERR_STILLPLAYING);
 		MIDI_EXCVWAIT = 0;
 	}
+#endif
 }
 
 
@@ -254,7 +256,7 @@ void MIDI_Waitlastexclusiveout(void) {
 //   りせっと〜
 // -----------------------------------------------------------------------
 void MIDI_Reset(void) {
-
+#if 0
 	DWORD msg;
 
 	memset(DelayBuf, 0, sizeof(DelayBuf));
@@ -293,6 +295,7 @@ void MIDI_Reset(void) {
 			midiOutShortMsg(hOut, msg);
 		}
 	}
+#endif
 }
 
 
@@ -300,7 +303,7 @@ void MIDI_Reset(void) {
 //   しょきか〜
 // -----------------------------------------------------------------------
 void MIDI_Init(void) {
-
+#if 0
 	memset(DelayBuf, 0, sizeof(DelayBuf));
 	DBufPtrW = DBufPtrR = 0;
 
@@ -324,14 +327,16 @@ void MIDI_Init(void) {
 		else
 			hOut = 0;
 	}
+#endif
 }
 
 
 // -----------------------------------------------------------------------
 //   撤収〜
 // -----------------------------------------------------------------------
-void MIDI_Cleanup(void) {
-
+void MIDI_Cleanup(void)
+{
+#if 0
 	if (hOut) {
 		MIDI_Reset();
 		MIDI_Waitlastexclusiveout();
@@ -339,6 +344,7 @@ void MIDI_Cleanup(void) {
 		midiOutClose(hOut);
 		hOut = 0;
 	}
+#endif
 }
 
 
@@ -346,7 +352,7 @@ void MIDI_Cleanup(void) {
 //   メッセージ判別
 // -----------------------------------------------------------------------
 void MIDI_Message(BYTE mes) {
-
+#if 0
 	if (!hOut) {
 		return;
 	}
@@ -507,6 +513,7 @@ void MIDI_Message(BYTE mes) {
 			}
 			break;
 	}
+#endif
 }
 
 
@@ -516,6 +523,7 @@ void MIDI_Message(BYTE mes) {
 BYTE FASTCALL MIDI_Read(DWORD adr)
 {
 	BYTE ret = 0;
+#if 0
 
 	if ( (adr<0xeafa01)||(adr>=0xeafa10)||(!Config.MIDI_SW) )	// 変なアドレスか、
 	{								// MIDI OFF時にはバスエラーにする
@@ -644,7 +652,8 @@ BYTE FASTCALL MIDI_Read(DWORD adr)
 		}
 		break;
 	}
-	return ret;
+#endif
+    return ret;
 }
 
 
@@ -677,7 +686,8 @@ void MIDI_DelayOut(unsigned int delay)
 // -----------------------------------------------------------------------
 void FASTCALL MIDI_Write(DWORD adr, BYTE data)
 {
-	if ( (adr<0xeafa01)||(adr>=0xeafa10)||(!Config.MIDI_SW) )	// 変なアドレスか、
+#if 0
+    if ( (adr<0xeafa01)||(adr>=0xeafa10)||(!Config.MIDI_SW) )	// 変なアドレスか、
 	{								// MIDI OFF時にはバスエラーにする
 		BusErrFlag = 1;
 		return;
@@ -811,6 +821,7 @@ void FASTCALL MIDI_Write(DWORD adr, BYTE data)
 		}
 		break;
 	}
+#endif
 }
 
 
