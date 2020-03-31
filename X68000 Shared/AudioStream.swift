@@ -36,7 +36,6 @@ class AudioStream {
     var buffers =       [AudioQueueBufferRef?](repeating: nil, count: 2)
 
     var bufferByteSize: UInt32
-    var packetsToPlay: UInt32
     
     init () {
 
@@ -53,7 +52,6 @@ class AudioStream {
         )
 
         bufferByteSize   = 1024 * dataFormat.mBytesPerFrame
-        packetsToPlay    = 1
 
         AudioQueueNewOutput(
             &dataFormat,
