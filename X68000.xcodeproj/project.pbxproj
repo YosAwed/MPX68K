@@ -148,6 +148,7 @@
 		07644219243328C3006E5208 /* FileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystem.swift; sourceTree = "<group>"; };
 		0764421D24333257006E5208 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS13.4.sdk/System/Library/Frameworks/CloudKit.framework; sourceTree = DEVELOPER_DIR; };
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
+		078594F624335FF700B5F09C /* X68000.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000.entitlements; sourceTree = "<group>"; };
 		07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = IPLROM_DAT.c; sourceTree = "<group>"; };
 		07E6EF312430CCAE0034E485 /* CGROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = CGROM_DAT.c; sourceTree = "<group>"; };
 		07F4C6C5243065F9002CF5CA /* m68000.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = m68000.h; sourceTree = "<group>"; };
@@ -368,6 +369,7 @@
 		07F863BD242F93EA00CBB224 /* X68000 macOS */ = {
 			isa = PBXGroup;
 			children = (
+				078594F624335FF700B5F09C /* X68000.entitlements */,
 				07F863BE242F93EA00CBB224 /* AppDelegate.swift */,
 				07F863C0242F93EA00CBB224 /* GameViewController.swift */,
 				07F863C2242F93EA00CBB224 /* Main.storyboard */,
@@ -987,6 +989,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = NO;
+				CODE_SIGN_ENTITLEMENTS = "X68000 macOS/X68000.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
@@ -996,6 +999,7 @@
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					TARGET_IOS,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;
@@ -1023,6 +1027,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = NO;
+				CODE_SIGN_ENTITLEMENTS = "X68000 macOS/X68000.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
@@ -1030,6 +1035,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					TARGET_IOS,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;

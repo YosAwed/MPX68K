@@ -63,12 +63,21 @@ class FileSystem {
         let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
 
         // コンテナに追加するフォルダのパス
-        let documentsURL = containerURL?.appendingPathComponent("Documents")
-//        let fileURL = documentsURL?.appendingPathComponent("text.txt")
-        
-        let dir = getDir( documentsURL! )
+        if let documentsURL = containerURL?.appendingPathComponent("Documents") {
+            let dir = getDir( documentsURL )
 
-        loadBinary( dir[0]! )
+            for n in dir {
+                if let filename = n {
+                    if filename.absoluteString.contains("SX-") {
+                        loadBinary( filename )
+
+                    }
+                    
+                }
+            }
+
+        }
+        
 
 
 
@@ -80,7 +89,10 @@ class FileSystem {
         guard let fileNames = try? FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil) else {
             return [nil]
         }
-        print(fileNames)
+        for i in 0..<fileNames.count {
+            
+            print("\(i): \(fileNames[i])")
+        }
 
         return fileNames
     }
