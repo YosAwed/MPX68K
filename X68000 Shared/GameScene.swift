@@ -25,9 +25,12 @@ class GameScene: SKScene {
 
     fileprivate var audioStream : AudioStream?
     
+    fileprivate var fileSystem : FileSystem?
+    
     
     class func newGameScene() -> GameScene {
 
+        
         func buttonHandler() -> GCControllerButtonValueChangedHandler {
             return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
                 print("A!")  // ○
@@ -94,7 +97,9 @@ class GameScene: SKScene {
     }
     
     func setUpScene() {
-        
+                self.fileSystem = FileSystem.init()
+        //        self.fileSystem.get()
+
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
         

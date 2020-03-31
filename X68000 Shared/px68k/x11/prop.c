@@ -55,7 +55,9 @@ Win68Conf ConfBk;
 #define MAX_BUTTON 32
 #endif
 
-extern char filepath[MAX_PATH];
+//extern char filepath[MAX_PATH];
+char    filepath[MAX_PATH] = ".";
+
 extern char winx68k_ini[MAX_PATH];
 extern int winx, winy;
 extern char joyname[2][MAX_PATH];

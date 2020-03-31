@@ -3,7 +3,7 @@
 #include "common.h"
 #include "prop.h"
 #include "joystick.h"
-#include "winui.h"
+//#include "winui.h"
 #include "keyboard.h"
 
 

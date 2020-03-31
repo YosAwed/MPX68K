@@ -25,7 +25,7 @@
 
 #include "common.h"
 #include "winx68k.h"
-#include "winui.h"
+//#include "winui.h"
 
 #include "bg.h"
 #include "crtc.h"
@@ -39,7 +39,7 @@
 #include "keyboard.h"
 
 
-extern BYTE Debug_Text, Debug_Grp, Debug_Sp;
+BYTE    Debug_Text=1, Debug_Grp=1, Debug_Sp=1;
 
 WORD *ScrBuf = 0;
 
@@ -185,11 +185,7 @@ int WinDraw_Init(void)
 	WinDraw_Pal16G = 0x07e0;
 	WinDraw_Pal16B = 0x001f;
 
-
-#ifdef USE_SDLGFX
-#else
 	ScrBuf = malloc(800 * 600 * 2);
-#endif
 
 	return TRUE;
 }
@@ -197,6 +193,8 @@ int WinDraw_Init(void)
 void
 WinDraw_Cleanup(void)
 {
+    free( ScrBuf );
+    ScrBuf = 0;
 }
 
 void
@@ -223,18 +221,16 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
 
 	int x, y, Bpp;
-//	WORD c, *p, *p2, dummy, *dst16;
 	WORD *p, *dst16;
 	DWORD *dst32, dat32;
 
     Bpp = 3;//sdl_surface->format->BytesPerPixel;
-    int Width = SCREEN_WIDTH;
+    const int Width = SCREEN_WIDTH;
 	// 2倍に拡大する
 	if (TextDotX <= 256 && TextDotY <= 256) {
 		for (y = 0; y < 256; y++) {
 			p = ScrBuf + Width * y;
-            unsigned char* dst8 = data;//(unsigned char*)sdl_surface->pixels;
-            dst8 += 256*Bpp*y;
+            unsigned char* dst8 = data + 256 * Bpp * y;
 
             for (x = 0; x < 256; x++) {
                 
@@ -250,10 +246,7 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 	} else {
 		for (y = 0; y < 512; y++) {
 			p = ScrBuf + 768 * y;
-			// surface->pixelsはvoid *
-			dst16 = data + Width * Bpp * y;
-//			dst32 = (DWORD *)dst16;
-            unsigned char* dst8 = (unsigned char*)dst16;
+            unsigned char* dst8 = data + Width * Bpp * y;
 			for (x = 0; x < 768; x++) {
                 // for MacOS(Bpp==3)
                 DOTCOPY
@@ -895,17 +888,7 @@ void WinDraw_DrawLine(void)
 	if (opaq)
 	{
 		DWORD adr = VLINE*FULLSCREEN_WIDTH;
-#ifdef PSP
-		if (TextDotX > 512) {
-			bzero(&ScrBufL[adr], TextDotX * 2);
-			adr = VLINE * 256;
-			bzero(&ScrBufR[adr], (TextDotX - 512) * 2);
-		} else {
-			bzero(&ScrBufL[adr], TextDotX * 2);
-		}
-#else
 		bzero(&ScrBuf[adr], TextDotX * 2);
-#endif
 	}
 }
 

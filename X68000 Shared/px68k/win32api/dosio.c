@@ -58,10 +58,11 @@ file_open(LPSTR filename)
 {
 	FILEH	ret;
 
-    printf("file_open(\"%s\")\n",filename);
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (ret == (FILEH)INVALID_HANDLE_VALUE) {
+
+      printf("file_create(\"%s\")=%d\n",filename,ret);
+        if (ret == (FILEH)INVALID_HANDLE_VALUE) {
 		ret = CreateFile(filename, GENERIC_READ,
 		    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (ret == (FILEH)INVALID_HANDLE_VALUE)

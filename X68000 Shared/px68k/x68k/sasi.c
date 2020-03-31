@@ -27,8 +27,7 @@ BYTE SASI_Error = 0;
 BYTE SASI_SenseStatBuf[4];
 BYTE SASI_SenseStatPtr = 0;
 
-extern int hddtrace;
-
+int        hddtrace = 0;
 
 int SASI_IsReady(void)
 {

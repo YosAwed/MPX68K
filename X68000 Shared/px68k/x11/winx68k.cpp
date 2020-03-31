@@ -12,7 +12,7 @@ extern "C" {
 //#include "mkcgrom.h"
 #include "winx68k.h"
 #include "windraw.h"
-#include "winui.h"
+//#include "winui.h"
 #include "../x68k/m68000.h" // xxx これはいずれいらなくなるはず
 #include "../m68000/m68000.h"
 #include "../x68k/x68kmemory.h"
@@ -291,15 +291,15 @@ WinX68k_Cleanup(void)
 
 	if (IPL) {
 		free(IPL);
-		IPL = 0;
+		IPL = NULL;
 	}
 	if (MEM) {
 		free(MEM);
-		MEM = 0;
+		MEM = NULL;
 	}
 	if (FONT) {
 		free(FONT);
-		FONT = 0;
+		FONT = NULL;
 	}
 }
 
