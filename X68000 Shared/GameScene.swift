@@ -48,7 +48,6 @@ class GameScene: SKScene {
         scene.backgroundColor = .black
         
         
-        X68000_Init();
         return scene
     }
     
@@ -97,8 +96,13 @@ class GameScene: SKScene {
     }
     
     func setUpScene() {
-                self.fileSystem = FileSystem.init()
+        
+        X68000_Init();
+        
+
+        self.fileSystem = FileSystem.init()
         //        self.fileSystem.get()
+
 
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
@@ -207,7 +211,9 @@ class GameScene: SKScene {
             self.addChild(spinny)
         }
     }
-    
+
+    var d = [UInt8](repeating: 0xff, count: 768*512*3 )
+
     override func update(_ currentTime: TimeInterval) {
         X68000_Update()
 
@@ -215,7 +221,6 @@ class GameScene: SKScene {
         let w = X68000_GetScreenWidth();
         let h = X68000_GetScreenHeight();
         let size = Int(w) * Int(h) * 3
-        var d = [UInt8](repeating: 0xff, count: size )
 
         X68000_GetImage( &d )
         
@@ -274,8 +279,17 @@ extension GameScene {
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
             
+            print( t.location(in: self).x )
         }
-        X68000_Key_Down(0x20);
+        if ( touches.count == 1 ) {
+            X68000_Key_Down(0x20);
+        }
+        if ( touches.count == 3 ) {
+//            print("3")
+//            X68000_Quit()
+//            X68000_Init()
+        }
+        
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {

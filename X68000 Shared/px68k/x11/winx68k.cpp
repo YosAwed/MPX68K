@@ -1,6 +1,6 @@
 #ifdef  __cplusplus
 extern "C" {
-#endif 
+#endif
 
 #include "common.h"
 #include "fileio.h"
@@ -58,22 +58,22 @@ int rfd_sock;
 
 //#include "../icons/keropi_mono.xbm"
 
-#define	APPNAME	"Keropi"
+#define    APPNAME    "Keropi"
 
-extern	WORD	BG_CHREND;
-extern	WORD	BG_BGTOP;
-extern	WORD	BG_BGEND;
-extern	BYTE	BG_CHRSIZE;
+extern    WORD    BG_CHREND;
+extern    WORD    BG_BGTOP;
+extern    WORD    BG_BGEND;
+extern    BYTE    BG_CHRSIZE;
 
-const	BYTE	PrgName[] = "Keropi";
-const	BYTE	PrgTitle[] = APPNAME;
+const    BYTE    PrgName[] = "Keropi";
+const    BYTE    PrgTitle[] = APPNAME;
 
-char	winx68k_dir[MAX_PATH];
-char	winx68k_ini[MAX_PATH];
+char    winx68k_dir[MAX_PATH];
+char    winx68k_ini[MAX_PATH];
 
-WORD	VLINE_TOTAL = 567;
-DWORD	VLINE = 0;
-DWORD	vline = 0;
+WORD    VLINE_TOTAL = 567;
+DWORD    VLINE = 0;
+DWORD    vline = 0;
 
 
 BYTE DispFrame = 0;
@@ -99,66 +99,66 @@ static int FrameSkipQueue = 0;
 void
 WinX68k_SCSICheck(void)
 {
-	static const BYTE SCSIIMG[] = {
-		0x00, 0xfc, 0x00, 0x14,			// $fc0000 SCSI起動用のエントリアドレス
-		0x00, 0xfc, 0x00, 0x16,			// $fc0004 IOCSベクタ設定のエントリアドレス(必ず"Human"の8バイト前)
-		0x00, 0x00, 0x00, 0x00,			// $fc0008 ?
-		0x48, 0x75, 0x6d, 0x61,			// $fc000c ↓
-		0x6e, 0x36, 0x38, 0x6b,			// $fc0010 ID "Human68k"	(必ず起動エントリポイントの直前)
-		0x4e, 0x75,				// $fc0014 "rts"		(起動エントリポイント)
-		0x23, 0xfc, 0x00, 0xfc, 0x00, 0x2a,	// $fc0016 ↓		(IOCSベクタ設定エントリポイント)
-		0x00, 0x00, 0x07, 0xd4,			// $fc001c "move.l #$fc002a, $7d4.l"
-		0x74, 0xff,				// $fc0020 "moveq #-1, d2"
-		0x4e, 0x75,				// $fc0022 "rts"
-//		0x53, 0x43, 0x53, 0x49, 0x49, 0x4e,	// $fc0024 ID "SCSIIN"
+    static const BYTE SCSIIMG[] = {
+        0x00, 0xfc, 0x00, 0x14,            // $fc0000 SCSI起動用のエントリアドレス
+        0x00, 0xfc, 0x00, 0x16,            // $fc0004 IOCSベクタ設定のエントリアドレス(必ず"Human"の8バイト前)
+        0x00, 0x00, 0x00, 0x00,            // $fc0008 ?
+        0x48, 0x75, 0x6d, 0x61,            // $fc000c ↓
+        0x6e, 0x36, 0x38, 0x6b,            // $fc0010 ID "Human68k"    (必ず起動エントリポイントの直前)
+        0x4e, 0x75,                // $fc0014 "rts"        (起動エントリポイント)
+        0x23, 0xfc, 0x00, 0xfc, 0x00, 0x2a,    // $fc0016 ↓        (IOCSベクタ設定エントリポイント)
+        0x00, 0x00, 0x07, 0xd4,            // $fc001c "move.l #$fc002a, $7d4.l"
+        0x74, 0xff,                // $fc0020 "moveq #-1, d2"
+        0x4e, 0x75,                // $fc0022 "rts"
+//        0x53, 0x43, 0x53, 0x49, 0x49, 0x4e,    // $fc0024 ID "SCSIIN"
 // 内蔵SCSIをONにすると、SASIは自動的にOFFになっちゃうらしい…
 // よって、IDはマッチしないようにしておく…
-		0x44, 0x55, 0x4d, 0x4d, 0x59, 0x20,	// $fc0024 ID "DUMMY "
-		0x70, 0xff,				// $fc002a "moveq #-1, d0"	(SCSI IOCSコールエントリポイント)
-		0x4e, 0x75,				// $fc002c "rts"
-	};
+        0x44, 0x55, 0x4d, 0x4d, 0x59, 0x20,    // $fc0024 ID "DUMMY "
+        0x70, 0xff,                // $fc002a "moveq #-1, d0"    (SCSI IOCSコールエントリポイント)
+        0x4e, 0x75,                // $fc002c "rts"
+    };
 
 #if 0
-	DWORD *p;
+    DWORD *p;
 #endif
-	WORD *p1, *p2;
-	int scsi;
-	int i;
+    WORD *p1, *p2;
+    int scsi;
+    int i;
 
-	scsi = 0;
-	for (i = 0x30600; i < 0x30c00; i += 2) {
+    scsi = 0;
+    for (i = 0x30600; i < 0x30c00; i += 2) {
 #if 0 // 4の倍数ではない偶数アドレスからの4バイト長アクセスはMIPSには無理
-		p = (DWORD *)(&IPL[i]);
-		if (*p == 0x0000fc00)
-			scsi = 1;
+        p = (DWORD *)(&IPL[i]);
+        if (*p == 0x0000fc00)
+            scsi = 1;
 #else
-		p1 = (WORD *)(&IPL[i]);
-		p2 = p1 + 1;
-		// xxx: works only for little endian guys
-		if (*p1 == 0xfc00 && *p2 == 0x0000) {
-			scsi = 1;
-			break;
-		}
+        p1 = (WORD *)(&IPL[i]);
+        p2 = p1 + 1;
+        // xxx: works only for little endian guys
+        if (*p1 == 0xfc00 && *p2 == 0x0000) {
+            scsi = 1;
+            break;
+        }
 #endif
-	}
+    }
 
-	// SCSIモデルのとき
-	if (scsi) {
-		ZeroMemory(IPL, 0x2000);		// 本体は8kb
-		memset(&IPL[0x2000], 0xff, 0x1e000);	// 残りは0xff
-		memcpy(IPL, SCSIIMG, sizeof(SCSIIMG));	// インチキSCSI BIOS
-//		Memory_SetSCSIMode();
-	} else {
-		// SASIモデルはIPLがそのまま見える
-		memcpy(IPL, &IPL[0x20000], 0x20000);
-	}
+    // SCSIモデルのとき
+    if (scsi) {
+        ZeroMemory(IPL, 0x2000);        // 本体は8kb
+        memset(&IPL[0x2000], 0xff, 0x1e000);    // 残りは0xff
+        memcpy(IPL, SCSIIMG, sizeof(SCSIIMG));    // インチキSCSI BIOS
+//        Memory_SetSCSIMode();
+    } else {
+        // SASIモデルはIPLがそのまま見える
+        memcpy(IPL, &IPL[0x20000], 0x20000);
+    }
 }
 
 int
 WinX68k_LoadROMs(void)
 {
-	int i;
-	BYTE tmp;
+    int i;
+    BYTE tmp;
 #if 0
     static const char *BIOSFILE[] = {
         "iplrom.dat", "iplrom30.dat", "iplromco.dat", "iplromxv.dat"
@@ -167,41 +167,41 @@ WinX68k_LoadROMs(void)
     static const char FONTFILETMP[] = "cgrom.tmp";
     FILEH fp;
 
-	for (fp = 0, i = 0; fp == 0 && i < NELEMENTS(BIOSFILE); ++i) {
-		fp = File_OpenCurDir((char *)BIOSFILE[i]);
-	}
+    for (fp = 0, i = 0; fp == 0 && i < NELEMENTS(BIOSFILE); ++i) {
+        fp = File_OpenCurDir((char *)BIOSFILE[i]);
+    }
 
-	if (fp == 0) {
-		Error("BIOS ROM イメージが見つかりません.");
-		return FALSE;
-	}
+    if (fp == 0) {
+        Error("BIOS ROM イメージが見つかりません.");
+        return FALSE;
+    }
 
-	File_Read(fp, &IPL[0x20000], 0x20000);
-	File_Close(fp);
+    File_Read(fp, &IPL[0x20000], 0x20000);
+    File_Close(fp);
 #else
     extern const unsigned char IPLROM_DAT[];
     memcpy( &IPL[0x20000], IPLROM_DAT, 0x20000);
 #endif
-	WinX68k_SCSICheck();	// SCSI IPLなら、$fc0000〜にSCSI BIOSを置く
+    WinX68k_SCSICheck();    // SCSI IPLなら、$fc0000〜にSCSI BIOSを置く
 
-	for (i = 0; i < 0x40000; i += 2) {
-		tmp = IPL[i];
-		IPL[i] = IPL[i + 1];
-		IPL[i + 1] = tmp;
-	}
+    for (i = 0; i < 0x40000; i += 2) {
+        tmp = IPL[i];
+        IPL[i] = IPL[i + 1];
+        IPL[i + 1] = tmp;
+    }
 #if 0
-	fp = File_OpenCurDir((char *)FONTFILE);
-	if (fp == 0) {
-		// cgrom.tmpがある？
-		fp = File_OpenCurDir((char *)FONTFILETMP);
-		if (fp == 0) {
-			// フォント生成 XXX
-			printf("フォントROMイメージが見つかりません\n");
-			return FALSE;
-		}
-	}
-	File_Read(fp, FONT, 0xc0000);
-	File_Close(fp);
+    fp = File_OpenCurDir((char *)FONTFILE);
+    if (fp == 0) {
+        // cgrom.tmpがある？
+        fp = File_OpenCurDir((char *)FONTFILETMP);
+        if (fp == 0) {
+            // フォント生成 XXX
+            printf("フォントROMイメージが見つかりません\n");
+            return FALSE;
+        }
+    }
+    File_Read(fp, FONT, 0xc0000);
+    File_Close(fp);
 #else
     extern const unsigned char CGROM_DAT[];
     memcpy( FONT, CGROM_DAT, 0xc0000);
@@ -209,7 +209,7 @@ WinX68k_LoadROMs(void)
 #endif
     
     
-	return TRUE;
+    return TRUE;
 }
 
 int
@@ -271,36 +271,36 @@ int
 WinX68k_Init(void)
 {
 #define MEM_SIZE 0xc00000
-	IPL = (BYTE*)malloc(0x40000);
-	MEM = (BYTE*)malloc(MEM_SIZE);
-	FONT = (BYTE*)malloc(0xc0000);
+    IPL = (BYTE*)malloc(0x40000);
+    MEM = (BYTE*)malloc(MEM_SIZE);
+    FONT = (BYTE*)malloc(0xc0000);
 
-	if (MEM)
-		ZeroMemory(MEM, MEM_SIZE);
+    if (MEM)
+        ZeroMemory(MEM, MEM_SIZE);
 
-	if (MEM && FONT && IPL) {
-	  	m68000_init();  
-		return TRUE;
-	} else
-		return FALSE;
+    if (MEM && FONT && IPL) {
+          m68000_init();
+        return TRUE;
+    } else
+        return FALSE;
 }
 
 void
 WinX68k_Cleanup(void)
 {
 
-	if (IPL) {
-		free(IPL);
-		IPL = NULL;
-	}
-	if (MEM) {
-		free(MEM);
-		MEM = NULL;
-	}
-	if (FONT) {
-		free(FONT);
-		FONT = NULL;
-	}
+    if (IPL) {
+        free(IPL);
+        IPL = NULL;
+    }
+    if (MEM) {
+        free(MEM);
+        MEM = NULL;
+    }
+    if (FONT) {
+        free(FONT);
+        FONT = NULL;
+    }
 }
 
 #define CLOCK_SLICE 200
@@ -309,107 +309,107 @@ WinX68k_Cleanup(void)
 // -----------------------------------------------------------------------------------
 void WinX68k_Exec(void)
 {
-	//char *test = NULL;
-	int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
-	int KeyIntCnt = 0, MouseIntCnt = 0;
-	DWORD t_start = timeGetTime(), t_end;
+    //char *test = NULL;
+    int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
+    int KeyIntCnt = 0, MouseIntCnt = 0;
+    DWORD t_start = timeGetTime(), t_end;
 
     if ( Config.FrameRate != 7 ) {
-		DispFrame = (DispFrame+1)%Config.FrameRate;
-	} else {				// Auto Frame Skip
-		if ( FrameSkipQueue ) {
-			if ( FrameSkipCount>15 ) {
-				FrameSkipCount = 0;
-				FrameSkipQueue++;
-				DispFrame = 0;
-			} else {
-				FrameSkipCount++;
-				FrameSkipQueue--;
-				DispFrame = 1;
-			}
-		} else {
-			FrameSkipCount = 0;
-			DispFrame = 0;
-		}
-	}
+        DispFrame = (DispFrame+1)%Config.FrameRate;
+    } else {                // Auto Frame Skip
+        if ( FrameSkipQueue ) {
+            if ( FrameSkipCount>15 ) {
+                FrameSkipCount = 0;
+                FrameSkipQueue++;
+                DispFrame = 0;
+            } else {
+                FrameSkipCount++;
+                FrameSkipQueue--;
+                DispFrame = 1;
+            }
+        } else {
+            FrameSkipCount = 0;
+            DispFrame = 0;
+        }
+    }
 
-	vline = 0;
-	clk_count = -ICount;
-	clk_total = (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
-	if (Config.XVIMode == 1) {
-		clk_total = (clk_total*16)/10;
-		clkdiv = 16;
-	} else if (Config.XVIMode == 2) {
-		clk_total = (clk_total*24)/10;
-		clkdiv = 24;
-	} else {
-		clkdiv = 10;
-	}
-	ICount += clk_total;
-	clk_next = (clk_total/VLINE_TOTAL);
-	hsync = 1;
+    vline = 0;
+    clk_count = -ICount;
+    clk_total = (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
+    if (Config.XVIMode == 1) {
+        clk_total = (clk_total*16)/10;
+        clkdiv = 16;
+    } else if (Config.XVIMode == 2) {
+        clk_total = (clk_total*24)/10;
+        clkdiv = 24;
+    } else {
+        clkdiv = 10;
+    }
+    ICount += clk_total;
+    clk_next = (clk_total/VLINE_TOTAL);
+    hsync = 1;
 
-	do {
-		int m, n = (ICount>CLOCK_SLICE)?CLOCK_SLICE:ICount;
-//		C68K.ICount = m68000_ICountBk = 0;			// 割り込み発生前に与えておかないとダメ（CARAT）
+    do {
+        int m, n = (ICount>CLOCK_SLICE)?CLOCK_SLICE:ICount;
+//        C68K.ICount = m68000_ICountBk = 0;            // 割り込み発生前に与えておかないとダメ（CARAT）
 
-		if ( hsync ) {
-			hsync = 0;
-			clk_line = 0;
-			MFP_Int(0);
-			if ( (vline>=CRTC_VSTART)&&(vline<CRTC_VEND) )
-				VLINE = ((vline-CRTC_VSTART)*CRTC_VStep)/2;
-			else
-				VLINE = (DWORD)-1;
-			if ( (!(MFP[MFP_AER]&0x40))&&(vline==CRTC_IntLine) )
-				MFP_Int(1);
-			if ( MFP[MFP_AER]&0x10 ) {
-				if ( vline==CRTC_VSTART )
-					MFP_Int(9);
-			} else {
-				if ( CRTC_VEND>=VLINE_TOTAL ) {
-					if ( (long)vline==(CRTC_VEND-VLINE_TOTAL) ) MFP_Int(9);		// エキサイティングアワーとか（TOTAL<VEND）
-				} else {
-					if ( (long)vline==(VLINE_TOTAL-1) ) MFP_Int(9);			// クレイジークライマーはコレでないとダメ？
-				}
-			}
-		}
+        if ( hsync ) {
+            hsync = 0;
+            clk_line = 0;
+            MFP_Int(0);
+            if ( (vline>=CRTC_VSTART)&&(vline<CRTC_VEND) )
+                VLINE = ((vline-CRTC_VSTART)*CRTC_VStep)/2;
+            else
+                VLINE = (DWORD)-1;
+            if ( (!(MFP[MFP_AER]&0x40))&&(vline==CRTC_IntLine) )
+                MFP_Int(1);
+            if ( MFP[MFP_AER]&0x10 ) {
+                if ( vline==CRTC_VSTART )
+                    MFP_Int(9);
+            } else {
+                if ( CRTC_VEND>=VLINE_TOTAL ) {
+                    if ( (long)vline==(CRTC_VEND-VLINE_TOTAL) ) MFP_Int(9);        // エキサイティングアワーとか（TOTAL<VEND）
+                } else {
+                    if ( (long)vline==(VLINE_TOTAL-1) ) MFP_Int(9);            // クレイジークライマーはコレでないとダメ？
+                }
+            }
+        }
 
 #ifdef WIN68DEBUG
-		if (traceflag/*&&fdctrace*/)
-		{
-			FILE *fp;
-			static DWORD oldpc;
-			int i;
-			char buf[200];
-			fp=fopen("_trace68.txt", "a");
-			for (i=0; i<HSYNC_CLK; i++)
-			{
-///				m68k_disassemble(buf, C68k_Get_Reg(&C68K, C68K_PC));
-//				if (MEM[0xa84c0]) /**test=1; */tracing=1000;
-//				if (regs.pc==0x9d2a) tracing=5000;
-//				if ((regs.pc>=0x2000)&&((regs.pc<=0x8e0e0))) tracing=50000;
-//				if (regs.pc<0x10000) tracing=1;
-//				if ( (regs.pc&1) )
-//				fp=fopen("_trace68.txt", "a");
-//				if ( (regs.pc==0x7176) /*&& (Memory_ReadW(oldpc)==0xff1a)*/ ) tracing=100;
-//				if ( (/*((regs.pc>=0x27000) && (regs.pc<=0x29000))||*/((regs.pc>=0x27000) && (regs.pc<=0x29000))) && (oldpc!=regs.pc))
-				if (/*fdctrace&&*/(oldpc != C68k_Get_Reg(&C68K, C68K_PC)))
-				{
-//					//tracing--;
-				  printf( "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx とりあえず0 C68K.ccr */);
-				  printf( "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
-					printf( "<%04X> (%08X ->) %08X : \n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC));
-				}
-				oldpc = C68k_Get_Reg(&C68K, C68K_PC);
-				C68K.ICount = 1;
-				C68k_Exec(&C68K, C68K.ICount);
-			}
-			fclose(fp);
-			usedclk = clk_line = HSYNC_CLK;
-			clk_count = clk_next;
-		}
-		else
+        if (traceflag/*&&fdctrace*/)
+        {
+            FILE *fp;
+            static DWORD oldpc;
+            int i;
+            char buf[200];
+            fp=fopen("_trace68.txt", "a");
+            for (i=0; i<HSYNC_CLK; i++)
+            {
+///                m68k_disassemble(buf, C68k_Get_Reg(&C68K, C68K_PC));
+//                if (MEM[0xa84c0]) /**test=1; */tracing=1000;
+//                if (regs.pc==0x9d2a) tracing=5000;
+//                if ((regs.pc>=0x2000)&&((regs.pc<=0x8e0e0))) tracing=50000;
+//                if (regs.pc<0x10000) tracing=1;
+//                if ( (regs.pc&1) )
+//                fp=fopen("_trace68.txt", "a");
+//                if ( (regs.pc==0x7176) /*&& (Memory_ReadW(oldpc)==0xff1a)*/ ) tracing=100;
+//                if ( (/*((regs.pc>=0x27000) && (regs.pc<=0x29000))||*/((regs.pc>=0x27000) && (regs.pc<=0x29000))) && (oldpc!=regs.pc))
+                if (/*fdctrace&&*/(oldpc != C68k_Get_Reg(&C68K, C68K_PC)))
+                {
+//                    //tracing--;
+                  printf( "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx とりあえず0 C68K.ccr */);
+                  printf( "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
+                    printf( "<%04X> (%08X ->) %08X : \n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC));
+                }
+                oldpc = C68k_Get_Reg(&C68K, C68K_PC);
+                C68K.ICount = 1;
+                C68k_Exec(&C68K, C68K.ICount);
+            }
+            fclose(fp);
+            usedclk = clk_line = HSYNC_CLK;
+            clk_count = clk_next;
+        }
+        else
 #endif
                     {
             //            C68K.ICount = n;
@@ -430,81 +430,81 @@ void WinX68k_Exec(void)
             //            C68K.ICount = m68000_ICountBk = 0;
                     }
 
-		MFP_Timer(usedclk);
-		RTC_Timer(usedclk);
-		DMA_Exec(0);
-		DMA_Exec(1);
-		DMA_Exec(2);
+        MFP_Timer(usedclk);
+        RTC_Timer(usedclk);
+        DMA_Exec(0);
+        DMA_Exec(1);
+        DMA_Exec(2);
 
-		if ( clk_count>=clk_next ) {
-			//OPM_RomeoOut(Config.BufferSize*5);
-			//MIDI_DelayOut((Config.MIDIAutoDelay)?(Config.BufferSize*5):Config.MIDIDelay);
-			MFP_TimerA();
-			if ( (MFP[MFP_AER]&0x40)&&(vline==CRTC_IntLine) )
-				MFP_Int(1);
-			if ( (!DispFrame)&&(vline>=CRTC_VSTART)&&(vline<CRTC_VEND) ) {
-				if ( CRTC_VStep==1 ) {				// HighReso 256dot（2度読み）
-					if ( vline%2 )
-						WinDraw_DrawLine();
-				} else if ( CRTC_VStep==4 ) {		// LowReso 512dot
-					WinDraw_DrawLine();				// 1走査線で2回描く（インターレース）
-					VLINE++;
-					WinDraw_DrawLine();
-				} else {							// High 512dot / Low 256dot
-					WinDraw_DrawLine();
-				}
-			}
+        if ( clk_count>=clk_next ) {
+            //OPM_RomeoOut(Config.BufferSize*5);
+            //MIDI_DelayOut((Config.MIDIAutoDelay)?(Config.BufferSize*5):Config.MIDIDelay);
+            MFP_TimerA();
+            if ( (MFP[MFP_AER]&0x40)&&(vline==CRTC_IntLine) )
+                MFP_Int(1);
+            if ( (!DispFrame)&&(vline>=CRTC_VSTART)&&(vline<CRTC_VEND) ) {
+                if ( CRTC_VStep==1 ) {                // HighReso 256dot（2度読み）
+                    if ( vline%2 )
+                        WinDraw_DrawLine();
+                } else if ( CRTC_VStep==4 ) {        // LowReso 512dot
+                    WinDraw_DrawLine();                // 1走査線で2回描く（インターレース）
+                    VLINE++;
+                    WinDraw_DrawLine();
+                } else {                            // High 512dot / Low 256dot
+                    WinDraw_DrawLine();
+                }
+            }
 
-			ADPCM_PreUpdate(clk_line);
-			OPM_Timer(clk_line);
-			MIDI_Timer(clk_line);
+            ADPCM_PreUpdate(clk_line);
+            OPM_Timer(clk_line);
+            MIDI_Timer(clk_line);
 
-			KeyIntCnt++;
-			if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
-				KeyIntCnt = 0;
-				Keyboard_Int();
-			}
-			MouseIntCnt++;
-			if ( MouseIntCnt>(VLINE_TOTAL/8) ) {
-				MouseIntCnt = 0;
-				SCC_IntCheck();
-			}
-			DSound_Send0(clk_line);
+            KeyIntCnt++;
+            if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
+                KeyIntCnt = 0;
+                Keyboard_Int();
+            }
+            MouseIntCnt++;
+            if ( MouseIntCnt>(VLINE_TOTAL/8) ) {
+                MouseIntCnt = 0;
+                SCC_IntCheck();
+            }
+            DSound_Send0(clk_line);
 
-			vline++;
-			clk_next  = (clk_total*(vline+1))/VLINE_TOTAL;
-			hsync = 1;
-		}
-	} while ( vline<VLINE_TOTAL );
+            vline++;
+            clk_next  = (clk_total*(vline+1))/VLINE_TOTAL;
+            hsync = 1;
+        }
+    } while ( vline<VLINE_TOTAL );
 
-	if ( CRTC_Mode&2 ) {		// FastClrビットの調整（PITAPAT）
-		if ( CRTC_FastClr ) {	// FastClr=1 且つ CRTC_Mode&2 なら 終了
-			CRTC_FastClr--;
-			if ( !CRTC_FastClr )
-				CRTC_Mode &= 0xfd;
-		} else {				// FastClr開始
-			if ( CRTC_Regs[0x29]&0x10 )
-				CRTC_FastClr = 1;
-			else
-				CRTC_FastClr = 2;
-			TVRAM_SetAllDirty();
-			GVRAM_FastClear();
-		}
-	}
+    if ( CRTC_Mode&2 ) {        // FastClrビットの調整（PITAPAT）
+        if ( CRTC_FastClr ) {    // FastClr=1 且つ CRTC_Mode&2 なら 終了
+            CRTC_FastClr--;
+            if ( !CRTC_FastClr )
+                CRTC_Mode &= 0xfd;
+        } else {                // FastClr開始
+            if ( CRTC_Regs[0x29]&0x10 )
+                CRTC_FastClr = 1;
+            else
+                CRTC_FastClr = 2;
+            TVRAM_SetAllDirty();
+            GVRAM_FastClear();
+        }
+    }
 
-	Joystick_Update();
-	FDD_SetFDInt();
+    Joystick_Update();
+    FDD_SetFDInt();
 /*@GOROman
 */
     TimerICount += clk_total;
-	t_end = timeGetTime();
+    t_end = timeGetTime();
     const int dt = (int)(t_end-t_start);
 
     if ( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) {
-		FrameSkipQueue += ((t_end-t_start)/((CRTC_Regs[0x29]&0x10)?14:16))+1;
-		if ( FrameSkipQueue>100 )
-			FrameSkipQueue = 100;
-	}
+        FrameSkipQueue += ((t_end-t_start)/((CRTC_Regs[0x29]&0x10)?14:16))+1;
+        if ( FrameSkipQueue>100 )
+            FrameSkipQueue = 100;
+    }
     
     if ( FrameSkipQueue != 0 ) {
         printf("FrameSkipQueue:%d\n", FrameSkipQueue);
@@ -516,34 +516,7 @@ void WinX68k_Exec(void)
 //
 
 
-extern "C" {
 
-void X68000_Key_Down( unsigned int vkcode ) {
-    Keyboard_KeyDown(vkcode);
-}
-void X68000_Key_Up( unsigned int vkcode ) {
-    Keyboard_KeyUp(vkcode);
-}
-const int X68000_GetScreenWidth()
-{
-    return TextDotX;
-}
-const int X68000_GetScreenHeight()
-{
-    return TextDotY;
-}
-void X68000_GetImage( unsigned char* data ) {
-//    SDL_Surface* s = SDL_GetWindowSurface(NULL);
-//    memcpy( data, s->pixels, TextDotX*TextDotY*3);
-    if ( !DispFrame ) {
-        WinDraw_Draw(data);
-    } else {
-        printf("DispFrame\n");
-    }
-
-}
-
-} // extern "C"
 
 int original_main(int argc, const char *argv[]);
 
@@ -566,94 +539,96 @@ extern "C" void X68000_Update() {
 
 int original_main(int argc, const char *argv[])
 {
-	p6logd("PX68K Ver.%s\n", PX68KVERSTR);
+    p6logd("PX68K Ver.%s\n", PX68KVERSTR);
 
 #ifdef RFMDRV
-	struct sockaddr_in dest;
+    struct sockaddr_in dest;
 
-	memset(&dest, 0, sizeof(dest));
-	dest.sin_port = htons(2151);
-	dest.sin_family = AF_INET;
-	dest.sin_addr.s_addr = inet_addr("127.0.0.1");
+    memset(&dest, 0, sizeof(dest));
+    dest.sin_port = htons(2151);
+    dest.sin_family = AF_INET;
+    dest.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-	rfd_sock = socket(AF_INET, SOCK_STREAM, 0);
-	connect (rfd_sock, (struct sockaddr *)&dest, sizeof(dest));
+    rfd_sock = socket(AF_INET, SOCK_STREAM, 0);
+    connect (rfd_sock, (struct sockaddr *)&dest, sizeof(dest));
 #endif
 
-	if (set_modulepath(winx68k_dir, sizeof(winx68k_dir)))
-		return 1;
+    if (set_modulepath(winx68k_dir, sizeof(winx68k_dir)))
+        return 1;
 
-	dosio_init();
-	file_setcd(winx68k_dir);
+    dosio_init();
+    file_setcd(winx68k_dir);
     puts(winx68k_dir);
-	LoadConfig();
+    LoadConfig();
 
     SoundSampleRate = Config.SampleRate;
 
-	StatBar_Show(Config.WindowFDDStat);
-	WinDraw_ChangeSize();
-	WinDraw_ChangeMode(FALSE);
+    StatBar_Show(Config.WindowFDDStat);
+    WinDraw_ChangeSize();
+    WinDraw_ChangeMode(FALSE);
 
-//	WinUI_Init();
-	WinDraw_StartupScreen();
+//    WinUI_Init();
+    WinDraw_StartupScreen();
 
-	if (!WinX68k_Init()) {
-		WinX68k_Cleanup();
-		WinDraw_Cleanup();
-		return 1;
-	}
+    if (!WinX68k_Init()) {
+        WinX68k_Cleanup();
+        WinDraw_Cleanup();
+        return 1;
+    }
 
-	if (!WinX68k_LoadROMs()) {
-		WinX68k_Cleanup();
-		WinDraw_Cleanup();
-		exit (1);
-	}
+    if (!WinX68k_LoadROMs()) {
+        WinX68k_Cleanup();
+        WinDraw_Cleanup();
+        exit (1);
+    }
 
-	Keyboard_Init(); //WinDraw_Init()前に移動
+    Keyboard_Init(); //WinDraw_Init()前に移動
 
-	if (!WinDraw_Init()) {
-		WinDraw_Cleanup();
-		Error("Error: Can't init screen.\n");
-		return 1;
-	}
+    if (!WinDraw_Init()) {
+        WinDraw_Cleanup();
+        Error("Error: Can't init screen.\n");
+        return 1;
+    }
 
     ADPCM_Init(SoundSampleRate);
     OPM_Init(4000000, SoundSampleRate);
-	
-	FDD_Init();
-	SysPort_Init();
-	Mouse_Init();
-	Joystick_Init();
-	SRAM_Init();
+    
+    FDD_Init();
+    SysPort_Init();
+    Mouse_Init();
+    Joystick_Init();
+    SRAM_Init();
 
-	WinX68k_Reset();
-	Timer_Init();
+    WinX68k_Reset();
+    Timer_Init();
 
-	MIDI_Init();
-	MIDI_SetMimpiMap(Config.ToneMapFile);	// 音色設定ファイル使用反映
-	MIDI_EnableMimpiDef(Config.ToneMap);
+    MIDI_Init();
+    MIDI_SetMimpiMap(Config.ToneMapFile);    // 音色設定ファイル使用反映
+    MIDI_EnableMimpiDef(Config.ToneMap);
 
     DSound_Init(Config.SampleRate, Config.BufferSize);
 
-	ADPCM_SetVolume((BYTE)Config.PCM_VOL);
-	OPM_SetVolume((BYTE)Config.OPM_VOL);
-	DSound_Play();
+    ADPCM_SetVolume((BYTE)Config.PCM_VOL);
+    OPM_SetVolume((BYTE)Config.OPM_VOL);
+    DSound_Play();
 
-	// command line から指定した場合
-	switch (argc) {
-	case 3:
-		strcpy(Config.FDDImage[1], argv[2]);
-	case 2:
-		strcpy(Config.FDDImage[0], argv[1]);
-		break;
-	}
+#ifdef TARGET_IOS
+#else
+    // command line から指定した場合
+    switch (argc) {
+    case 3:
+        strcpy(Config.FDDImage[1], argv[2]);
+    case 2:
+        strcpy(Config.FDDImage[0], argv[1]);
+        break;
+    }
 
     printf("FD:%s\n",Config.FDDImage[0] );
-    
-    FDD_SetFD(0, Config.FDDImage[0], 0);
-	FDD_SetFD(1, Config.FDDImage[1], 0);
 
-	//SDL_StartTextInput();
+    FDD_SetFD(0, Config.FDDImage[0], 0);
+    FDD_SetFD(1, Config.FDDImage[1], 0);
+#endif
+    //SDL_StartTextInput();
     return 0;
 }
 
@@ -689,5 +664,57 @@ void Finalize() {
 
         SaveConfig();
 
-        exit(0);
 }
+
+
+extern "C" {
+
+void X68000_Key_Down( unsigned int vkcode ) {
+    Keyboard_KeyDown(vkcode);
+}
+void X68000_Key_Up( unsigned int vkcode ) {
+    Keyboard_KeyUp(vkcode);
+}
+const int X68000_GetScreenWidth()
+{
+    return TextDotX;
+}
+const int X68000_GetScreenHeight()
+{
+    return TextDotY;
+}
+
+void X68000_Reset()
+{
+    WinX68k_Reset();
+}
+
+void X68000_Quit(){
+    Finalize();
+}
+
+void X68000_GetImage( unsigned char* data ) {
+    if ( !DispFrame ) {
+        WinDraw_Draw(data);
+    } else {
+        printf("DispFrame\n");
+    }
+}
+
+void FDD_SetFD(int drive, char* filename, int readonly);
+
+unsigned char s_disk_image_buffer[2][1024*1024*2] = {0};
+void X68000_LoadFDD( const long drive, const char* filename, void* buffer, const long size )
+{
+    printf("X68000_LoadFDD( %d, \"%s\", %p, %d )\n", drive, filename, buffer,size);
+
+    if (( drive >= 0 ) && ( drive <=1 )) {
+        memcpy( &s_disk_image_buffer[drive], buffer, size );
+    }
+    FDD_SetFD(drive, (char*)filename, 0);
+}
+
+}//extern "C"
+
+
+

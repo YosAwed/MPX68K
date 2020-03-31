@@ -16,14 +16,10 @@
 		0764421E24333257006E5208 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0764421D24333257006E5208 /* CloudKit.framework */; };
 		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
-		0771C5A42431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */; };
-		0771C5A52431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */; };
 		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
 		07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
-		07E6EF352430CFE60034E485 /* Salamander_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF342430CFE60034E485 /* Salamander_dim.c */; };
-		07E6EF362430CFE60034E485 /* Salamander_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF342430CFE60034E485 /* Salamander_dim.c */; };
 		07F4C6C7243065F9002CF5CA /* m68000.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C6243065F9002CF5CA /* m68000.c */; };
 		07F4C6C8243065F9002CF5CA /* m68000.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C6243065F9002CF5CA /* m68000.c */; };
 		07F4C6DC2430664B002CF5CA /* fmg_wrap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C92430664A002CF5CA /* fmg_wrap.cpp */; };
@@ -152,10 +148,8 @@
 		07644219243328C3006E5208 /* FileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystem.swift; sourceTree = "<group>"; };
 		0764421D24333257006E5208 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS13.4.sdk/System/Library/Frameworks/CloudKit.framework; sourceTree = DEVELOPER_DIR; };
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
-		0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = BubbleBobble_dim.c; sourceTree = "<group>"; };
 		07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = IPLROM_DAT.c; sourceTree = "<group>"; };
 		07E6EF312430CCAE0034E485 /* CGROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = CGROM_DAT.c; sourceTree = "<group>"; };
-		07E6EF342430CFE60034E485 /* Salamander_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = Salamander_dim.c; sourceTree = "<group>"; };
 		07F4C6C5243065F9002CF5CA /* m68000.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = m68000.h; sourceTree = "<group>"; };
 		07F4C6C6243065F9002CF5CA /* m68000.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = m68000.c; sourceTree = "<group>"; };
 		07F4C6C92430664A002CF5CA /* fmg_wrap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = fmg_wrap.cpp; sourceTree = "<group>"; };
@@ -505,8 +499,6 @@
 			children = (
 				07E6EF312430CCAE0034E485 /* CGROM_DAT.c */,
 				07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */,
-				07E6EF342430CFE60034E485 /* Salamander_dim.c */,
-				0771C5A32431B7FB002D40F0 /* BubbleBobble_dim.c */,
 				07F864A1242F97BC00CBB224 /* cdaspi.h */,
 				07F8649A242F97BC00CBB224 /* cdctrl.h */,
 				07F86495242F97BC00CBB224 /* cdrom.h */,
@@ -677,7 +669,6 @@
 				07F8640F242F94BB00CBB224 /* fake.c in Sources */,
 				07F4C6C7243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B8242F97BE00CBB224 /* joystick.c in Sources */,
-				07E6EF352430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C7292430667D002CF5CA /* irqh.c in Sources */,
 				07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */,
@@ -703,7 +694,6 @@
 				07F4C7432430667D002CF5CA /* sysport.c in Sources */,
 				07F4C6E62430664B002CF5CA /* fmgen.cpp in Sources */,
 				07F4C72B2430667D002CF5CA /* d68k.c in Sources */,
-				0771C5A42431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */,
 				07F864DA242F97BE00CBB224 /* timer.c in Sources */,
 				07F864C4242F97BE00CBB224 /* dswin.c in Sources */,
 				07F4C7352430667D002CF5CA /* mem_wrap.c in Sources */,
@@ -737,7 +727,6 @@
 				07F86410242F94BB00CBB224 /* fake.c in Sources */,
 				07F4C6C8243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B9242F97BE00CBB224 /* joystick.c in Sources */,
-				07E6EF362430CFE60034E485 /* Salamander_dim.c in Sources */,
 				07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C72A2430667D002CF5CA /* irqh.c in Sources */,
 				07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */,
@@ -763,7 +752,6 @@
 				07F4C7442430667D002CF5CA /* sysport.c in Sources */,
 				07F4C6E72430664B002CF5CA /* fmgen.cpp in Sources */,
 				07F4C72C2430667D002CF5CA /* d68k.c in Sources */,
-				0771C5A52431B7FC002D40F0 /* BubbleBobble_dim.c in Sources */,
 				07F864DB242F97BE00CBB224 /* timer.c in Sources */,
 				07F864C5242F97BE00CBB224 /* dswin.c in Sources */,
 				07F4C7362430667D002CF5CA /* mem_wrap.c in Sources */,

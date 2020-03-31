@@ -37,6 +37,11 @@ int XDF_SetFD(int drv, char* filename)
 
 	XDFImg[drv] = (unsigned char*)malloc(1261568);
 	if ( !XDFImg[drv] ) return FALSE;
+#ifdef TARGET_IOS
+    extern unsigned char s_disk_image_buffer[2][1024*1024*2];
+    const unsigned char* Game = &s_disk_image_buffer[drv];
+    memcpy(XDFImg[drv], Game, 1261568 );
+#else
 	memset(XDFImg[drv], 0xe5, 1261568);
 	fp = File_Open(XDFFile[drv]);
 	if ( !fp ) {
@@ -47,7 +52,8 @@ int XDF_SetFD(int drv, char* filename)
 	File_Seek(fp, 0, FSEEK_SET);
 	File_Read(fp, XDFImg[drv], 1261568);
 	File_Close(fp);
-	return TRUE;
+#endif
+    return TRUE;
 }
 
 

@@ -18,13 +18,14 @@ class FileSystem {
         let cachesPath = NSHomeDirectory() + "/Library/Caches"
 //        let tmpDirectory = NSHomeDirectory() + "/tmp"
         let tmpDirectory = NSTemporaryDirectory()
-        
+
+        /*
         print (documentsPath)
         print (libraryPath)
         print (applicationSupportPath)
         print (cachesPath)
         print (tmpDirectory)
-        
+        */
 /*
         let musicUrl = NSURL(string: "http://www.hurtrecord.com/se/operation/b1-007_computer_01.mp3")
         if let url = musicUrl {
@@ -61,49 +62,51 @@ class FileSystem {
 
         let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
 
-        print("containerURL:\(containerURL)")
         // コンテナに追加するフォルダのパス
         let documentsURL = containerURL?.appendingPathComponent("Documents")
-        let fileURL = documentsURL?.appendingPathComponent("text.txt")
-        print(fileURL)
-        let todayText = Date().description
-        do {
-            try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
-        }
-        catch {
-            print("write error")
-        }
+//        let fileURL = documentsURL?.appendingPathComponent("text.txt")
+        
+        let dir = getDir( documentsURL! )
 
-        loadBinary( fileURL! )
+        loadBinary( dir[0]! )
 
 
-        guard let fileNames = try? FileManager.default.contentsOfDirectory(atPath: documentsPath) else {
-            return
+
+        
+    }
+    
+    func getDir(_ path : URL ) -> [URL?]
+    {
+        guard let fileNames = try? FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil) else {
+            return [nil]
         }
         print(fileNames)
 
-
-                do {
-// iCloudコンテナにフォルダの作成
-//                    try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
-  //              } catch let error as NSError {
-    //                print(error)
-                }
-        
+        return fileNames
     }
     
     func loadBinary(_ dataURL : URL )
     {
+        print("loadBinary:\(dataURL)")
+        
         do {
             // ファイル読み込み
-            let binaryData = try Data(contentsOf: dataURL, options: [])
+            let data = try Data(contentsOf: dataURL, options: [])
+            print("loaded size:\(data.count)")
+            var d = [UInt8](repeating: 0, count: data.count)
+
+            for i in 0..<data.count {
+                d[i] = data[i]
+            }
+
+            X68000_LoadFDD(0, dataURL.absoluteString ?? "", &d, data.count );
             // 先頭から1024バイトを抽出。
-            let kbData = binaryData.subdata(in: 0..<10)
+//            let kbData = binaryData.subdata(in: 0..<256)
             // 各バイトを16進数の文字列に変換。
-            let stringArray = kbData.map{String(format: "%02X", $0)}
+  //          let stringArray = kbData.map{String(format: "%02X", $0)}
             // ハイフォンで16進数を結合する。
-            let binaryString = stringArray.joined(separator: "-")
-            print(binaryString)
+    //        let binaryString = stringArray.joined(separator: " ")
+      //      print(binaryString)
         } catch {
             print("Failed to read the file.")
         }
