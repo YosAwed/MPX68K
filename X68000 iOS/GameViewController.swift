@@ -11,11 +11,23 @@ import SpriteKit
 import GameplayKit
 
 class GameViewController: UIViewController {
+    
+    var scene : GameScene?
+    
+    func load(_ url : URL)
+    {
+        scene?.load( url: url )
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        let scene = GameScene.newGameScene()
+        let appDelegate:AppDelegate = UIApplication.shared.delegate as! AppDelegate
+
+//        let appDelegate = UIApplication.shared.delegate as! AppDelegate
+        appDelegate.viewController = self
+
+        scene = GameScene.newGameScene()
 
         // Present the scene
         let skView = self.view as! SKView

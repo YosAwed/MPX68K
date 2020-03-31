@@ -25,11 +25,15 @@ class GameScene: SKScene {
 
     fileprivate var audioStream : AudioStream?
     
-    fileprivate var fileSystem : FileSystem?
+//    fileprivate var fileSystem = FileSystem()
     
     
     class func newGameScene() -> GameScene {
+        
 
+        X68000_Init();
+        
+        
         
         func buttonHandler() -> GCControllerButtonValueChangedHandler {
             return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
@@ -95,13 +99,15 @@ class GameScene: SKScene {
         }
     }
     
+    func load( url : URL ){
+        
+        print("!!!LOAD!!!!")
+        let fileSystem = FileSystem.init()
+        fileSystem.loadBDisk(0,url)
+    }
+    
     func setUpScene() {
         
-        X68000_Init();
-        
-
-        self.fileSystem = FileSystem.init()
-        //        self.fileSystem.get()
 
 
         self.joycontroller = JoyController.init()

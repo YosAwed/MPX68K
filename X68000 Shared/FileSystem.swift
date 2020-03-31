@@ -68,11 +68,8 @@ class FileSystem {
 
             for n in dir {
                 if let filename = n {
-                                      if filename.absoluteString.contains("A.dim") {
-                                           loadBDisk( 0, filename )
-                                       }
-                                      if filename.absoluteString.contains("B.dim") {
-                                           loadBDisk( 1, filename )
+                                      if filename.absoluteString.contains("Hum") {
+                            //               loadBDisk( 0, filename )
                                        }
                     
                 }
@@ -114,6 +111,7 @@ class FileSystem {
             }
 
             X68000_LoadFDD(drive, dataURL.absoluteString ?? "", &d, data.count );
+            X68000_Reset()
         } catch {
             print("Failed to read the file.")
         }
