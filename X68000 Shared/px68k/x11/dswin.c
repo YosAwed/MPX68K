@@ -105,6 +105,7 @@ DSound_Cleanup(void)
 static void sound_send(int length)
 {
     int rate = ratebase;
+    rate = 0;   // 0にしないとおかしい！
 
    ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
