@@ -608,20 +608,20 @@ int original_main(int argc, const char *argv[])
 		sdlaudio = 0;
 	}
 */
-
+/*
 	if (!WinDraw_MenuInit()) {
 		WinX68k_Cleanup();
 		WinDraw_Cleanup();
 		return 1;
 	}
-
+*/
 	SoundSampleRate = Config.SampleRate;
 
 	StatBar_Show(Config.WindowFDDStat);
 	WinDraw_ChangeSize();
 	WinDraw_ChangeMode(FALSE);
 
-	WinUI_Init();
+//	WinUI_Init();
 	WinDraw_StartupScreen();
 
 	if (!WinX68k_Init()) {

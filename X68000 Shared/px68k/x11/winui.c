@@ -553,8 +553,8 @@ int WinUI_Menu(int first)
 		first = 0;
 		//  The screen is not rewritten without any key actions,
 		// so draw screen first.
-		WinDraw_ClearMenuBuffer();
-		WinDraw_DrawMenu(menu_state, mkey_pos, mkey_y, mval_y);
+//@		WinDraw_ClearMenuBuffer();
+//@		WinDraw_DrawMenu(menu_state, mkey_pos, mkey_y, mval_y);
 	}
 
 	cursor0 = mkey_y;
@@ -756,13 +756,13 @@ int WinUI_Menu(int first)
 	}
 
 	if (mfile_redraw) {
-		WinDraw_DrawMenufile(&mfl);
+//@		WinDraw_DrawMenufile(&mfl);
 		mfile_redraw = 0;
 	}
 
 	if (menu_redraw) {
-		WinDraw_ClearMenuBuffer();
-		WinDraw_DrawMenu(menu_state, mkey_pos, mkey_y, mval_y);
+//@		WinDraw_ClearMenuBuffer();
+//@		WinDraw_DrawMenu(menu_state, mkey_pos, mkey_y, mval_y);
 	}
 
 	return 0;
