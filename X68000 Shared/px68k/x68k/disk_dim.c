@@ -67,40 +67,12 @@ int DIM_SetFD(int drv, char* filename)
 	DIMImg[drv] = (unsigned char*)malloc(1024*9*170+sizeof(DIM_HEADER));		// Maximum size
 	if ( !DIMImg[drv] ) return FALSE;
 	memset(DIMImg[drv], 0xe5, 1024*9*170+sizeof(DIM_HEADER));
-#if !defined(__IPHONEOS__)
-	fp = File_Open(DIMFile[drv]);
-	if ( !fp ) {
-		ZeroMemory(DIMFile[drv], MAX_PATH);
-		FDD_SetReadOnly(drv);
-		return FALSE;
-	}
-
-	File_Seek(fp, 0, FSEEK_SET);
-	if ( File_Read(fp, DIMImg[drv], sizeof(DIM_HEADER))!=sizeof(DIM_HEADER) ) goto dim_set_error;
-	dh = (DIM_HEADER*)DIMImg[drv];
-    if ( dh->type>9 ) {
-        printf("dim_set_error\n");
-        goto dim_set_error;
-    }
-	len = SctLength[dh->type];
-    if ( !len ) {
-        printf("dim_set_error\n");
-        goto dim_set_error;
-    }
-	p = DIMImg[drv]+sizeof(DIM_HEADER);
-	for (i=0; i<170; i++) {
-		if ( dh->trkflag[i] ) {
-			if ( File_Read(fp, p, len)!=len ) goto dim_set_error;
-		}
-		p += len;
-	}
-	File_Close(fp);
-#else
+#ifdef TARGET_IOS
     extern const unsigned char Salamander_dim[];
     extern const unsigned char BubbleBobble_dim[];
-    
+
     const unsigned char* Game = Salamander_dim;
-    
+
     int ptr = 0;
     memcpy( DIMImg[drv], &Game[ptr], sizeof(DIM_HEADER) );
     ptr += sizeof(DIM_HEADER);
@@ -116,6 +88,34 @@ int DIM_SetFD(int drv, char* filename)
         }
         p += len;
     }
+#else
+    fp = File_Open(DIMFile[drv]);
+    if ( !fp ) {
+        ZeroMemory(DIMFile[drv], MAX_PATH);
+        FDD_SetReadOnly(drv);
+        return FALSE;
+    }
+
+    File_Seek(fp, 0, FSEEK_SET);
+    if ( File_Read(fp, DIMImg[drv], sizeof(DIM_HEADER))!=sizeof(DIM_HEADER) ) goto dim_set_error;
+    dh = (DIM_HEADER*)DIMImg[drv];
+    if ( dh->type>9 ) {
+        printf("dim_set_error\n");
+        goto dim_set_error;
+    }
+    len = SctLength[dh->type];
+    if ( !len ) {
+        printf("dim_set_error\n");
+        goto dim_set_error;
+    }
+    p = DIMImg[drv]+sizeof(DIM_HEADER);
+    for (i=0; i<170; i++) {
+        if ( dh->trkflag[i] ) {
+            if ( File_Read(fp, p, len)!=len ) goto dim_set_error;
+        }
+        p += len;
+    }
+    File_Close(fp);
 #endif
 	if ( !dh->overtrack ) memset(dh->trkflag, 1, 170);
 	return TRUE;

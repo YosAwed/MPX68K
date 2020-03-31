@@ -376,7 +376,7 @@
 			isa = PBXGroup;
 			children = (
 				073F770024323763005B1F18 /* libc68k.a */,
-				07E2E67B24324319007EFB06 /* libc68k_mac.a */,
+				07E2E67B24324319007EFB06 /* libc68k_mac_DEBUG.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -771,10 +771,10 @@
 			remoteRef = 073F76FF24323763005B1F18 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
-		07E2E67B24324319007EFB06 /* libc68k_mac.a */ = {
+		07E2E67B24324319007EFB06 /* libc68k_mac_DEBUG.a */ = {
 			isa = PBXReferenceProxy;
 			fileType = archive.ar;
-			path = libc68k_mac.a;
+			path = libc68k_mac_DEBUG.a;
 			remoteRef = 07E2E67A24324319007EFB06 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
@@ -1087,10 +1087,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					TARGET_IOS,
 				);
 				HEADER_SEARCH_PATHS = "X68000\\ Shared/px68k/SDL";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
@@ -1122,6 +1122,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
+					TARGET_IOS,
 				);
 				HEADER_SEARCH_PATHS = "X68000\\ Shared/px68k/SDL";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";

@@ -487,7 +487,7 @@ static void menu_vkey_size(int v)
 {
 	Config.VkeyScale = v;
 #if defined(ANDROID) || TARGET_OS_IPHONE
-	Joystick_Vbtn_Update(WinUI_get_vkscale());
+//@	Joystick_Vbtn_Update(WinUI_get_vkscale());
 #endif
 }
 
