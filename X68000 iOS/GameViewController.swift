@@ -73,7 +73,7 @@ class GameViewController: UIViewController {
             UIKeyCommand(input: "7", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "8", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "9", modifierFlags: [], action: #selector(selectKey(sender:))),
-
+            
             UIKeyCommand(input: "a", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "b", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "c", modifierFlags: [], action: #selector(selectKey(sender:))),
@@ -100,21 +100,17 @@ class GameViewController: UIViewController {
             UIKeyCommand(input: "x", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "y", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "z", modifierFlags: [], action: #selector(selectKey(sender:))),
-
-            UIKeyCommand(input: "!", modifierFlags: [], action: #selector(selectKey(sender:))),
+            
+            UIKeyCommand(input: "!", modifierFlags: [.shift], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: "\u{8}", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: " ", modifierFlags: [], action: #selector(selectKey(sender:))),
-UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(selectKey(sender:))),
-//            UIKeyInputUpArrow
-//            UIKeyInputDownArrow
-//            UIKeyInputLeftArrow
-//            UIKeyInputRightArrow
-//            UIKeyInputEscape
+            UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(selectKey(sender:))),
         ]
         
         
@@ -125,58 +121,71 @@ UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #select
         X68000_Key_Down(code);
         X68000_Key_Up(code);
     }
-////    case 123:          ret = 0x114;           break;    // ←
- //   case 124:          ret = 0x113;           break;    // →
- //   case 125:          ret = 0x112;           break;    // ↓
- //   case 126:          ret = 0x111;           break;    // ↑
-
+    ////    case 123:          ret = 0x114;           break;    // ←
+    //   case 124:          ret = 0x113;           break;    // →
+    //   case 125:          ret = 0x112;           break;    // ↓
+    //   case 126:          ret = 0x111;           break;    // ↑
+    
     @objc func selectKey(sender: UIKeyCommand) {
-        switch sender.input {
-        case UIKeyCommand.inputUpArrow: sendKey( 0x111  )
-        case UIKeyCommand.inputDownArrow: sendKey( 0x112  )
-        case UIKeyCommand.inputLeftArrow: sendKey( 0x114  )
-        case UIKeyCommand.inputRightArrow: sendKey( 0x113  )
-        case "0":   sendKey( 0x30 );
-        case "1":   sendKey( 0x31 );
-        case "2":   sendKey( 0x32 );
-        case "3":   sendKey( 0x33 );
-        case "4":   sendKey( 0x34 );
-        case "5":   sendKey( 0x35 );
-        case "6":   sendKey( 0x36 );
-        case "7":   sendKey( 0x37 );
-        case "8":   sendKey( 0x38 );
-        case "9":   sendKey( 0x39 );
-
-        case "a":   sendKey( 0x41 );
-        case "b":   sendKey( 0x42 );
-        case "c":   sendKey( 0x43 );
-        case "d":   sendKey( 0x44 );
-        case "e":   sendKey( 0x45 );
-        case "f":   sendKey( 0x46 );
-        case "g":   sendKey( 0x47 );
-        case "h":   sendKey( 0x48 );
-        case "i":   sendKey( 0x49 );
-        case "j":   sendKey( 0x4a );
-        case "k":   sendKey( 0x4b );
-        case "l":   sendKey( 0x4c );
-        case "m":   sendKey( 0x4d );
-        case "n":   sendKey( 0x4e );
-        case "o":   sendKey( 0x4f );
-        case "p":   sendKey( 0x50 );
-        case "q":   sendKey( 0x51 );
-        case "r":   sendKey( 0x52 );
-        case "s":   sendKey( 0x53 );
-        case "t":   sendKey( 0x54 );
-        case "u":   sendKey( 0x55 );
-        case "v":   sendKey( 0x56 );
-        case "w":   sendKey( 0x57 );
-        case "x":   sendKey( 0x58 );
-        case "y":   sendKey( 0x59 );
-        case "z":   sendKey( 0x5a );
-//        case "\h":  sendKey( 0x08 );
-        case "\r":  sendKey( 0x0d );
-        default:
-            print( sender.input ?? "" )
+        if ( sender.modifierFlags == .shift ) {
+            switch sender.input {
+            case "!":   sendKey( 0x21 );
+            default:
+                print( sender.input ?? "" )
+            }
+        } else {
+            switch sender.input {
+            case UIKeyCommand.inputEscape: sendKey( 0x1b  )
+            case UIKeyCommand.inputUpArrow: sendKey( 0x111  )
+            case UIKeyCommand.inputDownArrow: sendKey( 0x112  )
+            case UIKeyCommand.inputLeftArrow: sendKey( 0x114  )
+            case UIKeyCommand.inputRightArrow: sendKey( 0x113  )
+            case "\t":   sendKey( 0x08 );
+            case " ":   sendKey( 0x20 );
+                
+            case "0":   sendKey( 0x30 );
+            case "1":   sendKey( 0x31 );
+            case "2":   sendKey( 0x32 );
+            case "3":   sendKey( 0x33 );
+            case "4":   sendKey( 0x34 );
+            case "5":   sendKey( 0x35 );
+            case "6":   sendKey( 0x36 );
+            case "7":   sendKey( 0x37 );
+            case "8":   sendKey( 0x38 );
+            case "9":   sendKey( 0x39 );
+                
+            case "a":   sendKey( 0x41 );
+            case "b":   sendKey( 0x42 );
+            case "c":   sendKey( 0x43 );
+            case "d":   sendKey( 0x44 );
+            case "e":   sendKey( 0x45 );
+            case "f":   sendKey( 0x46 );
+            case "g":   sendKey( 0x47 );
+            case "h":   sendKey( 0x48 );
+            case "i":   sendKey( 0x49 );
+            case "j":   sendKey( 0x4a );
+            case "k":   sendKey( 0x4b );
+            case "l":   sendKey( 0x4c );
+            case "m":   sendKey( 0x4d );
+            case "n":   sendKey( 0x4e );
+            case "o":   sendKey( 0x4f );
+            case "p":   sendKey( 0x50 );
+            case "q":   sendKey( 0x51 );
+            case "r":   sendKey( 0x52 );
+            case "s":   sendKey( 0x53 );
+            case "t":   sendKey( 0x54 );
+            case "u":   sendKey( 0x55 );
+            case "v":   sendKey( 0x56 );
+            case "w":   sendKey( 0x57 );
+            case "x":   sendKey( 0x58 );
+            case "y":   sendKey( 0x59 );
+            case "z":   sendKey( 0x5a );
+            case "\r":  sendKey( 0x0d );
+            case "\u{8}":  sendKey( 0x08 );
+            default:
+                print( sender.input ?? "" )
+            }
+            
         }
     }
 }
