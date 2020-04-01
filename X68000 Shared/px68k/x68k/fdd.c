@@ -86,7 +86,7 @@ DWORD FASTCALL FDD_Int(BYTE irq)
 void FDD_SetFD(int drive, char* filename, int readonly)
 {
 	int type = GetDiskType(filename);
-    printf("FDD_SetFD(%d,\"%s\",%d)\n", drive, filename, readonly);
+ //   printf("FDD_SetFD(%d,\"%s\",%d)\n", drive, filename, readonly);
     
 	if ( (drive<0)||(drive>3) ) return;
 	FDD_EjectFD(drive);
@@ -183,7 +183,6 @@ void FDD_Cleanup(void)
 void FDD_Reset(void)
 {
 	int i;
-    printf("FDD_Reset\n");
 	FDD_SetAccess(-1);
 	for (i=0; i<4; i++) {
 		FDD_SetEMask(i, 0);

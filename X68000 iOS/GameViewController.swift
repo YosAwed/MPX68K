@@ -14,6 +14,7 @@ class GameViewController: UIViewController {
     
     var scene : GameScene?
     
+    // ディスクイメージのロード(AppDelegateから呼ばれる)
     func load(_ url : URL)
     {
         scene?.load( url: url )

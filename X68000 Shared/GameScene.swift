@@ -104,10 +104,24 @@ class GameScene: SKScene {
     }
     
     func load( url : URL ){
-        
-        print("!!!LOAD!!!!")
-        let fileSystem = FileSystem.init()
-        fileSystem.loadBDisk(0,url)
+        Benchmark.measure("load", block: {
+            
+            let node = SKLabelNode.init()
+            node.fontSize = 64
+            node.position.y = -350
+            node.text = url.deletingPathExtension().lastPathComponent.removingPercentEncoding
+
+            node.zPosition = 4.0
+            node.alpha = 0
+            node.run(SKAction.sequence([SKAction.fadeIn(withDuration: 0.2),
+                                        SKAction.wait(forDuration: 0.5),
+                                             SKAction.fadeOut(withDuration: 0.5),
+                                             SKAction.removeFromParent()]))
+            self.addChild(node)
+
+            let fileSystem = FileSystem.init()
+            fileSystem.loadDiskImage(0,url)
+        })
     }
     
     func setUpScene() {
@@ -151,28 +165,7 @@ class GameScene: SKScene {
             ]
             ))
         self.addChild(titleSprite!)
-/*
-        self.spr = SKSpriteNode.init(color:.black, size: CGSize(width: 768, height: 512));
-        self.spr?.alpha = 0.5
-        self.spr?.xScale = 1.7
-        self.spr?.yScale = 1.7
-        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
-                                          SKAction.fadeOut(withDuration: 0.1),
-                                          SKAction.removeFromParent()]))
-        self.spr?.zPosition = 2.0
 
-        self.addChild(spr!)
-*/
-        /*
-        self.spr256 = SKSpriteNode.init(color:.blue, size: CGSize(width: 256, height: 256));
-        self.spr256?.alpha = 0.5
-        self.spr256?.xScale = 1.7 * 2.0
-        self.spr256?.yScale = 1.7 * 2.0
-        self.spr?.run(SKAction.sequence([SKAction.wait(forDuration: 0.1),
-                                          SKAction.fadeOut(withDuration: 0.1),
-                                          SKAction.removeFromParent()]))
-        self.addChild(spr256!);
-*/
 
         // Get label node from scene and store it for use later
         
@@ -240,9 +233,9 @@ class GameScene: SKScene {
                 clock = 24
             }
             clockMHz = Int(clock)
-            var label = SKLabelNode.init()
+            let label = SKLabelNode.init()
             label.text = "\(clockMHz) MHz"
-            label.fontName = "Helvetica Neue Italic 36.0"
+            label.fontName = "Helvetica Neue"
             label.fontSize = 36
             label.horizontalAlignmentMode = .center
             label.verticalAlignmentMode = .center
@@ -259,15 +252,18 @@ class GameScene: SKScene {
     var d = [UInt8](repeating: 0xff, count: 768*512*3 )
 
     override func update(_ currentTime: TimeInterval) {
-        X68000_Update(self.clockMHz)   // MHz
+        Benchmark.measure("X68000_Update  ", block: {
+            X68000_Update(self.clockMHz)   // MHz
+        })
 
         // Called before each frame is rendered
         let w = X68000_GetScreenWidth();
         let h = X68000_GetScreenHeight();
         let size = Int(w) * Int(h) * 3
 
-        X68000_GetImage( &d )
-        
+        Benchmark.measure("X68000_GetImage", block: {
+            X68000_GetImage( &d )
+        })
         let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
         self.tex = SKTexture.init( cgImage : image! )
 
@@ -341,23 +337,22 @@ extension GameScene {
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches {
- //           self.makeSpinny(at: t.location(in: self), color: SKColor.blue)
-        }
+//        for t in touches {
+//           self.makeSpinny(at: t.location(in: self), color: SKColor.blue)
+//        }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches {
+//        for t in touches {
 //            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
-            
-        }
+//        }
     //    X68000_Key_Up(0x20);
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for t in touches {
+//        for t in touches {
 //            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
-        }
+//        }
     }
 
    

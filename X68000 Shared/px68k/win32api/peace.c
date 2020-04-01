@@ -359,7 +359,7 @@ GetPrivateProfileString(LPCSTR sect, LPCSTR key, LPCSTR defvalue,
 {
 	char lbuf[256];
 	FILE *fp;
-    printf("Prop:%-16s    \"%s\"\n",key, defvalue);
+ //   printf("Prop:%-16s    \"%s\"\n",key, defvalue);
 
 	if (sect == NULL
 	 || key == NULL
@@ -416,7 +416,7 @@ GetPrivateProfileInt(LPCSTR sect, LPCSTR key, INT defvalue, LPCSTR inifile)
 	char lbuf[256];
 	FILE *fp;
     
-    printf("Prop:%-16s %5d\n",key, defvalue);
+ //   printf("Prop:%-16s %5d\n",key, defvalue);
 
 	if (sect == NULL
 	 || key == NULL

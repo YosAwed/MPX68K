@@ -729,14 +729,14 @@ void X68000_GetImage( unsigned char* data ) {
 
 void FDD_SetFD(int drive, char* filename, int readonly);
 
-unsigned char s_disk_image_buffer[2][1024*1024*2] = {0};
-void X68000_LoadFDD( const long drive, const char* filename, void* buffer, const long size )
+unsigned char s_disk_image_buffer[2][1024*1024*2] = {0};    // 2MB
+unsigned char* X68000_GetDiskImageBufferPointer( const long drive ){
+    return s_disk_image_buffer[drive];
+}
+void X68000_LoadFDD( const long drive, const char* filename, const long size )
 {
-    printf("X68000_LoadFDD( %d, \"%s\", %p, %d )\n", drive, filename, buffer,size);
+    printf("X68000_LoadFDD( %d, \"%s\", %d )\n", drive, filename, size);
 
-    if (( drive >= 0 ) && ( drive <=1 )) {
-        memcpy( &s_disk_image_buffer[drive], buffer, size );
-    }
     FDD_SetFD(drive, (char*)filename, 0);
 }
 

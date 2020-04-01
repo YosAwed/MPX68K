@@ -14,7 +14,7 @@
 			<key>CFBundleTypeName</key>
 			<string>X68000</string>
 			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
+			<string>Shell</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
@@ -74,7 +74,7 @@
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<key>UIStatusBarStyle</key>
-	<string>UIStatusBarStyleDefault</string>
+	<string>UIStatusBarStyleBlackTranslucent</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -88,6 +88,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -112,7 +114,25 @@
 				</array>
 			</dict>
 		</dict>
-		<dict/>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>X68000 Disk Image(.XDF)</string>
+			<key>UTTypeIconFiles</key>
+			<array>
+				<string>FDD.png</string>
+			</array>
+			<key>UTTypeIdentifier</key>
+			<string>GOROman.X68000.1.Disk.xdf</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array/>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>
