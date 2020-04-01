@@ -51,7 +51,8 @@ class GameScene: SKScene {
         
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFit//.aspectFill
-        scene.backgroundColor = .black
+        scene.scaleMode = .aspectFill;
+//        scene.backgroundColor = .black
         
         
         return scene
@@ -203,11 +204,21 @@ class GameScene: SKScene {
     override func sceneDidLoad() {
         self.setUpScene()
     }
-    #else
     override func didMove(to view: SKView) {
+        print("✳️didMove")
+    }
+    #else
+    override func sceneDidLoad() {
+        print("✳️sceneDidLoad")
+
+    }
+    override func didMove(to view: SKView) {
+        print("✳️didMove")
         self.setUpScene()
+
     }
     #endif
+    
 
     func makeSpinny(at pos: CGPoint, color: SKColor) {
         if let spinny = self.spinnyNode?.copy() as! SKShapeNode? {
@@ -241,15 +252,18 @@ class GameScene: SKScene {
         self.spr?.texture = self.tex!;
 //        self.spr?.alpha = 1.0
         let scale : CGFloat  = 1.7
-        if ( w == 256 ) {
-            let scale_y : CGFloat = 256.0 / CGFloat(h)
-            let aspect : CGFloat = 768.0 / 512.0
-            self.spr?.xScale = scale * 2.0 * aspect
-            self.spr?.yScale = scale * (2.0 * scale_y)+0.3
-        } else {
-            self.spr?.xScale = scale
-            self.spr?.yScale = scale
-        }
+//        if ( w == 256 ) {
+//            let scale_y : CGFloat = 256.0 / CGFloat(h)
+//            let aspect : CGFloat = 768.0 / 512.0
+//            self.spr?.xScale = scale * 2.0 * aspect
+//            self.spr?.yScale = scale * (2.0 * scale_y)+0.3
+//        } else {
+            let scale_x : CGFloat = 768.0 / CGFloat(w)
+            let scale_y : CGFloat = 512.0 / CGFloat(h)
+//            let aspect  : CGFloat = 1.0
+            self.spr?.xScale = scale * (1.0 * scale_x)
+            self.spr?.yScale = scale * (1.0 * scale_y)//+0.3
+//        }
         self.spr?.zPosition = 0.1
 //        self.spr?.alpha = 1.0
 //        self.spr?.blendMode = .add

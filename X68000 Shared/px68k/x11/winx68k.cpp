@@ -77,7 +77,6 @@ DWORD    vline = 0;
 
 
 BYTE DispFrame = 0;
-DWORD SoundSampleRate;
 
 unsigned int hTimerID = 0;
 DWORD TimerICount = 0;
@@ -215,6 +214,26 @@ WinX68k_LoadROMs(void)
 int
 WinX68k_Reset(void)
 {
+    {   // @added by GOROman
+        VLINE_TOTAL = 567;
+        VLINE = 0;
+        vline = 0;
+
+
+        DispFrame = 0;
+
+        hTimerID = 0;
+        TimerICount = 0;
+        traceflag = 0;
+
+        ForceDebugMode = 0;
+        skippedframes = 0;
+
+        ClkUsed = 0;
+        FrameSkipCount = 0;
+        FrameSkipQueue = 0;
+    }
+    
     OPM_Reset();
 
 #if defined (HAVE_CYCLONE)
@@ -561,8 +580,6 @@ int original_main(int argc, const char *argv[])
     puts(winx68k_dir);
     LoadConfig();
 
-    SoundSampleRate = Config.SampleRate;
-
     StatBar_Show(Config.WindowFDDStat);
     WinDraw_ChangeSize();
     WinDraw_ChangeMode(FALSE);
@@ -590,8 +607,8 @@ int original_main(int argc, const char *argv[])
         return 1;
     }
 
-    ADPCM_Init(SoundSampleRate);
-    OPM_Init(4000000, SoundSampleRate);
+    ADPCM_Init(Config.SampleRate);
+    OPM_Init(4000000, Config.SampleRate);
     
     FDD_Init();
     SysPort_Init();

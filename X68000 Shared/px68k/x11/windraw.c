@@ -220,45 +220,28 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
 
 
-	int x, y, Bpp;
-	WORD *p, *dst16;
-	DWORD *dst32, dat32;
 
-    Bpp = 3;//sdl_surface->format->BytesPerPixel;
-    const int Width = SCREEN_WIDTH;
-	// 2倍に拡大する
-	if (TextDotX <= 256 && TextDotY <= 256) {
-		for (y = 0; y < 256; y++) {
-			p = ScrBuf + Width * y;
-            unsigned char* dst8 = data + 256 * Bpp * y;
+    const int Bpp = 3;
 
-            for (x = 0; x < 256; x++) {
-                
-#define DOTCOPY                 *dst8++ /*R*/= (*p & 0xf800)>>8; /*R*/ \
-                                *dst8++ /*G*/= (*p & 0x07e0)>>3; /*G*/ \
-                                *dst8++ /*B*/= (*p & 0x001f)<<3; /*B*/
+    WORD* src = ScrBuf;
+    BYTE* dst = data;
 
-                // for MacOS(Bpp==3)
-                DOTCOPY
-                p++;
-			}
-		}
-	} else {
-		for (y = 0; y < 512; y++) {
-			p = ScrBuf + 768 * y;
-            unsigned char* dst8 = data + Width * Bpp * y;
-			for (x = 0; x < 768; x++) {
-                // for MacOS(Bpp==3)
-                DOTCOPY
-                p++;
-			}
-		}
-	}
+    for (int y = 0; y < TextDotY; y++) {
+        src = ScrBuf + SCREEN_WIDTH * y;
 
+        for (int x = 0; x < TextDotX; x++) {
+            *dst++ /*R*/= (*src   & 0xf800)>>8; // R
+            *dst++ /*G*/= (*src   & 0x07e0)>>3; // G
+            *dst++ /*B*/= (*src++ & 0x001f)<<3; // B
+        }
+    }
+	
 	FrameCount++;
-	if (!Draw_DrawFlag/* && is_installed_idle_process()*/)
+    if (!Draw_DrawFlag/* && is_installed_idle_process()*/) {
 		return;
-	Draw_DrawFlag = 0;
+    }
+
+    Draw_DrawFlag = 0;
 
 }
 

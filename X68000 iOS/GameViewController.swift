@@ -105,6 +105,8 @@ class GameViewController: UIViewController {
             UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "\u{8}", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: "\u{9}", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: "\u{10}", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: " ", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
