@@ -33,7 +33,9 @@ class GameScene: SKScene {
 
         X68000_Init();
         
-        
+        let fileSystem = FileSystem.init()
+        fileSystem.boot()
+
         
         func buttonHandler() -> GCControllerButtonValueChangedHandler {
             return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
@@ -316,7 +318,7 @@ extension GameScene {
             self.makeSpinny(at: t.location(in: self), color: SKColor.red)
         }
     }
-    
+
    
 }
 #endif

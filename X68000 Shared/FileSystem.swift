@@ -60,6 +60,15 @@ class FileSystem {
                 // iCloudコンテナのURL
         // 特定のiCloudコンテナを指定する場合はnilのところに書き込む
 
+        
+
+
+
+        
+    }
+    
+    func boot()
+    {
         let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
 
         // コンテナに追加するフォルダのパス
@@ -68,21 +77,17 @@ class FileSystem {
 
             for n in dir {
                 if let filename = n {
-                                      if filename.absoluteString.contains("Hum") {
-                            //               loadBDisk( 0, filename )
-                                       }
+                        
+                    if filename.absoluteString.contains("Hum") {
+                                      loadBDisk( 0, filename )
+                        
+                    }
                     
                 }
             }
 
         }
-        
-
-
-
-        
     }
-    
     func getDir(_ path : URL ) -> [URL?]
     {
         guard let fileNames = try? FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil) else {
