@@ -99,7 +99,7 @@
 			<string>X68000 Disk Image</string>
 			<key>UTTypeIconFiles</key>
 			<array>
-				<string>X68000Icon.png</string>
+				<string>FDD.png</string>
 			</array>
 			<key>UTTypeIdentifier</key>
 			<string>GOROman.X68000.1.Disk</string>
