@@ -3,7 +3,7 @@
 //
 
 void X68000_Init();
-void X68000_Update();
+void X68000_Update(const long clockMHz);
 void X68000_LoadFDD( const long drive, const char* filename, void* buffer, const long size );
 void X68000_Reset();
 void X68000_Quit();

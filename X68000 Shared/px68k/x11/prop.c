@@ -284,7 +284,7 @@ void LoadConfig(void)
 	GetPrivateProfileString(ini_title, "DSMixing", "0", buf, CFGLEN, winx68k_ini);
 	Config.DSMixing = solveBOOL(buf);
 
-	Config.XVIMode = (BYTE)GetPrivateProfileInt(ini_title, "XVIMode", 0, winx68k_ini);
+	Config.XVIMode = (BYTE)GetPrivateProfileInt(ini_title, "XVIMode", 3, winx68k_ini);  // 2: 24MHz
 
 	GetPrivateProfileString(ini_title, "CDROM_ASPI", "1", buf, CFGLEN, winx68k_ini);
 	Config.CDROM_ASPI = solveBOOL(buf);

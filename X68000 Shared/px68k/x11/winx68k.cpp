@@ -326,7 +326,7 @@ WinX68k_Cleanup(void)
 // -----------------------------------------------------------------------------------
 //  コアのめいんるーぷ
 // -----------------------------------------------------------------------------------
-void WinX68k_Exec(void)
+void WinX68k_Exec(const long clockMHz)
 {
     //char *test = NULL;
     int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
@@ -355,15 +355,24 @@ void WinX68k_Exec(void)
     vline = 0;
     clk_count = -ICount;
     clk_total = (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
+#if 0 // GOROman
     if (Config.XVIMode == 1) {
         clk_total = (clk_total*16)/10;
         clkdiv = 16;
-    } else if (Config.XVIMode == 2) {
-        clk_total = (clk_total*24)/10;
-        clkdiv = 24;
+        } else if (Config.XVIMode == 2) {
+            clk_total = (clk_total*24)/10;
+            clkdiv = 24;
+        } else if (Config.XVIMode == 3) {
+            clkdiv = 250;
+            clk_total = (clk_total*clkdiv)/10;
     } else {
         clkdiv = 10;
     }
+#else
+    clkdiv = clockMHz;
+    clk_total = (clk_total*clkdiv)/10;
+
+#endif
     ICount += clk_total;
     clk_next = (clk_total/VLINE_TOTAL);
     hsync = 1;
@@ -550,10 +559,10 @@ extern "C" void X68000_Init() {
 
 }
 
-void Update();
+void Update( const long clockMHz );
 
-extern "C" void X68000_Update() {
-    Update();
+extern "C" void X68000_Update( const long clockMHz ) {
+    Update(clockMHz);
 }
 
 int original_main(int argc, const char *argv[])
@@ -650,12 +659,12 @@ int original_main(int argc, const char *argv[])
 }
 
 
-void Update() {
+void Update(const long clockMHz) {
 
     
 
     if ((Config.NoWaitMode || Timer_GetCount())) {
-        WinX68k_Exec();
+        WinX68k_Exec(clockMHz);
     }
 
  }

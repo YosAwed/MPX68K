@@ -46,8 +46,8 @@
             filePath = "X68000 Shared/px68k/x11/windraw.c"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "625"
-            endingLineNumber = "625"
+            startingLineNumber = "627"
+            endingLineNumber = "627"
             landmarkName = "WinDraw_DrawLine()"
             landmarkType = "9">
          </BreakpointContent>

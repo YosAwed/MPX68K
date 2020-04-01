@@ -12,6 +12,7 @@ import GameController
 
 class GameScene: SKScene {
     
+    var clockMHz:Int = 10
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
@@ -130,7 +131,7 @@ class GameScene: SKScene {
                 SKAction.wait(forDuration: 1.0),
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 0.5),
-                SKAction.fadeAlpha(to: 0.05, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
             ]
             ))
         
@@ -146,7 +147,7 @@ class GameScene: SKScene {
             SKAction.sequence([
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 1.5),
-                SKAction.fadeAlpha(to: 0.05, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
             ]
             ))
         self.addChild(titleSprite!)
@@ -180,8 +181,8 @@ class GameScene: SKScene {
         self.spinnyNode = SKShapeNode.init(rectOf: CGSize.init(width: w, height: w), cornerRadius: w * 0.3)
         
         if let spinnyNode = self.spinnyNode {
-            spinnyNode.lineWidth = 4.0
-            spinnyNode.run(SKAction.repeatForever(SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
+            spinnyNode.lineWidth = 20.0
+ //           spinnyNode.run(SKAction.repeatForever(SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
             spinnyNode.run(SKAction.sequence([SKAction.wait(forDuration: 0.5),
                                               SKAction.fadeOut(withDuration: 0.5),
                                               SKAction.removeFromParent()]))
@@ -226,6 +227,30 @@ class GameScene: SKScene {
             spinny.strokeColor = color
             spinny.lineWidth = 0.1
             spinny.zPosition = 1.0
+            
+            var clock = ((pos.y+1000.0) / 2000.0)
+            clock *= 200.0
+            if (pos.x < -500 ) {
+                    clock = 1
+            } else if (pos.x < -400 ) {
+                clock = 10
+            } else if (pos.x < -200 ) {
+                clock = 16
+            } else if (pos.x < -0 ) {
+                clock = 24
+            }
+            clockMHz = Int(clock)
+            var label = SKLabelNode.init()
+            label.text = "\(clockMHz) MHz"
+            label.fontName = "Helvetica Neue Italic 36.0"
+            label.fontSize = 36
+            label.horizontalAlignmentMode = .center
+            label.verticalAlignmentMode = .center
+            label.fontColor = .yellow
+            
+            spinny.addChild(label)
+            
+            
 
             self.addChild(spinny)
         }
@@ -234,7 +259,7 @@ class GameScene: SKScene {
     var d = [UInt8](repeating: 0xff, count: 768*512*3 )
 
     override func update(_ currentTime: TimeInterval) {
-        X68000_Update()
+        X68000_Update(self.clockMHz)   // MHz
 
         // Called before each frame is rendered
         let w = X68000_GetScreenWidth();
@@ -301,10 +326,11 @@ extension GameScene {
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
             
-            print( t.location(in: self).x )
+            print( "X:\(t.location(in: self).x) Y:\(t.location(in: self).y)" )
+            break
         }
         if ( touches.count == 1 ) {
-            X68000_Key_Down(0x20);
+  //          X68000_Key_Down(0x20);
         }
         if ( touches.count == 3 ) {
 //            print("3")
@@ -316,20 +342,21 @@ extension GameScene {
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            self.makeSpinny(at: t.location(in: self), color: SKColor.blue)
+ //           self.makeSpinny(at: t.location(in: self), color: SKColor.blue)
         }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
+//            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
+            
         }
-        X68000_Key_Up(0x20);
+    //    X68000_Key_Up(0x20);
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
+//            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
         }
     }
 

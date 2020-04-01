@@ -472,7 +472,9 @@ INLINE void WinDraw_DrawPriLine(void)
 void WinDraw_DrawLine(void)
 {
 	int opaq, ton=0, gon=0, bgon=0, tron=0, pron=0, tdrawed=0;
-
+//@    printf("%d\n", VLINE);
+    if((signed int)VLINE<0 )return; //@GOROman
+    
 	if (!TextDirtyLine[VLINE]) return;
 	TextDirtyLine[VLINE] = 0;
 	Draw_DrawFlag = 1;

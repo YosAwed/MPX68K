@@ -343,9 +343,9 @@ void send_keycode(BYTE code, int flag)
 		newwp = ((KeyBufWP + 1) & (KeyBufSize - 1));
 		if (newwp != KeyBufRP) {
 			KeyBuf[KeyBufWP] = code | ((flag == P6K_UP)? 0x80 : 0);
-			p6logd("KeyBuf: %x\n", KeyBuf[KeyBufWP]);
+//			p6logd("KeyBuf: %x\n", KeyBuf[KeyBufWP]);
 			KeyBufWP = newwp;
-			p6logd("KeyBufWP: %d\n", KeyBufWP);
+//			p6logd("KeyBufWP: %d\n", KeyBufWP);
 		}
 	}
 }
@@ -373,9 +373,8 @@ Keyboard_KeyDown(DWORD wp)
 		return;
 	}
 
-	printf("Keyboard_KeyDown: ");
-	printf("wp=0x%x, code=0x%x\n", wp, code);
-//	printf("SDLK_UP: 0x%x", SDLK_UP);
+//	printf("Keyboard_KeyDown: ");
+//	printf("wp=0x%x, code=0x%x\n", wp, code);
 
 	send_keycode(code, P6K_DOWN);
 
@@ -404,7 +403,7 @@ void
 Keyboard_Int(void)
 {
 	if (KeyBufRP != KeyBufWP) {
-		printf("KeyBufRP:%d, KeyBufWP:%d\n", KeyBufRP, KeyBufWP);
+//		printf("KeyBufRP:%d, KeyBufWP:%d\n", KeyBufRP, KeyBufWP);
 		if (!KeyIntFlag) {
 			LastKey = KeyBuf[KeyBufRP];
 			KeyBufRP = ((KeyBufRP+1)&(KeyBufSize-1));
