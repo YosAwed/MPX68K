@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string></string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -14,7 +16,7 @@
 			<key>CFBundleTypeName</key>
 			<string>X68000</string>
 			<key>CFBundleTypeRole</key>
-			<string>Shell</string>
+			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
@@ -28,15 +30,15 @@
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
+	<string>8</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.0</string>
-	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>$(MARKETING_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -51,7 +53,7 @@
 			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
 			<true/>
 			<key>NSUbiquitousContainerName</key>
-			<string>X68000</string>
+			<string>X68iOS</string>
 			<key>NSUbiquitousContainerSupportedFolderLevels</key>
 			<string>Any</string>
 		</dict>
@@ -120,17 +122,19 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>X68000 Disk Image(.XDF)</string>
+			<string>X68000 Disk Image(.d88)</string>
 			<key>UTTypeIconFiles</key>
 			<array>
 				<string>FDD.png</string>
 			</array>
 			<key>UTTypeIdentifier</key>
-			<string>GOROman.X68000.1.Disk.xdf</string>
+			<string>GOROman.X68000.1.Disk.d88</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
-				<array/>
+				<array>
+					<string>d88</string>
+				</array>
 			</dict>
 		</dict>
 	</array>

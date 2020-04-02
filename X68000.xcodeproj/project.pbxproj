@@ -17,9 +17,9 @@
 		0760DC2B24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
 		0764421A243328C3006E5208 /* FileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07644219243328C3006E5208 /* FileSystem.swift */; };
 		0764421B243328C3006E5208 /* FileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07644219243328C3006E5208 /* FileSystem.swift */; };
-		0764421E24333257006E5208 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0764421D24333257006E5208 /* CloudKit.framework */; };
 		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
+		07B00C352436524F00C8FF79 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0764421D24333257006E5208 /* CloudKit.framework */; };
 		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
@@ -285,7 +285,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0764421E24333257006E5208 /* CloudKit.framework in Frameworks */,
+				07B00C352436524F00C8FF79 /* CloudKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -937,6 +937,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -946,11 +947,12 @@
 				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 6.0.1;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";
@@ -971,6 +973,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
@@ -978,11 +981,12 @@
 				);
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 6.0.1;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";

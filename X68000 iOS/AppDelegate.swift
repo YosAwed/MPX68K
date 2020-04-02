@@ -17,8 +17,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-
-//        print("url: ", url)
+        print("⭐️application url:\(url)")
 
 
         viewController.load(url)
@@ -37,17 +36,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
         // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
         print("⭐️applicationWillResignActive")
+        viewController.applicationWillResignActive()
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
         print("⭐️applicationDidEnterBackground")
+//        self.backgroundQueue.async(execute: myBackgroundTask)
     }
 
-    func applicationWillEnterForeground(_ application: UIApplication, open url: URL) {
+    func applicationWillEnterForeground(_ application: UIApplication) {
         // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-        print("⭐️applicationWillEnterForeground:\(url)")
+        print("⭐️applicationWillEnterForeground:")
+        viewController.applicationWillEnterForeground()
     }
 
     func applicationDidBecomeActive(_ application: UIApplication, open url: URL) {

@@ -40,7 +40,12 @@ class GameViewController: UIViewController {
         skView.showsDrawCount = true
         //        skView.preferredFramesPerSecond = 120
     }
-    
+    func applicationWillResignActive() {
+        scene?.applicationWillResignActive()
+    }
+    func applicationWillEnterForeground() {
+        scene?.applicationWillEnterForeground()
+    }
     override var shouldAutorotate: Bool {
         return true
     }
