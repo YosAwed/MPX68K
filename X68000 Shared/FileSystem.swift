@@ -108,13 +108,13 @@ class FileSystem {
         DispatchQueue.global().async {
             do {
                 let imageData: Data? = try Data(contentsOf: url!)
+                if let data = imageData {
+                    let p = X68000_GetDiskImageBufferPointer(drive)
+                    data.copyBytes(to: p!, count: data.count)
+                    X68000_LoadFDD(drive, url?.absoluteString ?? "", data.count );
+                }
                 DispatchQueue.main.async {
-                    if let data = imageData {
-                        let p = X68000_GetDiskImageBufferPointer(drive)
-                        data.copyBytes(to: p!, count: data.count)
-                        X68000_LoadFDD(drive, url?.absoluteString ?? "", data.count );
-                        X68000_Reset()
-                    }
+                    X68000_Reset()
                 }
             }
             catch {
