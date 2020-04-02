@@ -52,8 +52,8 @@ class GameScene: SKScene {
         
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFit//.aspectFill
-        scene.scaleMode = .aspectFill;
-//        scene.backgroundColor = .black
+//        scene.scaleMode = .aspectFill;
+        scene.backgroundColor = .black
         
         
         return scene
@@ -119,7 +119,7 @@ class GameScene: SKScene {
                 SKAction.wait(forDuration: 1.0),
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 0.5),
-                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.2, duration: 1.0)
             ]
             ))
         
@@ -135,7 +135,7 @@ class GameScene: SKScene {
             SKAction.sequence([
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 1.5),
-                SKAction.fadeAlpha(to: 0.3, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.2, duration: 1.0)
             ]
             ))
         self.addChild(titleSprite!)
@@ -167,7 +167,12 @@ class GameScene: SKScene {
             #endif
         }
     }
-    
+    func applicationWillResignActive() {
+        // audioStream?.pause()
+    }
+    func applicationWillEnterForeground() {
+        //        audioStream?.play()
+    }
     #if os(watchOS)
     override func sceneDidLoad() {
         self.setUpScene()
@@ -226,17 +231,17 @@ class GameScene: SKScene {
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
 
     override func update(_ currentTime: TimeInterval) {
-        Benchmark.measure("X68000_Update  ", block: {
+//        Benchmark.measure("X68000_Update  ", block: {
             X68000_Update(self.clockMHz)   // MHz
-        })
+//        })
 
         // Called before each frame is rendered
         let w = X68000_GetScreenWidth();
         let h = X68000_GetScreenHeight();
 
-        Benchmark.measure("X68000_GetImage", block: {
+//        Benchmark.measure("X68000_GetImage", block: {
             X68000_GetImage( &d )
-        })
+//        })
         let cgsize = CGSize(width: Int(w), height: Int(h))
         self.tex = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
         

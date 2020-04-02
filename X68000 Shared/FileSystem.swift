@@ -39,20 +39,39 @@ class FileSystem {
          }
          }
          */
-        /*
-         let containerURL = FileManager.default.url()
-         let documentsURL = containerURL?.appendingPathComponent("Documents")
-         let fileURL = documentsURL?.appendingPathComponent("my.diary")
-         
-         /* write */
-         let todayText = Date().description
-         do {
-         try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
-         }
-         catch {
-         print("write error")
-         }
-         */
+        
+        // iCloudコンテナのURL
+        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        print(url)
+        let path = (url?.appendingPathComponent(""))!
+        print("path>>>\(path)")
+        do {
+            try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
+        } catch let error as NSError {
+            print(error)
+        }
+        
+        let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        print(containerURL)
+        let documentsURL = containerURL?.appendingPathComponent("Documents")
+        let fileURL = documentsURL?.appendingPathComponent("README.txt")
+        print(fileURL)
+        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE."
+        do {
+            try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
+        }
+        catch {
+            print("write error")
+        }
+        
+        
+        DispatchQueue.main.async {
+               do {
+                   try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
+              } catch let error as NSError {
+                   print(error)
+              }
+            }
         
         
         //        loadBinary( dataURL : URL( fileURLWithPath : "\(documentsPath)/hello.txt" ) )
@@ -108,16 +127,18 @@ class FileSystem {
         DispatchQueue.global().async {
             do {
                 let imageData: Data? = try Data(contentsOf: url!)
-                if let data = imageData {
-                    let p = X68000_GetDiskImageBufferPointer(drive)
-                    data.copyBytes(to: p!, count: data.count)
-                    X68000_LoadFDD(drive, url?.absoluteString ?? "", data.count );
-                }
                 DispatchQueue.main.async {
+                    if let data = imageData {
+                        let p = X68000_GetDiskImageBufferPointer(drive)
+                        data.copyBytes(to: p!, count: data.count)
+                        X68000_LoadFDD(drive, url?.absoluteString ?? "", data.count );
+                    }
                     X68000_Reset()
                 }
             }
-            catch {
+            catch let error as NSError {
+                print(error)
+                
                 DispatchQueue.main.async {
                     //                    self.image = defaultUIImage
                 }
