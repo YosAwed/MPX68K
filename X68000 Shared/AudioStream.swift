@@ -51,7 +51,7 @@ class AudioStream {
             mReserved:          0
         )
 
-        bufferByteSize   = 1024 * dataFormat.mBytesPerFrame
+        bufferByteSize   = 512 * dataFormat.mBytesPerFrame
 
         AudioQueueNewOutput(
             &dataFormat,
