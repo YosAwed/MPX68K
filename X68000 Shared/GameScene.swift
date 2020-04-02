@@ -58,33 +58,7 @@ class GameScene: SKScene {
         
         return scene
     }
-    
-    func RBGImage(data: [UInt8], size:Int, width: Int, height: Int) -> CGImage? {
-
-         let bitsPerComponent = 8
-         let numberOfComponents = 3
-         let bitsPerPixel = bitsPerComponent * numberOfComponents
-         let bytesPerPixel = bitsPerPixel / 8
-
-         guard width > 0, height > 0 else { return nil }
-//         guard width * height * numberOfComponents == data.count else { return nil }
-
-         return CGDataProvider(dataInfo: nil, data: data, size: size) { _,_,_ in }
-             .flatMap {
-                 CGImage(width: width,
-                         height: height,
-                         bitsPerComponent: bitsPerComponent,
-                         bitsPerPixel: bitsPerPixel,
-                         bytesPerRow: width * bytesPerPixel,
-                         space: CGColorSpaceCreateDeviceRGB(),
-                         bitmapInfo: [],
-                         provider: $0,
-                         decode: nil,
-                         shouldInterpolate: false,
-                         intent: .defaultIntent)
-         }
-     }
-    
+        
     
     var count = 0
     
@@ -249,7 +223,7 @@ class GameScene: SKScene {
         }
     }
 
-    var d = [UInt8](repeating: 0xff, count: 768*512*3 )
+    var d = [UInt8](repeating: 0xff, count: 768*512*4 )
 
     override func update(_ currentTime: TimeInterval) {
         Benchmark.measure("X68000_Update  ", block: {
@@ -259,14 +233,13 @@ class GameScene: SKScene {
         // Called before each frame is rendered
         let w = X68000_GetScreenWidth();
         let h = X68000_GetScreenHeight();
-        let size = Int(w) * Int(h) * 3
 
         Benchmark.measure("X68000_GetImage", block: {
             X68000_GetImage( &d )
         })
-        let image = RBGImage( data:d, size: size, width: Int(w), height:Int(h) )
-        self.tex = SKTexture.init( cgImage : image! )
-
+        let cgsize = CGSize(width: Int(w), height: Int(h))
+        self.tex = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
+        
         self.spr?.removeFromParent()
 
         self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));

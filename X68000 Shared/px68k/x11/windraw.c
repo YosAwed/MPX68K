@@ -221,7 +221,7 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
 
 
-    const int Bpp = 3;
+//    const int Bpp = 3;
 
     WORD* src = ScrBuf;
     BYTE* dst = data;
@@ -233,6 +233,7 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
             *dst++ /*R*/= (*src   & 0xf800)>>8; // R
             *dst++ /*G*/= (*src   & 0x07e0)>>3; // G
             *dst++ /*B*/= (*src++ & 0x001f)<<3; // B
+            *dst++ /*A*/= 0xff;
         }
     }
 	
