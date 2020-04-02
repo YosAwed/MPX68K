@@ -42,9 +42,7 @@ class FileSystem {
         
         // iCloudコンテナのURL
         let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        print(url)
-        let path = (url?.appendingPathComponent(""))!
-        print("path>>>\(path)")
+        let path = (url?.appendingPathComponent("Documents"))!
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
@@ -52,10 +50,8 @@ class FileSystem {
         }
         
         let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        print(containerURL)
         let documentsURL = containerURL?.appendingPathComponent("Documents")
         let fileURL = documentsURL?.appendingPathComponent("README.txt")
-        print(fileURL)
         let todayText = "POWER TO MAKE YOUR DREAM COME TRUE."
         do {
             try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
@@ -73,13 +69,7 @@ class FileSystem {
               }
             }
         
-        
-        //        loadBinary( dataURL : URL( fileURLWithPath : "\(documentsPath)/hello.txt" ) )
-        
-        // iCloudコンテナのURL
-        // 特定のiCloudコンテナを指定する場合はnilのところに書き込む
-        
-        
+                
         
         
         
