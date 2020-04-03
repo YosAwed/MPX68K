@@ -110,27 +110,30 @@ class FileSystem {
     }
     func loadAsynchronously(_ drive : Int,_ url: URL?) -> Void {
         
-        if url == nil {
-            return
-        }
-        
-        DispatchQueue.global().async {
-            do {
-                let imageData: Data? = try Data(contentsOf: url!)
-                DispatchQueue.main.async {
-                    if let data = imageData {
-                        let p = X68000_GetDiskImageBufferPointer(drive)
-                        data.copyBytes(to: p!, count: data.count)
-                        X68000_LoadFDD(drive, url?.absoluteString ?? "", data.count );
+        if let url = url {
+            
+            DispatchQueue.global().async {
+                do {
+                    if ( url.startAccessingSecurityScopedResource() ) {
+                        let imageData: Data? = try Data(contentsOf: url)
+                        url.stopAccessingSecurityScopedResource()
+
+                        DispatchQueue.main.async {
+                            if let data = imageData {
+                                let p = X68000_GetDiskImageBufferPointer(drive)
+                                data.copyBytes(to: p!, count: data.count)
+                                X68000_LoadFDD(drive, url.absoluteString , data.count );
+                            }
+                            X68000_Reset()
+                        }
                     }
-                    X68000_Reset()
                 }
-            }
-            catch let error as NSError {
-                print(error)
-                
-                DispatchQueue.main.async {
-                    //                    self.image = defaultUIImage
+                catch let error as NSError {
+                    print(error)
+                    
+                    DispatchQueue.main.async {
+                        //                    self.image = defaultUIImage
+                    }
                 }
             }
         }

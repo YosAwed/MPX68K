@@ -22,7 +22,6 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
 
     X68000_AudioCallBack(mAudioDataPrt, UInt32(size));
 
-
     buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
     AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
 
