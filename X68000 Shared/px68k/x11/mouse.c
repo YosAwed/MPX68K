@@ -33,18 +33,11 @@
 float	MouseDX = 0;
 float	MouseDY = 0;
 BYTE	MouseStat = 0;
-BYTE	MouseSW = 0;
+BYTE	MouseSW = 1;
 
 POINT	CursorPos;
 int	mousex = 0, mousey = 0;
 
-#if 0
-static GdkPixmap *cursor_pixmap;
-static GdkCursor *cursor;
-
-static void getmaincenter(GtkWidget *w, POINT *p);
-void gdk_window_set_pointer(GdkWindow *window, gint x, gint y);
-#endif
 
 void Mouse_Init(void)
 {
@@ -59,7 +52,7 @@ void Mouse_Init(void)
 // ----------------------------------
 void Mouse_Event(int param, float dx, float dy)
 {
-	printf("ME(): %f %f\n", dx, dy);
+//	printf("Mouse( %d, %f %f )\n", param, dx, dy);
 
 	if (MouseSW) {
 		switch (param) {
@@ -91,6 +84,7 @@ void Mouse_Event(int param, float dx, float dy)
 // ----------------------------------
 void Mouse_SetData(void)
 {
+    return; //@GOROman
 	POINT pt;
 	int x, y;
 
@@ -155,50 +149,3 @@ void Mouse_ChangePos(void)
 #endif
 }
 
-#if 0
-static void
-getmaincenter(GtkWidget *w, POINT *p)
-{
-
-	p->x = w->allocation.x + w->allocation.width / 2;
-	p->y = w->allocation.y + w->allocation.height / 2;
-}
-
-#if GTK_MAJOR_VERSION == 1
-#include <gdk/gdkprivate.h>
-
-void
-gdk_window_set_pointer(GdkWindow *window, gint x, gint y)
-{ 
-	GdkWindowPrivate *private;
-
-	if (!window)
-		window = (GdkWindow *)&gdk_root_parent;
-
-	private = (GdkWindowPrivate *)window;
-	if (private->destroyed)
-		return;
-
-	XWarpPointer(private->xdisplay, None, private->xwindow,
-	    0, 0, 0, 0, x, y);
-}
-#else	/* GTK_MAJOR_VERSION != 1 */
-#include <gdk/gdkx.h>
-
-void
-gdk_window_set_pointer(GdkWindow *window, gint x, gint y)
-{
-	GdkScreen *screen;
-
-	if (window == NULL) {
-		screen = gdk_screen_get_default();
-		window = gdk_screen_get_root_window(screen);
-	}
-	if (GDK_WINDOW_DESTROYED(window))
-		return;
-
-	XWarpPointer(GDK_WINDOW_XDISPLAY(window), None, GDK_WINDOW_XID(window),
-	    0, 0, 0, 0, x, y);
-}
-#endif	/* GTK_MAJOR_VERSION == 1 */
-#endif

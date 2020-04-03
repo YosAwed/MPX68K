@@ -62,14 +62,19 @@ class FileSystem {
             print(error)
         }
         
+#if true
         let fileURL = getDocumentsPath("README.txt")
         let todayText = "POWER TO MAKE YOUR DREAM COME TRUE."
-        do {
-            try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
+        if ( FileManager.default.fileExists( atPath: fileURL!.path ) == true ) {
+        } else {
+            do {
+                try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
+            }
+            catch {
+                print("write error")
+            }
         }
-        catch {
-            print("write error")
-        }
+#endif
     }
     
     func getDocumentsPath(_ filename: String )->URL? {
@@ -91,7 +96,7 @@ class FileSystem {
                 if let filename = n {
                     
                     if filename.absoluteString.contains("Hum") {
-                        loadDiskImage( 0, filename )
+                        loadDiskImage( filename )
                         
                     }
                     
@@ -111,7 +116,10 @@ class FileSystem {
         
         return fileNames
     }
-    func loadAsynchronously(_ drive : Int,_ url: URL?) -> Void {
+    
+    
+    
+    func loadAsynchronously(_ url: URL?) -> Void {
         
         if let url = url {
             
@@ -123,11 +131,25 @@ class FileSystem {
                         
                         DispatchQueue.main.async {
                             if let data = imageData {
-                                let p = X68000_GetDiskImageBufferPointer(drive)
-                                data.copyBytes(to: p!, count: data.count)
-                                X68000_LoadFDD(drive, url.absoluteString , data.count );
+                                print("size:\(data.count)")
+                                
+                                let extname = url.pathExtension.removingPercentEncoding
+                                if ( extname?.lowercased() == "hds"  ) {
+//                                    let p = X68000_GetHDDImageBufferPointer(drive)
+//                                    data.copyBytes(to: p!, count: data.count)
+//                                    X68000_LoadHDD(drive, url.absoluteString , data.count );
+                                } else {
+                                    var drive = 0
+                                    if ( url.path.contains(" B.") ) {
+                                        drive = 1
+                                    }
+
+                                    let p = X68000_GetDiskImageBufferPointer(drive)
+                                    data.copyBytes(to: p!, count: data.count)
+                                    X68000_LoadFDD(drive, url.absoluteString , data.count );
+                                    X68000_Reset()
+                                }
                             }
-                            X68000_Reset()
                         }
                     }
                 }
@@ -141,11 +163,11 @@ class FileSystem {
             }
         }
     }
-    func loadDiskImage(_ drive : Int, _ url : URL )
+    func loadDiskImage( _ url : URL )
     {
         saveSRAM()
-        X68000_Reset()
-        loadAsynchronously( drive, url )
+//        X68000_Reset()
+        loadAsynchronously( url )
     }
     func saveSRAM()
     {

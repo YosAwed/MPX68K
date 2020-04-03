@@ -747,8 +747,35 @@ unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
 }
+void X68000_Mouse_Set( float x, float y, const long button )
+{
+//    Mouse_Event(button, x, y);
+//        MouseX = x;
+//        MouseY = y;
 
-}//extern "C"
+        MouseSt = button;
+    
+    WORD xx = x;
+    WORD yy = y;
+    
+    BYTE* mouse = &MEM[0xace];
+//    ++xx;
+    //    if ( xx >= 512 )  xx = 0;
+
+    *mouse++ = ((BYTE*) &xx)[0];
+    *mouse++ = ((BYTE*) &xx)[1];
+    *mouse++ = ((BYTE*) &yy)[0];
+    *mouse++ = ((BYTE*) &yy)[1];
+    
+    *(((BYTE*) &xx)+0) = MEM[0xace];
+    *(((BYTE*) &xx)+1) = MEM[0xacf];
+    *(((BYTE*) &yy)+0) = MEM[0xad0];
+    *(((BYTE*) &yy)+1) = MEM[0xad1];
+//    printf("%3d %3d\n", xx, yy );
+}
+
+}
+//extern "C"
 
 
 

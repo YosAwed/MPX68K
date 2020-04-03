@@ -15,6 +15,8 @@ void X68000_Key_Up( unsigned int vkcode );
 const int X68000_GetScreenWidth();
 const int X68000_GetScreenHeight();
 
+void X68000_Mouse_Set( float x, float y, long button );
+
 unsigned char* X68000_GetSRAMPointer();
 
 void X68000_Joystick_Set( unsigned char num, unsigned char data);
