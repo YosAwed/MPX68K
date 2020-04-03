@@ -106,6 +106,10 @@ class GameViewController: UIViewController {
             UIKeyCommand(input: "x", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "y", modifierFlags: [], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "z", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: "-", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: "=", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: ":", modifierFlags: [], action: #selector(selectKey(sender:))),
+            UIKeyCommand(input: ".", modifierFlags: [], action: #selector(selectKey(sender:))),
             
             UIKeyCommand(input: "!", modifierFlags: [.shift], action: #selector(selectKey(sender:))),
             UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(selectKey(sender:))),
@@ -190,6 +194,11 @@ class GameViewController: UIViewController {
             case "z":   sendKey( 0x5a );
             case "\r":  sendKey( 0x0d );
             case "\u{8}":  sendKey( 0x08 );
+                
+            case "-":   sendKey( 0x2d );
+            case "=":   sendKey( 0x3d );
+            case ":":   sendKey( 0x3a );
+            case ".":   sendKey( 0x2e );
             default:
                 print( sender.input ?? "" )
             }
