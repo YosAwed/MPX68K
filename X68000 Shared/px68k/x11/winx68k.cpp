@@ -555,6 +555,7 @@ extern "C" void X68000_Init() {
 //        "/Users/goroman/Retro/Salamander.dim",
         "/Users/goroman/Retro/BubbleBobble.dim",
     };
+        
     original_main(2, arg);
 
 }
@@ -567,7 +568,9 @@ extern "C" void X68000_Update( const long clockMHz ) {
 
 int original_main(int argc, const char *argv[])
 {
-    p6logd("PX68K Ver.%s\n", PX68KVERSTR);
+    extern const unsigned char X68000_for_iOSVersionString[];
+    extern const double X68000_for_iOSVersionNumber;
+    p6logd("PX68K Ver.%s -- %s Build:%d\n", PX68KVERSTR,X68000_for_iOSVersionString, int(X68000_for_iOSVersionNumber));
 
 #ifdef RFMDRV
     struct sockaddr_in dest;
@@ -581,12 +584,11 @@ int original_main(int argc, const char *argv[])
     connect (rfd_sock, (struct sockaddr *)&dest, sizeof(dest));
 #endif
 
-    if (set_modulepath(winx68k_dir, sizeof(winx68k_dir)))
-        return 1;
+//    if (set_modulepath(winx68k_dir, sizeof(winx68k_dir)))
+//        return 1;
 
     dosio_init();
-    file_setcd(winx68k_dir);
-    puts(winx68k_dir);
+    file_setcd("./");
     LoadConfig();
 
     StatBar_Show(Config.WindowFDDStat);
@@ -624,6 +626,8 @@ int original_main(int argc, const char *argv[])
     Mouse_Init();
     Joystick_Init();
     SRAM_Init();
+    SRAM_Cleanup(); //@
+
 
     WinX68k_Reset();
     Timer_Init();

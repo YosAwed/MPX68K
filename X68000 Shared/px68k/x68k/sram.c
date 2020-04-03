@@ -11,7 +11,7 @@
 #include	"sram.h"
 
 	BYTE	SRAM[0x4000];
-	BYTE	SRAMFILE[] = "sram.dat";
+	BYTE	SRAMFILE[] = "SRAM.DAT";
 
 
 // -----------------------------------------------------------------------

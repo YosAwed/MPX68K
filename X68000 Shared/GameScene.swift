@@ -99,8 +99,6 @@ class GameScene: SKScene {
     }
     
     func setUpScene() {
-        
-
 
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );

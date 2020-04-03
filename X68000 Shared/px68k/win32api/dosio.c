@@ -61,7 +61,7 @@ file_open(LPSTR filename)
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-      printf("file_create(\"%s\")=%d\n",filename,ret);
+      printf("file_open(\"%s\")=%d\n",filename,ret);
         if (ret == (FILEH)INVALID_HANDLE_VALUE) {
 		ret = CreateFile(filename, GENERIC_READ,
 		    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -80,7 +80,10 @@ file_create(LPSTR filename, int ftype)
 
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (ret == (FILEH)INVALID_HANDLE_VALUE)
+
+    printf("file_create(\"%s\")=%d\n",filename,ret);
+
+    if (ret == (FILEH)INVALID_HANDLE_VALUE)
 		return (FILEH)FALSE;
 	return ret;
 }
@@ -208,6 +211,7 @@ void
 file_setcd(LPSTR exename)
 {
 
+    printf("file_setcd(\"%s\")\n", exename );
 	strncpy(curpath, exename, sizeof(curpath));
 	plusyen(curpath, sizeof(curpath));
 	curfilep = curpath + strlen(exename) + 1;
@@ -222,20 +226,22 @@ file_getcd(LPSTR filename)
 	return curpath;
 }
 
+static char s_filename[MAX_PATH];
 FILEH
 file_open_c(LPSTR filename)
 {
-	strncpy(curfilep, filename, curfilep - curpath);
-    printf("file_open_c:%s %s\n", filename, curpath);   //@
-	return file_open(curpath);
+    sprintf(s_filename, "%s%s", curpath, filename );
+    printf("file_open_c(\"%s\") = %s\n", filename, curpath);   //@
+	return file_open(s_filename);
 }
 
 FILEH
 file_create_c(LPSTR filename, int ftype)
 {
-
-	strncpy(curfilep, filename, curfilep - curpath);
-	return file_create(curpath, ftype);
+    sprintf(s_filename, "%s%s", curpath, filename );
+    printf("file_create_c(\"%s\")\n", filename);
+//	strncpy(curfilep, filename, curfilep - curpath);
+	return file_create(s_filename, ftype);
 }
 
 short
