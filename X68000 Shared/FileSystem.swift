@@ -39,7 +39,20 @@ class FileSystem {
          }
          }
          */
-        
+        createDocumentsFolder()
+
+
+        DispatchQueue.main.async {
+            do {
+                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
+            } catch let error as NSError {
+                print(error)
+            }
+        }
+    }
+    
+    func createDocumentsFolder() {
         // iCloudコンテナのURL
         let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let path = (url?.appendingPathComponent("Documents"))!
@@ -49,9 +62,7 @@ class FileSystem {
             print(error)
         }
         
-        let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        let documentsURL = containerURL?.appendingPathComponent("Documents")
-        let fileURL = documentsURL?.appendingPathComponent("README.txt")
+        let fileURL = getDocumentsPath("README.txt")
         let todayText = "POWER TO MAKE YOUR DREAM COME TRUE."
         do {
             try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
@@ -59,21 +70,13 @@ class FileSystem {
         catch {
             print("write error")
         }
-        
-        
-        DispatchQueue.main.async {
-               do {
-                   try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
-              } catch let error as NSError {
-                   print(error)
-              }
-            }
-        
-                
-        
-        
-        
-        
+    }
+    
+    func getDocumentsPath(_ filename: String )->URL? {
+        let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        let documentsURL = containerURL?.appendingPathComponent("Documents")
+        let url = documentsURL?.appendingPathComponent(filename)
+        return url
     }
     
     func boot()
@@ -117,7 +120,7 @@ class FileSystem {
                     if ( url.startAccessingSecurityScopedResource() ) {
                         let imageData: Data? = try Data(contentsOf: url)
                         url.stopAccessingSecurityScopedResource()
-
+                        
                         DispatchQueue.main.async {
                             if let data = imageData {
                                 let p = X68000_GetDiskImageBufferPointer(drive)
@@ -140,8 +143,38 @@ class FileSystem {
     }
     func loadDiskImage(_ drive : Int, _ url : URL )
     {
+        saveSRAM()
         X68000_Reset()
         loadAsynchronously( drive, url )
     }
-    
+    func saveSRAM()
+    {
+        print("==== Save SRAM ====")
+        let data = Data(bytes: X68000_GetSRAMPointer(), count: 0x4000)
+        let url  = getDocumentsPath("SRAM.DAT")
+        do {
+            try data.write(to: url!)
+        }
+        catch let error as NSError {
+            print(error)
+        }
+    }
+
+    func loadSRAM()
+    {
+        print("==== Load SRAM ====")
+        let url  = getDocumentsPath("SRAM.DAT")
+
+        do {
+            let data: Data? = try Data(contentsOf: url!)
+            
+            if let data = data {
+                let p = X68000_GetSRAMPointer()
+                data.copyBytes(to: p!, count: data.count)
+            }
+        }
+        catch let error as NSError {
+            print(error)
+        }
+    }
 }

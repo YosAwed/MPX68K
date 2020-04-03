@@ -52,25 +52,26 @@ void SRAM_VirusCheck(void)
 // -----------------------------------------------------------------------
 void SRAM_Init(void)
 {
-	int i;
-	BYTE tmp;
-	FILEH fp;
+    for (int i=0; i<0x4000; i++) {
+        SRAM[i] = 0xFF;
+    }
 
-	for (i=0; i<0x4000; i++)
-		SRAM[i] = 0xFF;
+#if 0 // X68iOS
+    BYTE tmp;
 
-	fp = File_OpenCurDir(SRAMFILE);
+    FILEH fp = File_OpenCurDir(SRAMFILE);
 	if (fp)
 	{
 		File_Read(fp, SRAM, 0x4000);
 		File_Close(fp);
-		for (i=0; i<0x4000; i+=2)
+		for (int i=0; i<0x4000; i+=2)
 		{
 			tmp = SRAM[i];
 			SRAM[i] = SRAM[i+1];
 			SRAM[i+1] = tmp;
 		}
 	}
+#endif
 }
 
 
@@ -79,6 +80,7 @@ void SRAM_Init(void)
 // -----------------------------------------------------------------------
 void SRAM_Cleanup(void)
 {
+#if 0 // X68iOS
 	int i;
 	BYTE tmp;
 	FILEH fp;
@@ -98,6 +100,7 @@ void SRAM_Cleanup(void)
 		File_Write(fp, SRAM, 0x4000);
 		File_Close(fp);
 	}
+#endif
 }
 
 

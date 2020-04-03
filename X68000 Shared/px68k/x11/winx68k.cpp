@@ -743,6 +743,10 @@ void X68000_LoadFDD( const long drive, const char* filename, const long size )
 
     FDD_SetFD(drive, (char*)filename, 0);
 }
+unsigned char* X68000_GetSRAMPointer()
+{
+    return &SRAM[0];
+}
 
 }//extern "C"
 
