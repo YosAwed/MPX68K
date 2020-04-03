@@ -937,7 +937,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 54;
+				CURRENT_PROJECT_VERSION = 63;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -952,7 +952,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.2;
+				MARKETING_VERSION = 4.0.3;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";
@@ -963,6 +963,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64 arm64e armv7 armv7s";
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
@@ -973,7 +974,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 54;
+				CURRENT_PROJECT_VERSION = 63;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
@@ -986,7 +987,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.2;
+				MARKETING_VERSION = 4.0.3;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";
@@ -996,6 +997,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
