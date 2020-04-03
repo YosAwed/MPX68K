@@ -241,19 +241,20 @@ class GameScene: SKScene {
     }
     
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
-    
+    var w:Int32 = 1
+    var h:Int32 = 1
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
-
+        
+        X68000_Mouse_Set( mouse_x*Float(w), Float(h)-mouse_y*Float(h) , mouse_b)
         
         X68000_Update(self.clockMHz)   // MHz
         //        })
         
         // Called before each frame is rendered
-        let w = X68000_GetScreenWidth();
-        let h = X68000_GetScreenHeight();
-        X68000_Mouse_Set( mouse_x*Float(w), Float(h)-mouse_y*Float(h) , mouse_b)
-
+        w = X68000_GetScreenWidth();
+        h = X68000_GetScreenHeight();
+        
         //        Benchmark.measure("X68000_GetImage", block: {
         X68000_GetImage( &d )
         //        })
@@ -264,12 +265,14 @@ class GameScene: SKScene {
         
         self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
         self.spr?.texture = self.tex!;
-        let scale : CGFloat  = 1.7
-
+        let scale : CGFloat  = 1.0  // 1.7
+        
+        
+        
         let scale_x : CGFloat = 768.0 / CGFloat(w)
         let scale_y : CGFloat = 512.0 / CGFloat(h)
-        self.spr?.xScale = scale * (1.0 * scale_x)
-        self.spr?.yScale = scale * (1.0 * scale_y)//+0.3
+        self.spr?.xScale = ((scene?.size.width)!) / CGFloat((w)) //scale * (1.0 * scale_x)
+        self.spr?.yScale = ((scene?.size.height)!) / CGFloat((h)) //scale * (1.0 * scale_y)//+0.3
         self.spr?.zPosition = 0.1
         self.spr?.zPosition = -1.0
         self.addChild(spr!)
@@ -308,25 +311,16 @@ extension GameScene {
                 } else
                     if t.name == "MouseBody" {
                     } else {
-//                        mouseSprite?.position = location
-                        let x = Float(location.x)
-                        let y = Float(location.y)
-                        mouse_old_x = x
-                        mouse_old_y = y
+                        mouse_x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
+                        mouse_y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
             }
         }
         
         for t in touches {
             self.makeSpinny(at: t.location(in: self), color: SKColor.green)
-            
-//            print( "X:\(t.location(in: self).x) Y:\(t.location(in: self).y)" )
             break
         }
-        if ( touches.count == 3 ) {
-            //            print("3")
-            //            X68000_Quit()
-            //            X68000_Init()
-        }
+        
         
     }
     
@@ -336,29 +330,24 @@ extension GameScene {
             let location = touch.location(in: self)
             let t = self.atPoint(location)
             if t.name == "MouseBody" {
-//                mouseSprite?.position = location
-
+                
                 let t = touches.first!
                 let x = Float(t.location(in: self).x)
                 let y = Float(t.location(in: self).y)
-                
-//                mouse_x = ( mouse_old_x - x) * -0.5
-  //              mouse_y = ( mouse_old_y - y) *  0.5// * ( 768.0 / 512.0 )
-                
-                mouse_old_x = x
-                mouse_old_y = y
+ 
+                mouseSprite?.position = location
+                //                mouse_old_x = x
+                //                mouse_old_y = y
+            } else {
+                mouse_x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
+                mouse_y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
+
             }
         }
-
         
         
-        for t in touches {
-            mouse_x = Float(t.location(in: self).x) / Float((self.scene?.size.width)!) + 0.5
-            mouse_y = Float(t.location(in: self).y) / Float((self.scene?.size.height)!) + 0.5
-            print( "X:\(mouse_x) Y:\(mouse_y)" )
-            break;
-        }
-            
+        
+        
         
         //        for t in touches {
         
@@ -387,8 +376,6 @@ extension GameScene {
             if t.name == "MouseBody" {
                 let x = Float(location.x)
                 let y = Float(location.y)
-//                mouse_old_x = x
-//                mouse_old_y = y
             }
         }
         

@@ -267,7 +267,7 @@ WinX68k_Reset(void)
     BG_Init();
     Pal_Init();
     IRQH_Init();
-    MIDI_Init();
+//@    MIDI_Init();
     //WinDrv_Init();
 
 //    C68K.ICount = 0;
@@ -485,7 +485,7 @@ void WinX68k_Exec(const long clockMHz)
 
             ADPCM_PreUpdate(clk_line);
             OPM_Timer(clk_line);
-            MIDI_Timer(clk_line);
+//@            MIDI_Timer(clk_line);
 
             KeyIntCnt++;
             if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
@@ -632,9 +632,9 @@ int original_main(int argc, const char *argv[])
     WinX68k_Reset();
     Timer_Init();
 
-    MIDI_Init();
-    MIDI_SetMimpiMap(Config.ToneMapFile);    // 音色設定ファイル使用反映
-    MIDI_EnableMimpiDef(Config.ToneMap);
+//@    MIDI_Init();
+//@    MIDI_SetMimpiMap(Config.ToneMapFile);    // 音色設定ファイル使用反映
+//@    MIDI_EnableMimpiDef(Config.ToneMap);
 
     DSound_Init(Config.SampleRate, Config.BufferSize);
 
@@ -686,7 +686,7 @@ void Finalize() {
         SRAM_Cleanup();
         FDD_Cleanup();
         //CDROM_Cleanup();
-        MIDI_Cleanup();
+//@        MIDI_Cleanup();
         DSound_Cleanup();
         WinX68k_Cleanup();
         WinDraw_Cleanup();
@@ -750,9 +750,12 @@ unsigned char* X68000_GetSRAMPointer()
 void X68000_Mouse_Set( float x, float y, const long button )
 {
 //    Mouse_Event(button, x, y);
-//        MouseX = x;
-//        MouseY = y;
+    static int ox, oy;
+        MouseX = (int)x - ox;
+        MouseY = (int)y - oy;
 
+    ox = x;
+    oy = y;
         MouseSt = button;
     
     WORD xx = x;
@@ -761,7 +764,7 @@ void X68000_Mouse_Set( float x, float y, const long button )
     BYTE* mouse = &MEM[0xace];
 //    ++xx;
     //    if ( xx >= 512 )  xx = 0;
-
+/*
     *mouse++ = ((BYTE*) &xx)[0];
     *mouse++ = ((BYTE*) &xx)[1];
     *mouse++ = ((BYTE*) &yy)[0];
@@ -771,7 +774,9 @@ void X68000_Mouse_Set( float x, float y, const long button )
     *(((BYTE*) &xx)+1) = MEM[0xacf];
     *(((BYTE*) &yy)+0) = MEM[0xad0];
     *(((BYTE*) &yy)+1) = MEM[0xad1];
-//    printf("%3d %3d\n", xx, yy );
+    printf("%3d %3d\n", xx, yy );
+*/
+    
 }
 
 }

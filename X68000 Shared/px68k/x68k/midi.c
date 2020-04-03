@@ -303,7 +303,6 @@ void MIDI_Reset(void) {
 //   しょきか〜
 // -----------------------------------------------------------------------
 void MIDI_Init(void) {
-#if 0
 	memset(DelayBuf, 0, sizeof(DelayBuf));
 	DBufPtrW = DBufPtrR = 0;
 
@@ -319,6 +318,7 @@ void MIDI_Init(void) {
 	MIDI_LAST = 0x80;
 	MIDI_EXCVWAIT = 0;
 
+    #if 0
 	if (!hOut) {
 		if (midiOutOpen(&hOut, MIDI_MAPPER, 0, 0, CALLBACK_NULL)
 							== MMSYSERR_NOERROR) {
@@ -523,13 +523,13 @@ void MIDI_Message(BYTE mes) {
 BYTE FASTCALL MIDI_Read(DWORD adr)
 {
 	BYTE ret = 0;
-#if 0
 
 	if ( (adr<0xeafa01)||(adr>=0xeafa10)||(!Config.MIDI_SW) )	// 変なアドレスか、
 	{								// MIDI OFF時にはバスエラーにする
 		BusErrFlag = 1;
 		return 0;
 	}
+#if 1
 
 	switch(adr&15)
 	{
@@ -686,7 +686,7 @@ void MIDI_DelayOut(unsigned int delay)
 // -----------------------------------------------------------------------
 void FASTCALL MIDI_Write(DWORD adr, BYTE data)
 {
-#if 0
+#if 1
     if ( (adr<0xeafa01)||(adr>=0xeafa10)||(!Config.MIDI_SW) )	// 変なアドレスか、
 	{								// MIDI OFF時にはバスエラーにする
 		BusErrFlag = 1;

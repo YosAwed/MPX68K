@@ -143,11 +143,16 @@ class FileSystem {
                                     if ( url.path.contains(" B.") ) {
                                         drive = 1
                                     }
+                                    if ( url.path.contains("_B.") ) {
+                                        drive = 1
+                                    }
 
                                     let p = X68000_GetDiskImageBufferPointer(drive)
                                     data.copyBytes(to: p!, count: data.count)
                                     X68000_LoadFDD(drive, url.absoluteString , data.count );
-                                    X68000_Reset()
+                                    if ( drive == 0 ) {
+                                        X68000_Reset()
+                                    }
                                 }
                             }
                         }
