@@ -208,7 +208,7 @@ void LoadConfig(void)
 	Config.Sound_LPF = solveBOOL(buf);
 	GetPrivateProfileString(ini_title, "UseRomeo", "0", buf, CFGLEN, winx68k_ini);
 	Config.SoundROMEO = solveBOOL(buf);
-	GetPrivateProfileString(ini_title, "MIDI_SW", "0", buf, CFGLEN, winx68k_ini);
+	GetPrivateProfileString(ini_title, "MIDI_SW", "1", buf, CFGLEN, winx68k_ini);
 	Config.MIDI_SW = solveBOOL(buf);
 	GetPrivateProfileString(ini_title, "MIDI_Reset", "0", buf, CFGLEN, winx68k_ini);
 	Config.MIDI_Reset = solveBOOL(buf);
