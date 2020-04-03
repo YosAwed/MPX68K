@@ -150,7 +150,7 @@ class FileSystem {
     func saveSRAM()
     {
         print("==== Save SRAM ====")
-        let data = Data(bytes: X68000_GetSRAMPointer(), count: 0x4000)
+        let data = Data(bytes: X68000_GetSRAMPointer(), count: 0x400)
         let url  = getDocumentsPath("SRAM.DAT")
         do {
             try data.write(to: url!)
