@@ -306,11 +306,10 @@ extension GameScene {
                         t.fillColor = .yellow
                     } else
                         if t.name == "MouseBody" {
-                            
-                            let x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
-                            let y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
-                            mouseController?.ResetPosition( x, y )
+                            mouseController?.ResetPosition( location, scene!.size )
                         } else {
+                            mouseSprite?.position = location
+                            mouseController?.ResetPosition( location, scene!.size )
 
                 }
             }
@@ -337,14 +336,11 @@ extension GameScene {
                     mouseSprite?.position = location
                     let x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
                     let y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
-                    mouseController?.SetPosition(x,y)
+                    mouseController?.SetPosition(location,scene!.size)
+//                    mouseController?.SetPosition(x,y)
                     
                 } else {
                     
-                    mouseSprite?.position = location
-                    let x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
-                    let y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
-                    mouseController?.SetPosition(x,y)
                 }
             }
         }
