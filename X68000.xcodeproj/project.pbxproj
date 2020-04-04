@@ -21,6 +21,8 @@
 		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0781672824374E7D0023B5CD /* X68000Mouse.png in Resources */ = {isa = PBXBuildFile; fileRef = 0781672524374E7D0023B5CD /* X68000Mouse.png */; };
 		0781672924374E7D0023B5CD /* X68000Mouse.png in Resources */ = {isa = PBXBuildFile; fileRef = 0781672524374E7D0023B5CD /* X68000Mouse.png */; };
+		07A528BC24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
+		07A528BD24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
 		07B00C352436524F00C8FF79 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0764421D24333257006E5208 /* CloudKit.framework */; };
 		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
@@ -158,6 +160,7 @@
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
 		0781672524374E7D0023B5CD /* X68000Mouse.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000Mouse.png; sourceTree = "<group>"; };
 		078594F624335FF700B5F09C /* X68000.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000.entitlements; sourceTree = "<group>"; };
+		07A528BB24389F5300AFD00D /* X68MouseController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68MouseController.swift; sourceTree = "<group>"; };
 		07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = IPLROM_DAT.c; sourceTree = "<group>"; };
 		07E6EF312430CCAE0034E485 /* CGROM_DAT.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = CGROM_DAT.c; sourceTree = "<group>"; };
 		07F4C6C5243065F9002CF5CA /* m68000.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = m68000.h; sourceTree = "<group>"; };
@@ -346,6 +349,7 @@
 				073F76E42431F438005B1F18 /* GameScene.sks */,
 				07644219243328C3006E5208 /* FileSystem.swift */,
 				07F863A4242F93E800CBB224 /* GameScene.swift */,
+				07A528BB24389F5300AFD00D /* X68MouseController.swift */,
 				0760DC2924350DDC004CA0CF /* BenchMark.swift */,
 				0771C5A02431B129002D40F0 /* JoyController.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
@@ -687,6 +691,7 @@
 				07F8640F242F94BB00CBB224 /* fake.c in Sources */,
 				07F4C6C7243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B8242F97BE00CBB224 /* joystick.c in Sources */,
+				07A528BC24389F5300AFD00D /* X68MouseController.swift in Sources */,
 				07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C7292430667D002CF5CA /* irqh.c in Sources */,
 				07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */,
@@ -746,6 +751,7 @@
 				07F86410242F94BB00CBB224 /* fake.c in Sources */,
 				07F4C6C8243065F9002CF5CA /* m68000.c in Sources */,
 				07F864B9242F97BE00CBB224 /* joystick.c in Sources */,
+				07A528BD24389F5300AFD00D /* X68MouseController.swift in Sources */,
 				07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */,
 				07F4C72A2430667D002CF5CA /* irqh.c in Sources */,
 				07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */,
@@ -943,7 +949,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 250;
+				CURRENT_PROJECT_VERSION = 259;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -981,7 +987,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 250;
+				CURRENT_PROJECT_VERSION = 259;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,

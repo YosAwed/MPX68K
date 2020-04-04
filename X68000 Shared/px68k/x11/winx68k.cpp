@@ -750,16 +750,11 @@ unsigned char* X68000_GetSRAMPointer()
 void X68000_Mouse_Set( float x, float y, const long button )
 {
 //    Mouse_Event(button, x, y);
-    static int ox, oy;
-        MouseX = (int)x - ox;
-        MouseY = (int)y - oy;
+    MouseX = (int)x;
+    MouseY = (int)y;
 
-    ox = x;
-    oy = y;
         MouseSt = button;
     
-    WORD xx = x;
-    WORD yy = y;
     
     BYTE* mouse = &MEM[0xace];
 //    ++xx;
