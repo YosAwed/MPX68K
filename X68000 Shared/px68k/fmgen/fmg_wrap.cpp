@@ -187,3 +187,181 @@ void OPM_SetVolume(BYTE vol)
 	int v = (vol)?((16-vol)*4):192;		// このくらいかなぁ
 	if ( opm ) opm->SetVolume(-v);
 }
+/*
+
+void OPM_RomeoOut(unsigned int delay)
+{
+	unsigned int t = timeGetTime();
+	if ( (juliet_YM2151IsEnable())&&(Config.SoundROMEO) ) {
+		while ( RMPtrW!=RMPtrR ) {
+			if ( (t-RMData[RMPtrR].time)>=delay ) {
+				juliet_YM2151W(RMData[RMPtrR].reg, RMData[RMPtrR].data);
+				RMPtrR = (RMPtrR+1)%RMBUFSIZE;
+			} else
+				break;
+		}
+	}
+}
+
+// ----------------------------------------------------------
+// ---------------------------- YMF288 (満開版ま〜きゅり〜)
+// ----------------------------------------------------------
+// TODO : ROMEOの288を叩くの
+
+class YMF288 : public FM::Y288
+{
+public:
+	YMF288();
+	virtual ~YMF288() {}
+	void WriteIO(DWORD adr, BYTE data);
+	BYTE ReadIO(DWORD adr);
+	void Count2(DWORD clock);
+	void SetInt(int f) { IntrFlag = f; };
+private:
+	virtual void Intr(bool);
+	int CurReg[2];
+	DWORD CurCount;
+	int IntrFlag;
+};
+
+YMF288::YMF288()
+{
+	CurReg[0] = 0;
+	CurReg[1] = 0;
+	IntrFlag = 0;
+}
+
+void YMF288::WriteIO(DWORD adr, BYTE data)
+{
+	if( adr&1 ) {
+		SetReg(((adr&2)?(CurReg[1]+0x100):CurReg[0]), (int)data);
+	} else {
+		CurReg[(adr>>1)&1] = (int)data;
+	}
+}
+
+
+BYTE YMF288::ReadIO(DWORD adr)
+{
+	BYTE ret = 0;
+	if ( adr&1 ) {
+		ret = GetReg(((adr&2)?(CurReg[1]+0x100):CurReg[0]));
+	} else {
+		ret = ((adr)?(ReadStatusEx()):(ReadStatus()));
+	}
+	return ret;
+}
+
+
+void YMF288::Intr(bool f)
+{
+	if ( (f)&&(IntrFlag) ) ::Mcry_Int();
+}
+
+
+void YMF288::Count2(DWORD clock)
+{
+	CurCount += clock;
+	Count(CurCount/10);
+	CurCount %= 10;
+}
+
+
+static YMF288* ymf288a = NULL;
+static YMF288* ymf288b = NULL;
+
+
+int M288_Init(int clock, int rate, const char* path)
+{
+	ymf288a = new YMF288();
+	ymf288b = new YMF288();
+	if ( (!ymf288a)||(!ymf288b) ) {
+		M288_Cleanup();
+		return FALSE;
+	}
+	if ( (!ymf288a->Init(clock, rate, TRUE, path))||(!ymf288b->Init(clock, rate, TRUE, path)) ) {
+		M288_Cleanup();
+		return FALSE;
+	}
+	ymf288a->SetInt(1);
+	ymf288b->SetInt(0);
+	return TRUE;
+}
+
+
+void M288_Cleanup(void)
+{
+	delete ymf288a;
+	delete ymf288b;
+	ymf288a = ymf288b = NULL;
+}
+
+
+void M288_SetRate(int clock, int rate)
+{
+	if ( ymf288a ) ymf288a->SetRate(clock, rate, TRUE);
+	if ( ymf288b ) ymf288b->SetRate(clock, rate, TRUE);
+}
+
+
+void M288_Reset(void)
+{
+	if ( ymf288a ) ymf288a->Reset();
+	if ( ymf288b ) ymf288b->Reset();
+}
+
+
+BYTE FASTCALL M288_Read(WORD adr)
+{
+	if ( adr<=3 ) {
+		if ( ymf288a )
+			return ymf288a->ReadIO(adr);
+		else
+			return 0;
+	} else {
+		if ( ymf288b )
+			return ymf288b->ReadIO(adr&3);
+		else
+			return 0;
+	}
+}
+
+
+void FASTCALL M288_Write(DWORD adr, BYTE data)
+{
+	if ( adr<=3 ) {
+		if ( ymf288a ) ymf288a->WriteIO(adr, data);
+	} else {
+		if ( ymf288b ) ymf288b->WriteIO(adr&3, data);
+	}
+}
+
+
+void M288_Update(short *buffer, int length)
+{
+	if ( ymf288a ) ymf288a->Mix((FM::Sample*)buffer, length);
+	if ( ymf288b ) ymf288b->Mix((FM::Sample*)buffer, length);
+}
+
+
+void FASTCALL M288_Timer(DWORD step)
+{
+	if ( ymf288a ) ymf288a->Count2(step);
+	if ( ymf288b ) ymf288b->Count2(step);
+}
+
+
+void M288_SetVolume(BYTE vol)
+{
+	int v1 = (vol)?((16-vol)*4-24):192;		// このくらいかなぁ
+	int v2 = (vol)?((16-vol)*4):192;		// 少し小さめに
+	if ( ymf288a ) {
+		ymf288a->SetVolumeFM(-v1);
+		ymf288a->SetVolumePSG(-v2);
+	}
+	if ( ymf288b ) {
+		ymf288b->SetVolumeFM(-v1);
+		ymf288b->SetVolumePSG(-v2);
+	}
+}
+*/

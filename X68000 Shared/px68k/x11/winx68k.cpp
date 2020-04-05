@@ -267,7 +267,7 @@ WinX68k_Reset(void)
     BG_Init();
     Pal_Init();
     IRQH_Init();
-//@    MIDI_Init();
+    MIDI_Init();
     //WinDrv_Init();
 
 //    C68K.ICount = 0;
@@ -466,7 +466,7 @@ void WinX68k_Exec(const long clockMHz)
 
         if ( clk_count>=clk_next ) {
             //OPM_RomeoOut(Config.BufferSize*5);
-            //MIDI_DelayOut((Config.MIDIAutoDelay)?(Config.BufferSize*5):Config.MIDIDelay);
+            MIDI_DelayOut((Config.MIDIAutoDelay)?(Config.BufferSize*5):Config.MIDIDelay);
             MFP_TimerA();
             if ( (MFP[MFP_AER]&0x40)&&(vline==CRTC_IntLine) )
                 MFP_Int(1);
@@ -485,7 +485,7 @@ void WinX68k_Exec(const long clockMHz)
 
             ADPCM_PreUpdate(clk_line);
             OPM_Timer(clk_line);
-//@            MIDI_Timer(clk_line);
+            MIDI_Timer(clk_line);
 
             KeyIntCnt++;
             if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
@@ -632,9 +632,9 @@ int original_main(int argc, const char *argv[])
     WinX68k_Reset();
     Timer_Init();
 
-//@    MIDI_Init();
-//@    MIDI_SetMimpiMap(Config.ToneMapFile);    // 音色設定ファイル使用反映
-//@    MIDI_EnableMimpiDef(Config.ToneMap);
+    MIDI_Init();
+    MIDI_SetMimpiMap(Config.ToneMapFile);    // 音色設定ファイル使用反映
+    MIDI_EnableMimpiDef(Config.ToneMap);
 
     DSound_Init(Config.SampleRate, Config.BufferSize);
 
@@ -686,7 +686,7 @@ void Finalize() {
         SRAM_Cleanup();
         FDD_Cleanup();
         //CDROM_Cleanup();
-//@        MIDI_Cleanup();
+        MIDI_Cleanup();
         DSound_Cleanup();
         WinX68k_Cleanup();
         WinDraw_Cleanup();
