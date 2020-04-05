@@ -27,6 +27,7 @@ class GameScene: SKScene {
     
     fileprivate var audioStream : AudioStream?
     fileprivate var mouseController : X68MouseController?
+    fileprivate var midiController : MIDIController = MIDIController()
     
     
     
