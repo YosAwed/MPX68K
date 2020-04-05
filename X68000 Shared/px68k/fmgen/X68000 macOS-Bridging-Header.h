@@ -16,6 +16,7 @@ const int X68000_GetScreenWidth();
 const int X68000_GetScreenHeight();
 
 void X68000_Mouse_Set( float x, float y, long button );
+void X68000_Mouse_SetDirect( float x, float y, long button );
 
 unsigned char* X68000_GetSRAMPointer();
 

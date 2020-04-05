@@ -747,31 +747,95 @@ unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
 }
-void X68000_Mouse_Set( float x, float y, const long button )
+
+void X68000_Mouse_SetDirect( float x, float y, const long button )
 {
-//    Mouse_Event(button, x, y);
-    MouseX = (int)x;
-    MouseY = (int)y;
+//    MouseX = (int)x;
+//    MouseY = (int)y;
 
         MouseSt = button;
     
+    WORD xx, yy;
+    signed short MovementRange_MinX;
+    signed short MovementRange_MaxX;
+    signed short MovementAmountX;
+    signed short HotspotX;
+    signed short HotspotY;
+    *(((BYTE*) &MovementRange_MinX)+0) = MEM[0xa9a];
+    *(((BYTE*) &MovementRange_MinX)+1) = MEM[0xa9b];
+    *(((BYTE*) &MovementRange_MaxX)+0) = MEM[0xa9e];
+    *(((BYTE*) &MovementRange_MaxX)+1) = MEM[0xa9f];
+    *(((BYTE*) &MovementAmountX)+0) = MEM[0xaca];
+    *(((BYTE*) &MovementAmountX)+1) = MEM[0xacb];
+    *(((BYTE*) &HotspotX)+0) = MEM[0xad6];
+    *(((BYTE*) &HotspotX)+1) = MEM[0xad7];
+    *(((BYTE*) &HotspotY)+0) = MEM[0xad8];
+    *(((BYTE*) &HotspotY)+1) = MEM[0xad9];
+
+    *(((BYTE*) &xx)+0) = MEM[0xace];
+    *(((BYTE*) &xx)+1) = MEM[0xacf];
+    *(((BYTE*) &yy)+0) = MEM[0xad0];
+    *(((BYTE*) &yy)+1) = MEM[0xad1];
+  #if 1
+    int nx = (int)xx;
+    int ny = (int)yy;
+ 
+    int tx = (int)x;
+    int ty = (int)y;
     
+ 
+    int dx = tx - nx;
+    int dy = ty - ny;
+    const int max = 15;
+    if ( dx < -max ) dx = -max;
+    if ( dy < -max ) dy = -max;
+    if ( dx > +max ) dx = +max;
+    if ( dy > +max ) dy = +max;
+
+//    printf(" nx:%3d ny:%3d tx:%3d ty:%3d dx:%3d dy:%3d\n", nx, ny, tx, ty, dx, dy );
+
+
+    MouseX = dx;
+    MouseY = dy;
+#else
+    xx = (WORD)x;
+    yy = (WORD)y;
+   
     BYTE* mouse = &MEM[0xace];
-//    ++xx;
-    //    if ( xx >= 512 )  xx = 0;
-/*
+    *mouse++ = ((BYTE*) &xx)[0];
+    *mouse++ = ((BYTE*) &xx)[1];
+    *mouse++ = ((BYTE*) &yy)[0];
+    *mouse++ = ((BYTE*) &yy)[1];
+#endif
+    
+
+}
+
+void X68000_Mouse_Set( float x, float y, const long button )
+{
+    MouseX = (int)x;
+    MouseY = (int)y;
+    MouseSt = button;
+    
+    
+    /*
+    BYTE* mouse = &MEM[0xace];
+    WORD xx, yy;
+    *(((BYTE*) &xx)+0) = MEM[0xace];
+    *(((BYTE*) &xx)+1) = MEM[0xacf];
+    *(((BYTE*) &yy)+0) = MEM[0xad0];
+    *(((BYTE*) &yy)+1) = MEM[0xad1];
+    ++xx;
+        if ( xx >= 512 )  xx = 0;
+
     *mouse++ = ((BYTE*) &xx)[0];
     *mouse++ = ((BYTE*) &xx)[1];
     *mouse++ = ((BYTE*) &yy)[0];
     *mouse++ = ((BYTE*) &yy)[1];
     
-    *(((BYTE*) &xx)+0) = MEM[0xace];
-    *(((BYTE*) &xx)+1) = MEM[0xacf];
-    *(((BYTE*) &yy)+0) = MEM[0xad0];
-    *(((BYTE*) &yy)+1) = MEM[0xad1];
+    
     printf("%3d %3d\n", xx, yy );
 */
-    
 }
 
 }

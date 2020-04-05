@@ -228,7 +228,7 @@
 		07F4C71C2430667D002CF5CA /* pia.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pia.h; sourceTree = "<group>"; };
 		07F4C71D2430667D002CF5CA /* midi.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = midi.h; sourceTree = "<group>"; };
 		07F4C71E2430667D002CF5CA /* rtc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rtc.c; sourceTree = "<group>"; };
-		07F4C71F2430667D002CF5CA /* ioc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ioc.c; sourceTree = "<group>"; };
+		07F4C71F2430667D002CF5CA /* ioc.c */ = {isa = PBXFileReference; fileEncoding = 2147486209; lastKnownFileType = sourcecode.c.c; lineEnding = 0; path = ioc.c; sourceTree = "<group>"; };
 		07F4C7202430667D002CF5CA /* disk_xdf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disk_xdf.c; sourceTree = "<group>"; };
 		07F4C7572430A73C002CF5CA /* AudioStream.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioStream.swift; sourceTree = "<group>"; };
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };

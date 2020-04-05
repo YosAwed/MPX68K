@@ -39,7 +39,7 @@ class GameViewController: UIViewController {
         skView.showsNodeCount = true
         skView.showsDrawCount = true
         
-        skView.preferredFramesPerSecond = 120
+//        skView.preferredFramesPerSecond = 120
     }
     func applicationWillResignActive() {
         scene?.applicationWillResignActive()

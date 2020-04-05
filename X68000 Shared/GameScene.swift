@@ -174,7 +174,28 @@ class GameScene: SKScene {
                                                                })])))
             #endif
         }
+        do {
+            let tapGes = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
+            tapGes.numberOfTapsRequired = 1
+            tapGes.numberOfTouchesRequired = 1
+            self.view?.addGestureRecognizer(tapGes)
+            
+        }
     }
+    @objc func tapped(_ sender: UITapGestureRecognizer){
+        print(sender.state)
+        if sender.state == .began {
+            print("began")
+        }
+        if sender.state == .recognized {
+            print("recognized")
+            mouseController?.ClickOnce()
+        }
+        if sender.state == .ended {
+            print("ended")
+        }
+    }
+    
     func applicationWillResignActive() {
         // audioStream?.pause()
     }
@@ -202,7 +223,7 @@ class GameScene: SKScene {
     
     
     func makeSpinny(at pos: CGPoint, color: SKColor) {
-        if ( pos.y < 300.0 ) {
+        if ( pos.y < 400.0 ) {
             return
         }
         
@@ -308,8 +329,8 @@ extension GameScene {
                         if t.name == "MouseBody" {
                             mouseController?.ResetPosition( location, scene!.size )
                         } else {
-                            mouseSprite?.position = location
-                            mouseController?.ResetPosition( location, scene!.size )
+//                            mouseSprite?.position = location
+                            mouseController?.ResetPosition( location, scene!.size ) // A
 
                 }
             }
@@ -333,14 +354,12 @@ extension GameScene {
                     //                    let x2 = Float(t.location(in: self).x)
                     //                    let y2 = Float(t.location(in: self).y)
                     
-                    mouseSprite?.position = location
-                    let x = Float(location.x) / Float((self.scene?.size.width)!) + 0.5
-                    let y = Float(location.y) / Float((self.scene?.size.height)!) + 0.5
-                    mouseController?.SetPosition(location,scene!.size)
-//                    mouseController?.SetPosition(x,y)
+//                    mouseSprite?.position = location
+//                    mouseController?.SetPosition(location,scene!.size)
                     
                 } else {
-                    
+                    mouseController?.SetPosition(location,scene!.size)  //MODE B
+
                 }
             }
         }

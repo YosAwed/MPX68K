@@ -175,7 +175,7 @@ cb_start:
       if (datalen < len)
          DSound_Send((len - datalen) / 4);
 
-#if 0
+#if 1
       datalen = pbwp - pbrp;
       if (datalen < len)
          printf("xxxxx not enough sound data xxxxx\n");
