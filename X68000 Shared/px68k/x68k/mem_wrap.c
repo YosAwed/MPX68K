@@ -417,6 +417,22 @@ rm_main(DWORD addr)
 	} else if (addr < 0x00e00000) {
 		v = GVRAM_Read(addr);
 	} else {
+#if 0 // for debug @GOROman
+        //eafa01
+        //00eafa09
+        DWORD masked = addr & 0xfffff0;
+        switch (masked) {
+                case 0xe94000:  // IOCTRL
+                case 0xe96000:  // SASI
+                case 0xe90000:  // OPM
+                case 0xe98000:  // SCC
+
+                break;
+            default:
+                printf( "MemReadTable:%08x\n", addr );
+                break;
+        }
+#endif
 		v = MemReadTable[(addr >> 13) & 0xff](addr);
 	}
 

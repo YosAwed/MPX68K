@@ -42,7 +42,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>4.0.3</string>
 	<key>CFBundleVersion</key>
-	<string>259</string>
+	<string>263</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>

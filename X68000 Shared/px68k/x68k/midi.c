@@ -256,11 +256,11 @@ void MIDI_Waitlastexclusiveout(void) {
 //   りせっと〜
 // -----------------------------------------------------------------------
 void MIDI_Reset(void) {
-#if 0
 	DWORD msg;
 
 	memset(DelayBuf, 0, sizeof(DelayBuf));
 	DBufPtrW = DBufPtrR = 0;
+#if 0
 
 	if (hOut) {
 		switch(MIDI_MODULE) {
@@ -557,11 +557,13 @@ BYTE FASTCALL MIDI_Read(DWORD adr)
 		case 4:
 			break;
 		case 5:
+#if 0 // @GOROman DQ1 does not work
 			if (MIDI_Buffered>=MIDIFIFOSIZE)
 			{
 				ret = 0x01;	// Tx full/not ready
 			}
 			else
+#endif
 			{
 				ret = 0xc0;	// Tx empty/ready
 			}
@@ -653,6 +655,10 @@ BYTE FASTCALL MIDI_Read(DWORD adr)
 		break;
 	}
 #endif
+    #if 0
+                printf("MIDI:%d = %d\n", MIDI_RegHigh, ret);
+    #endif
+
     return ret;
 }
 
