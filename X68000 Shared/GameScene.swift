@@ -278,6 +278,9 @@ class GameScene: SKScene {
         w = X68000_GetScreenWidth();
         h = X68000_GetScreenHeight();
         
+              let midi_count  = X68000_GetMIDIBufferSize()
+        let midi_buffer = X68000_GetMIDIBuffer()
+        midiController.Send( midi_buffer, midi_count )
         //        Benchmark.measure("X68000_GetImage", block: {
         X68000_GetImage( &d )
         //        })

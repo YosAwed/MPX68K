@@ -21,3 +21,7 @@ void X68000_Mouse_SetDirect( float x, float y, long button );
 unsigned char* X68000_GetSRAMPointer();
 
 void X68000_Joystick_Set( unsigned char num, unsigned char data);
+
+const long X68000_GetMIDIBufferSize();
+unsigned char* X68000_GetMIDIBuffer();
+

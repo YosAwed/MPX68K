@@ -345,6 +345,7 @@ void MIDI_Cleanup(void) {
 // -----------------------------------------------------------------------
 void MIDI_Message(BYTE mes) {
 
+    printf("MIDI OUT:%02x\n", mes);
 	if (!hOut) {
 		return;
 	}
@@ -658,18 +659,34 @@ static void AddDelayBuf(BYTE msg)
 	}
 }
 
+#define MAX_MIDI_BUFFER_SIZE 4096
+static BYTE s_midibuffer[MAX_MIDI_BUFFER_SIZE];
+static long s_midibuffersize = 0;
+
+const long X68000_GetMIDIBufferSize()
+{
+    return s_midibuffersize;
+}
+unsigned char* X68000_GetMIDIBuffer()
+{
+    s_midibuffersize = 0;
+    return &s_midibuffer;
+}
 
 void MIDI_DelayOut(unsigned int delay)
 {
 	unsigned int t = timeGetTime();
 	while ( DBufPtrW!=DBufPtrR ) {
 		if ( (t-DelayBuf[DBufPtrR].time)>=delay ) {
-			MIDI_Message(DelayBuf[DBufPtrR].msg);
+//			MIDI_Message(DelayBuf[DBufPtrR].msg);
+            s_midibuffer[s_midibuffersize] = DelayBuf[DBufPtrR].msg;
+            s_midibuffersize++;
 			DBufPtrR = (DBufPtrR+1)%MIDIDELAYBUF;
 		} else
 			break;
 	}
 }
+
 
 
 // -----------------------------------------------------------------------
