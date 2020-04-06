@@ -345,7 +345,7 @@ void MIDI_Cleanup(void) {
 // -----------------------------------------------------------------------
 void MIDI_Message(BYTE mes) {
 
-    printf("MIDI OUT:%02x\n", mes);
+//    printf("MIDI OUT:%02x\n", mes);
 	if (!hOut) {
 		return;
 	}
@@ -663,6 +663,13 @@ static void AddDelayBuf(BYTE msg)
 static BYTE s_midibuffer[MAX_MIDI_BUFFER_SIZE];
 static long s_midibuffersize = 0;
 
+void X68000_AddMIDIBuffer( const BYTE data )
+{
+    s_midibuffer[s_midibuffersize] = data;
+    s_midibuffersize++;
+    assert(s_midibuffersize<MAX_MIDI_BUFFER_SIZE);
+}
+
 const long X68000_GetMIDIBufferSize()
 {
     return s_midibuffersize;
@@ -678,7 +685,7 @@ void MIDI_DelayOut(unsigned int delay)
 	unsigned int t = timeGetTime();
 	while ( DBufPtrW!=DBufPtrR ) {
 		if ( (t-DelayBuf[DBufPtrR].time)>=delay ) {
-//			MIDI_Message(DelayBuf[DBufPtrR].msg);
+			MIDI_Message(DelayBuf[DBufPtrR].msg);
             s_midibuffer[s_midibuffersize] = DelayBuf[DBufPtrR].msg;
             s_midibuffersize++;
 			DBufPtrR = (DBufPtrR+1)%MIDIDELAYBUF;

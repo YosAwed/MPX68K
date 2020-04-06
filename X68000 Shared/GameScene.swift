@@ -24,6 +24,8 @@ class GameScene: SKScene {
     var tex : SKTexture?
     var tex256 : SKTexture?
     var joycontroller : JoyController?
+    let screen_w : Float = 1336.0
+    let screen_h : Float = 1024.0
     
     fileprivate var audioStream : AudioStream?
     fileprivate var mouseController : X68MouseController?
@@ -128,7 +130,7 @@ class GameScene: SKScene {
                     SKAction.wait(forDuration: 1.0),
                     SKAction.fadeIn(withDuration: 2.0),
                     SKAction.wait(forDuration: 0.5),
-                    SKAction.fadeAlpha(to: 0.2, duration: 1.0)
+                    SKAction.fadeAlpha(to: 0.02, duration: 1.0)
                     ]
             ))
             
@@ -144,7 +146,7 @@ class GameScene: SKScene {
             SKAction.sequence([
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 1.5),
-                SKAction.fadeAlpha(to: 0.2, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.02, duration: 1.0)
                 ]
         ))
         self.addChild(titleSprite!)
@@ -198,10 +200,10 @@ class GameScene: SKScene {
     }
     
     func applicationWillResignActive() {
-        // audioStream?.pause()
+        audioStream?.pause()
     }
     func applicationWillEnterForeground() {
-        //        audioStream?.play()
+        audioStream?.play()
     }
     #if os(watchOS)
     override func sceneDidLoad() {
@@ -297,8 +299,8 @@ class GameScene: SKScene {
         
         let scale_x : CGFloat = 768.0 / CGFloat(w)
         let scale_y : CGFloat = 512.0 / CGFloat(h)
-        self.spr?.xScale = ((scene?.size.width)!) / CGFloat((w)) //scale * (1.0 * scale_x)
-        self.spr?.yScale = ((scene?.size.height)!) / CGFloat((h)) //scale * (1.0 * scale_y)//+0.3
+        self.spr?.xScale = CGFloat(screen_w) / CGFloat((w)) //scale * (1.0 * scale_x)
+        self.spr?.yScale = CGFloat(screen_h) / CGFloat((h)) //scale * (1.0 * scale_y)//+0.3
         self.spr?.zPosition = 0.1
         self.spr?.zPosition = -1.0
         self.addChild(spr!)
