@@ -26,7 +26,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let session = AVAudioSession.sharedInstance()
         do {
             // CategoryをPlaybackにする
-            try session.setCategory(.playback, mode: .default)
+            try session.setCategory(.ambient, mode: .default)
             try session.setPreferredSampleRate( 44100.0/2.0 )
             try session.setActive(true)
 

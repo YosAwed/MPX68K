@@ -146,33 +146,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "2701934D-E1BF-4B87-944E-A2F5607FEF9F"
-            shouldBeEnabled = "Yes"
-            nameForDebugger = "MIDI&#x63a5;&#x7d9a;&#x3092;&#x691c;&#x77e5;"
-            condition = "midiNotification.pointee.messageID.rawValue == 1"
-            ignoreCount = "0"
-            continueAfterRunningActions = "Yes"
-            filePath = "X68000 Shared/MIDIController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "166"
-            endingLineNumber = "166"
-            landmarkName = "MIDINotifyBlock(midiNotification:)"
-            landmarkType = "7">
-            <Actions>
-               <BreakpointActionProxy
-                  ActionExtensionID = "Xcode.BreakpointAction.Log">
-                  <ActionContent
-                     message = "MIDI &#x7e4b;&#x304c;&#x3063;&#x305f;&#x3088;&#xff01;"
-                     conveyanceType = "1">
-                  </ActionContent>
-               </BreakpointActionProxy>
-            </Actions>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "48A9075B-4B8F-4C25-AF39-4DB89F2F11AC"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -184,6 +157,22 @@
             endingLineNumber = "197"
             landmarkName = "OPM_Write(adr, data)"
             landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "2D3AD132-3C45-4787-947C-2C7F7318292E"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "X68000 Shared/GameScene.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "223"
+            endingLineNumber = "223"
+            landmarkName = "didMove(to:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

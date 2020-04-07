@@ -53,10 +53,10 @@ class MIDIController {
     var inPortRef: MIDIPortRef = 0
     var outPortRef: MIDIPortRef = 0
     
-    var midiSource = MIDIEndpointRef()
-    var midiDst0 = MIDIEndpointRef()
-    var midiDst1 = MIDIEndpointRef()
-    var midiDst2 = MIDIEndpointRef()
+    var midiSource : MIDIEndpointRef = 0
+    var midiDst0 : MIDIEndpointRef = 0
+    var midiDst1 : MIDIEndpointRef = 0
+    var midiDst2 : MIDIEndpointRef = 0
     
     
     init() {
@@ -116,13 +116,14 @@ class MIDIController {
         }
         
         
-        //        self.GetDest()
-        //        self.GetSource()
+        self.GetDest()
+        self.GetSource()
     }
     
     func Send(_ buffer : UnsafeMutablePointer<UInt8>?, _ count : Int  )
     {
-        for var i in 0..<count {
+        var i = 0
+        while ( i < count ) {
             let cmd : UInt8 = buffer![i] & 0xf0;
             
             switch(cmd) {
@@ -155,6 +156,7 @@ class MIDIController {
             }
             //            MIDISend(outPortRef, midiDst1, &packets)
             //            MIDISend(outPortRef, midiDst2, &packets)
+            i += 1
         }
         //var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
         
@@ -164,8 +166,16 @@ class MIDIController {
     func MIDINotifyBlock(midiNotification: UnsafePointer<MIDINotification>) {
         print( "\(#function) \(midiNotification.pointee.messageID.rawValue)")
         switch midiNotification.pointee.messageID {
+        case .msgPropertyChanged:
+            print("msgPropertyChanged")
+            break;
+        case .msgSetupChanged:
+            print("msgSetupChanged")
         case .msgObjectAdded:   // 接続を検知
+            midiDst1 = 0
             print("msgObjectAdded")
+            GetDest()
+            GetSource()
         case .msgObjectRemoved: // 解除を検知
             print("msgObjectRemoved")
         case .msgIOError:       // エラーを検知
@@ -174,8 +184,6 @@ class MIDIController {
             break
         }
         
-        GetSource()
-        GetDest()
     }
     
     func GetSource() {
@@ -201,7 +209,6 @@ class MIDIController {
         }
         
     }
-    var old = 0
     func GetDest()
     {
         let n = MIDIGetNumberOfDestinations()
@@ -213,36 +220,28 @@ class MIDIController {
             let status = MIDIObjectGetStringProperty( endPointRef, kMIDIPropertyDisplayName, &str )
             if status == noErr {
                 
-                if ( old != n  ){
-                    old = n
-                    var text = "MIDI:DST [\(i)]: "
-                    text += str!.takeUnretainedValue() as String
-                    str!.release()
-                    print(text)
-                    if ( i == 0 ) {
-                        //                    print("Set! 0")
-                        midiDst0 = endPointRef
-                        //                    var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
-                        //                    MIDISend(outPortRef, midiDst0, &packets)
-                        
-                    }
-                    if ( i == 1 ) && midiDst1 == nil {
-                        print("Set! 1 ")
-                        midiDst1 = endPointRef
-                        var packets = MIDIPacketList(midiEvents: [[0x98, 0x6f, 0x78]])
-                        MIDISend(outPortRef, endPointRef, &packets)
-                    } else {
-                        
-                    }
-                    if ( i == 2 ) && midiDst2 == nil  {
-                        print("Set2! 2")
-                        midiDst2 = endPointRef
-                    }
+                var text = "MIDI:DST [\(i)]: "
+                text += str!.takeUnretainedValue() as String
+                str!.release()
+                print(text)
+                if ( i == 0 ) {
+                    //                    print("Set! 0")
+                    midiDst0 = endPointRef
+                    //                    var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
+                    //                    MIDISend(outPortRef, midiDst0, &packets)
+                    
                 }
-                
-                
+                if ( i == 1 ) && midiDst1 == 0 {
+                    print("Set! 1 ")
+                    midiDst1 = endPointRef
+                    var packets = MIDIPacketList(midiEvents: [[0x98, 0x6f, 0x78]])
+                    MIDISend(outPortRef, endPointRef, &packets)
+                }
+                if ( i == 2 ) && midiDst2 == 0  {
+                    print("Set2! 2")
+                    midiDst2 = endPointRef
+                }
             }
-            
         }
         
     }

@@ -271,7 +271,13 @@ class GameScene: SKScene {
         if self.timer.isValid {
             self.timer.invalidate()
         }
-        X68000_Update(self.clockMHz)   // MHz
+        
+        do { // コレはセットで
+            X68000_Update(self.clockMHz)   // MHz
+            let midi_count  = X68000_GetMIDIBufferSize()
+            let midi_buffer = X68000_GetMIDIBuffer()
+            midiController.Send( midi_buffer, midi_count )
+        }
 
         self.timer = Timer.scheduledTimer(timeInterval: 1.0/120.0, target: self, selector: #selector(updating), userInfo: nil, repeats: true)
         aaa += 1
@@ -287,7 +293,6 @@ class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
 
-
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
         mouseController?.Update()
@@ -299,9 +304,6 @@ class GameScene: SKScene {
         w = X68000_GetScreenWidth();
         h = X68000_GetScreenHeight();
         
-              let midi_count  = X68000_GetMIDIBufferSize()
-        let midi_buffer = X68000_GetMIDIBuffer()
-        midiController.Send( midi_buffer, midi_count )
         //        Benchmark.measure("X68000_GetImage", block: {
         X68000_GetImage( &d )
         //        })
