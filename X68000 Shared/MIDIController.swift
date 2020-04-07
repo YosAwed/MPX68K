@@ -14,34 +14,34 @@ public typealias MidiEvent = [UInt8]
 
 extension MIDIPacketList {
     init(midiEvents: [MidiEvent]) {
-
+        
         let timestamp = MIDITimeStamp(0)
         let totalBytesInAllEvents = midiEvents.reduce(0) { total, event in
             return total + event.count
         }
-
+        
         // Without this, we'd run out of space for the last few MidiEvents
         let listSize = MemoryLayout<MIDIPacketList>.size + totalBytesInAllEvents
-
+        
         // CoreMIDI supports up to 65536 bytes, but in practical tests it seems
         // certain devices accept much less than that at a time. Unless you're
         // turning on / off ALL notes at once, 256 bytes should be plenty.
         assert(totalBytesInAllEvents < 256,
                "The packet list was too long! Split your data into multiple lists.")
-
+        
         // Allocate space for a certain number of bytes
         let byteBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: listSize)
-
+        
         // Use that space for our MIDIPacketList
         self = byteBuffer.withMemoryRebound(to: MIDIPacketList.self, capacity: 1) { packetList -> MIDIPacketList in
             var packet = MIDIPacketListInit(packetList)
             midiEvents.forEach { event in
                 packet = MIDIPacketListAdd(packetList, listSize, packet, timestamp, event.count, event)
             }
-
+            
             return packetList.pointee
         }
-
+        
         byteBuffer.deallocate() // release the manually managed memory
     }
 }
@@ -52,12 +52,12 @@ class MIDIController {
     var extPointRef: MIDIEndpointRef = 0
     var inPortRef: MIDIPortRef = 0
     var outPortRef: MIDIPortRef = 0
-
+    
     var midiSource = MIDIEndpointRef()
     var midiDst0 = MIDIEndpointRef()
     var midiDst1 = MIDIEndpointRef()
     var midiDst2 = MIDIEndpointRef()
-
+    
     
     init() {
         Connect()
@@ -84,10 +84,10 @@ class MIDIController {
             }
             var str = ""
             switch packet.length {
-                case 1: str = String(format: "%02X", packet.data.0)
-                case 2: str = String(format: "%02X %02X", packet.data.0, packet.data.1)
-                case 3: str = String(format: "%02X %02X %02X", packet.data.0, packet.data.1, packet.data.2)
-                default: str = "length: \(packet.length)"
+            case 1: str = String(format: "%02X", packet.data.0)
+            case 2: str = String(format: "%02X %02X", packet.data.0, packet.data.1)
+            case 3: str = String(format: "%02X %02X %02X", packet.data.0, packet.data.1, packet.data.2)
+            default: str = "length: \(packet.length)"
             }
             print(str)
             packet = MIDIPacketNext( &packet ).pointee
@@ -102,7 +102,7 @@ class MIDIController {
             print( "cannot create MIDI client!" )
             return
         }
-
+        
         status = MIDIInputPortCreateWithBlock( clientRef, "X68000 MIDI In" as CFString, &inPortRef, MyMIDIReadBlock )
         if status != noErr {
             print( "cannot create MIDI In!" )
@@ -114,10 +114,10 @@ class MIDIController {
             print( "cannot create MIDI Out!" )
             return
         }
-
         
-        self.GetDest()
-        self.GetSource()
+        
+        //        self.GetDest()
+        //        self.GetSource()
     }
     
     func Send(_ buffer : UnsafeMutablePointer<UInt8>?, _ count : Int  )
@@ -132,16 +132,16 @@ class MIDIController {
                 MIDISend(outPortRef, midiDst1, &packets)
                 i += 1
             case 0x80...0xB0:   // 3bytes
-//                if ( cmd == 0x90 ) && ( buffer![i+2] == 0x00) {
-//                    // patch!
-//                    var packets = MIDIPacketList(midiEvents: [[0x80,buffer![i+1],buffer![i+2]]])
-//                    MIDISend(outPortRef, midiDst0, &packets)
-//                } else {
-                    
-                    var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1],buffer![i+2]]])
-                    MIDISend(outPortRef, midiDst0, &packets)
-                    MIDISend(outPortRef, midiDst1, &packets)
-//                }
+                //                if ( cmd == 0x90 ) && ( buffer![i+2] == 0x00) {
+                //                    // patch!
+                //                    var packets = MIDIPacketList(midiEvents: [[0x80,buffer![i+1],buffer![i+2]]])
+                //                    MIDISend(outPortRef, midiDst0, &packets)
+                //                } else {
+                
+                var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1],buffer![i+2]]])
+                MIDISend(outPortRef, midiDst0, &packets)
+                MIDISend(outPortRef, midiDst1, &packets)
+                //                }
                 i += 2
             case 0xE0:
                 var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1],buffer![i+2]]])
@@ -153,15 +153,16 @@ class MIDIController {
                 MIDISend(outPortRef, midiDst0, &packets)
                 MIDISend(outPortRef, midiDst1, &packets)
             }
-//            MIDISend(outPortRef, midiDst1, &packets)
-//            MIDISend(outPortRef, midiDst2, &packets)
+            //            MIDISend(outPortRef, midiDst1, &packets)
+            //            MIDISend(outPortRef, midiDst2, &packets)
         }
         //var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
-
-    //    MIDIReceived(midiDst, &packets)
+        
+        //    MIDIReceived(midiDst, &packets)
     }
     
     func MIDINotifyBlock(midiNotification: UnsafePointer<MIDINotification>) {
+        print( "\(#function) \(midiNotification.pointee.messageID.rawValue)")
         switch midiNotification.pointee.messageID {
         case .msgObjectAdded:   // 接続を検知
             print("msgObjectAdded")
@@ -172,6 +173,9 @@ class MIDIController {
         default:
             break
         }
+        
+        GetSource()
+        GetDest()
     }
     
     func GetSource() {
@@ -189,14 +193,15 @@ class MIDIController {
                 text += str!.takeUnretainedValue() as String
                 str!.release()
                 print(text)
-	                MIDIPortConnectSource(inPortRef,endPointRef,nil)
-
-
+                MIDIPortConnectSource(inPortRef,endPointRef,nil)
+                
+                
             }
             
         }
-
+        
     }
+    var old = 0
     func GetDest()
     {
         let n = MIDIGetNumberOfDestinations()
@@ -208,32 +213,38 @@ class MIDIController {
             let status = MIDIObjectGetStringProperty( endPointRef, kMIDIPropertyDisplayName, &str )
             if status == noErr {
                 
-                var text = ""
-                text += "MIDI:DST [\(i)]: "
-                text += str!.takeUnretainedValue() as String
-                str!.release()
-                print(text)
-
-                if ( i == 0 ) {
-                    print("Set!")
-                    midiDst0 = endPointRef
-//                    var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
-//                    MIDISend(outPortRef, midiDst0, &packets)
-
+                if ( old != n  ){
+                    old = n
+                    var text = "MIDI:DST [\(i)]: "
+                    text += str!.takeUnretainedValue() as String
+                    str!.release()
+                    print(text)
+                    if ( i == 0 ) {
+                        //                    print("Set! 0")
+                        midiDst0 = endPointRef
+                        //                    var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
+                        //                    MIDISend(outPortRef, midiDst0, &packets)
+                        
+                    }
+                    if ( i == 1 ) && midiDst1 == nil {
+                        print("Set! 1 ")
+                        midiDst1 = endPointRef
+                        var packets = MIDIPacketList(midiEvents: [[0x98, 0x6f, 0x78]])
+                        MIDISend(outPortRef, endPointRef, &packets)
+                    } else {
+                        
+                    }
+                    if ( i == 2 ) && midiDst2 == nil  {
+                        print("Set2! 2")
+                        midiDst2 = endPointRef
+                    }
                 }
-                if ( i == 1 ) {
-                    print("Set!")
-                    midiDst1 = endPointRef
-                }
-                if ( i == 2 ) {
-                    print("Set2!")
-                    midiDst2 = endPointRef
-                }
-
+                
+                
             }
             
         }
-
+        
     }
     
     

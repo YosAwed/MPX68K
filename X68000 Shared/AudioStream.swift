@@ -1,3 +1,103 @@
+#if true
+
+//import Foundation
+import AVFoundation
+
+
+class AudioStream {
+    
+
+    
+
+    init () {
+    }
+
+    func load()
+    {
+    }
+    
+    
+    // エンジンの生成
+    let audioEngine = AVAudioEngine()
+    // ソースノードの生成
+    let player = AVAudioPlayerNode()
+    
+    var buffer :AVAudioPCMBuffer?
+    
+    
+
+    
+    private var sourceNode : AVAudioSourceNode?
+    func play()
+    {
+        print("Play")
+
+        // プレイヤーノードからオーディオフォーマットを取得
+             let outputNode = audioEngine.outputNode
+        let format = outputNode.inputFormat(forBus: 0)
+        print("\(format.sampleRate)")
+        print("\(format.commonFormat)")
+        let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 44100.0/2, channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
+        let sampleRate = Float(audioFormat.sampleRate)
+        print("sampleRate:\(sampleRate)")
+            
+        
+        sourceNode = AVAudioSourceNode(format: audioFormat , renderBlock: { (_, timeStamp, frameCount, audioBufferList) -> OSStatus in
+
+                let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
+                let buf: UnsafeMutableBufferPointer<Int16> = UnsafeMutableBufferPointer(ablPointer[0])
+//                        print("mNumberBuffers: \(audioBufferList.pointee.mNumberBuffers)")
+//                        print("mDataByteSize: \(audioBufferList.pointee.mBuffers.mDataByteSize)")
+//                        print("mNumberChannels: \(audioBufferList.pointee.mBuffers.mNumberChannels)")
+//        print(frameCount)
+                X68000_AudioCallBack(ablPointer[0].mData, UInt32(frameCount));
+
+            return noErr
+        })
+
+        // オーディオエンジンにプレイヤーをアタッチ
+        sourceNode?.reset()
+        audioEngine.attach(sourceNode!)
+
+        let mixer = audioEngine.mainMixerNode
+
+        audioEngine.connect(sourceNode!, to: mixer, format: audioFormat)
+        //        audioEngine.attach(player)
+        // プレイヤーノードとミキサーノードを接続
+  //      audioEngine.connect(player, to: mixer, format: audioFormat)
+        // 再生の開始を設定
+//        alloc()
+        audioEngine.prepare()
+        do {
+          // エンジンを開始
+          try audioEngine.start()
+          // 再生
+//          player.play()
+        } catch let error {
+          print(error)
+        }
+
+
+
+    }
+    func stop()
+    {
+        print("Stop")
+
+    }
+    func pause()
+    {
+        print("Pause")
+
+    }
+    func close()
+    {
+        print("Close")
+    }
+}
+
+
+#else
 
 import Foundation
 import AudioToolbox
@@ -19,7 +119,7 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
     let size = buffer.pointee.mAudioDataBytesCapacity / 4
     let opaquePtr = OpaquePointer(buffer.pointee.mAudioData)
     let mAudioDataPrt = UnsafeMutablePointer<Int16>(opaquePtr)
-
+print(size)
     X68000_AudioCallBack(mAudioDataPrt, UInt32(size));
 
     buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
@@ -30,7 +130,7 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
 
 class AudioStream {
     var dataFormat:     AudioStreamBasicDescription
-    var queue:          AudioQueueRef?
+    var queue:          AudioQueueRef? = nil
 
     var buffers =       [AudioQueueBufferRef?](repeating: nil, count: 2)
 
@@ -50,8 +150,8 @@ class AudioStream {
             mReserved:          0
         )
 
-        bufferByteSize   = 512 * dataFormat.mBytesPerFrame
-
+        bufferByteSize   = 941 * dataFormat.mBytesPerFrame
+//return;
         AudioQueueNewOutput(
             &dataFormat,
             outputCallback,
@@ -117,3 +217,4 @@ class AudioStream {
     }
 }
 
+#endif

@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -20,6 +21,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("⭐️application url:\(url)")
 
         viewController.load(url)
+        
+        /// AVAudioSessionCategory設定
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // CategoryをPlaybackにする
+            try session.setCategory(.playback, mode: .default)
+            try session.setPreferredSampleRate( 44100.0/2.0 )
+            try session.setActive(true)
+
+        } catch  {
+            // 予期しない場合
+            fatalError("Category 設定失敗")
+        }
+
+        // session有効化
+        do {
+            try session.setActive(true)
+        } catch {
+            // 予期しない場合
+            fatalError("Session有効化失敗")
+        }
+
     
         return true
     }

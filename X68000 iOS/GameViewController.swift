@@ -20,6 +20,7 @@ class GameViewController: UIViewController {
         scene?.load( url: url )
     }
     
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -39,7 +40,9 @@ class GameViewController: UIViewController {
         skView.showsNodeCount = true
         skView.showsDrawCount = true
         
+        
 //        skView.preferredFramesPerSecond = 120
+        
     }
     func applicationWillResignActive() {
         scene?.applicationWillResignActive()

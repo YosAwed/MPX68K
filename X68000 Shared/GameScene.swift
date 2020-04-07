@@ -52,7 +52,7 @@ class GameScene: SKScene {
         }
         
         // Load 'GameScene.sks' as an SKScene.
-        guard let scene = SKScene(fileNamed: "GameScene") as? GameScene else {
+        guard let scene = GameScene(fileNamed: "GameScene") as? GameScene else {
             print("Failed to load GameScene.sks")
             abort()
         }
@@ -184,6 +184,8 @@ class GameScene: SKScene {
             self.view?.addGestureRecognizer(tapGes)
             
         }
+        
+        updating()
     }
     @objc func tapped(_ sender: UITapGestureRecognizer){
         print(sender.state)
@@ -200,10 +202,10 @@ class GameScene: SKScene {
     }
     
     func applicationWillResignActive() {
-        audioStream?.pause()
+//        audioStream?.pause()
     }
     func applicationWillEnterForeground() {
-        audioStream?.play()
+//        audioStream?.play()
     }
     #if os(watchOS)
     override func sceneDidLoad() {
@@ -263,17 +265,34 @@ class GameScene: SKScene {
             self.addChild(spinny)
         }
     }
-    
+    var aaa  = 0
+    var timer : Timer = Timer()
+    @objc func updating()  {
+        if self.timer.isValid {
+            self.timer.invalidate()
+        }
+        X68000_Update(self.clockMHz)   // MHz
+
+        self.timer = Timer.scheduledTimer(timeInterval: 1.0/120.0, target: self, selector: #selector(updating), userInfo: nil, repeats: true)
+        aaa += 1
+        if ( aaa % 100 == 0 ) {
+            
+            print(aaa)
+        }
+    }
+
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
     var w:Int32 = 1
     var h:Int32 = 1
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
+
+
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
         mouseController?.Update()
-        
-        X68000_Update(self.clockMHz)   // MHz
+
+
         //        })
         
         // Called before each frame is rendered
