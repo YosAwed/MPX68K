@@ -59,13 +59,13 @@ class X68JoyCard : X68Device
             let t = scene.atPoint(location)
             if let name = t.name {
                 var c = false
+                #if false
                 if ( name == "A" ) {
                     self.JoySet(device_id, JOY_TRG1, true ); c = true
                 }
                 if ( name == "B" ) {
                     self.JoySet(device_id, JOY_TRG2, true ); c = true
                 }
-#if false
                 if ( name == "U" ) {
                     self.JoySet(device_id, JOY_UP, true ); c = true
                 }
@@ -97,13 +97,13 @@ class X68JoyCard : X68Device
                 if ( name == "MOVE" ) {
                     self.sprite.position = location
                 }
+                #if false
                 if ( name == "A" ) {
                     flag |= JOY_TRG1
                 }
                 if ( name == "B" ) {
                     flag |= JOY_TRG2
                 }
-#if false
                 if ( name == "U" ) {
                     flag |= JOY_UP
                 }
@@ -125,9 +125,8 @@ class X68JoyCard : X68Device
 //        print(trg)
         if ( trg > 0) {
 //            joydata = flag
-            X68000_Joystick_Set(device_id, joydata)
+     //       X68000_Joystick_Set(device_id, joydata)
         }
-//        self.JoySet(device_id, JOY_TRG1, false );
     }
 
     override func touchesEnded(_ touches: Set<UITouch>) {
@@ -136,13 +135,13 @@ class X68JoyCard : X68Device
             let location = touch.location(in: scene)
             let t = scene.atPoint(location)
             if let name = t.name {
+                #if false
                 if ( name == "A" ) {
                     self.JoySet(device_id, JOY_TRG1, false );
                 }
                 if ( name == "B" ) {
                     self.JoySet(device_id, JOY_TRG2, false );
                 }
-#if false
                 if ( name == "U" ) {
                     self.JoySet(device_id, JOY_UP, false );
                 }

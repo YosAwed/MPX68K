@@ -33,25 +33,11 @@ class GameScene: SKScene {
     
     private var devices : [X68Device] = []
     
-
+    
     let moveJoystick = 🕹(withDiameter: 100)
-    let rotateJoystick = TLAnalogJoystick(withDiameter: 100)
+    let rotateJoystick = TLAnalogJoystick(withDiameter: 150)
+    let rotateJoystick2 = TLAnalogJoystick(withDiameter: 150)
     
-    var joystickStickImageEnabled = true {
-        didSet {
-            let image = joystickStickImageEnabled ? UIImage(named: "JoyCardStick") : nil
-            moveJoystick.handleImage = image
-            rotateJoystick.handleImage = image
-        }
-    }
-    
-    var joystickSubstrateImageEnabled = true {
-        didSet {
-            let image = joystickSubstrateImageEnabled ? UIImage(named: "JoyCardLeft") : nil
-            moveJoystick.baseImage = image
-            rotateJoystick.baseImage = image
-        }
-    }
     
     //    fileprivate var fileSystem = FileSystem()
     
@@ -136,7 +122,7 @@ class GameScene: SKScene {
         for device in devices {
             device.Reset()
         }
-
+        
         mouseController = X68MouseController()
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
@@ -147,7 +133,7 @@ class GameScene: SKScene {
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
         
         self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
-#if true
+        #if true
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
@@ -178,7 +164,7 @@ class GameScene: SKScene {
                 ]
         ))
         self.addChild(titleSprite!)
-#endif
+        #endif
         
         // Get label node from scene and store it for use later
         
@@ -198,7 +184,7 @@ class GameScene: SKScene {
             let tapGes = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
             tapGes.numberOfTapsRequired = 1
             tapGes.numberOfTouchesRequired = 1
-//            self.view?.addGestureRecognizer(tapGes)
+            //            self.view?.addGestureRecognizer(tapGes)
         }
         
         updating()
@@ -218,10 +204,10 @@ class GameScene: SKScene {
     }
     
     func applicationWillResignActive() {
-//        audioStream?.pause()
+        //        audioStream?.pause()
     }
     func applicationWillEnterForeground() {
-//        audioStream?.play()
+        //        audioStream?.play()
     }
     override func sceneDidLoad() {
         print("✳️sceneDidLoad")
@@ -232,71 +218,104 @@ class GameScene: SKScene {
         self.setUpScene()
         
         let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: -scene!.size.width/2, y: -scene!.size.height, width: scene!.size.width/2, height: scene!.size.height))
-        print(frame.midX)
-        print(frame.height)
-                moveJoystickHiddenArea.joystick = moveJoystick
-                moveJoystick.isMoveable = true
+            CGRect(x: -scene!.size.width/2, y: -scene!.size.height * 0.45, width: scene!.size.width/2, height: scene!.size.height/3))
+        moveJoystickHiddenArea.joystick = moveJoystick
+        moveJoystick.isMoveable = true
         moveJoystickHiddenArea.zPosition = 10.0
-                addChild(moveJoystickHiddenArea)
-                
-                let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-                    CGRect(x: 0, y: -scene!.size.height, width: scene!.size.width/2, height: scene!.size.height))
-                rotateJoystickHiddenArea.joystick = rotateJoystick
+        addChild(moveJoystickHiddenArea)
+        
+        let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
+            CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height * 0.45, width: scene!.size.width/8, height: scene!.size.height/3))
+        rotateJoystickHiddenArea.joystick = rotateJoystick
         rotateJoystickHiddenArea.zPosition = 10.0
-            //                addChild(rotateJoystickHiddenArea)
+        addChild(rotateJoystickHiddenArea)
+
+        let rotateJoystickHiddenArea2 = TLAnalogJoystickHiddenArea(rect:
+            CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height * 0.45, width: scene!.size.width/8, height: scene!.size.height/3))
+        rotateJoystickHiddenArea2.joystick = rotateJoystick2
+        rotateJoystickHiddenArea2.zPosition = 10.0
+        addChild(rotateJoystickHiddenArea2)
         #if true
-                //MARK: Handlers begin
-                moveJoystick.on(.begin) { [unowned self] _ in
-                }
-                
-                moveJoystick.on(.move) { [unowned self] joystick in
-                    let VEL :CGFloat = 3.0
-                    print(joystick.velocity.x)
-                    if joystick.velocity.x > VEL {
-                        self.joycard?.joydata |= JOY_RIGHT
-                    } else {
-                        self.joycard?.joydata &= ~JOY_RIGHT
-                    }
-                    if joystick.velocity.x < -VEL {
-                        self.joycard?.joydata |= JOY_LEFT
-                    } else {
-                        self.joycard?.joydata &= ~JOY_LEFT
-                    }
-                    if joystick.velocity.y > VEL {
-                        self.joycard?.joydata |= JOY_UP
-                    } else {
-                        self.joycard?.joydata &= ~JOY_UP
-                    }
-                    if joystick.velocity.y < -VEL {
-                        self.joycard?.joydata |= JOY_DOWN
-                    } else {
-                        self.joycard?.joydata &= ~JOY_DOWN
-                    }
+        //MARK: Handlers begin
+        moveJoystick.on(.begin) { [unowned self] _ in
+        }
+        
+        moveJoystick.on(.move) { [unowned self] joystick in
+            let VEL :CGFloat = 5.0
+            let VELY :CGFloat = 10.0
+//            print(joystick.velocity.x)
+            if joystick.velocity.x > VEL {
+                self.joycard?.joydata |= JOY_RIGHT
+            } else {
+                self.joycard?.joydata &= ~JOY_RIGHT
+            }
+            if joystick.velocity.x < -VEL {
+                self.joycard?.joydata |= JOY_LEFT
+            } else {
+                self.joycard?.joydata &= ~JOY_LEFT
+            }
+            if joystick.velocity.y > VELY {
+                self.joycard?.joydata |= JOY_UP
+            } else {
+                self.joycard?.joydata &= ~JOY_UP
+            }
+            if joystick.velocity.y < -VELY {
+                self.joycard?.joydata |= JOY_DOWN
+            } else {
+                self.joycard?.joydata &= ~JOY_DOWN
+            }
+            X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+            
+        }
+        
+        moveJoystick.on(.end) { [unowned self] _ in
+            self.joycard?.joydata &= ~(JOY_RIGHT|JOY_LEFT|JOY_DOWN|JOY_UP)
+            X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+            
+        }
+                rotateJoystick.on(.begin) { [unowned self] _ in
+                    self.joycard?.joydata |= JOY_TRG2
                     X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
-
                 }
                 
-                moveJoystick.on(.end) { [unowned self] _ in
-                    self.joycard?.joydata &= ~(JOY_RIGHT|JOY_LEFT|JOY_DOWN|JOY_UP)
+                
+                rotateJoystick.on(.move) { [unowned self] joystick in
+                    self.joycard?.joydata |= JOY_TRG2
                     X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
-
-                }
-                
-
-        rotateJoystick.on(.move) { [unowned self] joystick in
                 }
                 
                 rotateJoystick.on(.end) { [unowned self] _ in
+                    self.joycard?.joydata &= ~(JOY_TRG2)
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
                 }
-                #endif
-                    //MARK: Handlers end
 
-
-
-                joystickStickImageEnabled = true
-                joystickSubstrateImageEnabled = true
-
+        rotateJoystick2.on(.begin) { [unowned self] _ in
+                    self.joycard?.joydata |= JOY_TRG1
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+                }
+                
+                
+                rotateJoystick2.on(.move) { [unowned self] joystick in
+                    self.joycard?.joydata |= JOY_TRG1
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+                }
+                
+                rotateJoystick2.on(.end) { [unowned self] _ in
+                    self.joycard?.joydata &= ~(JOY_TRG1)
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+                }
+        #endif
+        //MARK: Handlers end
+        
+        moveJoystick.handleImage = UIImage(named: "jStick")
+        
+        moveJoystick.baseImage = UIImage(named: "jSubstrate")
+        
+            rotateJoystick.handleImage = UIImage(named: "jStick")
+            rotateJoystick2.handleImage = UIImage(named: "jStick")
+            //        rotateJoystick.baseImage = UIImage(named: "jSubstrate")
+        
+        
     }
     
     
@@ -345,13 +364,7 @@ class GameScene: SKScene {
             self.timer.invalidate()
         }
         
-        do { // コレはセットで
-            X68000_Update(self.clockMHz)   // MHz
-            let midi_count  = X68000_GetMIDIBufferSize()
-            let midi_buffer = X68000_GetMIDIBuffer()
-            midiController.Send( midi_buffer, midi_count )
-        }
-
+        
         self.timer = Timer.scheduledTimer(timeInterval: 1.0/120.0, target: self, selector: #selector(updating), userInfo: nil, repeats: true)
         aaa += 1
         if ( aaa % 100 == 0 ) {
@@ -359,7 +372,7 @@ class GameScene: SKScene {
             print(aaa)
         }
     }
-
+    
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
     var w:Int32 = 1
     var h:Int32 = 1
@@ -368,12 +381,18 @@ class GameScene: SKScene {
         for device in devices {
             device.Update(currentTime)
         }
-
+        
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
         mouseController?.Update()
+        do { // コレはセットで
+            X68000_Update(self.clockMHz)   // MHz
+            let midi_count  = X68000_GetMIDIBufferSize()
+            let midi_buffer = X68000_GetMIDIBuffer()
+            midiController.Send( midi_buffer, midi_count )
+        }
 
-
+        
         //        })
         
         // Called before each frame is rendered
@@ -414,7 +433,7 @@ extension GameScene {
         for device in devices {
             device.touchesBegan( touches )
         }
-
+        
         if ( touches.count == 1 ) {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
@@ -433,9 +452,9 @@ extension GameScene {
                         if t.name == "MouseBody" {
                             mouseController?.ResetPosition( location, scene!.size )
                         } else {
-//                            mouseSprite?.position = location
+                            //                            mouseSprite?.position = location
                             mouseController?.ResetPosition( location, scene!.size ) // A
-
+                            
                 }
             }
         }
@@ -452,7 +471,7 @@ extension GameScene {
         for device in devices {
             device.touchesMoved( touches )
         }
-
+        
         if ( touches.count == 1 ) {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
@@ -463,12 +482,12 @@ extension GameScene {
                     //                    let x2 = Float(t.location(in: self).x)
                     //                    let y2 = Float(t.location(in: self).y)
                     
-//                    mouseSprite?.position = location
-//                    mouseController?.SetPosition(location,scene!.size)
+                    //                    mouseSprite?.position = location
+                    //                    mouseController?.SetPosition(location,scene!.size)
                     
                 } else {
                     mouseController?.SetPosition(location,scene!.size)  //MODE B
-
+                    
                 }
             }
         }
@@ -486,7 +505,7 @@ extension GameScene {
         for device in devices {
             device.touchesEnded( touches )
         }
-
+        
         if let touch = touches.first as UITouch? {
             let location = touch.location(in: self)
             let t = self.atPoint(location)

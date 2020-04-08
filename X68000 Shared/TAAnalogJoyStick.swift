@@ -335,6 +335,7 @@ open class TLAnalogJoystick: SKNode {
         disabled = false
         displayLink = CADisplayLink(target: self, selector: #selector(listen))
         handle.zPosition = base.zPosition + 1
+        #if false
         base.scale(to: CGSize(width:300.0, height:300.0))    //@GOROman
         handle.scale(to: CGSize(width:180.0, height:180.0))    //@GOROman
 
@@ -342,6 +343,11 @@ open class TLAnalogJoystick: SKNode {
         base.position.y += 25.0
         base.alpha = 0.5
         handle.alpha = 1.0
+        handle.blendMode = .add
+        #endif
+        base.alpha = 1.0
+        handle.alpha = 1.0
+        base.blendMode = .add
         handle.blendMode = .add
         addChild(base)
         addChild(handle)
