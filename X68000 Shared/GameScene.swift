@@ -31,10 +31,31 @@ class GameScene: SKScene {
     fileprivate var mouseController : X68MouseController?
     fileprivate var midiController : MIDIController = MIDIController()
     
+    private var devices : [X68Device] = []
     
+
+    let moveJoystick = 🕹(withDiameter: 100)
+    let rotateJoystick = TLAnalogJoystick(withDiameter: 100)
+    
+    var joystickStickImageEnabled = true {
+        didSet {
+            let image = joystickStickImageEnabled ? UIImage(named: "JoyCardStick") : nil
+            moveJoystick.handleImage = image
+            rotateJoystick.handleImage = image
+        }
+    }
+    
+    var joystickSubstrateImageEnabled = true {
+        didSet {
+            let image = joystickSubstrateImageEnabled ? UIImage(named: "JoyCardLeft") : nil
+            moveJoystick.baseImage = image
+            rotateJoystick.baseImage = image
+        }
+    }
     
     //    fileprivate var fileSystem = FileSystem()
     
+    var joycard : X68JoyCard?
     
     class func newGameScene() -> GameScene {
         
@@ -109,7 +130,13 @@ class GameScene: SKScene {
     }
     
     func setUpScene() {
+        joycard = X68JoyCard( id:0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)! )
+        devices.append( joycard! )
         
+        for device in devices {
+            device.Reset()
+        }
+
         mouseController = X68MouseController()
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
@@ -120,6 +147,7 @@ class GameScene: SKScene {
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
         
         self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
+#if true
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
@@ -150,7 +178,7 @@ class GameScene: SKScene {
                 ]
         ))
         self.addChild(titleSprite!)
-        
+#endif
         
         // Get label node from scene and store it for use later
         
@@ -165,24 +193,12 @@ class GameScene: SKScene {
                                               SKAction.fadeOut(withDuration: 0.5),
                                               SKAction.removeFromParent()]))
             
-            #if os(watchOS)
-            // For watch we just periodically create one of these and let it spin
-            // For other platforms we let user touch/mouse events create these
-            spinnyNode.position = CGPoint(x: 0.0, y: 0.0)
-            spinnyNode.strokeColor = SKColor.red
-            self.run(SKAction.repeatForever(SKAction.sequence([SKAction.wait(forDuration: 2.0),
-                                                               SKAction.run({
-                                                                let n = spinnyNode.copy() as! SKShapeNode
-                                                                self.addChild(n)
-                                                               })])))
-            #endif
         }
         do {
             let tapGes = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
             tapGes.numberOfTapsRequired = 1
             tapGes.numberOfTouchesRequired = 1
-            self.view?.addGestureRecognizer(tapGes)
-            
+//            self.view?.addGestureRecognizer(tapGes)
         }
         
         updating()
@@ -207,14 +223,6 @@ class GameScene: SKScene {
     func applicationWillEnterForeground() {
 //        audioStream?.play()
     }
-    #if os(watchOS)
-    override func sceneDidLoad() {
-        self.setUpScene()
-    }
-    override func didMove(to view: SKView) {
-        print("✳️didMove")
-    }
-    #else
     override func sceneDidLoad() {
         print("✳️sceneDidLoad")
         
@@ -223,8 +231,73 @@ class GameScene: SKScene {
         print("✳️didMove")
         self.setUpScene()
         
+        let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
+            CGRect(x: -scene!.size.width/2, y: -scene!.size.height, width: scene!.size.width/2, height: scene!.size.height))
+        print(frame.midX)
+        print(frame.height)
+                moveJoystickHiddenArea.joystick = moveJoystick
+                moveJoystick.isMoveable = true
+        moveJoystickHiddenArea.zPosition = 10.0
+                addChild(moveJoystickHiddenArea)
+                
+                let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
+                    CGRect(x: 0, y: -scene!.size.height, width: scene!.size.width/2, height: scene!.size.height))
+                rotateJoystickHiddenArea.joystick = rotateJoystick
+        rotateJoystickHiddenArea.zPosition = 10.0
+            //                addChild(rotateJoystickHiddenArea)
+        #if true
+                //MARK: Handlers begin
+                moveJoystick.on(.begin) { [unowned self] _ in
+                }
+                
+                moveJoystick.on(.move) { [unowned self] joystick in
+                    let VEL :CGFloat = 3.0
+                    print(joystick.velocity.x)
+                    if joystick.velocity.x > VEL {
+                        self.joycard?.joydata |= JOY_RIGHT
+                    } else {
+                        self.joycard?.joydata &= ~JOY_RIGHT
+                    }
+                    if joystick.velocity.x < -VEL {
+                        self.joycard?.joydata |= JOY_LEFT
+                    } else {
+                        self.joycard?.joydata &= ~JOY_LEFT
+                    }
+                    if joystick.velocity.y > VEL {
+                        self.joycard?.joydata |= JOY_UP
+                    } else {
+                        self.joycard?.joydata &= ~JOY_UP
+                    }
+                    if joystick.velocity.y < -VEL {
+                        self.joycard?.joydata |= JOY_DOWN
+                    } else {
+                        self.joycard?.joydata &= ~JOY_DOWN
+                    }
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+
+                }
+                
+                moveJoystick.on(.end) { [unowned self] _ in
+                    self.joycard?.joydata &= ~(JOY_RIGHT|JOY_LEFT|JOY_DOWN|JOY_UP)
+                    X68000_Joystick_Set(UInt8(0), self.joycard!.joydata)
+
+                }
+                
+
+        rotateJoystick.on(.move) { [unowned self] joystick in
+                }
+                
+                rotateJoystick.on(.end) { [unowned self] _ in
+                }
+                #endif
+                    //MARK: Handlers end
+
+
+
+                joystickStickImageEnabled = true
+                joystickSubstrateImageEnabled = true
+
     }
-    #endif
     
     
     func makeSpinny(at pos: CGPoint, color: SKColor) {
@@ -292,6 +365,9 @@ class GameScene: SKScene {
     var h:Int32 = 1
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
+        for device in devices {
+            device.Update(currentTime)
+        }
 
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
@@ -335,9 +411,10 @@ class GameScene: SKScene {
 extension GameScene {
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        //        if let label = self.label {
-        //            label.run(SKAction.init(named: "Pulse")!, withKey: "fadeInOut")
-        //        }
+        for device in devices {
+            device.touchesBegan( touches )
+        }
+
         if ( touches.count == 1 ) {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
@@ -371,6 +448,11 @@ extension GameScene {
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        
+        for device in devices {
+            device.touchesMoved( touches )
+        }
+
         if ( touches.count == 1 ) {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
@@ -401,6 +483,10 @@ extension GameScene {
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for device in devices {
+            device.touchesEnded( touches )
+        }
+
         if let touch = touches.first as UITouch? {
             let location = touch.location(in: self)
             let t = self.atPoint(location)
