@@ -187,8 +187,11 @@ class GameScene: SKScene {
             //            self.view?.addGestureRecognizer(tapGes)
         }
         
-        updating()
+//        updating()    // メモリリーク？
+        
+        
     }
+    
     @objc func tapped(_ sender: UITapGestureRecognizer){
         print(sender.state)
         if sender.state == .began {
