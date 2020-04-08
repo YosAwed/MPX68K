@@ -649,8 +649,20 @@ BYTE FASTCALL MIDI_Read(DWORD adr)
 }
 
 
+#define MAX_MIDI_BUFFER_SIZE 4096
+static BYTE s_midibuffer[MAX_MIDI_BUFFER_SIZE];
+static long s_midibuffersize = 0;
+void X68000_AddMIDIBuffer( const BYTE data )
+{
+    s_midibuffer[s_midibuffersize] = data;
+    s_midibuffersize++;
+    assert(s_midibuffersize<MAX_MIDI_BUFFER_SIZE);
+}
+
 static void AddDelayBuf(BYTE msg)
 {
+    X68000_AddMIDIBuffer(msg);
+
 	int newptr = (DBufPtrW+1)%MIDIDELAYBUF;
 	if ( newptr!=DBufPtrR ) {
 		DelayBuf[DBufPtrW].time = timeGetTime();
@@ -659,16 +671,6 @@ static void AddDelayBuf(BYTE msg)
 	}
 }
 
-#define MAX_MIDI_BUFFER_SIZE 4096
-static BYTE s_midibuffer[MAX_MIDI_BUFFER_SIZE];
-static long s_midibuffersize = 0;
-
-void X68000_AddMIDIBuffer( const BYTE data )
-{
-    s_midibuffer[s_midibuffersize] = data;
-    s_midibuffersize++;
-    assert(s_midibuffersize<MAX_MIDI_BUFFER_SIZE);
-}
 
 const long X68000_GetMIDIBufferSize()
 {
@@ -686,8 +688,6 @@ void MIDI_DelayOut(unsigned int delay)
 	while ( DBufPtrW!=DBufPtrR ) {
 		if ( (t-DelayBuf[DBufPtrR].time)>=delay ) {
 			MIDI_Message(DelayBuf[DBufPtrR].msg);
-            s_midibuffer[s_midibuffersize] = DelayBuf[DBufPtrR].msg;
-            s_midibuffersize++;
 			DBufPtrR = (DBufPtrR+1)%MIDIDELAYBUF;
 		} else
 			break;

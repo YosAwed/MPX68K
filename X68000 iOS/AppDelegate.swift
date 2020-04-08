@@ -15,10 +15,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     var viewController: GameViewController!
+//    var backgroundTaskID : UIBackgroundTaskIdentifier = UIBackgroundTaskIdentifier(rawValue: 0)
 
     
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
         print("⭐️application url:\(url)")
+
+//        self.backgroundTaskID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
 
         viewController.load(url)
         

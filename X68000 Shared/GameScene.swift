@@ -23,6 +23,7 @@ class GameScene: SKScene {
     var spr256 : SKSpriteNode?
     var tex : SKTexture?
     var tex256 : SKTexture?
+    var labelMIDI : SKLabelNode?
     var joycontroller : JoyController?
     let screen_w : Float = 1336.0
     let screen_h : Float = 1024.0
@@ -34,9 +35,9 @@ class GameScene: SKScene {
     private var devices : [X68Device] = []
     
     
-    let moveJoystick = 🕹(withDiameter: 100)
-    let rotateJoystick = TLAnalogJoystick(withDiameter: 150)
-    let rotateJoystick2 = TLAnalogJoystick(withDiameter: 150)
+    let moveJoystick = 🕹(withDiameter: 200)
+    let rotateJoystick = TLAnalogJoystick(withDiameter: 120)
+    let rotateJoystick2 = TLAnalogJoystick(withDiameter: 120)
     
     
     //    fileprivate var fileSystem = FileSystem()
@@ -133,6 +134,7 @@ class GameScene: SKScene {
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
         
         self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
+        self.labelMIDI   = self.childNode(withName: "//labelMIDI") as? SKLabelNode
         #if true
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
@@ -221,20 +223,20 @@ class GameScene: SKScene {
         self.setUpScene()
         
         let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: -scene!.size.width/2, y: -scene!.size.height * 0.45, width: scene!.size.width/2, height: scene!.size.height/3))
+            CGRect(x: -scene!.size.width/2, y: -scene!.size.height*0.5, width: scene!.size.width/2, height: scene!.size.height*0.9))
         moveJoystickHiddenArea.joystick = moveJoystick
         moveJoystick.isMoveable = true
         moveJoystickHiddenArea.zPosition = 10.0
         addChild(moveJoystickHiddenArea)
         
         let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height * 0.45, width: scene!.size.width/8, height: scene!.size.height/3))
+            CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
         rotateJoystickHiddenArea.joystick = rotateJoystick
         rotateJoystickHiddenArea.zPosition = 10.0
         addChild(rotateJoystickHiddenArea)
 
         let rotateJoystickHiddenArea2 = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height * 0.45, width: scene!.size.width/8, height: scene!.size.height/3))
+            CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
         rotateJoystickHiddenArea2.joystick = rotateJoystick2
         rotateJoystickHiddenArea2.zPosition = 10.0
         addChild(rotateJoystickHiddenArea2)
@@ -392,6 +394,7 @@ class GameScene: SKScene {
             X68000_Update(self.clockMHz)   // MHz
             let midi_count  = X68000_GetMIDIBufferSize()
             let midi_buffer = X68000_GetMIDIBuffer()
+            labelMIDI?.text = "MIDI OUT:\(midi_count)"
             midiController.Send( midi_buffer, midi_count )
         }
 
