@@ -14,7 +14,7 @@
 			<key>Key</key>
 			<string>name_preference</string>
 			<key>DefaultValue</key>
-			<string></string>
+			<string>X68000</string>
 			<key>IsSecure</key>
 			<false/>
 			<key>KeyboardType</key>
@@ -28,7 +28,7 @@
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
-			<string>Virtual Mouse</string>
+			<string>バーチャルマウス</string>
 			<key>Key</key>
 			<string>virtual_mouse</string>
 			<key>DefaultValue</key>
@@ -38,9 +38,19 @@
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
-			<string>Virtual Game Pad</string>
+			<string>バーチャルゲームパッド</string>
 			<key>Key</key>
 			<string>virtual_pad</string>
+			<key>DefaultValue</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>V-SYNC シミュレーション (通常はON)</string>
+			<key>Key</key>
+			<string>vsync</string>
 			<key>DefaultValue</key>
 			<true/>
 		</dict>
@@ -86,6 +96,28 @@
 				<string>22050</string>
 				<string>44100</string>
 				<string>48000</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>フレームレート (iPad Pro限定)</string>
+			<key>Key</key>
+			<string>fps</string>
+			<key>DefaultValue</key>
+			<string>60</string>
+			<key>New item</key>
+			<string></string>
+			<key>Titles</key>
+			<array>
+				<string>60 fps</string>
+				<string>120 fps</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>60</string>
+				<string>120</string>
 			</array>
 		</dict>
 	</array>

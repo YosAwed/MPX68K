@@ -326,7 +326,7 @@ WinX68k_Cleanup(void)
 // -----------------------------------------------------------------------------------
 //  コアのめいんるーぷ
 // -----------------------------------------------------------------------------------
-void WinX68k_Exec(const long clockMHz)
+void WinX68k_Exec(const long clockMHz, const long vsync)
 {
     //char *test = NULL;
     int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
@@ -497,7 +497,7 @@ void WinX68k_Exec(const long clockMHz)
                 MouseIntCnt = 0;
                 SCC_IntCheck();
             }
-            DSound_Send0(clk_line);
+            DSound_Send0(clk_line * vsync ? 1 : 2);
 
             vline++;
             clk_next  = (clk_total*(vline+1))/VLINE_TOTAL;
@@ -527,13 +527,11 @@ void WinX68k_Exec(const long clockMHz)
     TimerICount += clk_total;
     t_end = timeGetTime();
     const int dt = (int)(t_end-t_start);
-
-    if ( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) {
+    if (( dt>((CRTC_Regs[0x29]&0x10)?14:16) ) && ( vsync == 1 )) {
         FrameSkipQueue += ((t_end-t_start)/((CRTC_Regs[0x29]&0x10)?14:16))+1;
         if ( FrameSkipQueue>100 )
             FrameSkipQueue = 100;
     }
-    
     if ( FrameSkipQueue != 0 ) {
         printf("FrameSkipQueue:%d\n", FrameSkipQueue);
     }
@@ -647,12 +645,10 @@ int original_main(int argc, const char *argv[], const long samplingrate )
 }
 
 
-void Update(const long clockMHz) {
+void Update(const long clockMHz, const int vsync ) {
 
-    
-
-    if ((Config.NoWaitMode || Timer_GetCount())) {
-        WinX68k_Exec(clockMHz);
+	if ((Config.NoWaitMode || Timer_GetCount()) || vsync == 0) {
+        WinX68k_Exec(clockMHz, vsync);
     }
 
  }
@@ -683,17 +679,17 @@ void Finalize() {
 
 extern "C" {
 
-void X68000_Init( const long samplingrate ) {
+void X68000_Init( const long samplingrate) {
 	const char* arg[] = {
 		"X68000",
 	};
 	
-	original_main(1, arg, samplingrate);
+	original_main(1, arg, samplingrate );
 }
 
 
-void X68000_Update( const long clockMHz ) {
-	Update(clockMHz);
+void X68000_Update( const long clockMHz, const bool vsync  ) {
+	Update(clockMHz, vsync);
 }
 
 

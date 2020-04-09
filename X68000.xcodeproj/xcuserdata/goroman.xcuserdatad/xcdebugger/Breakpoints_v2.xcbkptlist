@@ -16,8 +16,8 @@
             filePath = "X68000 Shared/px68k/x11/winx68k.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "773"
-            endingLineNumber = "773"
+            startingLineNumber = "769"
+            endingLineNumber = "769"
             landmarkName = "X68000_Mouse_SetDirect(x, y, button)"
             landmarkType = "9">
             <Actions>
@@ -75,7 +75,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "448"
             endingLineNumber = "448"
-            landmarkName = "WinX68k_Exec(clockMHz)"
+            landmarkName = "WinX68k_Exec(clockMHz, vsync)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -169,8 +169,8 @@
             filePath = "X68000 Shared/GameScene.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "256"
-            endingLineNumber = "256"
+            startingLineNumber = "271"
+            endingLineNumber = "271"
             landmarkName = "didMove(to:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -265,8 +265,8 @@
             filePath = "X68000 Shared/px68k/x11/dswin.c"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "96"
-            endingLineNumber = "96"
+            startingLineNumber = "85"
+            endingLineNumber = "85"
             landmarkName = "sound_send(length)"
             landmarkType = "9">
          </BreakpointContent>
@@ -281,8 +281,8 @@
             filePath = "X68000 iOS/GameViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "422"
-            endingLineNumber = "422"
+            startingLineNumber = "429"
+            endingLineNumber = "429"
             landmarkName = "pressesBegan(_:with:)"
             landmarkType = "7">
          </BreakpointContent>

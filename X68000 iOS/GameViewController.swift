@@ -202,17 +202,26 @@ I*/
 		case .keyboardF11: return 0x1c8
 		case .keyboardF12: return 0x1c9
 			
-//		case .keyboardQuote:
-//		case .keyboardGraveAccentAndTilde:
+		case .keyboardQuote: return 0x28
+		case .keyboardGraveAccentAndTilde:	return 0x7e
+
+		case .keyboardCapsLock:
+			print("CAPS")
+			return 0xe5
+		case .keyboardInsert:	return 0x15a
+		case .keyboardHome:
+			print("HOME")
+			return 0x150
+		case .keyboardEnd:
+			print("END")
+			return 0x158
+		case .keyboardPageUp:	return 0x157
+		case .keyboardPageDown:	return 0x156
+		case .keyboardLeftAlt: return 0xff	// [HELP]
+		case .keyboardRightAlt:	return 0xfe // [登録]
 
 /*
 			
-			case .keyboardCapsLock:
-			case .keyboardInsert:
-			case .keyboardHome:
-			case .keyboardEnd:
-			case .keyboardPageUp:
-			case .keyboardPageDown:
 
 		case .keyboardNonUSPound:
 			
@@ -394,13 +403,11 @@ I*/
 			
 			
 			
-		case .keyboardLeftAlt:
 			
 		case .keyboardLeftGUI:
 			
 			
 			
-		case .keyboardRightAlt:
 			
 		case .keyboardRightGUI:
 			

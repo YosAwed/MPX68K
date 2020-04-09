@@ -345,10 +345,10 @@ open class TLAnalogJoystick: SKNode {
         handle.alpha = 1.0
         handle.blendMode = .add
         #endif
-        base.alpha = 1.0
-        handle.alpha = 1.0
-        base.blendMode = .add
-        handle.blendMode = .add
+        base.alpha = 0.8
+        handle.alpha = 0.8
+//        base.blendMode = .add
+//        handle.blendMode = .add
         addChild(base)
         addChild(handle)
     }

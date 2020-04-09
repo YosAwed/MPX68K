@@ -31,7 +31,6 @@
 //#include    "mercury.h"
 #include    "fmg_wrap.h"
 
-short    playing = FALSE;
 
 #define PCMBUF_SIZE 2*2*48000
 BYTE pcmbuffer[PCMBUF_SIZE];
@@ -46,23 +45,16 @@ BYTE rsndbuf[PCMBUF_SIZE];
 
 void audio_callback(void *buffer, int len);
 
-#ifndef NOSOUND
 
-int
-DSound_Init(unsigned long rate, unsigned long buflen)
+int DSound_Init(unsigned long rate, unsigned long buflen)
 {
 //    DWORD samples;
     
     printf("Sound Init Sampling Rate:%dHz buflen:%d\n", rate, buflen );
 
-    if (playing)
-        return FALSE;
 
     ratebase = rate;
 
-//    samples = 2048;
-
-    playing = TRUE;
     return TRUE;
 }
 
@@ -83,9 +75,6 @@ DSound_Stop(void)
 int
 DSound_Cleanup(void)
 {
-    playing = FALSE;
-
-
     return TRUE;
 }
 
@@ -110,8 +99,8 @@ void FASTCALL DSound_Send0(long clock)
     int rate;
 
 
+#if 1
     DSound_PreCounter += (ratebase * clock);
-
     while (DSound_PreCounter >= 10000000L)
    {
         length++;
@@ -120,14 +109,13 @@ void FASTCALL DSound_Send0(long clock)
 
     if (length == 0)
         return;
-
+#endif
+//	printf("%d %d\n", length, DSound_PreCounter);
     sound_send(length);
 }
 
 static void FASTCALL DSound_Send(int length)
 {
-    int rate;
-
     sound_send(length);
 }
 
@@ -157,19 +145,25 @@ cb_start:
       datalen = pbwp - pbrp;
 
       // needs more data
-      if (datalen < len)
-         DSound_Send((len - datalen) / 4);
+	   if (datalen < len) {
+//		   DSound_Send((len - datalen) / 4);
+		   printf("MORE!");
+		   DSound_Send((len - datalen) );	//@GOROman
+	   }
 
 #if 1
       datalen = pbwp - pbrp;
-      if (datalen < len)
-         printf("xxxxx not enough sound data xxxxx\n");
+	   printf("%d\n",datalen);
+	   if (datalen < len) {
+         printf("xxxxx not enough sound data: %5d/%5d xxxxx\n",datalen, len);
+	   }
 #endif
 
       // change to TYPEC or TYPED
-      if (pbrp > pbwp)
+	   if (pbrp > pbwp) {
          goto cb_start;
-
+	   }
+	   
       buf = pbrp;
       pbrp += len;
       //printf("TYPEA: ");
@@ -214,32 +208,4 @@ cb_start:
    memcpy(buffer, buf, len);
 }
 
-#else    /* NOSOUND */
-int
-DSound_Init(unsigned long rate, unsigned long buflen)
-{
-    return FALSE;
-}
-
-void
-DSound_Play(void)
-{
-}
-
-void
-DSound_Stop(void)
-{
-}
-
-int
-DSound_Cleanup(void)
-{
-    return TRUE;
-}
-
-void FASTCALL
-DSound_Send0(long clock)
-{
-}
-#endif    /* !NOSOUND */
 

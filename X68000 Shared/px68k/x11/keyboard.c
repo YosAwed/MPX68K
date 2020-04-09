@@ -61,6 +61,7 @@ Keyboard_Init(void)
 #define	NC	0
 #define KEYTABLE_MAX 512
 
+//https://gamesx.com/wiki/doku.php?id=x68000:keycodes
 
 BYTE KeyTable[KEYTABLE_MAX] = {
 	//	    ,    ,    ,    ,    ,    ,    ,    		; 0x00
@@ -125,8 +126,8 @@ BYTE KeyTable[KEYTABLE_MAX] = {
 		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
 	//	    ,    ,    ,    ,    ,    ,    ,    		; 0xf0
 		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
-	//	    ,    ,    ,    ,    ,    ,    ,    		; 0xf8
-		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
+	//	    ,    ,    ,    ,    ,    ,tork, HELP	; 0xf8
+		  NC,  NC,  NC,  NC,  NC,  NC,0x53, 0x54,
 
 	//							;0x100
 

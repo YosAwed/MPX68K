@@ -14,6 +14,7 @@ class GameScene: SKScene {
     
 	private var clockMHz:Int = 24
 	private var samplingRate:Int = 22050
+	private var vsync:Bool = true
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
@@ -132,6 +133,16 @@ class GameScene: SKScene {
 			self.samplingRate = Int(sample)!
 			print( "Sampling Rate: \(self.samplingRate) Hz")
 		}
+		if userDefaults.object(forKey: "fps") != nil {
+			let sample = userDefaults.object(forKey: "fps") as! String
+			let fps = Int(sample)!
+			view?.preferredFramesPerSecond = fps
+			print( "FPS: \(fps) Hz")
+		}
+		if userDefaults.object(forKey: "vsync") != nil {
+			self.vsync = userDefaults.bool(forKey: "vsync")
+			print( "V-Sync: \(vsync)")
+		}
 	}
     func setUpScene() {
 		
@@ -154,8 +165,12 @@ class GameScene: SKScene {
         mouseController = X68MouseController()
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
-        
-        self.audioStream = AudioStream.init(samplingrate: self.samplingRate);
+
+		var sample =  self.samplingRate
+		if ( view?.preferredFramesPerSecond == 120 && self.vsync == false ) {
+//			sample *= 2
+		}
+		self.audioStream = AudioStream.init(samplingrate: sample);
 		self.audioStream?.play();
         
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
@@ -173,7 +188,7 @@ class GameScene: SKScene {
                     SKAction.wait(forDuration: 1.0),
                     SKAction.fadeIn(withDuration: 2.0),
                     SKAction.wait(forDuration: 0.5),
-                    SKAction.fadeAlpha(to: 0.02, duration: 1.0)
+                    SKAction.fadeAlpha(to: 0.2, duration: 1.0)
                     ]
             ))
             
@@ -189,7 +204,7 @@ class GameScene: SKScene {
             SKAction.sequence([
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 1.5),
-                SKAction.fadeAlpha(to: 0.02, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.2, duration: 1.0)
                 ]
         ))
         self.addChild(titleSprite!)
@@ -436,7 +451,7 @@ class GameScene: SKScene {
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
         mouseController?.Update()
         do { // コレはセットで
-            X68000_Update(self.clockMHz)   // MHz
+			X68000_Update(self.clockMHz, self.vsync ? 1 : 0 )   // MHz
             let midi_count  = X68000_GetMIDIBufferSize()
             let midi_buffer = X68000_GetMIDIBuffer()
             labelMIDI?.text = "MIDI OUT:\(midi_count)"
