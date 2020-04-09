@@ -497,7 +497,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 MouseIntCnt = 0;
                 SCC_IntCheck();
             }
-            DSound_Send0(clk_line * vsync ? 1 : 2);
+            DSound_Send0(clk_line);
 
             vline++;
             clk_next  = (clk_total*(vline+1))/VLINE_TOTAL;

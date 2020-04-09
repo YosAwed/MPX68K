@@ -89,8 +89,9 @@ static void sound_send(int length)
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
 
    pbwp += length * sizeof(WORD) * 2;
-   if (pbwp >= pbep)
+	if (pbwp >= pbep) {
       pbwp = pbsp + (pbwp - pbep);
+	}
 }
 
 void FASTCALL DSound_Send0(long clock)
@@ -100,7 +101,7 @@ void FASTCALL DSound_Send0(long clock)
 
 
 #if 1
-    DSound_PreCounter += (ratebase * clock);
+	DSound_PreCounter += (ratebase * clock);
     while (DSound_PreCounter >= 10000000L)
    {
         length++;
@@ -109,6 +110,7 @@ void FASTCALL DSound_Send0(long clock)
 
     if (length == 0)
         return;
+#else
 #endif
 //	printf("%d %d\n", length, DSound_PreCounter);
     sound_send(length);
@@ -122,7 +124,15 @@ static void FASTCALL DSound_Send(int length)
 void X68000_AudioCallBack(void* buffer, const unsigned int sample)
 {
     int size = sample * sizeof(unsigned short) * 2;
+#if 0
+//	short buf[size] ;
+	memset( buffer, 0x00, size );
+	ratebase = 0;
+	ADPCM_Update(buffer, sample, ratebase, &buffer[0], &buffer[size*2]);
+	OPM_Update(buffer, sample, ratebase, &buffer[0], &buffer[size*2]);
+#else
     audio_callback(buffer, size);
+#endif
 }
 
 
@@ -146,14 +156,13 @@ cb_start:
 
       // needs more data
 	   if (datalen < len) {
-//		   DSound_Send((len - datalen) / 4);
-		   printf("MORE!");
-		   DSound_Send((len - datalen) );	//@GOROman
+		   DSound_Send((len - datalen) / 4);
+//		   printf("MORE!");
 	   }
 
 #if 1
       datalen = pbwp - pbrp;
-	   printf("%d\n",datalen);
+//	   printf("%d\n",datalen);
 	   if (datalen < len) {
          printf("xxxxx not enough sound data: %5d/%5d xxxxx\n",datalen, len);
 	   }
@@ -190,9 +199,9 @@ cb_start:
       {
          lenb = len - lena;
 
-         if (pbwp - pbsp < lenb)
+		  if (pbwp - pbsp < lenb) {
             DSound_Send((lenb - (pbwp - pbsp)) / 4);
-
+		  }
 #if 1
          if (pbwp - pbsp < lenb)
             printf("xxxxx not enough sound data xxxxx\n");
