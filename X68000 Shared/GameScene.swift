@@ -12,11 +12,8 @@ import GameController
 
 class GameScene: SKScene {
     
-#if DEBUG
-	var clockMHz:Int = 24
-#else
-	var clockMHz:Int = 10
-#endif
+	private var clockMHz:Int = 24
+	private var samplingRate:Int = 22050
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
@@ -51,11 +48,6 @@ class GameScene: SKScene {
     class func newGameScene() -> GameScene {
 
         
-        X68000_Init();
-        
-        let fileSystem = FileSystem.init()
-        fileSystem.loadSRAM()
-        fileSystem.boot()
         
         func buttonHandler() -> GCControllerButtonValueChangedHandler {
             return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
@@ -117,20 +109,41 @@ class GameScene: SKScene {
             fileSystem.loadDiskImage(url)
         })
     }
-	
+	 let userDefaults = UserDefaults.standard
 	private func settings() {
 		// Config 取得
-		let defaults = UserDefaults()
-		if( defaults.object(forKey: "clock") != nil ) {
-			let clock = defaults.object(forKey: "clock") as! String
-			self.clockMHz = Int(clock)!
-			print( "CPU Clock: \(self.clockMHz) MHz")
-		}
+		
+		let clock = userDefaults.object(forKey: "clock") as! String
+		self.clockMHz = Int(clock)!
+		print( "CPU Clock: \(self.clockMHz) MHz")
+		
+		let virtual_mouse = userDefaults.bool(forKey: "virtual_mouse")
+		print("virtual_mouse: \(virtual_mouse)")
+		let virtual_pad = userDefaults.bool(forKey: "virtual_pad")
+		print("virtual_pad: \(virtual_pad)")
+		
+		let sample = userDefaults.object(forKey: "samplingrate") as! String
+		self.samplingRate = Int(sample)!
+		print( "Sampling Rate: \(self.samplingRate) Hz")
 
+		if ( virtual_pad ) {
+			virtualPad.isHidden = false
+		} else {
+			virtualPad.isHidden = true
+
+		}
 	}
     func setUpScene() {
-
 		
+		settings()
+
+
+		X68000_Init(samplingRate);
+		
+		let fileSystem = FileSystem.init()
+		fileSystem.loadSRAM()
+		fileSystem.boot()
+
         joycard = X68JoyCard( id:0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)! )
         devices.append( joycard! )
         
@@ -143,7 +156,7 @@ class GameScene: SKScene {
         self.joycontroller?.setup(callback: controller_event(status:) );
         
         self.audioStream = AudioStream.init();
-        self.audioStream?.play();
+		self.audioStream?.play( samplingrate: self.samplingRate );
         
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
         
@@ -203,7 +216,6 @@ class GameScene: SKScene {
             //            self.view?.addGestureRecognizer(tapGes)
         }
         
-		settings()
 
         
     }
@@ -239,31 +251,34 @@ class GameScene: SKScene {
 		print("✳️didChangeSize \(oldSize)")
 
 	}
+	var virtualPad : SKNode = SKNode()
     override func didMove(to view: SKView) {
         print("✳️didMove")
         self.setUpScene()
         
-        let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: -scene!.size.width/2, y: -scene!.size.height*0.5, width: scene!.size.width/2, height: scene!.size.height*0.9))
-        moveJoystickHiddenArea.joystick = moveJoystick
-        moveJoystick.isMoveable = true
-        moveJoystickHiddenArea.zPosition = 10.0
+		let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
+			CGRect(x: -scene!.size.width/2, y: -scene!.size.height*0.5, width: scene!.size.width/2, height: scene!.size.height*0.9))
+		moveJoystickHiddenArea.joystick = moveJoystick
+		moveJoystick.isMoveable = true
+		moveJoystickHiddenArea.zPosition = 10.0
 		moveJoystickHiddenArea.strokeColor = .clear
-        addChild(moveJoystickHiddenArea)
-        
-        let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
-        rotateJoystickHiddenArea.joystick = rotateJoystick
-        rotateJoystickHiddenArea.zPosition = 10.0
+		virtualPad.addChild(moveJoystickHiddenArea)
+		
+		let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
+			CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
+		rotateJoystickHiddenArea.joystick = rotateJoystick
+		rotateJoystickHiddenArea.zPosition = 10.0
 		rotateJoystickHiddenArea.strokeColor = .clear
-        addChild(rotateJoystickHiddenArea)
-
-        let rotateJoystickHiddenArea2 = TLAnalogJoystickHiddenArea(rect:
-            CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
-        rotateJoystickHiddenArea2.joystick = rotateJoystick2
-        rotateJoystickHiddenArea2.zPosition = 10.0
+		virtualPad.addChild(rotateJoystickHiddenArea)
+		
+		let rotateJoystickHiddenArea2 = TLAnalogJoystickHiddenArea(rect:
+			CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
+		rotateJoystickHiddenArea2.joystick = rotateJoystick2
+		rotateJoystickHiddenArea2.zPosition = 10.0
 		rotateJoystickHiddenArea2.strokeColor = .clear
-        addChild(rotateJoystickHiddenArea2)
+		virtualPad.addChild(rotateJoystickHiddenArea2)
+
+		addChild( virtualPad )
 
 		#if true
         //MARK: Handlers begin

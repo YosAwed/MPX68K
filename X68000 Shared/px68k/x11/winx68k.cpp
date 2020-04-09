@@ -546,27 +546,9 @@ void WinX68k_Exec(const long clockMHz)
 
 
 
-int original_main(int argc, const char *argv[]);
 
-extern "C" void X68000_Init() {
-    const char* arg[] = {
-      "X68000",
-//        "/Users/goroman/Retro/human302.xdf",
-//        "/Users/goroman/Retro/Salamander.dim",
-        "/Users/goroman/Retro/BubbleBobble.dim",
-    };
-        
-    original_main(2, arg);
 
-}
-
-void Update( const long clockMHz );
-
-extern "C" void X68000_Update( const long clockMHz ) {
-    Update(clockMHz);
-}
-
-int original_main(int argc, const char *argv[])
+int original_main(int argc, const char *argv[], const long samplingrate )
 {
     extern const unsigned char X68000_for_iOSVersionString[];
     extern const double X68000_for_iOSVersionNumber;
@@ -590,6 +572,8 @@ int original_main(int argc, const char *argv[])
     dosio_init();
     file_setcd("./");
     LoadConfig();
+	
+	Config.SampleRate = (int)samplingrate;
 
     StatBar_Show(Config.WindowFDDStat);
     WinDraw_ChangeSize();
@@ -698,6 +682,20 @@ void Finalize() {
 
 
 extern "C" {
+
+void X68000_Init( const long samplingrate ) {
+	const char* arg[] = {
+		"X68000",
+	};
+	
+	original_main(1, arg, samplingrate);
+}
+
+
+void X68000_Update( const long clockMHz ) {
+	Update(clockMHz);
+}
+
 
 void X68000_Key_Down( unsigned int vkcode ) {
     Keyboard_KeyDown(vkcode);

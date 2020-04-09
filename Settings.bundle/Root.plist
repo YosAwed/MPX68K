@@ -25,8 +25,6 @@
 			<string>No</string>
 		</dict>
 		<dict>
-			<key>TrueValue</key>
-			<string></string>
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
@@ -37,8 +35,6 @@
 			<false/>
 		</dict>
 		<dict>
-			<key>TrueValue</key>
-			<string></string>
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
@@ -52,7 +48,7 @@
 			<key>Type</key>
 			<string>PSMultiValueSpecifier</string>
 			<key>Title</key>
-			<string>CPU Clock</string>
+			<string>メインCPUクロック</string>
 			<key>Key</key>
 			<string>clock</string>
 			<key>DefaultValue</key>
@@ -68,6 +64,28 @@
 				<string>10</string>
 				<string>16</string>
 				<string>24</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>音源サンプリングレート (次回起動時有効)</string>
+			<key>Key</key>
+			<string>samplingrate</string>
+			<key>DefaultValue</key>
+			<string>22050</string>
+			<key>Titles</key>
+			<array>
+				<string>22050Hz</string>
+				<string>44100Hz</string>
+				<string>48000Hz</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>22050</string>
+				<string>44100</string>
+				<string>48000</string>
 			</array>
 		</dict>
 	</array>

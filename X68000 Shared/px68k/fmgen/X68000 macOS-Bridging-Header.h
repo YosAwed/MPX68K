@@ -2,7 +2,7 @@
 //  Use this file to import your target's public headers that you would like to expose to Swift.
 //
 
-void X68000_Init();
+void X68000_Init(const long samplingrate);
 void X68000_Update(const long clockMHz);
 void X68000_LoadFDD( const long drive, const char* filename, const long size );
 unsigned char* X68000_GetDiskImageBufferPointer( const long drive );

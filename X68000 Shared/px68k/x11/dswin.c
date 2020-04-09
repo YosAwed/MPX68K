@@ -43,7 +43,6 @@ DWORD ratebase = 44100;
 long DSound_PreCounter = 0;
 BYTE rsndbuf[PCMBUF_SIZE];
 
-int audio_fd = 1;
 
 void audio_callback(void *buffer, int len);
 
@@ -59,12 +58,6 @@ DSound_Init(unsigned long rate, unsigned long buflen)
     if (playing)
         return FALSE;
 
-    if (rate == 0)
-   {
-        audio_fd = -1;
-        return TRUE;
-    }
-
     ratebase = rate;
 
 //    samples = 2048;
@@ -76,19 +69,15 @@ DSound_Init(unsigned long rate, unsigned long buflen)
 void
 DSound_Play(void)
 {
-       if (audio_fd >= 0) {
-        ADPCM_SetVolume((BYTE)Config.PCM_VOL);
-        OPM_SetVolume((BYTE)Config.OPM_VOL);
-    }
+	ADPCM_SetVolume((BYTE)Config.PCM_VOL);
+	OPM_SetVolume((BYTE)Config.OPM_VOL);
 }
 
 void
 DSound_Stop(void)
 {
-       if (audio_fd >= 0) {
-        ADPCM_SetVolume(0);
-        OPM_SetVolume(0);
-    }
+	ADPCM_SetVolume(0);
+	OPM_SetVolume(0);
 }
 
 int
@@ -96,8 +85,6 @@ DSound_Cleanup(void)
 {
     playing = FALSE;
 
-    if (audio_fd >= 0)
-        audio_fd = -1;
 
     return TRUE;
 }
@@ -105,7 +92,9 @@ DSound_Cleanup(void)
 static void sound_send(int length)
 {
     int rate = ratebase;
-    rate = 0;   // 0にしないとおかしい！
+	if ( ratebase == 22050 ) {
+		rate = 0;   // 0にしないとおかしい！
+	}
 
    ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
@@ -120,8 +109,6 @@ void FASTCALL DSound_Send0(long clock)
     int length = 0;
     int rate;
 
-    if (audio_fd < 0)
-        return;
 
     DSound_PreCounter += (ratebase * clock);
 
@@ -141,8 +128,6 @@ static void FASTCALL DSound_Send(int length)
 {
     int rate;
 
-    if (audio_fd < 0)
-        return;
     sound_send(length);
 }
 

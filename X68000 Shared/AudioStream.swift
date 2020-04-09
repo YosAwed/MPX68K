@@ -12,10 +12,7 @@ class AudioStream {
     init () {
     }
 
-    func load()
-    {
-    }
-    
+
     
     // エンジンの生成
     let audioEngine = AVAudioEngine()
@@ -28,7 +25,7 @@ class AudioStream {
 
     
     private var sourceNode : AVAudioSourceNode?
-    func play()
+	func play( samplingrate: Int )
     {
         print("Play")
 
@@ -37,7 +34,7 @@ class AudioStream {
         let format = outputNode.inputFormat(forBus: 0)
         print("\(format.sampleRate)")
         print("\(format.commonFormat)")
-        let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 44100.0/2, channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
+        let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(samplingrate), channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
         let sampleRate = Float(audioFormat.sampleRate)
         print("sampleRate:\(sampleRate)")
             
