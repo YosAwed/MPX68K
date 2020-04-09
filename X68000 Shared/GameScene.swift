@@ -108,29 +108,29 @@ class GameScene: SKScene {
             let fileSystem = FileSystem.init()
             fileSystem.loadDiskImage(url)
         })
-    }
-	 let userDefaults = UserDefaults.standard
+	}
+	let userDefaults = UserDefaults.standard
 	private func settings() {
 		// Config 取得
+		if userDefaults.object(forKey: "clock") != nil {
+			let clock = userDefaults.object(forKey: "clock") as! String
+			self.clockMHz = Int(clock)!
+			print( "CPU Clock: \(self.clockMHz) MHz")
+		}
 		
-		let clock = userDefaults.object(forKey: "clock") as! String
-		self.clockMHz = Int(clock)!
-		print( "CPU Clock: \(self.clockMHz) MHz")
-		
-		let virtual_mouse = userDefaults.bool(forKey: "virtual_mouse")
-		print("virtual_mouse: \(virtual_mouse)")
-		let virtual_pad = userDefaults.bool(forKey: "virtual_pad")
-		print("virtual_pad: \(virtual_pad)")
-		
-		let sample = userDefaults.object(forKey: "samplingrate") as! String
-		self.samplingRate = Int(sample)!
-		print( "Sampling Rate: \(self.samplingRate) Hz")
-
-		if ( virtual_pad ) {
-			virtualPad.isHidden = false
-		} else {
-			virtualPad.isHidden = true
-
+		if userDefaults.object(forKey: "virtual_mouse") != nil {
+			let virtual_mouse = userDefaults.bool(forKey: "virtual_mouse")
+			print("virtual_mouse: \(virtual_mouse)")
+		}
+		if userDefaults.object(forKey: "virtual_pad") != nil {
+			let virtual_pad = userDefaults.bool(forKey: "virtual_pad")
+			print("virtual_pad: \(virtual_pad)")
+			virtualPad.isHidden = !virtual_pad
+		}
+		if userDefaults.object(forKey: "samplingrate") != nil {
+			let sample = userDefaults.object(forKey: "samplingrate") as! String
+			self.samplingRate = Int(sample)!
+			print( "Sampling Rate: \(self.samplingRate) Hz")
 		}
 	}
     func setUpScene() {
@@ -155,8 +155,8 @@ class GameScene: SKScene {
         self.joycontroller = JoyController.init()
         self.joycontroller?.setup(callback: controller_event(status:) );
         
-        self.audioStream = AudioStream.init();
-		self.audioStream?.play( samplingrate: self.samplingRate );
+        self.audioStream = AudioStream.init(samplingrate: self.samplingRate);
+		self.audioStream?.play();
         
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
         

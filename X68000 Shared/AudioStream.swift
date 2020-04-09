@@ -1,4 +1,4 @@
-#if true
+#if false
 
 //import Foundation
 import AVFoundation
@@ -7,9 +7,10 @@ import AVFoundation
 class AudioStream {
     
 
-    
+    var samplingrate = 22050
 
-    init () {
+    init (samplingrate: Int) {
+		self.samplingrate = samplingrate
     }
 
 
@@ -25,7 +26,7 @@ class AudioStream {
 
     
     private var sourceNode : AVAudioSourceNode?
-	func play( samplingrate: Int )
+	func play(  )
     {
         print("Play")
 
@@ -34,7 +35,7 @@ class AudioStream {
         let format = outputNode.inputFormat(forBus: 0)
         print("\(format.sampleRate)")
         print("\(format.commonFormat)")
-        let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(samplingrate), channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
+		let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(self.samplingrate), channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
         let sampleRate = Float(audioFormat.sampleRate)
         print("sampleRate:\(sampleRate)")
             
@@ -43,10 +44,10 @@ class AudioStream {
 
                 let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
                 let buf: UnsafeMutableBufferPointer<Int16> = UnsafeMutableBufferPointer(ablPointer[0])
-//                        print("mNumberBuffers: \(audioBufferList.pointee.mNumberBuffers)")
-//                        print("mDataByteSize: \(audioBufferList.pointee.mBuffers.mDataByteSize)")
-//                        print("mNumberChannels: \(audioBufferList.pointee.mBuffers.mNumberChannels)")
-//        print(frameCount)
+                        print("mNumberBuffers: \(audioBufferList.pointee.mNumberBuffers)")
+                        print("mDataByteSize: \(audioBufferList.pointee.mBuffers.mDataByteSize)")
+                        print("mNumberChannels: \(audioBufferList.pointee.mBuffers.mNumberChannels)")
+        print(frameCount)
                 X68000_AudioCallBack(ablPointer[0].mData, UInt32(frameCount));
 
             return noErr
@@ -116,7 +117,6 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
     let size = buffer.pointee.mAudioDataBytesCapacity / 4
     let opaquePtr = OpaquePointer(buffer.pointee.mAudioData)
     let mAudioDataPrt = UnsafeMutablePointer<Int16>(opaquePtr)
-print(size)
     X68000_AudioCallBack(mAudioDataPrt, UInt32(size));
 
     buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
@@ -133,10 +133,13 @@ class AudioStream {
 
     var bufferByteSize: UInt32
     
-    init () {
+	var samplingrate = 22050
+	
+	init (samplingrate: Int) {
+		self.samplingrate = samplingrate
 
         dataFormat = AudioStreamBasicDescription(
-            mSampleRate:        44100/2,
+            mSampleRate:        Float64(samplingrate),
             mFormatID:          kAudioFormatLinearPCM,
             mFormatFlags:       kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, // Bigendian??
             mBytesPerPacket:    4,
@@ -147,7 +150,7 @@ class AudioStream {
             mReserved:          0
         )
 
-        bufferByteSize   = 941 * dataFormat.mBytesPerFrame
+        bufferByteSize   = 1024 * dataFormat.mBytesPerFrame
 //return;
         AudioQueueNewOutput(
             &dataFormat,

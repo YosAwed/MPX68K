@@ -30,7 +30,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         do {
             // CategoryをPlaybackにする
             try session.setCategory(.ambient, mode: .default)
- //           try session.setPreferredSampleRate( 44100.0 )
+//            try session.setPreferredSampleRate( 48000.0 )
+//			try session.setPreferredIOBufferDuration( 1.0 )
 
         } catch  {
             // 予期しない場合
