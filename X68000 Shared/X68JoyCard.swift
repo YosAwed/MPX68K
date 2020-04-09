@@ -88,7 +88,7 @@ class X68JoyCard : X68Device
         super.touchesMoved(touches)
         
         var flag : UInt8 = 0x00
-        var old : UInt8 = joydata
+        let old : UInt8 = joydata
         for touch in touches {
             let location = touch.location(in: scene)
 

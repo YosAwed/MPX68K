@@ -12,7 +12,11 @@ import GameController
 
 class GameScene: SKScene {
     
-    var clockMHz:Int = 10
+#if DEBUG
+	var clockMHz:Int = 24
+#else
+	var clockMHz:Int = 10
+#endif
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
@@ -28,12 +32,12 @@ class GameScene: SKScene {
     let screen_w : Float = 1336.0
     let screen_h : Float = 1024.0
     
-    fileprivate var audioStream : AudioStream?
-    fileprivate var mouseController : X68MouseController?
-    fileprivate var midiController : MIDIController = MIDIController()
+    private var audioStream : AudioStream?
+    private var mouseController : X68MouseController?
+    private var midiController : MIDIController = MIDIController()
     
     private var devices : [X68Device] = []
-    
+
     
     let moveJoystick = 🕹(withDiameter: 200)
     let rotateJoystick = TLAnalogJoystick(withDiameter: 120)
@@ -45,7 +49,7 @@ class GameScene: SKScene {
     var joycard : X68JoyCard?
     
     class func newGameScene() -> GameScene {
-        
+
         
         X68000_Init();
         
@@ -60,7 +64,7 @@ class GameScene: SKScene {
         }
         
         // Load 'GameScene.sks' as an SKScene.
-        guard let scene = GameScene(fileNamed: "GameScene") as? GameScene else {
+		guard let scene = GameScene(fileNamed: "GameScene") else {
             print("Failed to load GameScene.sks")
             abort()
         }
@@ -68,9 +72,7 @@ class GameScene: SKScene {
         // Set the scale mode to scale to fit the window
         scene.scaleMode = .aspectFit//.aspectFill
         //        scene.scaleMode = .aspectFill;
-        scene.backgroundColor = .black
-        
-        
+		scene.backgroundColor = .black
         return scene
     }
     
@@ -115,8 +117,20 @@ class GameScene: SKScene {
             fileSystem.loadDiskImage(url)
         })
     }
-    
+	
+	private func settings() {
+		// Config 取得
+		let defaults = UserDefaults()
+		if( defaults.object(forKey: "clock") != nil ) {
+			let clock = defaults.object(forKey: "clock") as! String
+			self.clockMHz = Int(clock)!
+			print( "CPU Clock: \(self.clockMHz) MHz")
+		}
+
+	}
     func setUpScene() {
+
+		
         joycard = X68JoyCard( id:0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)! )
         devices.append( joycard! )
         
@@ -189,8 +203,8 @@ class GameScene: SKScene {
             //            self.view?.addGestureRecognizer(tapGes)
         }
         
-//        updating()    // メモリリーク？
-        
+		settings()
+
         
     }
     
@@ -208,16 +222,23 @@ class GameScene: SKScene {
         }
     }
     
+	func applicationWillEnterForeground() {
+		settings()
+		
+		//        audioStream?.play()
+	}
     func applicationWillResignActive() {
         //        audioStream?.pause()
     }
-    func applicationWillEnterForeground() {
-        //        audioStream?.play()
-    }
-    override func sceneDidLoad() {
+
+	override func sceneDidLoad() {
         print("✳️sceneDidLoad")
-        
     }
+	override func didChangeSize(_ oldSize: CGSize)
+	{
+		print("✳️didChangeSize \(oldSize)")
+
+	}
     override func didMove(to view: SKView) {
         print("✳️didMove")
         self.setUpScene()
@@ -227,20 +248,24 @@ class GameScene: SKScene {
         moveJoystickHiddenArea.joystick = moveJoystick
         moveJoystick.isMoveable = true
         moveJoystickHiddenArea.zPosition = 10.0
+		moveJoystickHiddenArea.strokeColor = .clear
         addChild(moveJoystickHiddenArea)
         
         let rotateJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect:
             CGRect(x: (scene!.size.width/8)*2, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
         rotateJoystickHiddenArea.joystick = rotateJoystick
         rotateJoystickHiddenArea.zPosition = 10.0
+		rotateJoystickHiddenArea.strokeColor = .clear
         addChild(rotateJoystickHiddenArea)
 
         let rotateJoystickHiddenArea2 = TLAnalogJoystickHiddenArea(rect:
             CGRect(x: (scene!.size.width/8)*3, y: -scene!.size.height*0.5 , width: scene!.size.width/8, height: scene!.size.height*0.9))
         rotateJoystickHiddenArea2.joystick = rotateJoystick2
         rotateJoystickHiddenArea2.zPosition = 10.0
+		rotateJoystickHiddenArea2.strokeColor = .clear
         addChild(rotateJoystickHiddenArea2)
-        #if true
+
+		#if true
         //MARK: Handlers begin
         moveJoystick.on(.begin) { [unowned self] _ in
         }
@@ -335,31 +360,35 @@ class GameScene: SKScene {
             spinny.lineWidth = 0.1
             spinny.zPosition = 1.0
             
-            var clock = ((pos.y+1000.0) / 2000.0)
-            clock *= 200.0
+			var clock = 0.0
             if (pos.x < -500 ) {
-                clock = 1
+				clock = 1.0
             } else if (pos.x < -400 ) {
-                clock = 10
+				clock = 10.0
             } else if (pos.x < -200 ) {
-                clock = 16
+				clock = 16.0
             } else if (pos.x < -0 ) {
-                clock = 24
-            }
-            clockMHz = Int(clock)
-            let label = SKLabelNode.init()
-            label.text = "\(clockMHz) MHz"
-            label.fontName = "Helvetica Neue"
-            label.fontSize = 36
-            label.horizontalAlignmentMode = .center
-            label.verticalAlignmentMode = .center
-            label.fontColor = .yellow
-            
-            spinny.addChild(label)
-            
-            
-            
-            self.addChild(spinny)
+				clock = 24.0
+			} else if (pos.x < 300 ) {
+				clock  = ((Double(pos.y) + 1000.0) / 2000.0)
+				clock *= 200.0
+
+			}
+			
+			if ( clock > 0.0 ) {
+				clockMHz = Int(clock)
+				let label = SKLabelNode.init()
+				label.text = "\(clockMHz) MHz"
+				label.fontName = "Helvetica Neue"
+				label.fontSize = 36
+				label.horizontalAlignmentMode = .center
+				label.verticalAlignmentMode = .center
+				label.fontColor = .yellow
+				
+				spinny.addChild(label)
+				
+				self.addChild(spinny)
+			}
         }
     }
     var aaa  = 0
@@ -381,6 +410,7 @@ class GameScene: SKScene {
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
     var w:Int32 = 1
     var h:Int32 = 1
+	
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
         for device in devices {
@@ -445,14 +475,17 @@ extension GameScene {
                 let location = touch.location(in: self)
                 let t = self.atPoint(location)
                 print(t.name)
+				if t.name == "Settings" {
+					UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
+				}
                 if t.name == "LButton" {
                     mouseController?.Click(0, true)
-                    var t = t as! SKShapeNode
+					let t = t as! SKShapeNode
                     t.fillColor = .yellow
                 } else
                     if t.name == "RButton" {
                         mouseController?.Click(1, true)
-                        var t = t as! SKShapeNode
+						let t = t as! SKShapeNode
                         t.fillColor = .yellow
                     } else
                         if t.name == "MouseBody" {

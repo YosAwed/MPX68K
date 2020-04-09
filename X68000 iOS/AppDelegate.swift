@@ -31,7 +31,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             // CategoryをPlaybackにする
             try session.setCategory(.ambient, mode: .default)
             try session.setPreferredSampleRate( 44100.0/2.0 )
-            try session.setActive(true)
 
         } catch  {
             // 予期しない場合

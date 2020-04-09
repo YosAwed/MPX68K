@@ -11,6 +11,14 @@
 		073F76E62431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
 		0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
+		0758DC58243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
+		0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
+		0758DC5E243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
+		0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
+		0758DC7B243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
+		0758DC7C243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
+		0758DC7E243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
+		0758DC7F243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
 		0760DC272434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC282434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC2A24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
@@ -177,6 +185,10 @@
 		073F76E7243213C1005B1F18 /* X68000 for iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "X68000 for iOS.entitlements"; sourceTree = "<group>"; };
 		073F76FB24323762005B1F18 /* c68k.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = c68k.xcodeproj; path = c68k/c68k.xcodeproj; sourceTree = "<group>"; };
 		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
+		0758DC57243EFCE60097E86C /* ConfigScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = ConfigScene.sks; sourceTree = "<group>"; };
+		0758DC5D243EFD830097E86C /* ConfigScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigScene.swift; sourceTree = "<group>"; };
+		0758DC7A243F137E0097E86C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
+		0758DC7D243F1AC70097E86C /* Settings.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Settings.png; sourceTree = "<group>"; };
 		0760DC262434F492004CA0CF /* FDD.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FDD.png; sourceTree = "<group>"; };
 		0760DC2924350DDC004CA0CF /* BenchMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchMark.swift; sourceTree = "<group>"; };
 		07644219243328C3006E5208 /* FileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystem.swift; sourceTree = "<group>"; };
@@ -367,6 +379,8 @@
 		07F8639C242F93E800CBB224 = {
 			isa = PBXGroup;
 			children = (
+				0758DC7D243F1AC70097E86C /* Settings.png */,
+				0758DC7A243F137E0097E86C /* Settings.bundle */,
 				073F76FB24323762005B1F18 /* c68k.xcodeproj */,
 				07F863A1242F93E800CBB224 /* X68000 Shared */,
 				07F863AC242F93EA00CBB224 /* X68000 iOS */,
@@ -382,11 +396,13 @@
 				07F863D6242F940200CBB224 /* px68k */,
 				07F863A2242F93E800CBB224 /* Actions.sks */,
 				073F76E42431F438005B1F18 /* GameScene.sks */,
+				0758DC57243EFCE60097E86C /* ConfigScene.sks */,
 				0786961C243D9A0D007FCCEA /* X68JoyCard.swift */,
 				0786963C243DBB73007FCCEA /* TAAnalogJoyStick.swift */,
 				07869624243D9A8E007FCCEA /* X68Device.swift */,
 				07644219243328C3006E5208 /* FileSystem.swift */,
 				07F863A4242F93E800CBB224 /* GameScene.swift */,
+				0758DC5D243EFD830097E86C /* ConfigScene.swift */,
 				07A528BB24389F5300AFD00D /* X68MouseController.swift */,
 				07B71D7B243A350500953E25 /* MIDIController.swift */,
 				0760DC2924350DDC004CA0CF /* BenchMark.swift */,
@@ -701,6 +717,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0758DC7B243F137E0097E86C /* Settings.bundle in Resources */,
+				0758DC58243EFCE60097E86C /* ConfigScene.sks in Resources */,
 				07869651243DCE29007FCCEA /* JoyCardStick.png in Resources */,
 				07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */,
@@ -715,6 +733,7 @@
 				073F76E52431F438005B1F18 /* GameScene.sks in Resources */,
 				0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				0760DC272434F493004CA0CF /* FDD.png in Resources */,
+				0758DC7E243F1AC80097E86C /* Settings.png in Resources */,
 				0786964B243DBDF7007FCCEA /* jSubstrate.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -728,8 +747,11 @@
 				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				0786964C243DBDF7007FCCEA /* jSubstrate.png in Resources */,
+				0758DC7F243F1AC80097E86C /* Settings.png in Resources */,
+				0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */,
 				07869646243DBDF7007FCCEA /* jStick@2x.png in Resources */,
 				07869648243DBDF7007FCCEA /* jStick.png in Resources */,
+				0758DC7C243F137E0097E86C /* Settings.bundle in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
 				07869652243DCE29007FCCEA /* JoyCardStick.png in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,
@@ -766,6 +788,7 @@
 				07F4C7272430667D002CF5CA /* crtc.c in Sources */,
 				07F4C7232430667D002CF5CA /* sasi.c in Sources */,
 				07F4C7212430667D002CF5CA /* fdc.c in Sources */,
+				0758DC5E243EFD830097E86C /* ConfigScene.swift in Sources */,
 				07F4C6DC2430664B002CF5CA /* fmg_wrap.cpp in Sources */,
 				07F864CC242F97BE00CBB224 /* mouse.c in Sources */,
 				07F4C73B2430667D002CF5CA /* dmac.c in Sources */,
@@ -831,6 +854,7 @@
 				07F4C7282430667D002CF5CA /* crtc.c in Sources */,
 				07869626243D9A8E007FCCEA /* X68Device.swift in Sources */,
 				07F4C7242430667D002CF5CA /* sasi.c in Sources */,
+				0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */,
 				07F4C7222430667D002CF5CA /* fdc.c in Sources */,
 				07F4C6DD2430664B002CF5CA /* fmg_wrap.cpp in Sources */,
 				07F864CD242F97BE00CBB224 /* mouse.c in Sources */,
@@ -1019,7 +1043,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 455;
+				CURRENT_PROJECT_VERSION = 475;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -1034,7 +1058,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.8;
+				MARKETING_VERSION = 4.0.9;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";
@@ -1057,7 +1081,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 455;
+				CURRENT_PROJECT_VERSION = 475;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
@@ -1070,7 +1094,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.8;
+				MARKETING_VERSION = 4.0.9;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";

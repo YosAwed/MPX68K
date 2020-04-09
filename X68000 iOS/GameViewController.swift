@@ -12,15 +12,23 @@ import GameplayKit
 
 class GameViewController: UIViewController {
     
-    var scene : GameScene?
-    
+    var gameScene : GameScene?
+    var configScene : ConfigScene?
+
     // ディスクイメージのロード(AppDelegateから呼ばれる)
     func load(_ url : URL)
     {
-        scene?.load( url: url )
+        gameScene?.load( url: url )
+    }
+
+    //MARK: -
+    @objc func timerUpdate() {
+        print(#function)
+        let skView = self.view as! SKView
+        skView.presentScene(configScene!, transition: .crossFade(withDuration: 2))
     }
     
-    
+    //MARK: -
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -29,31 +37,56 @@ class GameViewController: UIViewController {
         //        let appDelegate = UIApplication.shared.delegate as! AppDelegate
         appDelegate.viewController = self
         
-        scene = GameScene.newGameScene()
+        gameScene = GameScene.newGameScene()
+        configScene = ConfigScene.newScene()
         
         // Present the scene
         let skView = self.view as! SKView
-        skView.presentScene(scene)
-        
+        skView.presentScene(gameScene)
         skView.ignoresSiblingOrder = true
         skView.showsFPS = true
         skView.showsNodeCount = true
         skView.showsDrawCount = true
+
+			//		gameScene?.backgroundColor = .clear
+//		skView.allowsTransparency = true
+//		skView.backgroundColor = .clear
+
         
-        
+//          Timer.scheduledTimer(timeInterval: 3, target: self, selector: #selector(GameViewController.timerUpdate), userInfo: nil, repeats: false)
+
 //        skView.preferredFramesPerSecond = 120
         
     }
+	
+	override func viewDidAppear(_ animated: Bool) {
+		print(#function)
+
+	}
+	override func viewWillAppear(_ animated: Bool) {
+		print(#function)
+	}
+	override func viewDidDisappear(_ animated: Bool) {
+		print(#function)
+
+	}
+
+    //MARK: -
     func applicationWillResignActive() {
-        scene?.applicationWillResignActive()
+        gameScene?.applicationWillResignActive()
     }
+
+    //MARK: -
     func applicationWillEnterForeground() {
-        scene?.applicationWillEnterForeground()
+        gameScene?.applicationWillEnterForeground()
     }
+
+    //MARK: -
     override var shouldAutorotate: Bool {
         return true
     }
     
+    //MARK: -
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         if UIDevice.current.userInterfaceIdiom == .phone {
             return .allButUpsideDown
@@ -62,14 +95,17 @@ class GameViewController: UIViewController {
         }
     }
     
+    //MARK: -
     override var prefersStatusBarHidden: Bool {
         return true
     }
     
+    //MARK: -
     override func becomeFirstResponder() -> Bool {
         return true
     }
     
+    //MARK: -
     override var keyCommands: [UIKeyCommand]? {
         
         return [
