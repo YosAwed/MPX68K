@@ -9,6 +9,7 @@
 import UIKit
 import AVFoundation
 
+@available(iOS 13.4, *)
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 

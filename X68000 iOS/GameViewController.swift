@@ -10,6 +10,7 @@ import UIKit
 import SpriteKit
 import GameplayKit
 
+@available(iOS 13.4, *)
 class GameViewController: UIViewController {
     
     var gameScene : GameScene?
@@ -99,150 +100,341 @@ class GameViewController: UIViewController {
     override var prefersStatusBarHidden: Bool {
         return true
     }
-    
+	/*
+	case "0":   sendKey( 0x30 );
+	case "1":   sendKey( 0x31 );
+	case "2":   sendKey( 0x32 );
+	case "3":   sendKey( 0x33 );
+	case "4":   sendKey( 0x34 );
+	case "5":   sendKey( 0x35 );
+	case "6":   sendKey( 0x36 );
+	case "7":   sendKey( 0x37 );
+	case "8":   sendKey( 0x38 );
+	case "9":   sendKey( 0x39 );
+I*/
+	private func iOStoX68(_ keyCode :  UIKeyboardHIDUsage  ) -> UInt32 {
+		switch keyCode {
+		case .keyboardReturnOrEnter:	 return 0x0d
+		case .keyboardTab: 				 return 0x07
+		case .keyboardDeleteOrBackspace: return 0x08
+		case .keyboardEscape: 			 return 0x1b
+		case .keyboardSpacebar:			 return 0x20
+		case .keyboardPeriod: return 0x2e
+				
+		case .keyboardComma:  return 0x2c
+		case .keyboardHyphen:	return 0x2d
+			
+		case .keyboardEqualSign:	return 0x3d
+			
+			
+		case .keyboardSlash: return 0x2f
+			
+		case .keyboardSemicolon: return 0x3a
+
+
+		case .keyboardLeftShift:	return 0x130
+		case .keyboardRightShift:	return 0x130
+		case .keyboardLeftControl:	return 0x1e3
+		case .keyboardRightControl:	return 0x1e3
+
+
+		case .keyboard0:			return 0x30
+		case .keyboard1:			return 0x31
+		case .keyboard2:			return 0x32
+		case .keyboard3: 			return 0x33
+		case .keyboard4: 			return 0x34
+		case .keyboard5: 			return 0x35
+		case .keyboard6: 			return 0x36
+		case .keyboard7:			return 0x37
+		case .keyboard8:			return 0x38
+		case .keyboard9:			return 0x39
+
+		case .keyboardErrorRollOver:	return 0x00
+		case .keyboardPOSTFail:			return 0x00
+		case .keyboardErrorUndefined:return 0x00
+			
+		case .keyboardA:	return 0x41
+		case .keyboardB:	return 0x42
+		case .keyboardC:	return 0x43
+		case .keyboardD:	return 0x44
+		case .keyboardE:	return 0x45
+		case .keyboardF:	return 0x46
+		case .keyboardG:	return 0x47
+		case .keyboardH:	return 0x48
+		case .keyboardI:	return 0x49
+		case .keyboardJ: return 0x4a
+		case .keyboardK: return 0x4b
+		case .keyboardL: return 0x4c
+		case .keyboardM: return 0x4d
+		case .keyboardN: return 0x4e
+		case .keyboardO: return 0x4f
+		case .keyboardP: return 0x50
+		case .keyboardQ: return 0x51
+		case .keyboardR: return 0x52
+		case .keyboardS: return 0x53
+		case .keyboardT: return 0x54
+		case .keyboardU: return 0x55
+		case .keyboardV: return 0x56
+		case .keyboardW: return 0x57
+		case .keyboardX: return 0x58
+		case .keyboardY: return 0x59
+		case .keyboardZ: return 0x5a
+		case .keyboardOpenBracket:	return 0x5b
+		case .keyboardBackslash:	return 0x5c
+		case .keyboardCloseBracket:	return 0x5d
+
+		case .keyboardUpArrow:		return 0x111
+		case .keyboardDownArrow:	return 0x112
+		case .keyboardRightArrow:	return 0x113
+		case .keyboardLeftArrow:	return 0x114
+
+
+		case .keyboardF1: return 0x1be
+		case .keyboardF2: return 0x1bf
+		case .keyboardF3: return 0x1c0
+		case .keyboardF4: return 0x1c1
+		case .keyboardF5: return 0x1c2
+		case .keyboardF6: return 0x1c3
+		case .keyboardF7: return 0x1c4
+		case .keyboardF8: return 0x1c5
+		case .keyboardF9: return 0x1c6
+		case .keyboardF10: return 0x1c7
+		case .keyboardF11: return 0x1c8
+		case .keyboardF12: return 0x1c9
+			
+//		case .keyboardQuote:
+//		case .keyboardGraveAccentAndTilde:
+
+/*
+			
+			case .keyboardCapsLock:
+			case .keyboardInsert:
+			case .keyboardHome:
+			case .keyboardEnd:
+			case .keyboardPageUp:
+			case .keyboardPageDown:
+
+		case .keyboardNonUSPound:
+			
+			
+			
+			
+		case .keyboardPrintScreen:
+			
+		case .keyboardScrollLock:
+			
+		case .keyboardPause:
+			
+			
+		case .keyboardDeleteForward:
+			
+			
+		case .keypadNumLock:
+			
+		case .keypadSlash:
+			
+		case .keypadAsterisk:
+			
+		case .keypadHyphen:
+			
+		case .keypadPlus:
+			
+		case .keypadEnter:
+			
+		case .keypad1:
+			
+		case .keypad2:
+			
+		case .keypad3:
+			
+		case .keypad4:
+			
+		case .keypad5:
+			
+		case .keypad6:
+			
+		case .keypad7:
+			
+		case .keypad8:
+			
+		case .keypad9:
+			
+		case .keypad0:
+			
+		case .keypadPeriod:
+			
+		case .keyboardNonUSBackslash:
+			
+		case .keyboardApplication:
+			
+		case .keyboardPower:
+			
+		case .keypadEqualSign:
+			
+		case .keyboardF13:
+			
+		case .keyboardF14:
+			
+		case .keyboardF15:
+			
+		case .keyboardF16:
+			
+		case .keyboardF17:
+			
+		case .keyboardF18:
+			
+		case .keyboardF19:
+			
+		case .keyboardF20:
+			
+		case .keyboardF21:
+			
+		case .keyboardF22:
+			
+		case .keyboardF23:
+			
+		case .keyboardF24:
+			
+		case .keyboardExecute:
+			
+		case .keyboardHelp:
+			
+		case .keyboardMenu:
+			
+		case .keyboardSelect:
+			
+		case .keyboardStop:
+			
+		case .keyboardAgain:
+			
+		case .keyboardUndo:
+			
+		case .keyboardCut:
+			
+		case .keyboardCopy:
+			
+		case .keyboardPaste:
+			
+		case .keyboardFind:
+			
+		case .keyboardMute:
+			
+		case .keyboardVolumeUp:
+			
+		case .keyboardVolumeDown:
+			
+		case .keyboardLockingCapsLock:
+			
+		case .keyboardLockingNumLock:
+			
+		case .keyboardLockingScrollLock:
+			
+			
+		case .keypadEqualSignAS400:
+			
+		case .keyboardInternational1:
+			
+		case .keyboardInternational2:
+			
+		case .keyboardInternational3:
+			
+		case .keyboardInternational4:
+			
+		case .keyboardInternational5:
+			
+		case .keyboardInternational6:
+			
+		case .keyboardInternational7:
+			
+		case .keyboardInternational8:
+			
+		case .keyboardInternational9:
+			
+		case .keyboardLANG1:
+			
+		case .keyboardLANG2:
+			
+		case .keyboardLANG3:
+			
+		case .keyboardLANG4:
+			
+		case .keyboardLANG5:
+			
+		case .keyboardLANG6:
+			
+		case .keyboardLANG7:
+			
+		case .keyboardLANG8:
+			
+		case .keyboardLANG9:
+			
+		case .keyboardAlternateErase:
+			
+		case .keyboardSysReqOrAttention:
+			
+		case .keyboardCancel:
+			
+		case .keyboardClear:
+			
+		case .keyboardPrior:
+			
+		case .keyboardReturn:
+			
+		case .keyboardSeparator:
+			
+		case .keyboardOut:
+			
+		case .keyboardOper:
+			
+		case .keyboardClearOrAgain:
+			
+		case .keyboardCrSelOrProps:
+			
+		case .keyboardExSel:
+			
+			
+			
+		case .keyboardLeftAlt:
+			
+		case .keyboardLeftGUI:
+			
+			
+			
+		case .keyboardRightAlt:
+			
+		case .keyboardRightGUI:
+			
+		case .keyboard_Reserved:
+				
+*/
+		@unknown default:
+			return 0x00
+		}
+		return 0x00
+	}
     //MARK: -
-    override func becomeFirstResponder() -> Bool {
-        return true
-    }
-    
-    //MARK: -
-    override var keyCommands: [UIKeyCommand]? {
-        
-        return [
-            UIKeyCommand(input: "0", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "1", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "2", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "3", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "4", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "5", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "6", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "7", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "8", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "9", modifierFlags: [], action: #selector(selectKey(sender:))),
-            
-            UIKeyCommand(input: "a", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "b", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "c", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "d", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "e", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "f", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "g", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "h", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "i", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "j", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "k", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "l", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "m", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "n", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "o", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "p", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "q", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "r", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "s", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "t", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "u", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "v", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "w", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "x", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "y", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "z", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "-", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "=", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: ":", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: ".", modifierFlags: [], action: #selector(selectKey(sender:))),
-            
-            UIKeyCommand(input: "!", modifierFlags: [.shift], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "\r", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "\t", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "\u{8}", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "\u{9}", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: "\u{10}", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: " ", modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: UIKeyCommand.inputUpArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: UIKeyCommand.inputDownArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: UIKeyCommand.inputLeftArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: UIKeyCommand.inputRightArrow, modifierFlags: [], action: #selector(selectKey(sender:))),
-            UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(selectKey(sender:))),
-        ]
-        
-        
-    }
-    
-    func sendKey(_ code : UInt32 )
-    {
-        X68000_Key_Down(code);
-        X68000_Key_Up(code);
-    }
-    ////    case 123:          ret = 0x114;           break;    // ←
+	override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+		for a in presses {
+			let key = a.key!
+			//guard let key = presses.first?.key else { return }
+			print("KeyBegan:\(key.keyCode.rawValue)")
+			
+			X68000_Key_Down( iOStoX68(key.keyCode) )
+		}
+//			super.pressesBegan(presses, with: event)
+	}
+	override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+//		guard let key = presses.first?.key else { return }
+		for a in presses {
+			let key = a.key!
+			print("KeyEnded:\(key.keyCode.rawValue)")
+			X68000_Key_Up( iOStoX68(key.keyCode))
+		}
+//			super.pressesEnded(presses, with: event)
+	}
+     ////    case 123:          ret = 0x114;           break;    // ←
     //   case 124:          ret = 0x113;           break;    // →
     //   case 125:          ret = 0x112;           break;    // ↓
     //   case 126:          ret = 0x111;           break;    // ↑
     
-    @objc func selectKey(sender: UIKeyCommand) {
-        if ( sender.modifierFlags == .shift ) {
-            switch sender.input {
-            case "!":   sendKey( 0x21 );
-            default:
-                print( sender.input ?? "" )
-            }
-        } else {
-            switch sender.input {
-            case UIKeyCommand.inputEscape: sendKey( 0x1b  )
-            case UIKeyCommand.inputUpArrow: sendKey( 0x111  )
-            case UIKeyCommand.inputDownArrow: sendKey( 0x112  )
-            case UIKeyCommand.inputLeftArrow: sendKey( 0x114  )
-            case UIKeyCommand.inputRightArrow: sendKey( 0x113  )
-            case "\t":   sendKey( 0x08 );
-            case " ":   sendKey( 0x20 );
-                
-            case "0":   sendKey( 0x30 );
-            case "1":   sendKey( 0x31 );
-            case "2":   sendKey( 0x32 );
-            case "3":   sendKey( 0x33 );
-            case "4":   sendKey( 0x34 );
-            case "5":   sendKey( 0x35 );
-            case "6":   sendKey( 0x36 );
-            case "7":   sendKey( 0x37 );
-            case "8":   sendKey( 0x38 );
-            case "9":   sendKey( 0x39 );
-                
-            case "a":   sendKey( 0x41 );
-            case "b":   sendKey( 0x42 );
-            case "c":   sendKey( 0x43 );
-            case "d":   sendKey( 0x44 );
-            case "e":   sendKey( 0x45 );
-            case "f":   sendKey( 0x46 );
-            case "g":   sendKey( 0x47 );
-            case "h":   sendKey( 0x48 );
-            case "i":   sendKey( 0x49 );
-            case "j":   sendKey( 0x4a );
-            case "k":   sendKey( 0x4b );
-            case "l":   sendKey( 0x4c );
-            case "m":   sendKey( 0x4d );
-            case "n":   sendKey( 0x4e );
-            case "o":   sendKey( 0x4f );
-            case "p":   sendKey( 0x50 );
-            case "q":   sendKey( 0x51 );
-            case "r":   sendKey( 0x52 );
-            case "s":   sendKey( 0x53 );
-            case "t":   sendKey( 0x54 );
-            case "u":   sendKey( 0x55 );
-            case "v":   sendKey( 0x56 );
-            case "w":   sendKey( 0x57 );
-            case "x":   sendKey( 0x58 );
-            case "y":   sendKey( 0x59 );
-            case "z":   sendKey( 0x5a );
-            case "\r":  sendKey( 0x0d );
-            case "\u{8}":  sendKey( 0x08 );
-                
-            case "-":   sendKey( 0x2d );
-            case "=":   sendKey( 0x3d );
-            case ":":   sendKey( 0x3a );
-            case ".":   sendKey( 0x2e );
-            default:
-                print( sender.input ?? "" )
-            }
-            
-        }
-    }
 }

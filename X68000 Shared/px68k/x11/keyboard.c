@@ -196,6 +196,7 @@ BYTE KeyTable[KEYTABLE_MAX] = {
 		  NC,  NC,  NC,  NC,  NC,  NC,  NC,0x37
 };
 
+
 BYTE KeyTableMaster[KEYTABLE_MAX] = {
 	//	    ,    ,    ,    ,    ,    ,    ,    		; 0x00
 		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
