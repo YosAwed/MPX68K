@@ -27,8 +27,8 @@ class GameScene: SKScene {
     var tex256 : SKTexture?
     var labelMIDI : SKLabelNode?
     var joycontroller : JoyController?
-    let screen_w : Float = 1336.0
-    let screen_h : Float = 1024.0
+    var screen_w : Float = 1336.0
+    var screen_h : Float = 1024.0
     
     private var audioStream : AudioStream?
     private var mouseController : X68MouseController?
@@ -231,10 +231,31 @@ class GameScene: SKScene {
             //            self.view?.addGestureRecognizer(tapGes)
         }
         
-
+		let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
+		self.view?.addGestureRecognizer(hover)
+	}
+	
         
-    }
     
+	@objc func hovering(_ sender: UIHoverGestureRecognizer) {
+		switch sender.state {
+		case .began:
+			print("Hover")
+		case .changed:
+			print(sender.location(in: self.view))
+			let pos = self.view?.convert(sender.location(in: self.view), to: self)
+			mouseController?.SetPosition(pos!,scene!.size)  //MODE B
+
+			break
+	//		button.titleLabel?.textColor = #colorLiteral(red: 1, green: 0, blue: 0, alpha: 1)
+		case .ended:
+		//	button.titleLabel?.textColor = UIColor.link
+		break
+		default:
+			break
+		}
+	}
+
     @objc func tapped(_ sender: UITapGestureRecognizer){
         print(sender.state)
         if sender.state == .began {
@@ -264,6 +285,8 @@ class GameScene: SKScene {
 	override func didChangeSize(_ oldSize: CGSize)
 	{
 		print("✳️didChangeSize \(oldSize)")
+		screen_w = Float(oldSize.width)
+		screen_h = Float(oldSize.height)
 
 	}
 	var virtualPad : SKNode = SKNode()
@@ -483,7 +506,6 @@ class GameScene: SKScene {
         let scale_y : CGFloat = 512.0 / CGFloat(h)
         self.spr?.xScale = CGFloat(screen_w) / CGFloat((w)) //scale * (1.0 * scale_x)
         self.spr?.yScale = CGFloat(screen_h) / CGFloat((h)) //scale * (1.0 * scale_y)//+0.3
-        self.spr?.zPosition = 0.1
         self.spr?.zPosition = -1.0
         self.addChild(spr!)
     }
@@ -507,21 +529,19 @@ extension GameScene {
                 print(t.name)
 				if t.name == "Settings" {
 					UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
-				}
-                if t.name == "LButton" {
+				} else if t.name == "LButton" {
                     mouseController?.Click(0, true)
 					let t = t as! SKShapeNode
                     t.fillColor = .yellow
-                } else
-                    if t.name == "RButton" {
+                } else if t.name == "RButton" {
                         mouseController?.Click(1, true)
 						let t = t as! SKShapeNode
                         t.fillColor = .yellow
-                    } else
-                        if t.name == "MouseBody" {
+				} else if t.name == "MouseBody" {
                             mouseController?.ResetPosition( location, scene!.size )
-                        } else {
-                            //                            mouseSprite?.position = location
+				} else {
+					mouseController?.Click(0, true)
+            //                            mouseSprite?.position = location
                             mouseController?.ResetPosition( location, scene!.size ) // A
                             
                 }
@@ -584,17 +604,18 @@ extension GameScene {
                 let t = t as! SKShapeNode
                 t.fillColor = .black
                 mouseController?.Click(0, false)
-            }
-            if t.name == "RButton" {
+            } else if t.name == "RButton" {
                 let t = t as! SKShapeNode
                 t.fillColor = .black
                 mouseController?.Click(1, false)
                 
-            }
-            if t.name == "MouseBody" {
+            } else if t.name == "MouseBody" {
                 let x = Float(location.x)
                 let y = Float(location.y)
-            }
+			} else {
+				mouseController?.Click(0, false)
+
+			}
         }
         
     }
@@ -605,7 +626,8 @@ extension GameScene {
         //            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
         //        }
     }
-    
+	
+	
     
 }
 #endif

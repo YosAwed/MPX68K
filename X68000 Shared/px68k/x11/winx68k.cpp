@@ -770,7 +770,7 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
     *(((BYTE*) &xx)+1) = MEM[0xacf];
     *(((BYTE*) &yy)+0) = MEM[0xad0];
     *(((BYTE*) &yy)+1) = MEM[0xad1];
-  #if 1
+  #if 0
     int nx = (int)xx;
     int ny = (int)yy;
  

@@ -100,18 +100,7 @@ class GameViewController: UIViewController {
     override var prefersStatusBarHidden: Bool {
         return true
     }
-	/*
-	case "0":   sendKey( 0x30 );
-	case "1":   sendKey( 0x31 );
-	case "2":   sendKey( 0x32 );
-	case "3":   sendKey( 0x33 );
-	case "4":   sendKey( 0x34 );
-	case "5":   sendKey( 0x35 );
-	case "6":   sendKey( 0x36 );
-	case "7":   sendKey( 0x37 );
-	case "8":   sendKey( 0x38 );
-	case "9":   sendKey( 0x39 );
-I*/
+
 	private func iOStoX68(_ keyCode :  UIKeyboardHIDUsage  ) -> UInt32 {
 		switch keyCode {
 		case .keyboardReturnOrEnter:	 return 0x0d
@@ -439,6 +428,8 @@ I*/
 		}
 //			super.pressesEnded(presses, with: event)
 	}
+	
+
      ////    case 123:          ret = 0x114;           break;    // ←
     //   case 124:          ret = 0x113;           break;    // →
     //   case 125:          ret = 0x112;           break;    // ↓
