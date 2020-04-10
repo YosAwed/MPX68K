@@ -120,17 +120,17 @@ class GameViewController: UIViewController, UIContextMenuInteractionDelegate {
 		case .keyboardDeleteOrBackspace: return 0x08
 		case .keyboardEscape: 			 return 0x1b
 		case .keyboardSpacebar:			 return 0x20
-		case .keyboardPeriod: return 0x2e
 				
-		case .keyboardComma:  return 0x2c
+		case .keyboardEqualSign: return 0x40	// +
+		case .keyboardComma: 	return 0x2c
+			
 		case .keyboardHyphen:	return 0x2d
-			
-		case .keyboardEqualSign:	return 0x3d
-			
-			
-		case .keyboardSlash: return 0x2f
+		case .keyboardPeriod:	return 0x2e
+		case .keyboardSlash:	return 0x2f
 			
 		case .keyboardSemicolon: return 0x3a
+		case .keyboardQuote: return 0x2b
+
 
 
 		case .keyboardLeftShift:	return 0x130
@@ -203,7 +203,6 @@ class GameViewController: UIViewController, UIContextMenuInteractionDelegate {
 		case .keyboardF11: return 0x1c8
 		case .keyboardF12: return 0x1c9
 			
-		case .keyboardQuote: return 0x28
 		case .keyboardGraveAccentAndTilde:	return 0x7e
 
 		case .keyboardCapsLock:

@@ -134,22 +134,23 @@ class FileSystem {
                                 print("size:\(data.count)")
                                 
                                 let extname = url.pathExtension.removingPercentEncoding
-                                if ( extname?.lowercased() == "hds"  ) {
-//                                    let p = X68000_GetHDDImageBufferPointer(drive)
-//                                    data.copyBytes(to: p!, count: data.count)
-//                                    X68000_LoadHDD(drive, url.absoluteString , data.count );
+                                if ( extname?.lowercased() == "hdf"  ) {
+									let p = X68000_GetDiskImageBufferPointer(4, data.count)
+									data.copyBytes(to: p!, count: data.count)
+                                    X68000_LoadHDD( url.absoluteString );
+									X68000_Reset()
+
                                 } else {
                                     var drive = 0
                                     if ( url.path.contains(" B.") ) {
                                         drive = 1
-                                    }
-                                    if ( url.path.contains("_B.") ) {
+                                    } else if ( url.path.contains("_B.") ) {
                                         drive = 1
                                     }
 
-                                    let p = X68000_GetDiskImageBufferPointer(drive)
+									let p = X68000_GetDiskImageBufferPointer(drive, data.count)
                                     data.copyBytes(to: p!, count: data.count)
-                                    X68000_LoadFDD(drive, url.absoluteString , data.count );
+                                    X68000_LoadFDD(drive, url.absoluteString );
                                     if ( drive == 0 ) {
                                         X68000_Reset()
                                     }

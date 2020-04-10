@@ -37,6 +37,53 @@ int SASI_IsReady(void)
 		return 0;
 }
 
+#define File_Open	Sasi_Open
+#define File_Close	Sasi_Close
+#define File_Read	Sasi_Read
+#define File_Seek	Sasi_Seek
+#define File_Write	Sasi_Write
+extern BYTE* s_disk_image_buffer[5];
+
+static int s_Sasi_pos;
+int Sasi_Open(const char* filename) {
+//	printf( "%s( \"%s\" )\n", __FUNCTION__, filename );
+	s_Sasi_pos = 0;
+	return (HANDLE)s_disk_image_buffer[4];
+}
+
+int Sasi_Read( HANDLE fp, void* buf, int size ) {
+//	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
+	BYTE* pos = s_disk_image_buffer[4];
+	pos += s_Sasi_pos;
+	memcpy( buf, pos, size );
+	s_Sasi_pos += size;
+	
+	return size;
+}
+int Sasi_Write( HANDLE fp, void* buf, int size ) {
+//	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
+	BYTE* pos = s_disk_image_buffer[4];
+	pos += s_Sasi_pos;
+	memcpy( pos, buf, size );
+	s_Sasi_pos += size;
+	
+	return size;
+}
+
+int Sasi_Seek( HANDLE fp, int pos, int type ) {
+	switch(type) {
+		case FSEEK_SET:
+			s_Sasi_pos = pos;
+			break;
+		default:
+			printf("***Unknown Type***\n");
+	}
+	return pos;
+}
+
+int Sasi_Close( HANDLE fp ) {
+	return 0;
+}
 
 // -----------------------------------------------------------------------
 //   わりこみ~

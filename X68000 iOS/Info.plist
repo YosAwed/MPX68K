@@ -27,7 +27,7 @@
 		<dict>
 			<key>CFBundleTypeIconFiles</key>
 			<array>
-				<string>X68000LogoW.png</string>
+				<string>HDDIcon.png</string>
 			</array>
 			<key>CFBundleTypeName</key>
 			<string>X68000 HDD</string>
@@ -54,7 +54,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>668</string>
+	<string>700</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -148,7 +148,7 @@
 			<string>X68000 Hard Disk Image</string>
 			<key>UTTypeIconFiles</key>
 			<array>
-				<string>X68000LogoW.png</string>
+				<string>HDDIcon.png</string>
 			</array>
 			<key>UTTypeIdentifier</key>
 			<string>GOROman.X68000.1.HDD</string>
@@ -156,7 +156,7 @@
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>hds</string>
+					<string>hdf</string>
 				</array>
 			</dict>
 		</dict>

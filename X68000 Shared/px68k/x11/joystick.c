@@ -59,7 +59,7 @@ BYTE FASTCALL Joystick_Read(BYTE num)
 
 void FASTCALL Joystick_Write(BYTE num, BYTE data)
 {
-    printf("Joystick %d:%02x\n", num, data);
+//    printf("Joystick %d:%02x\n", num, data);
 	if ( (num==0)||(num==1) ) JoyPortData[num] = data;
 }
 

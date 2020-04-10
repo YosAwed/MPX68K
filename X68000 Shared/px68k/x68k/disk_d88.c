@@ -60,8 +60,8 @@ int D88_SetFD(int drv, char* filename)
 	D88File[drv][MAX_PATH-1] = 0;
 
 #ifdef TARGET_IOS
-	extern unsigned char s_disk_image_buffer[2][1024*1024*2];
-	unsigned char* Game = &s_disk_image_buffer[drv];
+	extern BYTE* s_disk_image_buffer[5];
+	BYTE* Game = s_disk_image_buffer[drv];
 	unsigned char* Ptr = Game;
 	
 //	if ( File_Read(fp, &D88Head[drv], sizeof(D88_HEADER))!=sizeof(D88_HEADER) ) goto d88_set_error;

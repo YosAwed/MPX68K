@@ -19,6 +19,8 @@
 		0758DC7C243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
 		0758DC7E243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
 		0758DC7F243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
+		0758DD5C24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
+		0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
 		0760DC272434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC282434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC2A24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
@@ -189,6 +191,7 @@
 		0758DC5D243EFD830097E86C /* ConfigScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigScene.swift; sourceTree = "<group>"; };
 		0758DC7A243F137E0097E86C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		0758DC7D243F1AC70097E86C /* Settings.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Settings.png; sourceTree = "<group>"; };
+		0758DD5924401BA10097E86C /* HDDIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HDDIcon.png; sourceTree = "<group>"; };
 		0760DC262434F492004CA0CF /* FDD.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FDD.png; sourceTree = "<group>"; };
 		0760DC2924350DDC004CA0CF /* BenchMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchMark.swift; sourceTree = "<group>"; };
 		07644219243328C3006E5208 /* FileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystem.swift; sourceTree = "<group>"; };
@@ -450,6 +453,7 @@
 		07F863D6242F940200CBB224 /* px68k */ = {
 			isa = PBXGroup;
 			children = (
+				0758DD5924401BA10097E86C /* HDDIcon.png */,
 				07869653243DCFB6007FCCEA /* JoyCardLeft.png */,
 				07869650243DCE29007FCCEA /* JoyCardStick.png */,
 				07869642243DBDF7007FCCEA /* jStick.png */,
@@ -728,6 +732,7 @@
 				07869649243DBDF7007FCCEA /* jSubstrate@2x.png in Resources */,
 				07F863C6242F93EA00CBB224 /* Actions.sks in Resources */,
 				07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */,
+				0758DD5C24401BA20097E86C /* HDDIcon.png in Resources */,
 				07869654243DCFB7007FCCEA /* JoyCardLeft.png in Resources */,
 				07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */,
 				073F76E52431F438005B1F18 /* GameScene.sks in Resources */,
@@ -753,6 +758,7 @@
 				07869648243DBDF7007FCCEA /* jStick.png in Resources */,
 				0758DC7C243F137E0097E86C /* Settings.bundle in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
+				0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */,
 				07869652243DCE29007FCCEA /* JoyCardStick.png in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,
 				07869655243DCFB7007FCCEA /* JoyCardLeft.png in Resources */,
@@ -1043,7 +1049,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 668;
+				CURRENT_PROJECT_VERSION = 700;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -1058,7 +1064,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1.5;
+				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";
@@ -1081,7 +1087,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 668;
+				CURRENT_PROJECT_VERSION = 700;
 				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
@@ -1094,7 +1100,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.1.5;
+				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
 				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000.1;
 				PRODUCT_NAME = "X68000 for iOS";

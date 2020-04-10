@@ -68,8 +68,8 @@ int DIM_SetFD(int drv, char* filename)
 	if ( !DIMImg[drv] ) return FALSE;
 	memset(DIMImg[drv], 0xe5, 1024*9*170+sizeof(DIM_HEADER));
 #ifdef TARGET_IOS
-    extern unsigned char s_disk_image_buffer[2][1024*1024*2];
-    const unsigned char* Game = &s_disk_image_buffer[drv];
+	extern BYTE* s_disk_image_buffer[2];
+	BYTE* Game = s_disk_image_buffer[drv];
 
     int ptr = 0;
     memcpy( DIMImg[drv], &Game[ptr], sizeof(DIM_HEADER) );

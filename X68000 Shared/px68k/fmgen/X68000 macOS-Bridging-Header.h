@@ -4,8 +4,9 @@
 
 void X68000_Init( const long samplingrate);
 void X68000_Update(const long clockMHz, const long vsync );
-void X68000_LoadFDD( const long drive, const char* filename, const long size );
-unsigned char* X68000_GetDiskImageBufferPointer( const long drive );
+void X68000_LoadFDD( const long drive, const char* filename );
+void X68000_LoadHDD( const char* filename );
+unsigned char* X68000_GetDiskImageBufferPointer( const long drive, const long size );
 void X68000_Reset();
 void X68000_Quit();
 void X68000_GetImage( unsigned char* data );

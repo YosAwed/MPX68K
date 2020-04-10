@@ -727,21 +727,49 @@ void X68000_GetImage( unsigned char* data ) {
 
 void FDD_SetFD(int drive, char* filename, int readonly);
 
-unsigned char s_disk_image_buffer[2][1024*1024*2] = {0};    // 2MB
-unsigned char* X68000_GetDiskImageBufferPointer( const long drive ){
+BYTE* s_disk_image_buffer[5] = {0};    // 2MB
+long s_disk_image_buffer_size[5] = {0};
+
+BYTE* X68000_GetDiskImageBufferPointer( const long drive, const long size ){
+	if ( s_disk_image_buffer[drive] != NULL ){
+		free( s_disk_image_buffer[drive] );
+		s_disk_image_buffer[drive] = NULL;
+		s_disk_image_buffer_size[drive] = 0;
+	}
+
+	s_disk_image_buffer[drive] = (BYTE*)malloc( size );
+	s_disk_image_buffer_size[drive] = size;
     return s_disk_image_buffer[drive];
 }
-void X68000_LoadFDD( const long drive, const char* filename, const long size )
+void X68000_LoadFDD( const long drive, const char* filename )
 {
-    printf("X68000_LoadFDD( %d, \"%s\", %d )\n", drive, filename, size);
-
+    printf("X68000_LoadFDD( %d, \"%s\" )\n", drive, filename);
     FDD_SetFD(drive, (char*)filename, 0);
 }
+/*
+BYTE* X68000_GetHDDImageBufferPointer( const long size ){
+	if ( s_disk_image_buffer[4] != NULL ){
+		free( s_disk_image_buffer[4] );
+		s_disk_image_buffer[4] = NULL;
+	}
+	s_disk_image_buffer[4] = (BYTE*)malloc( size );
+	return s_disk_image_buffer[4];
+}
+*/
+void X68000_LoadHDD( const char* filename )
+{
+	printf("X68000_LoadHDD( \"%s\" )\n", filename);
+	strncpy( Config.HDImage[0], filename , MAX_PATH);
+
+}
+
 unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
 }
-
+/*
+ 
+ */
 void X68000_Mouse_SetDirect( float x, float y, const long button )
 {
 //    MouseX = (int)x;
@@ -784,7 +812,7 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 	if ( abs(dy) < 2 ) dy = 0;
 
 	const int max = 15;
-	printf("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
+//	printf("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
 
 	if ( dx == 0 ){
 	} else if ( dx < -max ) {
