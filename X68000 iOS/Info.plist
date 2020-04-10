@@ -54,7 +54,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>628</string>
+	<string>668</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -135,7 +135,7 @@
 				<array>
 					<string>dim</string>
 					<string>xdf</string>
-					<string>dim.zip</string>
+					<string>d88</string>
 				</array>
 			</dict>
 		</dict>

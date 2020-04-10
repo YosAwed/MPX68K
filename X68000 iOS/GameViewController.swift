@@ -11,7 +11,13 @@ import SpriteKit
 import GameplayKit
 
 @available(iOS 13.4, *)
-class GameViewController: UIViewController {
+class GameViewController: UIViewController, UIContextMenuInteractionDelegate {
+	func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+		print("Context Menu")
+		
+		return nil
+	}
+	
     
     var gameScene : GameScene?
     var configScene : ConfigScene?
@@ -33,6 +39,12 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+		view.isUserInteractionEnabled = true
+		let interaction = UIContextMenuInteraction(delegate: self)
+		
+		view.addInteraction(interaction)
+		
+		
         let appDelegate:AppDelegate = UIApplication.shared.delegate as! AppDelegate
         
         //        let appDelegate = UIApplication.shared.delegate as! AppDelegate
@@ -408,7 +420,7 @@ class GameViewController: UIViewController {
 		}
 		return 0x00
 	}
-    //MARK: -
+    //MARK: - https://www.hackingwithswift.com/example-code/uikit/how-to-detect-keyboard-input-using-pressesbegan-and-pressesended
 	override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
 		for a in presses {
 			let key = a.key!

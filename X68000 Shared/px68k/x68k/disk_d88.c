@@ -59,6 +59,48 @@ int D88_SetFD(int drv, char* filename)
 	strncpy(D88File[drv], filename, MAX_PATH);
 	D88File[drv][MAX_PATH-1] = 0;
 
+#ifdef TARGET_IOS
+	extern unsigned char s_disk_image_buffer[2][1024*1024*2];
+	unsigned char* Game = &s_disk_image_buffer[drv];
+	unsigned char* Ptr = Game;
+	
+//	if ( File_Read(fp, &D88Head[drv], sizeof(D88_HEADER))!=sizeof(D88_HEADER) ) goto d88_set_error;
+	memcpy( &D88Head[drv], Ptr, sizeof(D88_HEADER) );	Ptr += sizeof(D88_HEADER);
+	
+	if ( D88Head[drv].protect ) {
+		FDD_SetReadOnly(drv);
+	}
+
+	for (trk=0; trk<164; trk++) {
+		long ptr = D88Head[drv].trackp[trk];
+		D88_SECTINFO *si, *oldsi;
+		
+		if ( (ptr>=(long)sizeof(D88_HEADER))&&(ptr<D88Head[drv].fd_size) ) {
+			d88s.sectors = 65535;
+//			File_Seek(fp, ptr, FSEEK_SET);
+			Ptr = Game + ptr;
+			
+			for (sct=0; sct<d88s.sectors; sct++) {
+//				if ( File_Read(fp, &d88s, sizeof(D88_SECTOR))!=sizeof(D88_SECTOR) ) goto d88_set_error;
+				memcpy( &d88s, Ptr, sizeof(D88_SECTOR));	Ptr += sizeof(D88_SECTOR);
+
+				si = (D88_SECTINFO*)malloc(sizeof(D88_SECTINFO)+d88s.size);
+				if ( !si ) goto d88_set_error;
+				if ( sct ) {
+					oldsi->next = si;
+				} else {
+					D88Trks[drv][trk] = si;
+				}
+				memcpy(&si->sect, &d88s, sizeof(D88_SECTOR));
+
+				//				if ( File_Read(fp, ((unsigned char*)si)+sizeof(D88_SECTINFO), d88s.size)!=d88s.size ) goto d88_set_error;
+				memcpy( ((unsigned char*)si)+sizeof(D88_SECTINFO), Ptr, d88s.size);  Ptr += d88s.size;
+				si->next = 0;
+				if (oldsi) oldsi = si;
+			}
+		}
+	}
+#else
 	fp = File_Open(D88File[drv]);
 	if ( !fp ) {
 		ZeroMemory(D88File[drv], MAX_PATH);
@@ -66,11 +108,11 @@ int D88_SetFD(int drv, char* filename)
 	}
 	File_Seek(fp, 0, FSEEK_SET);
 	if ( File_Read(fp, &D88Head[drv], sizeof(D88_HEADER))!=sizeof(D88_HEADER) ) goto d88_set_error;
-
+	
 	if ( D88Head[drv].protect ) {
 		FDD_SetReadOnly(drv);
 	}
-
+	
 	for (trk=0; trk<164; trk++) {
 		long ptr = D88Head[drv].trackp[trk];
 		D88_SECTINFO *si, *oldsi;
@@ -94,6 +136,7 @@ int D88_SetFD(int drv, char* filename)
 			}
 		}
 	}
+#endif
 	File_Close(fp);
 	return TRUE;
 

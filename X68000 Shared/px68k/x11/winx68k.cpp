@@ -1,7 +1,7 @@
 #ifdef  __cplusplus
 extern "C" {
 #endif
-
+#include <math.h>
 #include "common.h"
 #include "fileio.h"
 #include "timer.h"
@@ -770,22 +770,35 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
     *(((BYTE*) &xx)+1) = MEM[0xacf];
     *(((BYTE*) &yy)+0) = MEM[0xad0];
     *(((BYTE*) &yy)+1) = MEM[0xad1];
-  #if 0
+  #if 1
     int nx = (int)xx;
     int ny = (int)yy;
  
-    int tx = (int)x;
-    int ty = (int)y;
+    int tx = (int)(x);
+    int ty = (int)(y);
     
  
     int dx = tx - nx;
     int dy = ty - ny;
-    const int max = 15;
-    if ( dx < -max ) dx = -max;
-    if ( dy < -max ) dy = -max;
-    if ( dx > +max ) dx = +max;
-    if ( dy > +max ) dy = +max;
+	if ( abs(dx) < 2 ) dx = 0;
+	if ( abs(dy) < 2 ) dy = 0;
 
+	const int max = 15;
+	printf("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
+
+	if ( dx == 0 ){
+	} else if ( dx < -max ) {
+		dx = -max;
+	} else if ( dx > +max ) {
+		dx = +max;
+	}
+
+	if ( dy == 0 ) {
+	} else if ( dy < -max ) {
+		dy = -max;
+	} else if ( dy > +max ) {
+		dy = +max;
+	}
 //    printf(" nx:%3d ny:%3d tx:%3d ty:%3d dx:%3d dy:%3d\n", nx, ny, tx, ty, dx, dy );
 
 
@@ -796,10 +809,12 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
     yy = (WORD)y;
    
     BYTE* mouse = &MEM[0xace];
-    *mouse++ = ((BYTE*) &xx)[0];
-    *mouse++ = ((BYTE*) &xx)[1];
-    *mouse++ = ((BYTE*) &yy)[0];
-    *mouse++ = ((BYTE*) &yy)[1];
+	*mouse++ = ((BYTE*) &xx)[0];
+	*mouse++ = ((BYTE*) &xx)[1];
+	*mouse++ = ((BYTE*) &yy)[0];
+	*mouse++ = ((BYTE*) &yy)[1];
+	MouseX = 1;
+	MouseY = 1;
 #endif
     
 

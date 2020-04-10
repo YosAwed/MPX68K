@@ -232,12 +232,18 @@ class GameScene: SKScene {
         }
         
 		let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
+//		hover.accessibilityActivate()
 		self.view?.addGestureRecognizer(hover)
 	}
-	
         
     
 	@objc func hovering(_ sender: UIHoverGestureRecognizer) {
+		print("hovering:\(sender.state.rawValue)")
+		if #available(iOS 13.4, *) {
+			print(sender.buttonMask.rawValue)
+		} else {
+			// Fallback on earlier versions
+		}
 		switch sender.state {
 		case .began:
 			print("Hover")
@@ -626,7 +632,6 @@ extension GameScene {
         //            self.makeSpinny(at: t.location(in: self), color: SKColor.red)
         //        }
     }
-	
 	
     
 }
