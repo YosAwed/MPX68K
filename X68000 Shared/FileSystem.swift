@@ -19,26 +19,7 @@ class FileSystem {
         //        let tmpDirectory = NSHomeDirectory() + "/tmp"
         let tmpDirectory = NSTemporaryDirectory()
         #endif
-        /*
-         print (documentsPath)
-         print (libraryPath)
-         print (applicationSupportPath)
-         print (cachesPath)
-         print (tmpDirectory)
-         */
-        /*
-         let musicUrl = NSURL(string: "http://www.hurtrecord.com/se/operation/b1-007_computer_01.mp3")
-         if let url = musicUrl {
-         let musicData = NSData(contentsOf: url as URL)
-         
-         let dataName = "hoge.mp3"
-         
-         print(documentsPath)
-         if let data = musicData {
-         data.write(toFile: "\(documentsPath)/\(dataName)", atomically: true)
-         }
-         }
-         */
+
         createDocumentsFolder()
 
 
