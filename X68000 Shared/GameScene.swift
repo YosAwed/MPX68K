@@ -21,10 +21,10 @@ class GameScene: SKScene {
     fileprivate var spinnyNode : SKShapeNode?
     var titleSprite : SKSpriteNode?
     var mouseSprite : SKSpriteNode?
-    var spr : SKSpriteNode?
-    var spr256 : SKSpriteNode?
-    var tex : SKTexture?
-    var tex256 : SKTexture?
+    var spr : SKSpriteNode = SKSpriteNode()
+//    var spr256 : SKSpriteNode?
+//    var tex : SKTexture?
+//    var tex256 : SKTexture?
     var labelMIDI : SKLabelNode?
     var joycontroller : JoyController?
     var screen_w : Float = 1336.0
@@ -234,6 +234,8 @@ class GameScene: SKScene {
 		let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
 //		hover.accessibilityActivate()
 		self.view?.addGestureRecognizer(hover)
+		self.addChild(spr)
+
 	}
         
     
@@ -467,8 +469,8 @@ class GameScene: SKScene {
     }
     
     var d = [UInt8](repeating: 0xff, count: 768*512*4 )
-    var w:Int32 = 1
-    var h:Int32 = 1
+    var w:Int = 1
+    var h:Int = 1
 	
     override func update(_ currentTime: TimeInterval) {
         //        Benchmark.measure("X68000_Update  ", block: {
@@ -490,30 +492,28 @@ class GameScene: SKScene {
         
         //        })
         
-        // Called before each frame is rendered
-        w = X68000_GetScreenWidth();
-        h = X68000_GetScreenHeight();
-        
-        //        Benchmark.measure("X68000_GetImage", block: {
+        w = Int(X68000_GetScreenWidth());
+        h = Int(X68000_GetScreenHeight());
         X68000_GetImage( &d )
-        //        })
-        let cgsize = CGSize(width: Int(w), height: Int(h))
-        self.tex = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
+
+		let cgsize = CGSize(width: w, height: h)
+        let tex    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
         
-        self.spr?.removeFromParent()
-        
-        self.spr = SKSpriteNode.init(texture: self.tex!, size: CGSize(width: Int(w), height: Int(h)));
-        self.spr?.texture = self.tex!;
+        self.spr.removeFromParent()
+        self.spr = SKSpriteNode.init(texture: tex, size: cgsize);
+		self.spr.texture = tex
+		self.spr.size = CGSize(width: w, height: h)
+//        self.spr?.texture = tex;
         let scale : CGFloat  = 1.0  // 1.7
         
         
         
         let scale_x : CGFloat = 768.0 / CGFloat(w)
         let scale_y : CGFloat = 512.0 / CGFloat(h)
-        self.spr?.xScale = CGFloat(screen_w) / CGFloat((w)) //scale * (1.0 * scale_x)
-        self.spr?.yScale = CGFloat(screen_h) / CGFloat((h)) //scale * (1.0 * scale_y)//+0.3
-        self.spr?.zPosition = -1.0
-        self.addChild(spr!)
+        self.spr.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
+        self.spr.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+        self.spr.zPosition = -1.0
+         self.addChild(spr)
     }
 }
 
