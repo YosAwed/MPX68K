@@ -188,7 +188,7 @@ class GameScene: SKScene {
                     SKAction.wait(forDuration: 1.0),
                     SKAction.fadeIn(withDuration: 2.0),
                     SKAction.wait(forDuration: 0.5),
-                    SKAction.fadeAlpha(to: 0.2, duration: 1.0)
+                    SKAction.fadeAlpha(to: 0.0, duration: 1.0)
                     ]
             ))
             
@@ -204,7 +204,7 @@ class GameScene: SKScene {
             SKAction.sequence([
                 SKAction.fadeIn(withDuration: 2.0),
                 SKAction.wait(forDuration: 1.5),
-                SKAction.fadeAlpha(to: 0.2, duration: 1.0)
+                SKAction.fadeAlpha(to: 0.0, duration: 1.0)
                 ]
         ))
         self.addChild(titleSprite!)
