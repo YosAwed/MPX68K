@@ -54,7 +54,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>726</string>
+	<string>760</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -117,6 +117,8 @@
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
+			<key>CFBundleIdentifier</key>
+			<string></string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
