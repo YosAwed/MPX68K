@@ -14,24 +14,24 @@
 
 	BYTE	GVRAM[0x80000];
 	WORD	Grp_LineBuf[1024];
-	WORD	Grp_LineBufSP[1024];		// �ü�ץ饤����ƥ���ȾƩ���ѥХåե�
-	WORD	Grp_LineBufSP2[1024];		// ȾƩ���١����ץ졼���ѥХåե�����ȾƩ���ӥåȳ�Ǽ��
+	WORD	Grp_LineBufSP[1024];		// 特殊プライオリティ／半透明用バッファ
+	WORD	Grp_LineBufSP2[1024];		// 半透明ベースプレーン用バッファ（非半透明ビット格納）
 	WORD	Grp_LineBufSP_Tr[1024];
-	WORD	Pal16Adr[256];			// 16bit color �ѥ�åȥ��ɥ쥹�׻���
+	WORD	Pal16Adr[256];			// 16bit color パレットアドレス計算用
 
 // xxx: for little endian only
 #define GET_WORD_W8(src) (*(BYTE *)(src) | *((BYTE *)(src) + 1) << 8)
 
 
 // -----------------------------------------------------------------------
-//   �������
+//   初期化〜
 // -----------------------------------------------------------------------
 void GVRAM_Init(void)
 {
 	int i;
 
 	ZeroMemory(GVRAM, 0x80000);
-	for (i=0; i<128; i++)			// 16bit color �ѥ�åȥ��ɥ쥹�׻���
+	for (i=0; i<128; i++)			// 16bit color パレットアドレス計算用
 	{
 		Pal16Adr[i*2] = i*4;
 		Pal16Adr[i*2+1] = i*4+1;
@@ -40,7 +40,7 @@ void GVRAM_Init(void)
 
 
 // -----------------------------------------------------------------------------------
-//  ��®���ꥢ�ѥ롼����
+//  高速クリア用ルーチン
 // -----------------------------------------------------------------------------------
 
 void FASTCALL GVRAM_FastClear(void)
@@ -48,7 +48,7 @@ void FASTCALL GVRAM_FastClear(void)
 	DWORD v, h;
 	v = ((CRTC_Regs[0x29]&4)?512:256);
 	h = ((CRTC_Regs[0x29]&3)?512:256);
-	// ��äѤ������ϰϻ��ꤷ�ʤ����Ѥˤʤ��Τ⤢��ʥ����ʥޥ��ȥǥ塼���Ȥ���
+	// やっぱちゃんと範囲指定しないと変になるものもある（ダイナマイトデュークとか）
 {
 	WORD *p;
 	DWORD x, y;
@@ -81,7 +81,7 @@ BYTE FASTCALL GVRAM_Read(DWORD adr)
 	adr ^= 1;
 	adr -= 0xc00000;
 
-	if (CRTC_Regs[0x28]&8) {			// �ɤ߹���¦��65536�⡼�ɤ�VRAM���֡ʶ��Ƭ��ʪĢ��
+	if (CRTC_Regs[0x28]&8) {			// 読み込み側も65536モードのVRAM配置（苦胃頭捕物帳）
 		if (adr<0x80000) ret = GVRAM[adr];
 	} else {
 		switch(CRTC_Regs[0x28]&3)
@@ -142,7 +142,7 @@ void FASTCALL GVRAM_Write(DWORD adr, BYTE data)
 	adr -= 0xc00000;
 
 
-	if (CRTC_Regs[0x28]&8)				// 65536�⡼�ɤ�VRAM���֡���Nemesis��
+	if (CRTC_Regs[0x28]&8)				// 65536モードのVRAM配置？（Nemesis）
 	{
 		if ( adr<0x80000 )
 		{
@@ -188,7 +188,7 @@ void FASTCALL GVRAM_Write(DWORD adr, BYTE data)
 				{
 					scr = GrphScrollY[(adr>>18)&2];
 					line = (((adr&0x7ffff)>>10)-scr)&511;
-					TextDirtyLine[line] = 1;			// 32��4�̤ߤ����ʻ�����ˡ��
+					TextDirtyLine[line] = 1;			// 32色4面みたいな使用方法時
 					scr = GrphScrollY[((adr>>18)&2)+1];		//
 					line = (((adr&0x7ffff)>>10)-scr)&511;		//
 					if (adr&0x80000) adr+=1;
@@ -221,7 +221,7 @@ void FASTCALL GVRAM_Write(DWORD adr, BYTE data)
 
 
 // -----------------------------------------------------------------------
-//   ���ä����ϥ饤��ñ�̤Ǥβ���Ÿ����
+//   こっから後はライン単位での画面展開部
 // -----------------------------------------------------------------------
 LABEL void Grp_DrawLine16(void)
 {
@@ -363,7 +363,7 @@ LABEL void FASTCALL Grp_DrawLine8(int page, int opaq)
 	}
 }
 
-				// Manhattan Requiem Opening 7.0��7.5MHz
+				// Manhattan Requiem Opening 7.0→7.5MHz
 LABEL void FASTCALL Grp_DrawLine4(DWORD page, int opaq)
 {
 	WORD *srcp, *destp;	// XXX: ALIGN
@@ -469,7 +469,7 @@ LABEL void FASTCALL Grp_DrawLine4(DWORD page, int opaq)
 	}
 }
 
-					// ���β��̥⡼�ɤϴ��ۤ��Ʋ�������
+					// この画面モードは勘弁して下さい…
 void FASTCALL Grp_DrawLine4h(void)
 {
 	WORD *srcp, *destp;
@@ -511,7 +511,7 @@ void FASTCALL Grp_DrawLine4h(void)
 
 
 // -------------------------------------------------
-// --- ȾƩ�����ü�Pri�Υ١����Ȥʤ�ڡ��������� ---
+// --- 半透明／特殊Priのベースとなるページの描画 ---
 // -------------------------------------------------
 void FASTCALL Grp_DrawLine16SP(void)
 {
@@ -609,7 +609,7 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 {
 	DWORD scrx, scry;
 	page &= 3;
-	switch(page)		// �������ʤ�������ʾС�
+	switch(page)		// 美しくなさすぎる（笑）
 	{
 	case 0:	scrx = GrphScrollX[0]; scry = GrphScrollY[0]; break;
 	case 1: scrx = GrphScrollX[1]; scry = GrphScrollY[1]; break;
@@ -727,16 +727,16 @@ void FASTCALL Grp_DrawLine4hSP(void)
 
 
 // -------------------------------------------------
-// --- ȾƩ�����оݤȤʤ�ڡ��������� --------------
-// 2�ڡ����ʾ夢�륰��ե��å��⡼�ɤΤߤʤΤǡ�
-// 256��2�� or 16��4�̤Υ⡼�ɤΤߡ�
-// 256�����ϡ�Opaque�Ǥʤ����Υ⡼�ɤϤ���ʤ������
-// ��ɬ��Opaque�⡼�ɤ�Ȧ��
+// --- 半透明の対象となるページの描画 --------------
+// 2ページ以上あるグラフィックモードのみなので、
+// 256色2面 or 16色4面のモードのみ。
+// 256色時は、Opaqueでない方のモードはいらないかも…
+// （必ずOpaqueモードの筈）
 // -------------------------------------------------
-// �����Ϥޤ�32��x4�̥⡼�ɤμ����򤷤Ƥʤ��줹��
-// �ʤ줸����­��ʤ��褥�ġ�
+// ここはまだ32色x4面モードの実装をしてないれす…
+// （れじすた足りないよぅ…）
 // -------------------------------------------------
-							// �䤱�ˤ��ä���
+							// やけにすっきり
 LABEL void FASTCALL
 Grp_DrawLine8TR(int page, int opaq)
 {
@@ -917,7 +917,7 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 }
 
 /*
-MS-C �Τ� gas �Υ���饤�󥢥���֥�ˤƤ��ȡ����Ѵ�
+MS-C のを gas のインラインアセンブリにてけとーに変換
 
 s/\<.*:/.&/
 s/[^ \t]/"&/
@@ -928,7 +928,7 @@ s/\<e*[ds]i\>/%%&/g
 s/\<[0-9]*[^h]\>/$&/g
 s/\([^%]\)\(\<0*[0-9a-fA-F]*\)h/\1$0x\2/g
 s/"\([^ \t]*\)[ \t][ \t]*\(.*\), \(.*\);/"\1 \3, \2;/
-                                            + �����ϥ���
+                                            + ここはタブ
 s/\[/(/g
 s/]/)/g
 */

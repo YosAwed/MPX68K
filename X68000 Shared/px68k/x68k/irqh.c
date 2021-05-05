@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------------------
-//  IRQH.C - IRQ Handler (�Ͷ��ΥǥХ����ˤ�)
+//  IRQH.C - IRQ Handler (架空のデバイスにょ)
 // ---------------------------------------------------------------------------------------
 
 #include "common.h"
@@ -15,7 +15,7 @@ typedef signed int  FASTCALL C68K_INT_CALLBACK(signed int level);
 	void	*IRQH_CallBack[8];
 
 // -----------------------------------------------------------------------
-//   �����
+//   初期化
 // -----------------------------------------------------------------------
 void IRQH_Init(void)
 {
@@ -24,7 +24,7 @@ void IRQH_Init(void)
 
 
 // -----------------------------------------------------------------------
-//   �ǥե���ȤΥ٥������֤��ʤ��줬�����ä����Ѥ�����
+//   デフォルトのベクタを返す（これが起こったら変だお）
 // -----------------------------------------------------------------------
 DWORD FASTCALL IRQH_DefaultVector(BYTE irq)
 {
@@ -34,8 +34,8 @@ DWORD FASTCALL IRQH_DefaultVector(BYTE irq)
 
 
 // -----------------------------------------------------------------------
-//   ¾�γ����ߤΥ����å�
-//   �ƥǥХ����Υ٥������֤��롼���󤫤�ƤФ�ޤ�
+//   他の割り込みのチェック
+//   各デバイスのベクタを返すルーチンから呼ばれます
 // -----------------------------------------------------------------------
 void IRQH_IRQCallBack(BYTE irq)
 {
@@ -49,9 +49,9 @@ void IRQH_IRQCallBack(BYTE irq)
 		{
 			C68k_Set_IRQ_Callback(&C68K, IRQH_CallBack[i]);
 			C68k_Set_IRQ(&C68K, i); // xxx 
-			if ( C68K.ICount) {					// ¿�ų����߻���CARAT��
-				m68000_ICountBk += C68K.ICount;		// ����Ū�˳����ߥ����å��򤵤���
-				C68K.ICount = 0;				// �����κ� ^^;
+			if ( C68K.ICount) {					// 多重割り込み時（CARAT）
+				m68000_ICountBk += C68K.ICount;		// 強制的に割り込みチェックをさせる
+				C68K.ICount = 0;				// 苦肉の策 ^^;
 			}
 			break;
 		}
@@ -81,7 +81,7 @@ int i;
 }
 
 // -----------------------------------------------------------------------
-//   ������ȯ��
+//   割り込み発生
 // -----------------------------------------------------------------------
 void IRQH_Int(BYTE irq, void* handler)
 {
@@ -98,9 +98,9 @@ void IRQH_Int(BYTE irq, void* handler)
 		{
                         C68k_Set_IRQ_Callback(&C68K, IRQH_CallBack[i]);
                         C68k_Set_IRQ(&C68K, i, HOLD_LINE); //xxx
-			if ( C68K.ICount ) {					// ¿�ų����߻���CARAT��
-				m68000_ICountBk += C68K.ICount;		// ����Ū�˳����ߥ����å��򤵤���
-				C68K.ICount = 0;				// �����κ� ^^;
+			if ( C68K.ICount ) {					// 多重割り込み時（CARAT）
+				m68000_ICountBk += C68K.ICount;		// 強制的に割り込みチェックをさせる
+				C68K.ICount = 0;				// 苦肉の策 ^^;
 			}
 			return;
 		}
