@@ -16,12 +16,13 @@ let  JOY_RIGHT: UInt8 = 0x08
 let  JOY_TRG2 : UInt8 = 0x20
 let  JOY_TRG1 : UInt8 = 0x40
 
+// 連射用
+let RAPID_FIRE_INTERVAL = 1.0 / 30;   //　連写速度 sec
+
 class JoyController {
 
     var joydata : UInt8 = 0x00
     
-    
-
     func initNotificationSetupCheck() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
         { (success, error) in
@@ -186,11 +187,13 @@ class JoyController {
         buttonB!.valueChangedHandler = onButtonA()
         
         if buttonX != nil {
-            buttonX!.valueChangedHandler = buttonPutBox()
+            //buttonX!.valueChangedHandler = buttonPutBox()
+            buttonX!.valueChangedHandler = rapidFireButton(JOY_TRG2)  // RAPID FIRE A
         }
         
         if buttonY != nil {
-            buttonY!.valueChangedHandler = buttonResetScene()
+            //buttonY!.valueChangedHandler = buttonResetScene()
+            buttonY!.valueChangedHandler = rapidFireButton(JOY_TRG1)  // RAPI FIRE B
         }
         
         // Shoulder
@@ -266,6 +269,35 @@ class JoyController {
             // ○
             self.JoySet(0, JOY_TRG1, pressed )
         }
+    }
+    
+    // RAPID FIRE BUTTON
+    //
+    func rapidFireButton(_ trigger:UInt8) -> GCControllerButtonValueChangedHandler {
+        var timer: Timer?   // 停止用に Timer を closure に保存
+        
+        return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
+            if (pressed) {
+                timer = Timer.scheduledTimer(
+                    timeInterval: RAPID_FIRE_INTERVAL,
+                    target: self,
+                    selector: #selector(JoyController.rapidFire),
+                    userInfo: trigger,
+                    repeats: true)
+            } else {
+                timer?.invalidate() // 停止
+            }
+            self.JoySet(0, trigger, pressed)  // すぐに反応するように、初回は手動で発火
+        }
+    }
+
+
+    // 連射関数 呼ばれるたびに、指定トリガを反転させる
+    //
+    @objc func rapidFire(sender:Timer) {
+        let button = sender.userInfo as! UInt8
+        
+        self.JoySet(0, button, (self.joydata & button) == 0)
     }
     
     // Closure: Put Box
