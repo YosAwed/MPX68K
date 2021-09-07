@@ -25,8 +25,11 @@ class FileSystem {
 
         DispatchQueue.main.async {
             do {
-                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
+// for iCloud
+//                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+                let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+
+		try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
             } catch let error as NSError {
                 print(error)
             }
@@ -35,8 +38,9 @@ class FileSystem {
     
     func createDocumentsFolder() {
         // iCloudコンテナのURL
-        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        let path = (url?.appendingPathComponent("Documents"))!
+//        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+          let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+	  let path = (url?.appendingPathComponent("Documents"))!
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
@@ -59,15 +63,20 @@ class FileSystem {
     }
     
     func getDocumentsPath(_ filename: String )->URL? {
-        let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        let documentsURL = containerURL?.appendingPathComponent("Documents")
+// for iCloud
+//      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+
+	let documentsURL = containerURL?.appendingPathComponent("Documents")
         let url = documentsURL?.appendingPathComponent(filename)
         return url
     }
     
     func boot()
     {
-        let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+// for iCloud
+//      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
         // コンテナに追加するフォルダのパス
         if let documentsURL = containerURL?.appendingPathComponent("Documents") {
