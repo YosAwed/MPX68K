@@ -116,11 +116,13 @@ class GameViewController: UIViewController, UIContextMenuInteractionDelegate {
 	private func iOStoX68(_ keyCode :  UIKeyboardHIDUsage  ) -> UInt32 {
 		switch keyCode {
 		case .keyboardReturnOrEnter:	 return 0x0d
-		case .keyboardTab: 				 return 0x07
+//		case .keyboardTab: 				 return 0x07
 		case .keyboardDeleteOrBackspace: return 0x08
-		case .keyboardEscape: 			 return 0x1b
+//		case .keyboardEscape: 			 return 0x1b
 		case .keyboardSpacebar:			 return 0x20
-				
+		case .keyboardEscape:			 return 0xff	// 登録キー
+		case .keyboardTab:			 return 0xfe	// 登録キー
+
 		case .keyboardEqualSign: return 0x40	// +
 		case .keyboardComma: 	return 0x2c
 			

@@ -21,9 +21,11 @@ class GameScene: SKScene {
     fileprivate var spinnyNode : SKShapeNode?
     var titleSprite : SKSpriteNode?
     var mouseSprite : SKSpriteNode?
-    var spr : SKSpriteNode = SKSpriteNode()
+	var sprL : SKSpriteNode = SKSpriteNode()
+	var sprR : SKSpriteNode = SKSpriteNode()
 //    var spr256 : SKSpriteNode?
-//    var tex : SKTexture?
+	var texL : SKTexture?
+	var texR : SKTexture?
 //    var tex256 : SKTexture?
     var labelMIDI : SKLabelNode?
     var joycontroller : JoyController?
@@ -70,7 +72,6 @@ class GameScene: SKScene {
     }
     
     
-    var count = 0
     
     func controller_event( status : JoyController.Status ) {
         print( status )
@@ -234,7 +235,7 @@ class GameScene: SKScene {
 		let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
 //		hover.accessibilityActivate()
 		self.view?.addGestureRecognizer(hover)
-		self.addChild(spr)
+		self.addChild(sprL)
 
 	}
         
@@ -421,6 +422,7 @@ class GameScene: SKScene {
             spinny.lineWidth = 0.1
             spinny.zPosition = 1.0
             
+
 			var clock = 0.0
             if (pos.x < -500 ) {
 				clock = 1.0
@@ -439,6 +441,7 @@ class GameScene: SKScene {
 			if ( clock > 0.0 ) {
 				clockMHz = Int(clock)
 				let label = SKLabelNode.init()
+				X68000_Key_Down( 0xff )
 				label.text = "\(clockMHz) MHz"
 				label.fontName = "Helvetica Neue"
 				label.fontSize = 36
@@ -477,6 +480,8 @@ class GameScene: SKScene {
         for device in devices {
             device.Update(currentTime)
         }
+		
+
         
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
@@ -494,26 +499,47 @@ class GameScene: SKScene {
         
         w = Int(X68000_GetScreenWidth());
         h = Int(X68000_GetScreenHeight());
-        X68000_GetImage( &d )
+		var count = X68000_GetImage( &d )
 
 		let cgsize = CGSize(width: w, height: h)
-        let tex    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
-        
-        self.spr.removeFromParent()
-        self.spr = SKSpriteNode.init(texture: tex, size: cgsize);
-		self.spr.texture = tex
-		self.spr.size = CGSize(width: w, height: h)
-//        self.spr?.texture = tex;
-        let scale : CGFloat  = 1.0  // 1.7
-        
-        
-        
-        let scale_x : CGFloat = 768.0 / CGFloat(w)
-        let scale_y : CGFloat = 512.0 / CGFloat(h)
-        self.spr.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
-        self.spr.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-        self.spr.zPosition = -1.0
-         self.addChild(spr)
+		if ( count % 2 == 0 ) {
+			texL    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
+		} else {
+			texR    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
+		}
+
+		let scale :   CGFloat = 1.0  // 1.7
+		let scale_x : CGFloat = 768.0 / CGFloat(w)
+		let scale_y : CGFloat = 512.0 / CGFloat(h)
+
+
+		self.sprL.removeFromParent()
+		self.sprL = SKSpriteNode.init(texture: texL, size: cgsize);
+		self.sprL.size = CGSize(width: w, height: h/2)
+		self.sprL.xScale = CGFloat(screen_w) / CGFloat(w) //scale * (1.0 * scale_x)
+		self.sprL.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+		self.sprL.zPosition = -1.0
+		self.sprL.position.y = -CGFloat(screen_h)/4;
+
+		self.addChild(sprL)
+		
+		self.sprR.removeFromParent()
+		self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
+		self.sprR.size = CGSize(width: w, height: h/2)
+		self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
+		self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+		self.sprR.zPosition = -1.0
+		self.sprR.position.y = +CGFloat(screen_h)/4;
+		self.addChild(sprR)
+
+		self.sprR.removeFromParent()
+		self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
+		self.sprR.size = CGSize(width: w, height: h)
+		self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
+		self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+		self.sprR.zPosition = -1.0
+//		self.addChild(sprR)
+ 
     }
 }
 
@@ -676,7 +702,7 @@ extension GameScene {
             break;
         }
         return ret
-    }
+    } 
     override func keyDown(with event: NSEvent) {
         print("key press: \(event)")
         

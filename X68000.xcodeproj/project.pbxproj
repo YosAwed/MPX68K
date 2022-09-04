@@ -284,7 +284,7 @@
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		07F863A5242F93EA00CBB224 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		07F863AA242F93EA00CBB224 /* X68000.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = X68000.app; path = "X68000 for iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		07F863AA242F93EA00CBB224 /* X68000 for iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "X68000 for iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		07F863AD242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		07F863AF242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		07F863B2242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -422,7 +422,7 @@
 		07F863AB242F93EA00CBB224 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				07F863AA242F93EA00CBB224 /* X68000.app */,
+				07F863AA242F93EA00CBB224 /* X68000 for iOS.app */,
 				07F863BC242F93EA00CBB224 /* X68000.app */,
 			);
 			name = Products;
@@ -639,7 +639,7 @@
 			);
 			name = "X68000 iOS";
 			productName = "X68000 iOS";
-			productReference = 07F863AA242F93EA00CBB224 /* X68000.app */;
+			productReference = 07F863AA242F93EA00CBB224 /* X68000 for iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 		07F863BB242F93EA00CBB224 /* X68000 macOS */ = {
@@ -1055,8 +1055,8 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOSDebug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 764;
-				DEVELOPMENT_TEAM = LA9X3DU626;
+				CURRENT_PROJECT_VERSION = 833;
+				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					HAVE_C68K,
@@ -1072,7 +1072,7 @@
 				);
 				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = bexide.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
 				PRODUCT_NAME = "X68000 for iOS";
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = YES;
@@ -1093,8 +1093,8 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 764;
-				DEVELOPMENT_TEAM = LA9X3DU626;
+				CURRENT_PROJECT_VERSION = 833;
+				DEVELOPMENT_TEAM = 7JBC998RH7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					TARGET_IOS,
@@ -1108,7 +1108,7 @@
 				);
 				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = bexide.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
 				PRODUCT_NAME = "X68000 for iOS";
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = YES;

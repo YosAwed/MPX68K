@@ -644,11 +644,13 @@ int original_main(int argc, const char *argv[], const long samplingrate )
     return 0;
 }
 
+int framecount = 0;
 
 void Update(const long clockMHz, const int vsync ) {
 
 	if ((Config.NoWaitMode || Timer_GetCount()) || vsync == 0) {
         WinX68k_Exec(clockMHz, vsync);
+		framecount++;
     }
 
  }
@@ -717,12 +719,13 @@ void X68000_Quit(){
     Finalize();
 }
 
-void X68000_GetImage( unsigned char* data ) {
+int X68000_GetImage( unsigned char* data ) {
     if ( !DispFrame ) {
         WinDraw_Draw(data);
     } else {
         printf("DispFrame\n");
     }
+	return framecount;
 }
 
 void FDD_SetFD(int drive, char* filename, int readonly);
