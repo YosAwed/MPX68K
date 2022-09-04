@@ -15,6 +15,7 @@ class GameScene: SKScene {
 	private var clockMHz:Int = 24
 	private var samplingRate:Int = 22050
 	private var vsync:Bool = true
+	private var screen_scale:Float = 0.9
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
@@ -143,6 +144,9 @@ class GameScene: SKScene {
 		if userDefaults.object(forKey: "vsync") != nil {
 			self.vsync = userDefaults.bool(forKey: "vsync")
 			print( "V-Sync: \(vsync)")
+		}
+		if userDefaults.object(forKey: "screen_scale") != nil {
+			self.screen_scale = userDefaults.float(forKey: "screen_scale")
 		}
 	}
     func setUpScene() {
@@ -490,7 +494,7 @@ class GameScene: SKScene {
 			X68000_Update(self.clockMHz, self.vsync ? 1 : 0 )   // MHz
             let midi_count  = X68000_GetMIDIBufferSize()
             let midi_buffer = X68000_GetMIDIBuffer()
-            labelMIDI?.text = "MIDI OUT:\(midi_count)"
+            labelMIDI?.text = "" //MIDI OUT:\(midi_count)"
             midiController.Send( midi_buffer, midi_count )
         }
 
@@ -499,7 +503,8 @@ class GameScene: SKScene {
         
         w = Int(X68000_GetScreenWidth());
         h = Int(X68000_GetScreenHeight());
-		var count = X68000_GetImage( &d )
+		var count = X68000_GetImage( &d );
+		let _3D = false;
 
 		let cgsize = CGSize(width: w, height: h)
 		if ( count % 2 == 0 ) {
@@ -507,39 +512,43 @@ class GameScene: SKScene {
 		} else {
 			texR    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
 		}
-
 		let scale :   CGFloat = 1.0  // 1.7
 		let scale_x : CGFloat = 768.0 / CGFloat(w)
 		let scale_y : CGFloat = 512.0 / CGFloat(h)
 
-
-		self.sprL.removeFromParent()
-		self.sprL = SKSpriteNode.init(texture: texL, size: cgsize);
-		self.sprL.size = CGSize(width: w, height: h/2)
-		self.sprL.xScale = CGFloat(screen_w) / CGFloat(w) //scale * (1.0 * scale_x)
-		self.sprL.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-		self.sprL.zPosition = -1.0
-		self.sprL.position.y = -CGFloat(screen_h)/4;
-
-		self.addChild(sprL)
-		
-		self.sprR.removeFromParent()
-		self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
-		self.sprR.size = CGSize(width: w, height: h/2)
-		self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
-		self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-		self.sprR.zPosition = -1.0
-		self.sprR.position.y = +CGFloat(screen_h)/4;
-		self.addChild(sprR)
-
-		self.sprR.removeFromParent()
-		self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
-		self.sprR.size = CGSize(width: w, height: h)
-		self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
-		self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-		self.sprR.zPosition = -1.0
-//		self.addChild(sprR)
- 
+		if (_3D) { // 3D
+			self.sprL.removeFromParent()
+			self.sprL = SKSpriteNode.init(texture: texL, size: cgsize);
+			self.sprL.size = CGSize(width: w, height: h/2)
+			self.sprL.xScale = CGFloat(screen_w) / CGFloat(w) //scale * (1.0 * scale_x)
+			self.sprL.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+			self.sprL.zPosition = -1.0
+			self.sprL.position.y = -CGFloat(screen_h)/4;
+			
+			self.addChild(sprL)
+			
+			self.sprR.removeFromParent()
+			self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
+			self.sprR.size = CGSize(width: w, height: h/2)
+			self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
+			self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+			self.sprR.zPosition = -1.0
+			self.sprR.position.y = +CGFloat(screen_h)/4;
+			self.addChild(sprR)
+		} else {
+			self.sprR.removeFromParent()
+			if ( count % 2 == 0 ) {
+				self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
+			} else {
+				self.sprR = SKSpriteNode.init(texture: texL, size: cgsize);
+				
+			}
+			self.sprR.size = CGSize(width: w, height: h)
+			self.sprR.xScale = CGFloat(screen_w) / CGFloat(w) * CGFloat(screen_scale)//scale * (1.0 * scale_x)
+			self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) * CGFloat(screen_scale)//scale * (1.0 * scale_y)//+0.3
+			self.sprR.zPosition = -1.0
+			self.addChild(sprR);
+		}
     }
 }
 
@@ -558,7 +567,7 @@ extension GameScene {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
                 let t = self.atPoint(location)
-                print(t.name)
+            //    print(t.name)
 				if t.name == "Settings" {
 					UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
 				} else if t.name == "LButton" {
