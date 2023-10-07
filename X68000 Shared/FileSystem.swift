@@ -10,7 +10,7 @@ import Foundation
 
 class FileSystem {
     init() {
-        #if false
+#if false
         let documentsPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
         //      let documentsPath = NSHomeDirectory() + "/Documents"
         let libraryPath = NSHomeDirectory() + "/Library"
@@ -18,18 +18,18 @@ class FileSystem {
         let cachesPath = NSHomeDirectory() + "/Library/Caches"
         //        let tmpDirectory = NSHomeDirectory() + "/tmp"
         let tmpDirectory = NSTemporaryDirectory()
-        #endif
-
+#endif
+        
         createDocumentsFolder()
-
-
+        
+        
         DispatchQueue.main.async {
             do {
-// for iCloud
-//                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+                // for iCloud
+                //                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
                 let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-
-		try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
+                
+                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
             } catch let error as NSError {
                 print(error)
             }
@@ -38,9 +38,9 @@ class FileSystem {
     
     func createDocumentsFolder() {
         // iCloudコンテナのURL
-//        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-          let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-	  let path = (url?.appendingPathComponent("Documents"))!
+        //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let path = (url?.appendingPathComponent("Documents"))!
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
@@ -49,7 +49,7 @@ class FileSystem {
         
 #if true
         let fileURL = getDocumentsPath("README.txt")
-        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE."
+        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE. Plase put CGROM.DAT and IPLROM.DAT here."
         if ( FileManager.default.fileExists( atPath: fileURL!.path ) == true ) {
         } else {
             do {
@@ -63,19 +63,19 @@ class FileSystem {
     }
     
     func getDocumentsPath(_ filename: String )->URL? {
-// for iCloud
-//      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        // for iCloud
+        //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-
-	let documentsURL = containerURL?.appendingPathComponent("Documents")
+        
+        let documentsURL = containerURL?.appendingPathComponent("Documents")
         let url = documentsURL?.appendingPathComponent(filename)
         return url
     }
     
     func boot()
     {
-// for iCloud
-//      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+        // for iCloud
+        //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
         // コンテナに追加するフォルダのパス
@@ -125,11 +125,11 @@ class FileSystem {
                                 
                                 let extname = url.pathExtension.removingPercentEncoding
                                 if ( extname?.lowercased() == "hdf"  ) {
-									let p = X68000_GetDiskImageBufferPointer(4, data.count)
-									data.copyBytes(to: p!, count: data.count)
+                                    let p = X68000_GetDiskImageBufferPointer(4, data.count)
+                                    data.copyBytes(to: p!, count: data.count)
                                     X68000_LoadHDD( url.absoluteString );
-									X68000_Reset()
-
+                                    X68000_Reset()
+                                    
                                 } else {
                                     var drive = 0
                                     if ( url.path.contains(" B.") ) {
@@ -137,8 +137,8 @@ class FileSystem {
                                     } else if ( url.path.contains("_B.") ) {
                                         drive = 1
                                     }
-
-									let p = X68000_GetDiskImageBufferPointer(drive, data.count)
+                                    
+                                    let p = X68000_GetDiskImageBufferPointer(drive, data.count)
                                     data.copyBytes(to: p!, count: data.count)
                                     X68000_LoadFDD(drive, url.absoluteString );
                                     if ( drive == 0 ) {
@@ -162,7 +162,7 @@ class FileSystem {
     func loadDiskImage( _ url : URL )
     {
         saveSRAM()
-//        X68000_Reset()
+        //        X68000_Reset()
         loadAsynchronously( url )
     }
     func saveSRAM()
@@ -177,12 +177,12 @@ class FileSystem {
             print(error)
         }
     }
-
+    
     func loadSRAM()
     {
         print("==== Load SRAM ====")
         let url  = getDocumentsPath("SRAM.DAT")
-
+        
         do {
             let data: Data? = try Data(contentsOf: url!)
             
@@ -195,4 +195,43 @@ class FileSystem {
             print(error)
         }
     }
+// Added by Awed 2023/10/7
+    func loadCGROM()
+    {
+        print("==== Load CGROM ====")
+        let url  = getDocumentsPath("CGROM.DAT")
+        
+        do {
+            let data: Data? = try Data(contentsOf: url!)
+            
+            if let data = data {
+                let p = X68000_GetCGROMPointer()
+                data.copyBytes(to: p!, count: data.count)
+                //print(data.count)
+            }
+        }
+        catch let error as NSError {
+            print(error)
+        }
+    }
+    func loadIPLROM()
+    {
+        print("==== Load IPLROM ====")
+        let url  = getDocumentsPath("IPLROM.DAT")
+        
+        do {
+            let data: Data? = try Data(contentsOf: url!)
+            
+            if let data = data {
+                let p = X68000_GetIPLROMPointer()
+                data.copyBytes(to: p!, count: data.count)
+            }
+        }
+        catch let error as NSError {
+            print(error)
+        }
+    }
+// end
+    
+    
 }
