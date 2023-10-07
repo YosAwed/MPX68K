@@ -65,7 +65,7 @@ extern    WORD    BG_BGTOP;
 extern    WORD    BG_BGEND;
 extern    BYTE    BG_CHRSIZE;
 
-const    BYTE    PrgName[] = "Keropi";
+//const    BYTE    PrgName[] = "Keropi";
 const    BYTE    PrgTitle[] = APPNAME;
 
 char    winx68k_dir[MAX_PATH];
@@ -178,7 +178,7 @@ WinX68k_LoadROMs(void)
     File_Read(fp, &IPL[0x20000], 0x20000);
     File_Close(fp);
 #else
-    extern const unsigned char IPLROM_DAT[];
+    extern unsigned char IPLROM_DAT[0x20000]; // modified by Awed (remove const)
     memcpy( &IPL[0x20000], IPLROM_DAT, 0x20000);
 #endif
     WinX68k_SCSICheck();    // SCSI IPLなら、$fc0000〜にSCSI BIOSを置く
@@ -202,8 +202,8 @@ WinX68k_LoadROMs(void)
     File_Read(fp, FONT, 0xc0000);
     File_Close(fp);
 #else
-    extern const unsigned char CGROM_DAT[];
-    memcpy( FONT, CGROM_DAT, 0xc0000);
+    extern unsigned char CGROM_DAT[0xc0000]; // modified by Awed (remove const)
+    memcpy(FONT, CGROM_DAT, 0xc0000);
 
 #endif
     
@@ -644,13 +644,11 @@ int original_main(int argc, const char *argv[], const long samplingrate )
     return 0;
 }
 
-int framecount = 0;
 
 void Update(const long clockMHz, const int vsync ) {
 
 	if ((Config.NoWaitMode || Timer_GetCount()) || vsync == 0) {
         WinX68k_Exec(clockMHz, vsync);
-		framecount++;
     }
 
  }
@@ -719,13 +717,12 @@ void X68000_Quit(){
     Finalize();
 }
 
-int X68000_GetImage( unsigned char* data ) {
+void X68000_GetImage( unsigned char* data ) {
     if ( !DispFrame ) {
         WinDraw_Draw(data);
     } else {
         printf("DispFrame\n");
     }
-	return framecount;
 }
 
 void FDD_SetFD(int drive, char* filename, int readonly);
@@ -770,6 +767,17 @@ unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
 }
+
+unsigned char* X68000_GetCGROMPointer()
+{
+    return &CGROM_DAT[0];
+}
+
+unsigned char* X68000_GetIPLROMPointer()
+{
+    return &IPLROM_DAT[0];
+}
+
 /*
  
  */
