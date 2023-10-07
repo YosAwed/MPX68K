@@ -15,18 +15,15 @@ class GameScene: SKScene {
 	private var clockMHz:Int = 24
 	private var samplingRate:Int = 22050
 	private var vsync:Bool = true
-	private var screen_scale:Float = 0.9
     
     fileprivate var label : SKLabelNode?
     fileprivate var labelStatus : SKLabelNode?
     fileprivate var spinnyNode : SKShapeNode?
     var titleSprite : SKSpriteNode?
     var mouseSprite : SKSpriteNode?
-	var sprL : SKSpriteNode = SKSpriteNode()
-	var sprR : SKSpriteNode = SKSpriteNode()
+    var spr : SKSpriteNode = SKSpriteNode()
 //    var spr256 : SKSpriteNode?
-	var texL : SKTexture?
-	var texR : SKTexture?
+//    var tex : SKTexture?
 //    var tex256 : SKTexture?
     var labelMIDI : SKLabelNode?
     var joycontroller : JoyController?
@@ -73,6 +70,7 @@ class GameScene: SKScene {
     }
     
     
+    var count = 0
     
     func controller_event( status : JoyController.Status ) {
         print( status )
@@ -145,21 +143,22 @@ class GameScene: SKScene {
 			self.vsync = userDefaults.bool(forKey: "vsync")
 			print( "V-Sync: \(vsync)")
 		}
-		if userDefaults.object(forKey: "screen_scale") != nil {
-			self.screen_scale = userDefaults.float(forKey: "screen_scale")
-		}
 	}
     func setUpScene() {
 		
 		settings()
 
+        let fileSystem = FileSystem.init()
+        fileSystem.loadIPLROM() // added by Awed 2023/10/7
+        fileSystem.loadCGROM() // added by Awed 2023/10/7
 
 		X68000_Init(samplingRate);
 		
-		let fileSystem = FileSystem.init()
 		fileSystem.loadSRAM()
-		fileSystem.boot()
+        // TODO
+        //fileSystem.loadIPLROM()
 
+        fileSystem.boot()
         joycard = X68JoyCard( id:0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)! )
         devices.append( joycard! )
         
@@ -239,7 +238,7 @@ class GameScene: SKScene {
 		let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
 //		hover.accessibilityActivate()
 		self.view?.addGestureRecognizer(hover)
-		self.addChild(sprL)
+		self.addChild(spr)
 
 	}
         
@@ -426,7 +425,6 @@ class GameScene: SKScene {
             spinny.lineWidth = 0.1
             spinny.zPosition = 1.0
             
-
 			var clock = 0.0
             if (pos.x < -500 ) {
 				clock = 1.0
@@ -445,7 +443,6 @@ class GameScene: SKScene {
 			if ( clock > 0.0 ) {
 				clockMHz = Int(clock)
 				let label = SKLabelNode.init()
-				X68000_Key_Down( 0xff )
 				label.text = "\(clockMHz) MHz"
 				label.fontName = "Helvetica Neue"
 				label.fontSize = 36
@@ -484,8 +481,6 @@ class GameScene: SKScene {
         for device in devices {
             device.Update(currentTime)
         }
-		
-
         
         
         mouseController?.SetScreenSize( width: Float(w), height: Float(h) )
@@ -494,7 +489,7 @@ class GameScene: SKScene {
 			X68000_Update(self.clockMHz, self.vsync ? 1 : 0 )   // MHz
             let midi_count  = X68000_GetMIDIBufferSize()
             let midi_buffer = X68000_GetMIDIBuffer()
-            labelMIDI?.text = "" //MIDI OUT:\(midi_count)"
+            labelMIDI?.text = "MIDI OUT:\(midi_count)"
             midiController.Send( midi_buffer, midi_count )
         }
 
@@ -503,52 +498,26 @@ class GameScene: SKScene {
         
         w = Int(X68000_GetScreenWidth());
         h = Int(X68000_GetScreenHeight());
-		var count = X68000_GetImage( &d );
-		let _3D = false;
+        X68000_GetImage( &d )
 
 		let cgsize = CGSize(width: w, height: h)
-		if ( count % 2 == 0 ) {
-			texL    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
-		} else {
-			texR    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
-		}
-		let scale :   CGFloat = 1.0  // 1.7
-		let scale_x : CGFloat = 768.0 / CGFloat(w)
-		let scale_y : CGFloat = 512.0 / CGFloat(h)
-
-		if (_3D) { // 3D
-			self.sprL.removeFromParent()
-			self.sprL = SKSpriteNode.init(texture: texL, size: cgsize);
-			self.sprL.size = CGSize(width: w, height: h/2)
-			self.sprL.xScale = CGFloat(screen_w) / CGFloat(w) //scale * (1.0 * scale_x)
-			self.sprL.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-			self.sprL.zPosition = -1.0
-			self.sprL.position.y = -CGFloat(screen_h)/4;
-			
-			self.addChild(sprL)
-			
-			self.sprR.removeFromParent()
-			self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
-			self.sprR.size = CGSize(width: w, height: h/2)
-			self.sprR.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
-			self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
-			self.sprR.zPosition = -1.0
-			self.sprR.position.y = +CGFloat(screen_h)/4;
-			self.addChild(sprR)
-		} else {
-			self.sprR.removeFromParent()
-			if ( count % 2 == 0 ) {
-				self.sprR = SKSpriteNode.init(texture: texR, size: cgsize);
-			} else {
-				self.sprR = SKSpriteNode.init(texture: texL, size: cgsize);
-				
-			}
-			self.sprR.size = CGSize(width: w, height: h)
-			self.sprR.xScale = CGFloat(screen_w) / CGFloat(w) * CGFloat(screen_scale)//scale * (1.0 * scale_x)
-			self.sprR.yScale = CGFloat(screen_h) / CGFloat(h) * CGFloat(screen_scale)//scale * (1.0 * scale_y)//+0.3
-			self.sprR.zPosition = -1.0
-			self.addChild(sprR);
-		}
+        let tex    = SKTexture.init(data: Data(d), size: cgsize, flipped: true )
+        
+        self.spr.removeFromParent()
+        self.spr = SKSpriteNode.init(texture: tex, size: cgsize);
+		self.spr.texture = tex
+		self.spr.size = CGSize(width: w, height: h)
+//        self.spr?.texture = tex;
+        let scale : CGFloat  = 1.0  // 1.7
+        
+        
+        
+        let scale_x : CGFloat = 768.0 / CGFloat(w)
+        let scale_y : CGFloat = 512.0 / CGFloat(h)
+        self.spr.xScale = CGFloat(screen_w) / CGFloat(w)//scale * (1.0 * scale_x)
+        self.spr.yScale = CGFloat(screen_h) / CGFloat(h) //scale * (1.0 * scale_y)//+0.3
+        self.spr.zPosition = -1.0
+         self.addChild(spr)
     }
 }
 
@@ -567,7 +536,7 @@ extension GameScene {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
                 let t = self.atPoint(location)
-            //    print(t.name)
+                print(t.name)
 				if t.name == "Settings" {
 					UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
 				} else if t.name == "LButton" {
@@ -711,7 +680,7 @@ extension GameScene {
             break;
         }
         return ret
-    } 
+    }
     override func keyDown(with event: NSEvent) {
         print("key press: \(event)")
         
