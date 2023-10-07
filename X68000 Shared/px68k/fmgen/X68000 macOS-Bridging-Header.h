@@ -9,7 +9,7 @@ void X68000_LoadHDD( const char* filename );
 unsigned char* X68000_GetDiskImageBufferPointer( const long drive, const long size );
 void X68000_Reset();
 void X68000_Quit();
-int X68000_GetImage( unsigned char* data );
+void X68000_GetImage( unsigned char* data );
 void X68000_AudioCallBack(void* buffer, const unsigned int sample);
 void X68000_Key_Down( unsigned int vkcode );
 void X68000_Key_Up( unsigned int vkcode );
@@ -20,6 +20,9 @@ void X68000_Mouse_Set( float x, float y, long button );
 void X68000_Mouse_SetDirect( float x, float y, long button );
 
 unsigned char* X68000_GetSRAMPointer();
+unsigned char* X68000_GetCGROMPointer(); // added by Awed 2023/10/7
+unsigned char* X68000_GetIPLROMPointer(); // added by Awed 2023/10/7
+
 
 void X68000_Joystick_Set( unsigned char num, unsigned char data);
 
