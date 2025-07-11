@@ -1,111 +1,114 @@
 {
   "images" : [
     {
-      "filename" : "40-2.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-20x20@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "20x20"
     },
     {
-      "filename" : "60.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-20x20@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "3x",
       "size" : "20x20"
     },
     {
-      "filename" : "58.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-29x29@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "29x29"
     },
     {
-      "filename" : "87.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-38x38@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "3x",
       "size" : "29x29"
     },
     {
-      "filename" : "80.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-38x38@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "scale" : "2x",
+      "size" : "38x38"
+    },
+    {
+      "filename" : "X68000-iOS-Default-38x38@2x 2.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "scale" : "3x",
+      "size" : "38x38"
+    },
+    {
+      "filename" : "X68000-iOS-Default-40x40@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "40x40"
     },
     {
-      "filename" : "X68000Icon120x120-1.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-40x40@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "3x",
       "size" : "40x40"
     },
     {
-      "filename" : "X68000Icon120x120.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-60x60@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "60x60"
     },
     {
-      "filename" : "180.png",
-      "idiom" : "iphone",
+      "filename" : "X68000-iOS-Default-60x60@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "3x",
       "size" : "60x60"
     },
     {
-      "filename" : "20.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "20x20"
-    },
-    {
-      "filename" : "40-1.png",
-      "idiom" : "ipad",
+      "filename" : "X68000-iOS-Default-64x64@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
-      "size" : "20x20"
+      "size" : "64x64"
     },
     {
-      "filename" : "29.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "29x29"
+      "filename" : "X68000-iOS-Default-68x68@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "scale" : "3x",
+      "size" : "64x64"
     },
     {
-      "filename" : "58-1.png",
-      "idiom" : "ipad",
+      "filename" : "X68000-iOS-Default-68x68@2x 2.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
-      "size" : "29x29"
+      "size" : "68x68"
     },
     {
-      "filename" : "40.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "80-1.png",
-      "idiom" : "ipad",
-      "scale" : "2x",
-      "size" : "40x40"
-    },
-    {
-      "filename" : "76.png",
-      "idiom" : "ipad",
-      "scale" : "1x",
-      "size" : "76x76"
-    },
-    {
-      "filename" : "152.png",
-      "idiom" : "ipad",
+      "filename" : "X68000-iOS-Default-76x76@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "76x76"
     },
     {
-      "filename" : "X68000Icon.png",
-      "idiom" : "ipad",
+      "filename" : "X68000-iOS-Default-83.5x83.5@2x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "scale" : "2x",
       "size" : "83.5x83.5"
     },
     {
-      "filename" : "X68000Icon1024.png",
-      "idiom" : "ios-marketing",
-      "scale" : "1x",
+      "filename" : "X68000-iOS-Default-1024x1024@1x 1.png",
+      "idiom" : "universal",
+      "platform" : "ios",
       "size" : "1024x1024"
     },
     {

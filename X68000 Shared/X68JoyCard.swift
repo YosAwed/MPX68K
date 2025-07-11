@@ -8,7 +8,11 @@
 
 import Foundation
 import SpriteKit
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 class X68JoyCard : X68Device
 {
@@ -52,6 +56,7 @@ class X68JoyCard : X68Device
         buttonR?.fillColor = (joydata & JOY_RIGHT  != 0) ? .yellow : .black
 
     }
+    #if os(iOS)
     override func touchesBegan(_ touches: Set<UITouch>) {
         super.touchesBegan(touches)
         for touch in touches {
@@ -59,7 +64,6 @@ class X68JoyCard : X68Device
             let t = scene.atPoint(location)
             if let name = t.name {
                 var c = false
-                #if false
                 if ( name == "A" ) {
                     self.JoySet(device_id, JOY_TRG1, true ); c = true
                 }
@@ -78,12 +82,13 @@ class X68JoyCard : X68Device
                 if ( name == "R" ) {
                     self.JoySet(device_id, JOY_RIGHT, true ); c = true
                 }
-#endif
                 
             }
         }
     }
+    #endif
     
+    #if os(iOS)
     override func touchesMoved(_ touches: Set<UITouch>) {
         super.touchesMoved(touches)
         
@@ -97,7 +102,6 @@ class X68JoyCard : X68Device
                 if ( name == "MOVE" ) {
                     self.sprite.position = location
                 }
-                #if false
                 if ( name == "A" ) {
                     flag |= JOY_TRG1
                 }
@@ -117,25 +121,24 @@ class X68JoyCard : X68Device
                     flag |= JOY_RIGHT
                 
                 }
-                #endif
 
             }
         }
         let trg = old ^ flag
-//        print(trg)
         if ( trg > 0) {
-//            joydata = flag
-     //       X68000_Joystick_Set(device_id, joydata)
+            joydata = flag
+            X68000_Joystick_Set(device_id, joydata)
         }
     }
+    #endif
 
+    #if os(iOS)
     override func touchesEnded(_ touches: Set<UITouch>) {
         super.touchesEnded(touches)
         for touch in touches {
             let location = touch.location(in: scene)
             let t = scene.atPoint(location)
             if let name = t.name {
-                #if false
                 if ( name == "A" ) {
                     self.JoySet(device_id, JOY_TRG1, false );
                 }
@@ -154,10 +157,80 @@ class X68JoyCard : X68Device
                 if ( name == "R" ) {
                     self.JoySet(device_id, JOY_RIGHT, false );
                 }
-#endif
             }
         }
     }
+    #endif
+    
+    #if os(macOS)
+    // MARK: - macOS Keyboard Input
+    func handleKeyDown(_ keyCode: UInt16, _ pressed: Bool) {
+        switch keyCode {
+        case 0x7E: // Up Arrow
+            JoySet(device_id, JOY_UP, pressed)
+        case 0x7D: // Down Arrow
+            JoySet(device_id, JOY_DOWN, pressed)
+        case 0x7B: // Left Arrow
+            JoySet(device_id, JOY_LEFT, pressed)
+        case 0x7C: // Right Arrow
+            JoySet(device_id, JOY_RIGHT, pressed)
+        case 0x31: // Space (Button A)
+            JoySet(device_id, JOY_TRG1, pressed)
+        case 0x06: // Z (Button B)
+            JoySet(device_id, JOY_TRG2, pressed)
+        case 0x00: // A (Button A alternative)
+            JoySet(device_id, JOY_TRG1, pressed)
+        case 0x0B: // B (Button B alternative)
+            JoySet(device_id, JOY_TRG2, pressed)
+        default:
+            break
+        }
+    }
+    
+    // WASD controls for alternative input
+    func handleCharacterInput(_ character: String, _ pressed: Bool) {
+        switch character.lowercased() {
+        case "w":
+            JoySet(device_id, JOY_UP, pressed)
+        case "s":
+            JoySet(device_id, JOY_DOWN, pressed)
+        case "a":
+            JoySet(device_id, JOY_LEFT, pressed)
+        case "d":
+            JoySet(device_id, JOY_RIGHT, pressed)
+        case "j":
+            JoySet(device_id, JOY_TRG1, pressed)
+        case "k":
+            JoySet(device_id, JOY_TRG2, pressed)
+        default:
+            break
+        }
+    }
+    
+    // Mouse click support for joycard buttons
+    func handleMouseClick(at location: CGPoint, pressed: Bool) {
+        let t = scene.atPoint(location)
+        if let name = t.name {
+            switch name {
+            case "A":
+                JoySet(device_id, JOY_TRG1, pressed)
+            case "B":
+                JoySet(device_id, JOY_TRG2, pressed)
+            case "U":
+                JoySet(device_id, JOY_UP, pressed)
+            case "D":
+                JoySet(device_id, JOY_DOWN, pressed)
+            case "L":
+                JoySet(device_id, JOY_LEFT, pressed)
+            case "R":
+                JoySet(device_id, JOY_RIGHT, pressed)
+            default:
+                break
+            }
+        }
+    }
+    #endif
+    
     var joydata : UInt8 = 0x00
     // MARK: ---- PRIVATE ----
     private func JoySet(_ port:UInt8,_ type:UInt8,_ pressed: Bool )

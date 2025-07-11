@@ -26,6 +26,10 @@ unsigned char* X68000_GetIPLROMPointer(); // added by Awed 2023/10/7
 
 void X68000_Joystick_Set( unsigned char num, unsigned char data);
 
+void X68000_EjectFDD( const long drive );
+const int X68000_IsFDDReady( const long drive );
+const char* X68000_GetFDDFilename( const long drive );
+
 const long X68000_GetMIDIBufferSize();
 unsigned char* X68000_GetMIDIBuffer();
 

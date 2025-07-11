@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="18122" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
+<document type="com.apple.InterfaceBuilder3.Cocoa.Storyboard.XIB" version="3.0" toolsVersion="23727" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" initialViewController="B8D-0N-5wS">
     <dependencies>
-        <deployment identifier="macosx"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="18122"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23727"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -16,7 +15,7 @@
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="X68000 macOS" systemMenu="apple" id="uQy-DD-JDr">
                                     <items>
-                                        <menuItem title="About GameTemplate" id="5kV-Vb-QxS">
+                                        <menuItem title="About..." id="5kV-Vb-QxS">
                                             <modifierMask key="keyEquivalentModifierMask"/>
                                             <connections>
                                                 <action selector="orderFrontStandardAboutPanel:" target="Ady-hI-5gd" id="Exp-CZ-Vem"/>
@@ -30,7 +29,7 @@
                                             <menu key="submenu" title="Services" systemMenu="services" id="hz9-B4-Xy5"/>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="4je-JR-u6R"/>
-                                        <menuItem title="Hide GameTemplate" keyEquivalent="h" id="Olw-nP-bQN">
+                                        <menuItem title="Hide" keyEquivalent="h" id="Olw-nP-bQN">
                                             <connections>
                                                 <action selector="hide:" target="Ady-hI-5gd" id="PnN-Uc-m68"/>
                                             </connections>
@@ -48,7 +47,7 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="kCx-OE-vgT"/>
-                                        <menuItem title="Quit GameTemplate" keyEquivalent="q" id="4sb-4s-VLi">
+                                        <menuItem title="Quit" keyEquivalent="q" id="4sb-4s-VLi">
                                             <connections>
                                                 <action selector="terminate:" target="Ady-hI-5gd" id="Te7-pn-YzF"/>
                                             </connections>
@@ -632,6 +631,38 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="FDD" id="FDD-menu-item">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="FDD" id="FDD-submenu">
+                                    <items>
+                                        <menuItem title="Open Drive A..." keyEquivalent="1" id="FDD-open-drive-A">
+                                            <modifierMask key="keyEquivalentModifierMask" command="YES"/>
+                                            <connections>
+                                                <action selector="openFDDDriveA:" target="Ady-hI-5gd" id="FDD-open-A-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Open Drive B..." keyEquivalent="2" id="FDD-open-drive-B">
+                                            <modifierMask key="keyEquivalentModifierMask" command="YES"/>
+                                            <connections>
+                                                <action selector="openFDDDriveB:" target="Ady-hI-5gd" id="FDD-open-B-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="FDD-separator"/>
+                                        <menuItem title="Eject Drive A" keyEquivalent="1" id="FDD-eject-drive-A">
+                                            <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="ejectFDDDriveA:" target="Ady-hI-5gd" id="FDD-eject-A-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Eject Drive B" keyEquivalent="2" id="FDD-eject-drive-B">
+                                            <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="ejectFDDDriveB:" target="Ady-hI-5gd" id="FDD-eject-B-action"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
                             <menuItem title="Window" id="aUF-d1-5bR">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Window" systemMenu="window" id="Td7-aD-5lo">
@@ -661,7 +692,7 @@
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Help" systemMenu="help" id="F2S-fz-NVQ">
                                     <items>
-                                        <menuItem title="GameTemplate Help" keyEquivalent="?" id="FKE-Sm-Kum">
+                                        <menuItem title="GameTemplate Help" keyEquivalent="?" id="FKE-Sm-Kum" userLabel="Help">
                                             <connections>
                                                 <action selector="showHelp:" target="Ady-hI-5gd" id="y7X-2Q-9no"/>
                                             </connections>
