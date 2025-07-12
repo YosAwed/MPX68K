@@ -18,19 +18,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var viewController: GameViewController!
 //    var backgroundTaskID : UIBackgroundTaskIdentifier = UIBackgroundTaskIdentifier(rawValue: 0)
 
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        configureAudioSession()
+        return true
+    }
     
-    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        print("⭐️application url:\(url)")
-
-//        self.backgroundTaskID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
-
-        viewController.load(url)
-        
+    func configureAudioSession() {
         /// AVAudioSessionCategory設定
         let session = AVAudioSession.sharedInstance()
         do {
-            // CategoryをPlaybackにする
-            try session.setCategory(.ambient, mode: .default)
+            // CategoryをPlaybackにして他のアプリの音と混在させる
+            try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
 //            try session.setPreferredSampleRate( 48000.0 )
 //			try session.setPreferredIOBufferDuration( 1.0 )
 
@@ -46,8 +44,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             // 予期しない場合
             fatalError("Session有効化失敗")
         }
-
+    }
     
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        print("⭐️application url:\(url)")
+
+//        self.backgroundTaskID = UIApplication.shared.beginBackgroundTask(expirationHandler: nil)
+
+        viewController.load(url)
+        
         return true
     }
 /*

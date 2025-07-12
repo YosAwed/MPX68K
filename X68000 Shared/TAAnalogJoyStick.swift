@@ -7,6 +7,20 @@
 //
 
 import SpriteKit
+#if os(iOS)
+import UIKit
+public typealias PlatformColor = UIColor
+public typealias PlatformImage = UIImage
+public typealias PlatformTouch = UITouch
+public typealias PlatformEvent = UIEvent
+#elseif os(macOS)
+import AppKit
+public typealias PlatformColor = NSColor
+public typealias PlatformImage = NSImage
+// macOS doesn't have touch events, use placeholder
+public typealias PlatformTouch = NSObject
+public typealias PlatformEvent = NSEvent
+#endif
 
 public typealias 🕹 = TLAnalogJoystick
 public typealias TLAnalogJoystickEventHandler = (TLAnalogJoystick) -> Void
@@ -62,6 +76,7 @@ open class TLAnalogJoystickHiddenArea: SKShapeNode {
         node.isHidden = true
     }
     
+    #if os(iOS)
     open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let currJoystick = self.currJoystick else {
             return
@@ -98,13 +113,14 @@ open class TLAnalogJoystickHiddenArea: SKShapeNode {
         currJoystick.touchesCancelled(touches, with: event)
         cancelNode(currJoystick)
     }
+    #endif
 }
 
 //MARK: - TLAnalogJoystickComponent
 open class TLAnalogJoystickComponent: SKSpriteNode {
     private var kvoContext = UInt8(1)
     
-    public var image: UIImage? {
+    public var image: PlatformImage? {
         didSet {
             redrawTexture()
         }
@@ -143,8 +159,12 @@ open class TLAnalogJoystickComponent: SKSpriteNode {
     }
     
     //MARK: - DESIGNATED
-    init(diameter: CGFloat, color: UIColor? = nil, image: UIImage? = nil) {
+    init(diameter: CGFloat, color: PlatformColor? = nil, image: PlatformImage? = nil) {
+        #if os(iOS)
         let pureColor = color ?? UIColor.black
+        #elseif os(macOS)
+        let pureColor = color ?? NSColor.black
+        #endif
         let size = CGSize(width: diameter, height: diameter)
         super.init(texture: nil, color: pureColor, size: size)
         
@@ -171,6 +191,7 @@ open class TLAnalogJoystickComponent: SKSpriteNode {
     }
     
     private func redrawTexture() {
+        #if os(iOS)
         let scale = UIScreen.main.scale
         let needSize = CGSize(width: diameter, height: diameter)
 
@@ -189,6 +210,25 @@ open class TLAnalogJoystickComponent: SKSpriteNode {
         UIGraphicsEndImageContext()
 
         texture = SKTexture(image: textureImage)
+        #elseif os(macOS)
+        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
+        let needSize = CGSize(width: diameter, height: diameter)
+        
+        let image = NSImage(size: needSize)
+        image.lockFocus()
+        
+        let rectPath = NSBezierPath(ovalIn: CGRect(origin: .zero, size: needSize))
+        
+        if let img = self.image {
+            img.draw(in: CGRect(origin: .zero, size: needSize))
+        } else {
+            color.set()
+            rectPath.fill()
+        }
+        
+        image.unlockFocus()
+        texture = SKTexture(image: image)
+        #endif
     }
 }
 
@@ -199,7 +239,11 @@ open class TLAnalogJoystick: SKNode {
     public let base: TLAnalogJoystickComponent
     
     private var pHandleRatio: CGFloat
+    #if os(iOS)
     private var displayLink: CADisplayLink!
+    #elseif os(macOS)
+    private var timer: Timer?
+    #endif
     private var hadnlers = [TLAnalogJoystickEventType: TLAnalogJoystickEventHandlers]()
     private var handlerIDsRelEvent = [TLAnalogJoystickHandlerID: TLAnalogJoystickEventType]()
     private(set) var tracking = false {
@@ -208,6 +252,7 @@ open class TLAnalogJoystick: SKNode {
                 return
             }
             
+            #if os(iOS)
             #if swift(>=4.2)
                 let loopMode = RunLoop.Mode.common
             #else
@@ -224,6 +269,21 @@ open class TLAnalogJoystick: SKNode {
                 resetAction.timingMode = .easeOut
                 handle.run(resetAction)
             }
+            #elseif os(macOS)
+            if tracking {
+                timer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { _ in
+                    self.listen()
+                }
+                runEvent(.begin)
+            } else {
+                timer?.invalidate()
+                timer = nil
+                runEvent(.end)
+                let resetAction = SKAction.move(to: .zero, duration: 0.1)
+                resetAction.timingMode = .easeOut
+                handle.run(resetAction)
+            }
+            #endif
         }
     }
     
@@ -286,7 +346,7 @@ open class TLAnalogJoystick: SKNode {
         }
     }
     
-    public var baseColor: UIColor {
+    public var baseColor: PlatformColor {
         get {
             return base.color
         }
@@ -296,7 +356,7 @@ open class TLAnalogJoystick: SKNode {
         }
     }
     
-    public var handleColor: UIColor {
+    public var handleColor: PlatformColor {
         get {
             return handle.color
         }
@@ -306,7 +366,7 @@ open class TLAnalogJoystick: SKNode {
         }
     }
     
-    public var baseImage: UIImage? {
+    public var baseImage: PlatformImage? {
         get {
             return base.image
         }
@@ -316,7 +376,7 @@ open class TLAnalogJoystick: SKNode {
         }
     }
     
-    public var handleImage: UIImage? {
+    public var handleImage: PlatformImage? {
         get {
             return handle.image
         }
@@ -333,7 +393,9 @@ open class TLAnalogJoystick: SKNode {
         super.init()
         
         disabled = false
+        #if os(iOS)
         displayLink = CADisplayLink(target: self, selector: #selector(listen))
+        #endif
         handle.zPosition = base.zPosition + 1
         #if false
         base.scale(to: CGSize(width:300.0, height:300.0))    //@GOROman
@@ -354,7 +416,11 @@ open class TLAnalogJoystick: SKNode {
     }
     
     deinit {
+        #if os(iOS)
         displayLink.invalidate()
+        #elseif os(macOS)
+        timer?.invalidate()
+        #endif
     }
     
     convenience init(withDiameter diameter: CGFloat, handleRatio: CGFloat = 0.6) {
@@ -411,6 +477,7 @@ open class TLAnalogJoystick: SKNode {
     }
     
     //MARK: - Overrides
+    #if os(iOS)
     open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         let touch = touches.first!
 
@@ -452,6 +519,7 @@ open class TLAnalogJoystick: SKNode {
     open override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         tracking = false
     }
+    #endif
 
     open override var description: String {
         return "TLAnalogJoystick (position: \(position), velocity: \(velocity), angular: \(angular)"

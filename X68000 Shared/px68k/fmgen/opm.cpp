@@ -17,7 +17,7 @@ int OPM::amtable[4][OPM_LFOENTS] = { -1, };
 int OPM::pmtable[4][OPM_LFOENTS];
 
 // ---------------------------------------------------------------------------
-//	¹½ÃÛ
+//	ï¿½ï¿½ï¿½ï¿½
 //
 OPM::OPM()
 {
@@ -32,7 +32,7 @@ OPM::OPM()
 }
 
 // ---------------------------------------------------------------------------
-//	½é´ü²½
+//	ï¿½ï¿½ï¿½ï¿½ï¿½
 //
 bool OPM::Init(uint c, uint rf, bool ip)
 {
@@ -47,7 +47,7 @@ bool OPM::Init(uint c, uint rf, bool ip)
 }
 
 // ---------------------------------------------------------------------------
-//	ºÆÀßÄê
+//	ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //
 bool OPM::SetRate(uint c, uint r, bool)
 {
@@ -61,7 +61,7 @@ bool OPM::SetRate(uint c, uint r, bool)
 }
 
 // ---------------------------------------------------------------------------
-//	¥Á¥ã¥ó¥Í¥ë¥Þ¥¹¥¯¤ÎÀßÄê
+//	ï¿½ï¿½ï¿½ï¿½ï¿½Í¥ï¿½Þ¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //
 void OPM::SetChannelMask(uint mask)
 {
@@ -70,7 +70,7 @@ void OPM::SetChannelMask(uint mask)
 }
 
 // ---------------------------------------------------------------------------
-//	¥ê¥»¥Ã¥È
+//	ï¿½ê¥»ï¿½Ã¥ï¿½
 //
 void OPM::Reset()
 {
@@ -88,7 +88,7 @@ void OPM::Reset()
 }
 
 // ---------------------------------------------------------------------------
-//	ÀßÄê¤Ë°ÍÂ¸¤¹¤ë¥Æ¡¼¥Ö¥ë¤ÎºîÀ®
+//	ï¿½ï¿½ï¿½ï¿½Ë°ï¿½Â¸ï¿½ï¿½ï¿½ï¿½Æ¡ï¿½ï¿½Ö¥ï¿½Îºï¿½ï¿½ï¿½
 //
 void OPM::RebuildTimeTable()
 {
@@ -109,7 +109,7 @@ void OPM::RebuildTimeTable()
 }
 
 // ---------------------------------------------------------------------------
-//	¥¿¥¤¥Þ¡¼ A È¯À¸»þ¥¤¥Ù¥ó¥È (CSM)
+//	ï¿½ï¿½ï¿½ï¿½ï¿½Þ¡ï¿½ A È¯ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù¥ï¿½ï¿½ (CSM)
 //
 void OPM::TimerA()
 {
@@ -124,7 +124,7 @@ void OPM::TimerA()
 }
 
 // ---------------------------------------------------------------------------
-//	²»ÎÌÀßÄê
+//	ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //
 void OPM::SetVolume(int db)
 {
@@ -136,7 +136,7 @@ void OPM::SetVolume(int db)
 }
 
 // ---------------------------------------------------------------------------
-//	¥¹¥Æ¡¼¥¿¥¹¥Õ¥é¥°ÀßÄê
+//	ï¿½ï¿½ï¿½Æ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¥é¥°ï¿½ï¿½ï¿½ï¿½
 //
 void OPM::SetStatus(uint bits)
 {
@@ -148,7 +148,7 @@ void OPM::SetStatus(uint bits)
 }
 
 // ---------------------------------------------------------------------------
-//	¥¹¥Æ¡¼¥¿¥¹¥Õ¥é¥°²ò½ü
+//	ï¿½ï¿½ï¿½Æ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¥é¥°ï¿½ï¿½ï¿½
 //
 void OPM::ResetStatus(uint bits)
 {
@@ -161,7 +161,7 @@ void OPM::ResetStatus(uint bits)
 }
 
 // ---------------------------------------------------------------------------
-//	¥ì¥¸¥¹¥¿¥¢¥ì¥¤¤Ë¥Ç¡¼¥¿¤òÀßÄê
+//	ï¿½ì¥¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì¥¤ï¿½Ë¥Ç¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //
 void OPM::SetReg(uint addr, uint data)
 {
@@ -266,7 +266,7 @@ void OPM::SetReg(uint addr, uint data)
 
 
 // ---------------------------------------------------------------------------
-//	¥Ñ¥é¥á¡¼¥¿¥»¥Ã¥È
+//	ï¿½Ñ¥ï¿½á¡¼ï¿½ï¿½ï¿½ï¿½ï¿½Ã¥ï¿½
 //
 void OPM::SetParameter(uint addr, uint data)
 {
@@ -415,7 +415,7 @@ inline uint OPM::Noise()
 }
 
 // ---------------------------------------------------------------------------
-//	¹çÀ®¤Î°ìÉô
+//	ï¿½ï¿½ï¿½ï¿½ï¿½Î°ï¿½ï¿½ï¿½
 //
 inline void OPM::MixSub(int activech, ISample** idest)
 {
@@ -455,7 +455,7 @@ inline void OPM::MixSubL(int activech, ISample** idest)
 
 
 // ---------------------------------------------------------------------------
-//	¹çÀ® (stereo)
+//	ï¿½ï¿½ï¿½ï¿½ (stereo)
 //
 void OPM::Mix(Sample* buffer, int nsamples, int rate, BYTE* pbsp, BYTE* pbep)
 {
@@ -475,7 +475,7 @@ void OPM::Mix(Sample* buffer, int nsamples, int rate, BYTE* pbsp, BYTE* pbep)
 
 	if (activech & 0x5555)
 	{
-		// LFO ÇÈ·Á½é´ü²½¥Ó¥Ã¥È = 1 ¤Ê¤é¤Ð LFO ¤Ï¤«¤«¤é¤Ê¤¤?
+		// LFO ï¿½È·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¥Ã¥ï¿½ = 1 ï¿½Ê¤ï¿½ï¿½ LFO ï¿½Ï¤ï¿½ï¿½ï¿½ï¿½ï¿½Ê¤ï¿½?
 		if (reg01 & 0x02)
 			activech &= 0x5555;
 
@@ -493,7 +493,8 @@ void OPM::Mix(Sample* buffer, int nsamples, int rate, BYTE* pbsp, BYTE* pbep)
 		
 		for (i = 0, dest = buffer; i < nsamples; i++) {
 			CHECK_BUF_END();
-			ibuf[1] = ibuf[2] = ibuf[3] = 0;
+			// Fix: Initialize all buffer channels to prevent noise from old data
+			ibuf[0] = ibuf[1] = ibuf[2] = ibuf[3] = 0;
 			if (activech & 0xaaaa)
 				LFO(), MixSubL(activech, idest);
 			else
@@ -501,7 +502,7 @@ void OPM::Mix(Sample* buffer, int nsamples, int rate, BYTE* pbsp, BYTE* pbep)
 
 			StoreSample(dest[0], IStoSample(ibuf[1] + ibuf[3]));
 			StoreSample(dest[1], IStoSample(ibuf[2] + ibuf[3]));
-			// PSP°Ê³°¤Ïrate¤Ï0
+			// PSPï¿½Ê³ï¿½ï¿½ï¿½rateï¿½ï¿½0
 			dval0 = dest[0];
 			dval1 = dest[1];
 			switch (rate) {
@@ -520,6 +521,36 @@ void OPM::Mix(Sample* buffer, int nsamples, int rate, BYTE* pbsp, BYTE* pbep)
 				CHECK_BUF_END();
 				dest[0] = dval0;
 				dest[1] = dval1;
+			case 44100:
+			case 0:
+				dest += 2;
+			}
+		}
+	}
+	else
+	{
+		// Fix: When no channels are active, output silence instead of uninitialized data
+		for (i = 0, dest = buffer; i < nsamples; i++) {
+			CHECK_BUF_END();
+			dest[0] = 0;
+			dest[1] = 0;
+			// PSPä»¥å¤–ã¯rateã¯0
+			switch (rate) {
+			case 11025:
+				dest += 2;
+				CHECK_BUF_END();
+				dest[0] = 0;
+				dest[1] = 0;
+				dest += 2;
+				CHECK_BUF_END();
+				dest[0] = 0;
+				dest[1] = 0;
+				// no break...
+			case 22050:
+				dest += 2;
+				CHECK_BUF_END();
+				dest[0] = 0;
+				dest[1] = 0;
 			case 44100:
 			case 0:
 				dest += 2;

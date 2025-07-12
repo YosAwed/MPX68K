@@ -134,8 +134,17 @@ void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *p
 			ADPCM_RdPtr++;
 			if ( ADPCM_RdPtr>=ADPCM_BufSize ) ADPCM_RdPtr = 0;
 		} else {
-			outr = OldR;
-			outl = OldL;
+			// Fix: Output silence when no audio data is available
+			// to prevent periodic noise from old audio data
+			if ( !ADPCM_Playing ) {
+				outr = 0;
+				outl = 0;
+				OldR = 0;
+				OldL = 0;
+			} else {
+				outr = OldR;
+				outl = OldL;
+			}
 		}
 
 		if ( Config.Sound_LPF ) {
@@ -265,11 +274,14 @@ void FASTCALL ADPCM_Write(DWORD adr, BYTE data)
 	if ( adr==0xe92001 ) {
 		if ( data&1 ) {
 			ADPCM_Playing = 0;
+			// Fix: Clear old values when stopping to prevent residual noise
+			OldL = OldR = 0;
 		} else if ( data&2 ) {
 			if ( !ADPCM_Playing ) {
 				ADPCM_Step = 0;
 				ADPCM_Out = 0;
-				OldL = OldR = -2;
+				// Fix: Initialize with silence instead of -2 to prevent startup noise
+				OldL = OldR = 0;
 				ADPCM_Playing = 1;
 			}
 			OutsIp[0] = OutsIp[1] = OutsIp[2] = OutsIp[3] = -1;

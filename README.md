@@ -36,6 +36,71 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - iOS 13.4 or later
 - iPhone or iPad
 
+## ROM Files Setup
+
+X68Mac requires original Sharp X68000 system ROM files to function properly. These files are **not included** with the emulator and must be obtained separately.
+
+### Required ROM Files
+
+You need the following ROM files from an original X68000 system:
+
+| File | Description | Size |
+|------|-------------|------|
+| `CGROM.DAT` | Character Generator ROM | 768KB |
+| `IPLROM.DAT` | Initial Program Loader ROM | 128KB |
+
+### Installation Locations
+
+#### macOS
+Place the ROM files in one of these locations:
+
+1. **Application Bundle** (Recommended):
+   ```
+   X68000.app/Contents/Resources/
+   ├── CGROM.DAT
+   └── IPLROM.DAT
+   ```
+
+2. **User Application Support**:
+   ```
+   ~/Library/Application Support/X68000/
+   ├── CGROM.DAT
+   └── IPLROM.DAT
+   ```
+
+3. **Same directory as application**:
+   ```
+   /Applications/
+   ├── X68000.app
+   ├── CGROM.DAT
+   └── IPLROM.DAT
+   ```
+
+#### iOS
+For iOS, the ROM files must be embedded in the app bundle during build:
+
+```
+X68000 iOS.app/
+├── CGROM.DAT
+└── IPLROM.DAT
+```
+
+### Important Notes
+
+- **Legal Notice**: ROM files are copyrighted by Sharp Corporation. You must own an original X68000 system to legally use these files.
+- **File Names**: ROM file names are case-sensitive and must be exactly `CGROM.DAT` and `IPLROM.DAT`.
+- **File Integrity**: Ensure ROM files are not corrupted. The emulator will display an error if files are missing or invalid.
+- **Backup**: Always keep backup copies of your ROM files in a safe location.
+
+### Verification
+
+When ROM files are properly installed, the emulator will:
+1. Load without ROM-related error messages
+2. Display the characteristic X68000 boot screen
+3. Show proper Japanese character rendering
+
+If you see garbled text or boot failures, verify that your ROM files are correctly placed and named.
+
 ## Installation
 
 ### Building from Source

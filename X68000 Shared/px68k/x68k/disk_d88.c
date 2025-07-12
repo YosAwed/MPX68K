@@ -4,6 +4,11 @@
 #include "fdd.h"
 #include "disk_d88.h"
 
+// Security limits for disk image processing
+#define MAX_SECTOR_SIZE 8192    // Maximum allowed sector size
+#define MAX_SECTORS_PER_TRACK 64 // Maximum sectors per track
+#define MAX_ALLOCATION_SIZE (1024*1024) // 1MB max allocation
+
 
 // セクター部 (16 Bytes)
 typedef struct {
@@ -84,7 +89,16 @@ int D88_SetFD(int drv, char* filename)
 //				if ( File_Read(fp, &d88s, sizeof(D88_SECTOR))!=sizeof(D88_SECTOR) ) goto d88_set_error;
 				memcpy( &d88s, Ptr, sizeof(D88_SECTOR));	Ptr += sizeof(D88_SECTOR);
 
-				si = (D88_SECTINFO*)malloc(sizeof(D88_SECTINFO)+d88s.size);
+				// Security: Validate sector size to prevent buffer overflow
+				if (d88s.size > MAX_SECTOR_SIZE) {
+					goto d88_set_error;
+				}
+				// Security: Check for integer overflow in allocation
+				size_t alloc_size = sizeof(D88_SECTINFO) + d88s.size;
+				if (alloc_size > MAX_ALLOCATION_SIZE || alloc_size < sizeof(D88_SECTINFO)) {
+					goto d88_set_error;
+				}
+				si = (D88_SECTINFO*)malloc(alloc_size);
 				if ( !si ) goto d88_set_error;
 				if ( sct ) {
 					oldsi->next = si;
@@ -96,7 +110,7 @@ int D88_SetFD(int drv, char* filename)
 				//				if ( File_Read(fp, ((unsigned char*)si)+sizeof(D88_SECTINFO), d88s.size)!=d88s.size ) goto d88_set_error;
 				memcpy( ((unsigned char*)si)+sizeof(D88_SECTINFO), Ptr, d88s.size);  Ptr += d88s.size;
 				si->next = 0;
-				if (oldsi) oldsi = si;
+				oldsi = si;
 			}
 		}
 	}
@@ -122,7 +136,16 @@ int D88_SetFD(int drv, char* filename)
 			File_Seek(fp, ptr, FSEEK_SET);
 			for (sct=0; sct<d88s.sectors; sct++) {
 				if ( File_Read(fp, &d88s, sizeof(D88_SECTOR))!=sizeof(D88_SECTOR) ) goto d88_set_error;
-				si = (D88_SECTINFO*)malloc(sizeof(D88_SECTINFO)+d88s.size);
+				// Security: Validate sector size to prevent buffer overflow
+				if (d88s.size > MAX_SECTOR_SIZE) {
+					goto d88_set_error;
+				}
+				// Security: Check for integer overflow in allocation
+				size_t alloc_size = sizeof(D88_SECTINFO) + d88s.size;
+				if (alloc_size > MAX_ALLOCATION_SIZE || alloc_size < sizeof(D88_SECTINFO)) {
+					goto d88_set_error;
+				}
+				si = (D88_SECTINFO*)malloc(alloc_size);
 				if ( !si ) goto d88_set_error;
 				if ( sct ) {
 					oldsi->next = si;
@@ -132,7 +155,7 @@ int D88_SetFD(int drv, char* filename)
 				memcpy(&si->sect, &d88s, sizeof(D88_SECTOR));
 				if ( File_Read(fp, ((unsigned char*)si)+sizeof(D88_SECTINFO), d88s.size)!=d88s.size ) goto d88_set_error;
 				si->next = 0;
-				if (oldsi) oldsi = si;
+				oldsi = si;
 			}
 		}
 	}
@@ -263,8 +286,21 @@ int D88_WriteID(int drv, int trk, unsigned char* buf, int num)
 		D88Trks[drv][trk] = 0;
 	}
 	for (i=0; i<num; i++, buf+=4) {
+		// Security: Prevent integer overflow in left shift
+		if (buf[3] > 16) { // 128 << 16 = 8MB, reasonable upper limit
+			goto d88_writeid_error;
+		}
 		int size = 128<<buf[3];
-		D88_SECTINFO *si = (D88_SECTINFO*)malloc(sizeof(D88_SECTINFO)+size), *oldsi = NULL;
+		// Security: Additional size validation
+		if (size > MAX_SECTOR_SIZE || size <= 0) {
+			goto d88_writeid_error;
+		}
+		// Security: Check allocation size
+		size_t alloc_size = sizeof(D88_SECTINFO) + size;
+		if (alloc_size > MAX_ALLOCATION_SIZE || alloc_size < sizeof(D88_SECTINFO)) {
+			goto d88_writeid_error;
+		}
+		D88_SECTINFO *si = (D88_SECTINFO*)malloc(alloc_size), *oldsi = NULL;
 		if ( !si ) goto d88_writeid_error;
 		if ( i ) {
 			if (oldsi) oldsi->next = si;

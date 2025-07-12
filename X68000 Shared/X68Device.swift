@@ -7,7 +7,11 @@
 //
 
 import Foundation
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 class X68Device {
     
@@ -18,6 +22,7 @@ class X68Device {
     func Update(_ currentTime: TimeInterval) {
     }
     
+    #if os(iOS)
     func touchesBegan(_ touches: Set<UITouch>) {
     }
     
@@ -26,4 +31,5 @@ class X68Device {
 
     func touchesEnded(_ touches: Set<UITouch>) {
     }
+    #endif
 }

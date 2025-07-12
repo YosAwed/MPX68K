@@ -24,7 +24,7 @@
  */
 
 /* -------------------------------------------------------------------------- *
- *  PROP.C - ³Æ¼ïÀßÄêÍÑ¥×¥í¥Ñ¥Æ¥£¥·¡¼¥È¤ÈÀßÄêÃÍ´ÉÍý                           *
+ *  PROP.C - ï¿½Æ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¥×¥ï¿½ï¿½Ñ¥Æ¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í´ï¿½ï¿½ï¿½                           *
  * -------------------------------------------------------------------------- */
 
 #include <sys/stat.h>
@@ -253,10 +253,13 @@ void LoadConfig(void)
 	GetPrivateProfileString(ini_title, "ToneMapping", "0", buf, CFGLEN, winx68k_ini);
 	Config.ToneMap = solveBOOL(buf);
 	GetPrivateProfileString(ini_title, "ToneMapFile", "", buf, MAX_PATH, winx68k_ini);
-	if (buf[0] != 0)
-		strcpy(Config.ToneMapFile, buf);
-	else
+	if (buf[0] != 0) {
+		// Security: Use strncpy with proper null termination
+		strncpy(Config.ToneMapFile, buf, sizeof(Config.ToneMapFile) - 1);
+		Config.ToneMapFile[sizeof(Config.ToneMapFile) - 1] = '\0';
+	} else {
 		Config.ToneMapFile[0] = 0;
+	}
 
 	Config.MIDIDelay = GetPrivateProfileInt(ini_title, "MIDIDelay", Config.BufferSize*5, winx68k_ini);
 	Config.MIDIAutoDelay = GetPrivateProfileInt(ini_title, "MIDIAutoDelay", 1, winx68k_ini);

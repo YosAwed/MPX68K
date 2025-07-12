@@ -636,13 +636,11 @@
                                 <menu key="submenu" title="FDD" id="FDD-submenu">
                                     <items>
                                         <menuItem title="Open Drive A..." keyEquivalent="1" id="FDD-open-drive-A">
-                                            <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                                             <connections>
                                                 <action selector="openFDDDriveA:" target="Ady-hI-5gd" id="FDD-open-A-action"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Open Drive B..." keyEquivalent="2" id="FDD-open-drive-B">
-                                            <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                                             <connections>
                                                 <action selector="openFDDDriveB:" target="Ady-hI-5gd" id="FDD-open-B-action"/>
                                             </connections>

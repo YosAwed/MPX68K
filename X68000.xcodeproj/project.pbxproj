@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -48,7 +48,6 @@
 		07869652243DCE29007FCCEA /* JoyCardStick.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869650243DCE29007FCCEA /* JoyCardStick.png */; };
 		07A528BC24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
 		07A528BD24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
-		07B00C352436524F00C8FF79 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0764421D24333257006E5208 /* CloudKit.framework */; };
 		07B71D7C243A350500953E25 /* MIDIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B71D7B243A350500953E25 /* MIDIController.swift */; };
 		07B71D7D243A350500953E25 /* MIDIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B71D7B243A350500953E25 /* MIDIController.swift */; };
 		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
@@ -162,7 +161,6 @@
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864DA242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
 		07F864DB242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
-		3DD3E146263A820E001A75F0 /* X68000.app in Resources */ = {isa = PBXBuildFile; fileRef = 07F863BC242F93EA00CBB224 /* X68000.app */; };
 		3DECF02E263F52E700CC8449 /* TAAnalogJoyStick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0786963C243DBB73007FCCEA /* TAAnalogJoyStick.swift */; };
 /* End PBXBuildFile section */
 
@@ -327,7 +325,7 @@
 		07F864AA242F97BD00CBB224 /* prop.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = prop.c; sourceTree = "<group>"; };
 		07F864AB242F97BD00CBB224 /* dswin.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dswin.h; sourceTree = "<group>"; };
 		07F864AC242F97BD00CBB224 /* fileio.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fileio.h; sourceTree = "<group>"; };
-		07F864AD242F97BD00CBB224 /* keytbl.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = keytbl.inc; sourceTree = "<group>"; };
+		07F864AD242F97BD00CBB224 /* keytbl.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = keytbl.inc; sourceTree = "<group>"; };
 		07F864AE242F97BD00CBB224 /* version.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = version.h; sourceTree = "<group>"; };
 		07F864AF242F97BD00CBB224 /* cmdline.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cmdline.h; sourceTree = "<group>"; };
 		07F864B0242F97BD00CBB224 /* common.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = common.c; path = ../m68000/common.c; sourceTree = "<group>"; };
@@ -342,18 +340,13 @@
 /* Begin PBXFrameworksBuildPhase section */
 		07F863A7242F93EA00CBB224 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
-				07B00C352436524F00C8FF79 /* CloudKit.framework in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		07F863B9242F93EA00CBB224 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -635,8 +628,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = "X68000 iOS";
 			productName = "X68000 iOS";
 			productReference = 07F863AA242F93EA00CBB224 /* X68000 for iOS.app */;
@@ -652,8 +643,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = "X68000 macOS";
 			productName = "X68000 macOS";
 			productReference = 07F863BC242F93EA00CBB224 /* X68000.app */;
@@ -665,9 +654,10 @@
 		07F8639D242F93E800CBB224 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 1140;
-				ORGANIZATIONNAME = GOROman;
+				LastUpgradeCheck = 1640;
+				ORGANIZATIONNAME = NANKIN;
 				TargetAttributes = {
 					07F863A9242F93EA00CBB224 = {
 						CreatedOnToolsVersion = 11.4;
@@ -680,7 +670,6 @@
 				};
 			};
 			buildConfigurationList = 07F863A0242F93E800CBB224 /* Build configuration list for PBXProject "X68000" */;
-			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -688,6 +677,7 @@
 				Base,
 			);
 			mainGroup = 07F8639C242F93E800CBB224;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 07F863AB242F93EA00CBB224 /* Products */;
 			projectDirPath = "";
 			projectReferences = (
@@ -724,7 +714,6 @@
 /* Begin PBXResourcesBuildPhase section */
 		07F863A8242F93EA00CBB224 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				0758DC7B243F137E0097E86C /* Settings.bundle in Resources */,
 				0758DC58243EFCE60097E86C /* ConfigScene.sks in Resources */,
@@ -746,11 +735,9 @@
 				0758DC7E243F1AC80097E86C /* Settings.png in Resources */,
 				0786964B243DBDF7007FCCEA /* jSubstrate.png in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		07F863BA242F93EA00CBB224 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				0760DC282434F493004CA0CF /* FDD.png in Resources */,
 				0781672924374E7D0023B5CD /* X68000Mouse.png in Resources */,
@@ -763,7 +750,6 @@
 				07869648243DBDF7007FCCEA /* jStick.png in Resources */,
 				0758DC7C243F137E0097E86C /* Settings.bundle in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
-				3DD3E146263A820E001A75F0 /* X68000.app in Resources */,
 				0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */,
 				07869652243DCE29007FCCEA /* JoyCardStick.png in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,
@@ -772,14 +758,12 @@
 				07F863C7242F93EA00CBB224 /* Actions.sks in Resources */,
 				07EBB6CD24CABA5000D90B4E /* JoyCardLeft.png in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		07F863A6242F93EA00CBB224 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				07F4C7532430667D002CF5CA /* ioc.c in Sources */,
 				07F8640F242F94BB00CBB224 /* fake.c in Sources */,
@@ -841,11 +825,9 @@
 				07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */,
 				07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		07F863B8242F93EA00CBB224 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				07F4C7542430667D002CF5CA /* ioc.c in Sources */,
 				07F86410242F94BB00CBB224 /* fake.c in Sources */,
@@ -907,7 +889,6 @@
 				07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */,
 				07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -939,7 +920,7 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		07F863CE242F93EA00CBB224 /* Debug */ = {
+		07F863CE242F93EA00CBB224 /* Debug configuration for PBXProject "X68000" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -965,6 +946,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -972,9 +954,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = DQR9HH7KUY;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -997,7 +982,7 @@
 			};
 			name = Debug;
 		};
-		07F863CF242F93EA00CBB224 /* Release */ = {
+		07F863CF242F93EA00CBB224 /* Release configuration for PBXProject "X68000" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -1023,6 +1008,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -1030,9 +1016,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = DQR9HH7KUY;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1048,15 +1037,14 @@
 			};
 			name = Release;
 		};
-		07F863D1242F93EA00CBB224 /* Debug */ = {
+		07F863D1242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 iOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOSDebug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 841;
-				DEVELOPMENT_TEAM = 7JBC998RH7;
+				CURRENT_PROJECT_VERSION = 899;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					HAVE_C68K,
@@ -1065,6 +1053,7 @@
 				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1072,10 +1061,11 @@
 				);
 				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
 				PRODUCT_NAME = "X68000 for iOS";
 				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1086,21 +1076,21 @@
 			};
 			name = Debug;
 		};
-		07F863D2242F93EA00CBB224 /* Release */ = {
+		07F863D2242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 iOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 841;
-				DEVELOPMENT_TEAM = 7JBC998RH7;
+				CURRENT_PROJECT_VERSION = 899;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					TARGET_IOS,
 				);
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 iOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1108,10 +1098,11 @@
 				);
 				MARKETING_VERSION = 4.1.6;
 				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = GOROman.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
 				PRODUCT_NAME = "X68000 for iOS";
 				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1121,7 +1112,7 @@
 			};
 			name = Release;
 		};
-		07F863D4242F93EA00CBB224 /* Debug */ = {
+		07F863D4242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 macOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1131,27 +1122,28 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = LA9X3DU626;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					TARGET_IOS,
+					TARGET_MACOS,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 macOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = bexide.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
 				PRODUCT_NAME = X68000;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 macOS-Bridging-Header.h";
@@ -1160,7 +1152,7 @@
 			};
 			name = Debug;
 		};
-		07F863D5242F93EA00CBB224 /* Release */ = {
+		07F863D5242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 macOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1170,25 +1162,26 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = LA9X3DU626;
+				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
-					TARGET_IOS,
+					TARGET_MACOS,
 				);
 				GCC_WARN_UNUSED_VALUE = NO;
 				GCC_WARN_UNUSED_VARIABLE = NO;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "X68000 macOS/Info.plist";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac";
-				PRODUCT_BUNDLE_IDENTIFIER = bexide.X68000;
+				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
 				PRODUCT_NAME = X68000;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 macOS-Bridging-Header.h";
@@ -1202,29 +1195,26 @@
 		07F863A0242F93E800CBB224 /* Build configuration list for PBXProject "X68000" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				07F863CE242F93EA00CBB224 /* Debug */,
-				07F863CF242F93EA00CBB224 /* Release */,
+				07F863CE242F93EA00CBB224 /* Debug configuration for PBXProject "X68000" */,
+				07F863CF242F93EA00CBB224 /* Release configuration for PBXProject "X68000" */,
 			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		07F863D0242F93EA00CBB224 /* Build configuration list for PBXNativeTarget "X68000 iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				07F863D1242F93EA00CBB224 /* Debug */,
-				07F863D2242F93EA00CBB224 /* Release */,
+				07F863D1242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 iOS" */,
+				07F863D2242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 iOS" */,
 			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		07F863D3242F93EA00CBB224 /* Build configuration list for PBXNativeTarget "X68000 macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				07F863D4242F93EA00CBB224 /* Debug */,
-				07F863D5242F93EA00CBB224 /* Release */,
+				07F863D4242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 macOS" */,
+				07F863D5242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 macOS" */,
 			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 	};

@@ -21,7 +21,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>GOROman.X68000.1.FDD</string>
+				<string>NANKIN.X68000.1.FDD</string>
 			</array>
 		</dict>
 		<dict>
@@ -37,7 +37,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>GOROman.X68000.1.HDD</string>
+				<string>NANKIN.X68000.1.HDD</string>
 			</array>
 		</dict>
 	</array>
@@ -54,7 +54,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>841</string>
+	<string>899</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -101,16 +101,10 @@
 	<string>UIStatusBarStyleBlackTranslucent</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportsDocumentBrowser</key>
 	<true/>
@@ -130,7 +124,7 @@
 				<string>FDD.png</string>
 			</array>
 			<key>UTTypeIdentifier</key>
-			<string>GOROman.X68000.1.FDD</string>
+			<string>NANKIN.X68000.1.FDD</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -154,7 +148,7 @@
 				<string>HDDIcon.png</string>
 			</array>
 			<key>UTTypeIdentifier</key>
-			<string>GOROman.X68000.1.HDD</string>
+			<string>NANKIN.X68000.1.HDD</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -74,26 +74,26 @@
 		073F76F124323762005B1F18 /* libc68k.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		073F7704243237AD005B1F18 /* c68kexec.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = c68kexec.c; sourceTree = "<group>"; };
 		073F7705243237AD005B1F18 /* core.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = core.h; sourceTree = "<group>"; };
-		073F7706243237AD005B1F18 /* c68k_op9.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op9.inc; sourceTree = "<group>"; };
-		073F7707243237AD005B1F18 /* c68k_op8.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op8.inc; sourceTree = "<group>"; };
-		073F7708243237AD005B1F18 /* c68kmac.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68kmac.inc; sourceTree = "<group>"; };
-		073F7709243237AD005B1F18 /* c68k_ini.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_ini.inc; sourceTree = "<group>"; };
+		073F7706243237AD005B1F18 /* c68k_op9.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op9.inc; sourceTree = "<group>"; };
+		073F7707243237AD005B1F18 /* c68k_op8.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op8.inc; sourceTree = "<group>"; };
+		073F7708243237AD005B1F18 /* c68kmac.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68kmac.inc; sourceTree = "<group>"; };
+		073F7709243237AD005B1F18 /* c68k_ini.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_ini.inc; sourceTree = "<group>"; };
 		073F770A243237AD005B1F18 /* c68k.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = c68k.c; sourceTree = "<group>"; };
-		073F770B243237AD005B1F18 /* c68k_opC.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opC.inc; sourceTree = "<group>"; };
+		073F770B243237AD005B1F18 /* c68k_opC.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opC.inc; sourceTree = "<group>"; };
 		073F770C243237AD005B1F18 /* c68k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = c68k.h; sourceTree = "<group>"; };
-		073F770D243237AD005B1F18 /* c68k_op5.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op5.inc; sourceTree = "<group>"; };
-		073F770E243237AD005B1F18 /* c68k_op4.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op4.inc; sourceTree = "<group>"; };
-		073F770F243237AD005B1F18 /* c68k_opB.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opB.inc; sourceTree = "<group>"; };
-		073F7710243237AD005B1F18 /* c68k_op6.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op6.inc; sourceTree = "<group>"; };
-		073F7711243237AD005B1F18 /* c68k_op7.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op7.inc; sourceTree = "<group>"; };
-		073F7712243237AD005B1F18 /* c68k_opA.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opA.inc; sourceTree = "<group>"; };
-		073F7713243237AD005B1F18 /* c68k_op3.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op3.inc; sourceTree = "<group>"; };
-		073F7714243237AD005B1F18 /* c68k_opE.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opE.inc; sourceTree = "<group>"; };
-		073F7715243237AD005B1F18 /* c68k_opD.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opD.inc; sourceTree = "<group>"; };
-		073F7716243237AD005B1F18 /* c68k_op2.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op2.inc; sourceTree = "<group>"; };
-		073F7717243237AD005B1F18 /* c68k_op0.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op0.inc; sourceTree = "<group>"; };
-		073F7718243237AD005B1F18 /* c68k_opF.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_opF.inc; sourceTree = "<group>"; };
-		073F7719243237AD005B1F18 /* c68k_op1.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.pascal; path = c68k_op1.inc; sourceTree = "<group>"; };
+		073F770D243237AD005B1F18 /* c68k_op5.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op5.inc; sourceTree = "<group>"; };
+		073F770E243237AD005B1F18 /* c68k_op4.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op4.inc; sourceTree = "<group>"; };
+		073F770F243237AD005B1F18 /* c68k_opB.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opB.inc; sourceTree = "<group>"; };
+		073F7710243237AD005B1F18 /* c68k_op6.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op6.inc; sourceTree = "<group>"; };
+		073F7711243237AD005B1F18 /* c68k_op7.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op7.inc; sourceTree = "<group>"; };
+		073F7712243237AD005B1F18 /* c68k_opA.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opA.inc; sourceTree = "<group>"; };
+		073F7713243237AD005B1F18 /* c68k_op3.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op3.inc; sourceTree = "<group>"; };
+		073F7714243237AD005B1F18 /* c68k_opE.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opE.inc; sourceTree = "<group>"; };
+		073F7715243237AD005B1F18 /* c68k_opD.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opD.inc; sourceTree = "<group>"; };
+		073F7716243237AD005B1F18 /* c68k_op2.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op2.inc; sourceTree = "<group>"; };
+		073F7717243237AD005B1F18 /* c68k_op0.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op0.inc; sourceTree = "<group>"; };
+		073F7718243237AD005B1F18 /* c68k_opF.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opF.inc; sourceTree = "<group>"; };
+		073F7719243237AD005B1F18 /* c68k_op1.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op1.inc; sourceTree = "<group>"; };
 		07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k_mac_DEBUG.a; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -119,7 +119,6 @@
 			isa = PBXGroup;
 			children = (
 				073F7701243237AD005B1F18 /* m68000 */,
-				073F76F324323762005B1F18 /* c68k */,
 				073F76F224323762005B1F18 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -131,13 +130,6 @@
 				07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		073F76F324323762005B1F18 /* c68k */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = c68k;
 			sourceTree = "<group>";
 		};
 		073F7701243237AD005B1F18 /* m68000 */ = {
@@ -221,8 +213,9 @@
 		073F76E924323762005B1F18 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 1250;
+				LastUpgradeCheck = 1610;
 				ORGANIZATIONNAME = GOROman;
 				TargetAttributes = {
 					073F76F024323762005B1F18 = {
@@ -344,6 +337,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -406,6 +400,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -469,6 +464,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = LA9X3DU626;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -489,6 +485,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = LA9X3DU626;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,

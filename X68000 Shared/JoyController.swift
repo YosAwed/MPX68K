@@ -35,7 +35,7 @@ class JoyController {
     }
     enum Status {
         case Unknown
-        case Conntected
+        case Connected
         case Disconnected
     }
     var event : Optional<(Status) -> Void>
@@ -67,7 +67,7 @@ class JoyController {
     // Notification: Connection
     @objc
     func handleControllerDidConnect(_ notification: Notification){
-        self.event?(.Conntected)
+        self.event?(.Connected)
         print("ゲームコントローラーの接続が通知されました")
 
         guard let gameController = notification.object as? GCController else {

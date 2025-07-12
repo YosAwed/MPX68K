@@ -52,7 +52,7 @@ dosio_term(void)
 	/* Nothing to do. */
 }
 
-/* ¥Õ¥¡¥¤¥ëÁàºî */
+/* ï¿½Õ¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 FILEH
 file_open(LPSTR filename)
 {
@@ -206,7 +206,7 @@ file_attr(LPSTR filename)
 }
 
 
-							// ¥«¥ì¥ó¥È¥Õ¥¡¥¤¥ëÁàºî
+							// ï¿½ï¿½ï¿½ï¿½ï¿½È¥Õ¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 void
 file_setcd(LPSTR exename)
 {
@@ -230,7 +230,8 @@ static char s_filename[MAX_PATH];
 FILEH
 file_open_c(LPSTR filename)
 {
-    sprintf(s_filename, "%s%s", curpath, filename );
+    // Security: Use snprintf to prevent buffer overflow
+    snprintf(s_filename, sizeof(s_filename), "%s%s", curpath, filename);
     printf("file_open_c(\"%s\") = %s\n", filename, curpath);   //@
 	return file_open(s_filename);
 }
@@ -238,7 +239,8 @@ file_open_c(LPSTR filename)
 FILEH
 file_create_c(LPSTR filename, int ftype)
 {
-    sprintf(s_filename, "%s%s", curpath, filename );
+    // Security: Use snprintf to prevent buffer overflow
+    snprintf(s_filename, sizeof(s_filename), "%s%s", curpath, filename);
     printf("file_create_c(\"%s\")\n", filename);
 //	strncpy(curfilep, filename, curfilep - curpath);
 	return file_create(s_filename, ftype);
@@ -453,7 +455,7 @@ fname_mix(LPSTR str, LPSTR mix, int size)
 }
 
 /*
- * UNIX -> DOS Æü»þÊÑ´¹
+ * UNIX -> DOS ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½
  */
 /* $NetBSD: msdosfs_conv.c,v 1.29 2001/01/18 20:28:27 jdolecek Exp $ */
 /*-
