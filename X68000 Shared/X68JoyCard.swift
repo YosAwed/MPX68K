@@ -48,13 +48,17 @@ class X68JoyCard : X68Device
     // MARK: - Update
     override func Update(_ currentTime: TimeInterval)
     {
-        buttonA?.fillColor = (joydata & JOY_TRG1 != 0) ? .yellow : .black
-        buttonB?.fillColor = (joydata & JOY_TRG2 != 0) ? .yellow : .black
-        buttonU?.fillColor = (joydata & JOY_UP    != 0)  ? .yellow : .black
-        buttonD?.fillColor = (joydata & JOY_DOWN  != 0) ? .yellow : .black
-        buttonL?.fillColor = (joydata & JOY_LEFT  != 0) ? .yellow : .black
-        buttonR?.fillColor = (joydata & JOY_RIGHT  != 0) ? .yellow : .black
-
+        // Only update visual state if joydata actually changed
+        if joydata != lastDisplayedJoydata {
+            buttonA?.fillColor = (joydata & JOY_TRG1 != 0) ? .yellow : .black
+            buttonB?.fillColor = (joydata & JOY_TRG2 != 0) ? .yellow : .black
+            buttonU?.fillColor = (joydata & JOY_UP    != 0)  ? .yellow : .black
+            buttonD?.fillColor = (joydata & JOY_DOWN  != 0) ? .yellow : .black
+            buttonL?.fillColor = (joydata & JOY_LEFT  != 0) ? .yellow : .black
+            buttonR?.fillColor = (joydata & JOY_RIGHT  != 0) ? .yellow : .black
+            
+            lastDisplayedJoydata = joydata
+        }
     }
     #if os(iOS)
     override func touchesBegan(_ touches: Set<UITouch>) {
@@ -232,6 +236,8 @@ class X68JoyCard : X68Device
     #endif
     
     var joydata : UInt8 = 0x00
+    private var lastDisplayedJoydata : UInt8 = 0xFF  // Force initial update
+    
     // MARK: ---- PRIVATE ----
     private func JoySet(_ port:UInt8,_ type:UInt8,_ pressed: Bool )
     {

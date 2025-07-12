@@ -52,6 +52,15 @@ int DSound_Init(unsigned long rate, unsigned long buflen)
     
     printf("Sound Init Sampling Rate:%dHz buflen:%d\n", rate, buflen );
 
+    // Fix: Initialize audio buffers to silence to prevent noise
+    memset(pcmbuffer, 0, PCMBUF_SIZE);
+    memset(rsndbuf, 0, PCMBUF_SIZE);
+    
+    // Reset buffer pointers
+    pbsp = pcmbuffer;
+    pbrp = pcmbuffer;
+    pbwp = pcmbuffer;
+    pbep = &pcmbuffer[PCMBUF_SIZE];
 
     ratebase = rate;
 
@@ -85,10 +94,32 @@ static void sound_send(int length)
 		rate = 0;   // 0にしないとおかしい！
 	}
 
+   // Fix: More defensive approach to prevent race conditions
+   BYTE *write_start = pbwp;
+   int total_bytes = length * sizeof(WORD) * 2;
+   
+   // Calculate if the write would wrap around the buffer
+   BYTE *write_end = write_start + total_bytes;
+   if (write_end > pbep) {
+       // Handle wrap-around case - clear in two parts
+       int first_part = pbep - write_start;
+       int second_part = total_bytes - first_part;
+       
+       // Clear first part
+       memset(write_start, 0, first_part);
+       // Clear second part (from start of buffer)
+       memset(pbsp, 0, second_part);
+   } else {
+       // Simple case - clear continuous area
+       memset(write_start, 0, total_bytes);
+   }
+
+   // Generate audio with both sources
    ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
 
-   pbwp += length * sizeof(WORD) * 2;
+   // Update write pointer atomically at the end
+   pbwp += total_bytes;
 	if (pbwp >= pbep) {
       pbwp = pbsp + (pbwp - pbep);
 	}
@@ -154,13 +185,14 @@ cb_start:
 
       datalen = pbwp - pbrp;
 
-      // needs more data
+      // needs more data - generate extra to prevent underruns
 	   if (datalen < len) {
-		   DSound_Send((len - datalen) / 4);
+		   int extra_samples = ((len - datalen) / 4) + 512; // Generate extra samples
+		   DSound_Send(extra_samples);
 //		   printf("MORE!");
 	   }
 
-#if 1
+#if 0
       datalen = pbwp - pbrp;
 //	   printf("%d\n",datalen);
 	   if (datalen < len) {
@@ -200,9 +232,10 @@ cb_start:
          lenb = len - lena;
 
 		  if (pbwp - pbsp < lenb) {
-            DSound_Send((lenb - (pbwp - pbsp)) / 4);
+            int needed_samples = ((lenb - (pbwp - pbsp)) / 4) + 256; // Generate extra samples  
+            DSound_Send(needed_samples);
 		  }
-#if 1
+#if 0
          if (pbwp - pbsp < lenb)
             printf("xxxxx not enough sound data xxxxx\n");
 #endif
@@ -214,6 +247,8 @@ cb_start:
       }
    }
 //    printf("SND:%p %p %d\n", buffer, buf, len);
+   
+   // Copy audio data to output buffer
    memcpy(buffer, buf, len);
 }
 

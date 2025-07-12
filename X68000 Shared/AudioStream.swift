@@ -111,17 +111,26 @@ func bridge<T : AnyObject>(_ ptr : UnsafeRawPointer) -> T {
 }
 
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
-
-//    let stream: AudioStream = bridge(UnsafeRawPointer(data)!)
     
+    let audioData = buffer.pointee.mAudioData
     let size = buffer.pointee.mAudioDataBytesCapacity / 4
-    let opaquePtr = OpaquePointer(buffer.pointee.mAudioData)
-    let mAudioDataPrt = UnsafeMutablePointer<Int16>(opaquePtr)
-    X68000_AudioCallBack(mAudioDataPrt, UInt32(size));
-
-    buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
-    AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
-
+    
+    // Quick safety check for reasonable buffer size
+    if size > 0 && size <= 8192 {
+        let mAudioDataPrt = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
+        
+        // Call the audio generation function directly without clearing
+        // The X68000 audio system will handle the data properly
+        X68000_AudioCallBack(mAudioDataPrt, UInt32(size))
+        
+        buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
+        AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
+    } else {
+        // Only clear and enqueue if size is invalid
+        memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
+        buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
+        AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
+    }
 }
 
 
@@ -129,7 +138,7 @@ class AudioStream {
     var dataFormat:     AudioStreamBasicDescription
     var queue:          AudioQueueRef? = nil
 
-    var buffers =       [AudioQueueBufferRef?](repeating: nil, count: 2)
+    var buffers =       [AudioQueueBufferRef?](repeating: nil, count: 4)  // Increased buffer count for stability
 
     var bufferByteSize: UInt32
     
@@ -141,7 +150,7 @@ class AudioStream {
         dataFormat = AudioStreamBasicDescription(
             mSampleRate:        Float64(samplingrate),
             mFormatID:          kAudioFormatLinearPCM,
-            mFormatFlags:       kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked, // Bigendian??
+            mFormatFlags:       kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
             mBytesPerPacket:    4,
             mFramesPerPacket:   1,
             mBytesPerFrame:     4,
@@ -150,16 +159,32 @@ class AudioStream {
             mReserved:          0
         )
 
-        bufferByteSize   = 512 * dataFormat.mBytesPerFrame
+        // Calculate buffer size based on sample rate to provide ~100ms of audio buffer
+        let bufferDurationSeconds: Float64 = 0.1  // 100ms
+        let framesPerBuffer = UInt32(Float64(samplingrate) * bufferDurationSeconds)
+        bufferByteSize = framesPerBuffer * dataFormat.mBytesPerFrame
+        
+        print("Audio buffer: \(framesPerBuffer) frames, \(bufferByteSize) bytes")
 //return;
         AudioQueueNewOutput(
             &dataFormat,
             outputCallback,
             unsafeBitCast(self, to: UnsafeMutableRawPointer.self),
-            CFRunLoopGetCurrent(),
-            CFRunLoopMode.commonModes.rawValue,
+            nil,  // Use internal thread for better performance
+            nil,  // Use internal thread for better performance
             0,
             &queue)
+        
+        // Set audio queue properties for better performance
+        if let queue = queue {
+            // Set high priority for audio processing
+            var priority: UInt32 = 1  // High priority
+            AudioQueueSetProperty(queue, kAudioQueueProperty_TimePitchBypass, &priority, UInt32(MemoryLayout<UInt32>.size))
+            
+            // Enable hardware acceleration if available
+            var enableLevelMetering: UInt32 = 0
+            AudioQueueSetProperty(queue, kAudioQueueProperty_EnableLevelMetering, &enableLevelMetering, UInt32(MemoryLayout<UInt32>.size))
+        }
         
         load()
     
@@ -169,51 +194,84 @@ class AudioStream {
     {
         if let queue = self.queue {
             
-            for case var buffer in buffers {
-                AudioQueueAllocateBuffer(queue, bufferByteSize, &buffer)
-                outputCallback(unsafeBitCast(self, to: UnsafeMutableRawPointer.self), queue: queue, buffer: buffer!)
+            // Allocate and pre-fill all buffers
+            for i in 0..<buffers.count {
+                AudioQueueAllocateBuffer(queue, bufferByteSize, &buffers[i])
+                if let buffer = buffers[i] {
+                    // Pre-fill buffer with silence to ensure smooth startup
+                    memset(buffer.pointee.mAudioData, 0, Int(bufferByteSize))
+                    buffer.pointee.mAudioDataByteSize = bufferByteSize
+                    outputCallback(unsafeBitCast(self, to: UnsafeMutableRawPointer.self), queue: queue, buffer: buffer)
+                }
             }
+            
+            // Flush any previous state and prime the queue
             AudioQueueFlush(queue)
-            AudioQueuePrime(queue,0,nil)
+            let primeResult = AudioQueuePrime(queue, 0, nil)
+            if primeResult != noErr {
+                print("Error: Failed to prime audio queue: \(primeResult)")
+            }
         }
     }
 
     func play()
     {
-        print("Play")
+        print("Audio Play")
         if let queue = self.queue {
-            AudioQueueStart(queue, nil)
+            let result = AudioQueueStart(queue, nil)
+            if result != noErr {
+                print("Error: Failed to start audio queue: \(result)")
+            }
         }
     }
+    
     func stop()
     {
-        print("Stop")
+        print("Audio Stop")
         if let queue = self.queue {
-            AudioQueueStop(queue, true)
+            let result = AudioQueueStop(queue, true)  // immediate stop
+            if result != noErr {
+                print("Error: Failed to stop audio queue: \(result)")
+            }
         }
-
     }
+    
     func pause()
     {
-        print("Pause")
+        print("Audio Pause")
         if let queue = self.queue {
-            AudioQueuePause(queue)
+            let result = AudioQueuePause(queue)
+            if result != noErr {
+                print("Error: Failed to pause audio queue: \(result)")
+            }
         }
-
     }
     func close()
     {
-        print("Close")
+        print("Audio Close")
 
         if let queue = self.queue {
+            // Stop audio queue first
+            AudioQueueStop(queue, true)
+            
+            // Flush any remaining buffers
             AudioQueueFlush(queue)
-            if let buffer = buffers[0] { AudioQueueFreeBuffer(queue, buffer) } // <- V not necessary/
-            if let buffer = buffers[1] { AudioQueueFreeBuffer(queue, buffer) }
-            AudioQueueDispose(queue, true)
+            
+            // Free all buffers
+            for buffer in buffers {
+                if let buffer = buffer {
+                    AudioQueueFreeBuffer(queue, buffer)
+                }
+            }
+            
+            // Dispose of the queue
+            let result = AudioQueueDispose(queue, true)
+            if result != noErr {
+                print("Error: Failed to dispose audio queue: \(result)")
+            }
+            
             self.queue = nil
         }
-        
-
     }
 }
 

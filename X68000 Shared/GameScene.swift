@@ -20,6 +20,14 @@ class GameScene: SKScene {
     private var samplingRate: Int = 22050
     private var vsync: Bool = true
     
+    // Input mode management
+    enum InputMode {
+        case keyboard
+        case joycard
+    }
+    private var currentInputMode: InputMode = .keyboard
+    private var inputModeButton: SKLabelNode?
+    
     // シフトキーの状態を追跡
     private var isShiftKeyPressed = false
     
@@ -220,6 +228,12 @@ class GameScene: SKScene {
         self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
         self.labelMIDI = self.childNode(withName: "//labelMIDI") as? SKLabelNode
         
+        // Adjust MIDI label position to avoid overlap with input mode button
+        adjustMIDILabelPosition()
+        
+        // Setup input mode toggle button
+        setupInputModeButton()
+        
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
@@ -306,7 +320,13 @@ class GameScene: SKScene {
     }
     
     func applicationWillResignActive() {
-        // audioStream?.pause()
+        // Pause audio to prevent underruns when app is inactive
+        audioStream?.pause()
+    }
+    
+    func applicationDidBecomeActive() {
+        // Resume audio when app becomes active
+        audioStream?.play()
     }
     
     override func sceneDidLoad() {
@@ -353,36 +373,49 @@ class GameScene: SKScene {
         
         addChild(virtualPad)
         
+        // Update virtual pad visibility based on input mode
+        updateVirtualPadVisibility()
+        
         moveJoystick.on(.begin) { [weak self] _ in
             // Empty handler for begin event
         }
         
         moveJoystick.on(.move) { [weak self] joystick in
-            guard let self = self else { return }
+            guard let self = self, let joycard = self.joycard else { return }
+            
             let VEL: CGFloat = 5.0
             let VELY: CGFloat = 10.0
+            let oldJoydata = joycard.joydata
+            
+            // Update direction flags based on velocity
+            var newJoydata = oldJoydata
+            
+            // Horizontal movement
             if joystick.velocity.x > VEL {
-                self.joycard?.joydata |= JOY_RIGHT
+                newJoydata |= JOY_RIGHT
+                newJoydata &= ~JOY_LEFT
+            } else if joystick.velocity.x < -VEL {
+                newJoydata |= JOY_LEFT
+                newJoydata &= ~JOY_RIGHT
             } else {
-                self.joycard?.joydata &= ~JOY_RIGHT
+                newJoydata &= ~(JOY_RIGHT | JOY_LEFT)
             }
-            if joystick.velocity.x < -VEL {
-                self.joycard?.joydata |= JOY_LEFT
-            } else {
-                self.joycard?.joydata &= ~JOY_LEFT
-            }
+            
+            // Vertical movement
             if joystick.velocity.y > VELY {
-                self.joycard?.joydata |= JOY_UP
+                newJoydata |= JOY_UP
+                newJoydata &= ~JOY_DOWN
+            } else if joystick.velocity.y < -VELY {
+                newJoydata |= JOY_DOWN
+                newJoydata &= ~JOY_UP
             } else {
-                self.joycard?.joydata &= ~JOY_UP
+                newJoydata &= ~(JOY_UP | JOY_DOWN)
             }
-            if joystick.velocity.y < -VELY {
-                self.joycard?.joydata |= JOY_DOWN
-            } else {
-                self.joycard?.joydata &= ~JOY_DOWN
-            }
-            if let joydata = self.joycard?.joydata {
-                X68000_Joystick_Set(UInt8(0), joydata)
+            
+            // Only update if state actually changed
+            if newJoydata != oldJoydata {
+                joycard.joydata = newJoydata
+                X68000_Joystick_Set(UInt8(0), newJoydata)
             }
         }
         
@@ -403,10 +436,13 @@ class GameScene: SKScene {
         }
         
         rotateJoystick.on(.move) { [weak self] joystick in
-            guard let self = self else { return }
-            self.joycard?.joydata |= JOY_TRG2
-            if let joydata = self.joycard?.joydata {
-                X68000_Joystick_Set(UInt8(0), joydata)
+            guard let self = self, let joycard = self.joycard else { return }
+            
+            // Only update if TRG2 is not already set
+            let oldJoydata = joycard.joydata
+            if (oldJoydata & JOY_TRG2) == 0 {
+                joycard.joydata |= JOY_TRG2
+                X68000_Joystick_Set(UInt8(0), joycard.joydata)
             }
         }
         
@@ -427,10 +463,13 @@ class GameScene: SKScene {
         }
         
         rotateJoystick2.on(.move) { [weak self] joystick in
-            guard let self = self else { return }
-            self.joycard?.joydata |= JOY_TRG1
-            if let joydata = self.joycard?.joydata {
-                X68000_Joystick_Set(UInt8(0), joydata)
+            guard let self = self, let joycard = self.joycard else { return }
+            
+            // Only update if TRG1 is not already set
+            let oldJoydata = joycard.joydata
+            if (oldJoydata & JOY_TRG1) == 0 {
+                joycard.joydata |= JOY_TRG1
+                X68000_Joystick_Set(UInt8(0), joycard.joydata)
             }
         }
         
@@ -458,7 +497,19 @@ class GameScene: SKScene {
     }
     
     func makeSpinny(at pos: CGPoint, color: SKColor) {
-        if pos.y < 400.0 {
+        // Only allow clock changes in the upper-left clock control area
+        // Exclude the input mode button area (x: -size.width/2 + 80, y: size.height/2 - 30)
+        let modeButtonX = -size.width/2 + 150
+        let modeButtonY = size.height/2 - 30
+        
+        // Don't allow clock changes if we're too close to the mode button
+        let distanceFromModeButton = sqrt(pow(pos.x - modeButtonX, 2) + pow(pos.y - modeButtonY, 2))
+        if distanceFromModeButton < 100.0 {
+            return
+        }
+        
+        // Don't allow clock changes in lower area or far right
+        if pos.y < 400.0 || pos.x > 300.0 {
             return
         }
         
@@ -493,6 +544,9 @@ class GameScene: SKScene {
                 label.fontColor = .yellow
                 
                 spinny.addChild(label)
+                
+                // Hide title logo when clock is changed
+                hideTitleLogo()
                 
                 self.addChild(spinny)
             }
@@ -564,10 +618,12 @@ class GameScene: SKScene {
             print("GameUpdate running - frame \(aaa)")
         }
         
-        // Actual game update logic from the original update method
-        for device in devices {
-            device.Update(CFAbsoluteTimeGetCurrent())
+        // Update devices only when necessary for current input mode
+        if currentInputMode == .joycard {
+            // Only update joycard device in joycard mode
+            joycard?.Update(CFAbsoluteTimeGetCurrent())
         }
+        // Other devices updated less frequently or as needed
         
         mouseController?.SetScreenSize(width: Float(w), height: Float(h))
         mouseController?.Update()
@@ -619,10 +675,11 @@ class GameScene: SKScene {
             return
         }
         
-        // Original game update logic restored to fix EXC_BAD_ACCESS
-        for device in devices {
-            device.Update(currentTime)
+        // Optimized device updates based on input mode
+        if currentInputMode == .joycard {
+            joycard?.Update(currentTime)
         }
+        // Skip unnecessary device updates to improve performance
         
         mouseController?.SetScreenSize(width: Float(w), height: Float(h))
         mouseController?.Update()
@@ -661,13 +718,162 @@ class GameScene: SKScene {
         self.spr.zPosition = -1.0
         self.addChild(spr)
     }
+    
+    // MARK: - UI Layout Management
+    private func adjustMIDILabelPosition() {
+        // Move MIDI label to the right side to avoid overlap with input mode button
+        labelMIDI?.position = CGPoint(x: size.width/2 - 150, y: size.height/2 - 50)
+        labelMIDI?.horizontalAlignmentMode = .right
+        labelMIDI?.fontColor = .cyan
+        labelMIDI?.fontSize = 18
+    }
+    
+    private func hideTitleLogo() {
+        // Immediately hide the title logo when clock is changed
+        titleSprite?.removeAllActions()
+        titleSprite?.alpha = 0.0
+        titleSprite?.isHidden = true
+        
+        // Also hide any title text labels that might be displayed
+        hideTitleLabels()
+    }
+    
+    private func hideTitleLabels() {
+        // Hide all potential title-related labels
+        if let titleLabel = self.childNode(withName: "//labelTitle") as? SKLabelNode {
+            titleLabel.removeAllActions()
+            titleLabel.alpha = 0.0
+            titleLabel.isHidden = true
+        }
+        
+        // Check for other common title label names
+        let titleLabelNames = ["//helloLabel2", "//labelTitle2", "//titleText", "//subtitleText"]
+        for labelName in titleLabelNames {
+            if let label = self.childNode(withName: labelName) as? SKLabelNode {
+                label.removeAllActions()
+                label.alpha = 0.0
+                label.isHidden = true
+            }
+        }
+        
+        // Find any labels containing title text and hide them
+        self.enumerateChildNodes(withName: "//*") { node, _ in
+            if let labelNode = node as? SKLabelNode {
+                if let text = labelNode.text {
+                    if text.contains("POWER TO MAKE") || text.contains("for macOS") || text.contains("for iOS") {
+                        labelNode.removeAllActions()
+                        labelNode.alpha = 0.0
+                        labelNode.isHidden = true
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Input Mode Management
+    private func setupInputModeButton() {
+        inputModeButton = SKLabelNode(text: getInputModeText())
+        inputModeButton?.fontName = "Helvetica"
+        inputModeButton?.fontSize = 14
+        inputModeButton?.fontColor = .lightGray
+        inputModeButton?.name = "InputModeButton"
+        inputModeButton?.zPosition = 10
+        inputModeButton?.position = CGPoint(x: -size.width/2 + 150, y: size.height/2 - 30)
+        
+        // Add background for better visibility
+        let background = SKShapeNode(rect: CGRect(x: -45, y: -8, width: 90, height: 16))
+        background.fillColor = .black
+        background.strokeColor = .darkGray
+        background.alpha = 0.6
+        background.zPosition = -1
+        inputModeButton?.addChild(background)
+        
+        addChild(inputModeButton!)
+    }
+    
+    private func getInputModeText() -> String {
+        switch currentInputMode {
+        case .keyboard:
+            return "MODE: KEYBOARD"
+        case .joycard:
+            return "MODE: JOYCARD"
+        }
+    }
+    
+    private func toggleInputMode() {
+        // Save current clock setting before mode change
+        let savedClockMHz = self.clockMHz
+        
+        currentInputMode = (currentInputMode == .keyboard) ? .joycard : .keyboard
+        inputModeButton?.text = getInputModeText()
+        updateVirtualPadVisibility()
+        
+        // Restore clock setting to prevent unwanted changes
+        self.clockMHz = savedClockMHz
+        
+        // Show mode change notification
+        showModeChangeNotification()
+    }
+    
+    private func updateVirtualPadVisibility() {
+        #if os(iOS)
+        let shouldHide = (currentInputMode == .keyboard)
+        if virtualPad.isHidden != shouldHide {
+            virtualPad.isHidden = shouldHide
+            
+            // Disable joystick updates when hidden to save CPU
+            if shouldHide {
+                moveJoystick.isUserInteractionEnabled = false
+                rotateJoystick.isUserInteractionEnabled = false
+                rotateJoystick2.isUserInteractionEnabled = false
+            } else {
+                moveJoystick.isUserInteractionEnabled = true
+                rotateJoystick.isUserInteractionEnabled = true
+                rotateJoystick2.isUserInteractionEnabled = true
+            }
+        }
+        #endif
+    }
+    
+    private func showModeChangeNotification() {
+        let notification = SKLabelNode(text: getInputModeText())
+        notification.fontName = "Helvetica-Bold"
+        notification.fontSize = 36
+        notification.fontColor = .yellow
+        notification.zPosition = 15
+        notification.position = CGPoint(x: 0, y: 0)
+        notification.alpha = 0
+        
+        let fadeSequence = SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.2),
+            SKAction.wait(forDuration: 1.0),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ])
+        
+        notification.run(fadeSequence)
+        addChild(notification)
+    }
 }
 
 #if os(iOS) || os(tvOS)
 extension GameScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for device in devices {
-            device.touchesBegan(touches)
+        // Check for input mode button tap
+        if let touch = touches.first {
+            let location = touch.location(in: self)
+            let touchedNode = atPoint(location)
+            if touchedNode.name == "InputModeButton" {
+                toggleInputMode()
+                return
+            }
+        }
+        
+        // Handle joycard input only in joycard mode
+        if currentInputMode == .joycard {
+            for device in devices {
+                device.touchesBegan(touches)
+            }
         }
         
         if touches.count == 1 {
@@ -694,14 +900,25 @@ extension GameScene {
             }
         }
         for t in touches {
-            self.makeSpinny(at: t.location(in: self), color: SKColor.green)
+            let location = t.location(in: self)
+            // Only create spinny for clock control area (upper area, excluding mode button area)
+            let modeButtonX = -size.width/2 + 150
+            let modeButtonY = size.height/2 - 30
+            let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+            
+            if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+                self.makeSpinny(at: location, color: SKColor.green)
+            }
             break
         }
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for device in devices {
-            device.touchesMoved(touches)
+        // Handle joycard input only in joycard mode
+        if currentInputMode == .joycard {
+            for device in devices {
+                device.touchesMoved(touches)
+            }
         }
         
         if touches.count == 1 {
@@ -718,8 +935,11 @@ extension GameScene {
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for device in devices {
-            device.touchesEnded(touches)
+        // Handle joycard input only in joycard mode
+        if currentInputMode == .joycard {
+            for device in devices {
+                device.touchesEnded(touches)
+            }
         }
         
         if let touch = touches.first as UITouch? {
@@ -754,59 +974,130 @@ extension GameScene {
 #if os(OSX)
 extension GameScene {
     override func mouseDown(with event: NSEvent) {
-        // Joycard mouse click handling
-        joycard?.handleMouseClick(at: event.location(in: self), pressed: true)
+        let location = event.location(in: self)
         
-        if let label = self.label {
-            if let pulseAction = SKAction(named: "Pulse") {
-                label.run(pulseAction, withKey: "fadeInOut")
-            }
+        // Check for input mode button click first (with broader area)
+        let modeButtonX = -size.width/2 + 150
+        let modeButtonY = size.height/2 - 30
+        let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+        
+        if distanceFromModeButton < 60.0 {  // Larger click area for mode button
+            toggleInputMode()
+            return
         }
-        self.makeSpinny(at: event.location(in: self), color: SKColor.green)
+        
+        // Also check by node name as backup
+        let clickedNode = atPoint(location)
+        if clickedNode.name == "InputModeButton" {
+            toggleInputMode()
+            return
+        }
+        
+        // Joycard mouse click handling only in joycard mode
+        if currentInputMode == .joycard {
+            joycard?.handleMouseClick(at: location, pressed: true)
+        }
+        
+        // Only show spinny for clock control area (upper area, excluding mode button area)
+        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+            if let label = self.label {
+                if let pulseAction = SKAction(named: "Pulse") {
+                    label.run(pulseAction, withKey: "fadeInOut")
+                }
+            }
+            self.makeSpinny(at: location, color: SKColor.green)
+        }
     }
     
     override func mouseDragged(with event: NSEvent) {
-        self.makeSpinny(at: event.location(in: self), color: SKColor.blue)
+        // Only create spinny for clock control area (upper area, excluding mode button area)
+        let location = event.location(in: self)
+        let modeButtonX = -size.width/2 + 150
+        let modeButtonY = size.height/2 - 30
+        let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+        
+        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+            self.makeSpinny(at: location, color: SKColor.blue)
+        }
     }
     
     override func mouseUp(with event: NSEvent) {
-        // Joycard mouse click handling
-        joycard?.handleMouseClick(at: event.location(in: self), pressed: false)
+        let location = event.location(in: self)
         
-        self.makeSpinny(at: event.location(in: self), color: SKColor.red)
+        // Joycard mouse click handling only in joycard mode
+        if currentInputMode == .joycard {
+            joycard?.handleMouseClick(at: location, pressed: false)
+        }
+        
+        // Only create spinny for clock control area (upper area, excluding mode button area)
+        let modeButtonX = -size.width/2 + 150
+        let modeButtonY = size.height/2 - 30
+        let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+        
+        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+            self.makeSpinny(at: location, color: SKColor.red)
+        }
     }
     
     
     override func keyDown(with event: NSEvent) {
         print("key press: \(event) keyCode: \(event.keyCode)")
         
-        // Joycard input handling for macOS
-        joycard?.handleKeyDown(event.keyCode, true)
-        if let characters = event.characters, !characters.isEmpty {
-            joycard?.handleCharacterInput(String(characters.first!), true)
+        // Check for mode toggle key (Tab key)
+        if event.keyCode == 48 { // Tab key
+            toggleInputMode()
+            return
         }
         
+        // Mode-specific input handling
+        switch currentInputMode {
+        case .joycard:
+            // Joycard input handling for macOS
+            joycard?.handleKeyDown(event.keyCode, true)
+            if let characters = event.characters, !characters.isEmpty {
+                joycard?.handleCharacterInput(String(characters.first!), true)
+            }
+        case .keyboard:
+            // X68000 keyboard input handling
+            handleX68KeyboardInput(event, isKeyDown: true)
+        }
+    }
+    
+    private func handleX68KeyboardInput(_ event: NSEvent, isKeyDown: Bool) {
         // シフトキーの状態をチェックして、状態変化があれば送信
         let isShiftPressed = event.modifierFlags.contains(.shift)
         print("🐛 Shift key pressed: \(isShiftPressed)")
         
-        if isShiftPressed && !isShiftKeyPressed {
-            // シフトキーが押された
-            print("🐛 Sending SHIFT DOWN")
-            X68000_Key_Down(0x1e1) // KeyTable拡張領域のシフトキー
-            isShiftKeyPressed = true
-        } else if !isShiftPressed && isShiftKeyPressed {
-            // シフトキーが離された
-            print("🐛 Sending SHIFT UP")
-            X68000_Key_Up(0x1e1)
-            isShiftKeyPressed = false
+        if isKeyDown {
+            if isShiftPressed && !isShiftKeyPressed {
+                // シフトキーが押された
+                print("🐛 Sending SHIFT DOWN")
+                X68000_Key_Down(0x1e1) // KeyTable拡張領域のシフトキー
+                isShiftKeyPressed = true
+            } else if !isShiftPressed && isShiftKeyPressed {
+                // シフトキーが離された
+                print("🐛 Sending SHIFT UP")
+                X68000_Key_Up(0x1e1)
+                isShiftKeyPressed = false
+            }
+        } else {
+            if !isShiftPressed && isShiftKeyPressed {
+                // シフトキーが離された
+                print("🐛 Sending SHIFT UP")
+                X68000_Key_Up(0x1e1)
+                isShiftKeyPressed = false
+            }
         }
         
         // 最初に特殊キー（文字なし）をチェック
         let x68KeyTableIndex = getMacKeyToX68KeyTableIndex(event.keyCode)
         if x68KeyTableIndex != 0 {
             print("🐛 Using special key KeyTable index: \(x68KeyTableIndex) for keyCode: \(event.keyCode)")
-            X68000_Key_Down(x68KeyTableIndex)
+            if isKeyDown {
+                X68000_Key_Down(x68KeyTableIndex)
+            } else {
+                X68000_Key_Up(x68KeyTableIndex)
+            }
             return
         }
         
@@ -814,7 +1105,11 @@ extension GameScene {
         if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
             let ascii = baseChar.asciiValue!
             print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
-            X68000_Key_Down(UInt32(ascii))
+            if isKeyDown {
+                X68000_Key_Down(UInt32(ascii))
+            } else {
+                X68000_Key_Up(UInt32(ascii))
+            }
             return
         }
         
@@ -827,7 +1122,11 @@ extension GameScene {
             
             if let ascii = asciiValue {
                 print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
-                X68000_Key_Down(UInt32(ascii))
+                if isKeyDown {
+                    X68000_Key_Down(UInt32(ascii))
+                } else {
+                    X68000_Key_Up(UInt32(ascii))
+                }
                 return
             }
         }
@@ -836,43 +1135,22 @@ extension GameScene {
     }
     
     override func keyUp(with event: NSEvent) {
-        // Joycard input handling for macOS
-        joycard?.handleKeyDown(event.keyCode, false)
-        if let characters = event.characters, !characters.isEmpty {
-            joycard?.handleCharacterInput(String(characters.first!), false)
-        }
-        
-        // シフトキーの状態をチェックして、状態変化があれば送信
-        let isShiftPressed = event.modifierFlags.contains(.shift)
-        
-        if !isShiftPressed && isShiftKeyPressed {
-            // シフトキーが離された
-            print("🐛 Sending SHIFT UP")
-            X68000_Key_Up(0x1e1)
-            isShiftKeyPressed = false
-        }
-        
-        // キーアップも同じ順序で処理
-        let x68KeyTableIndex = getMacKeyToX68KeyTableIndex(event.keyCode)
-        if x68KeyTableIndex != 0 {
-            X68000_Key_Up(x68KeyTableIndex)
+        // Skip Tab key for mode toggle
+        if event.keyCode == 48 { // Tab key
             return
         }
         
-        // 物理キーベースのマッピング
-        if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
-            let ascii = baseChar.asciiValue!
-            X68000_Key_Up(UInt32(ascii))
-            return
-        }
-        
-        // フォールバック: 文字ベース処理
-        if let characters = event.characters, !characters.isEmpty {
-            let char = characters.first!
-            if let ascii = char.asciiValue {
-                X68000_Key_Up(UInt32(ascii))
-                return
+        // Mode-specific input handling
+        switch currentInputMode {
+        case .joycard:
+            // Joycard input handling for macOS
+            joycard?.handleKeyDown(event.keyCode, false)
+            if let characters = event.characters, !characters.isEmpty {
+                joycard?.handleCharacterInput(String(characters.first!), false)
             }
+        case .keyboard:
+            // X68000 keyboard input handling
+            handleX68KeyboardInput(event, isKeyDown: false)
         }
     }
     
