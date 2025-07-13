@@ -16,9 +16,10 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ### macOS Enhancements
 - **Dual FDD Support**: Menu-driven management for Drive A and Drive B
+- **Hard Disk Support**: Complete HDD management with dedicated menu
 - **Enhanced Joycard**: Keyboard, mouse, and GameController input
 - **Drag & Drop**: Multi-file support with automatic drive assignment
-- **Native Menu Integration**: Dedicated FDD menu with keyboard shortcuts
+- **Native Menu Integration**: Dedicated FDD and HDD menus with keyboard shortcuts
 
 ### Cross-Platform
 - **iOS Support**: Touch controls and document-based interface
@@ -133,6 +134,10 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **FDD → Eject Drive A** (⇧⌘1): Eject disk from Drive A
 - **FDD → Eject Drive B** (⇧⌘2): Eject disk from Drive B
 
+#### HDD Management
+- **HDD → Open Hard Disk...** (⌘H): Insert hard disk image
+- **HDD → Eject Hard Disk** (⇧⌘H): Eject hard disk image
+
 #### Joycard Input
 - **Arrow Keys** or **WASD**: 8-direction movement
 - **Space** or **J**: Button A
@@ -142,7 +147,8 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 #### Drag & Drop
 - Single floppy disk → Drive A
 - Two floppy disks → Drive A and Drive B automatically
-- HDD images → Standard loading
+- Hard disk images (.hdf, .hdm) → HDD loading
+- Mixed file types → Automatic assignment by file type
 
 ### iOS Controls
 - **Touch Interface**: Native touch controls for joycard
@@ -151,13 +157,29 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ## File Formats
 
-| Extension | Description | Platform Support |
-|-----------|-------------|-------------------|
-| .dim | Standard disk image | macOS, iOS |
-| .xdf | Extended disk format | macOS, iOS |
-| .d88 | D88 disk format | macOS, iOS |
-| .hdm | Hard disk image (Mac) | macOS, iOS |
-| .hdf | Hard disk format | macOS, iOS |
+| Extension | Description | Type | Platform Support |
+|-----------|-------------|------|-------------------|
+| .dim | Standard disk image | Floppy | macOS, iOS |
+| .xdf | Extended disk format | Floppy | macOS, iOS |
+| .d88 | D88 disk format | Floppy | macOS, iOS |
+| .hdm | Hard disk image (Mac) | Hard Disk | macOS, iOS |
+| .hdf | Hard disk format | Hard Disk | macOS, iOS |
+
+### Hard Disk Usage
+
+Hard disk images provide faster access and larger storage capacity compared to floppy disks:
+
+1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf/.hdm files
+2. **Boot Priority**: When both FDD and HDD are present, X68000 typically boots from HDD
+3. **Performance**: HDDs offer significantly faster loading times for large applications
+4. **Capacity**: Support for larger disk images suitable for complex software suites
+5. **Persistence**: Changes to HDD images are automatically saved
+
+#### Recommended Usage
+- **System Boot**: Install X68000 system on HDD for faster startup
+- **Applications**: Store large software packages on HDD
+- **Development**: Use HDD for compilers and development tools
+- **Games**: Multi-disk games can be consolidated onto HDD
 
 ## Architecture
 
@@ -177,10 +199,12 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ### Version 2024.1
 - ✅ **Dual FDD Drive Support**: Independent Drive A/B management
+- ✅ **Hard Disk Drive Support**: Complete HDD management with menu integration
 - ✅ **Enhanced macOS Joycard**: Keyboard and mouse input support
-- ✅ **Menu Integration**: Native macOS menu bar with shortcuts
-- ✅ **Multi-file Drag & Drop**: Automatic drive assignment
+- ✅ **Menu Integration**: Native macOS menu bar with FDD and HDD shortcuts
+- ✅ **Multi-file Drag & Drop**: Automatic drive assignment by file type
 - ✅ **Visual Feedback**: Real-time button highlighting
+- ✅ **File Format Expansion**: Added .hdf and .hdm support for hard disks
 
 ## Development
 
