@@ -785,6 +785,22 @@ void X68000_LoadHDD( const char* filename )
 
 }
 
+void X68000_EjectHDD()
+{
+	printf("X68000_EjectHDD()\n");
+	Config.HDImage[0][0] = '\0';
+}
+
+const int X68000_IsHDDReady()
+{
+	return (Config.HDImage[0][0] != '\0') ? 1 : 0;
+}
+
+const char* X68000_GetHDDFilename()
+{
+	return Config.HDImage[0];
+}
+
 unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];

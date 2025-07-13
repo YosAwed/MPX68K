@@ -120,6 +120,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         print("🐛 AppDelegate.ejectFDDDriveB called")
         gameViewController?.ejectFDDDriveB(sender)
     }
+    
+    // MARK: - HDD Menu Actions
+    @IBAction func openHDD(_ sender: Any) {
+        print("🐛 AppDelegate.openHDD called")
+        gameViewController?.openHDD(sender)
+    }
+    
+    @IBAction func ejectHDD(_ sender: Any) {
+        print("🐛 AppDelegate.ejectHDD called")
+        gameViewController?.ejectHDD(sender)
+    }
 
 }
 

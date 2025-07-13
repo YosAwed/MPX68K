@@ -157,6 +157,24 @@ class GameScene: SKScene {
         X68000_EjectFDD(drive)
     }
     
+    // MARK: - HDD Management
+    func loadHDD(url: URL) {
+        print("🐛 GameScene.loadHDD() called with: \(url.lastPathComponent)")
+        
+        if fileSystem == nil {
+            print("🐛 FileSystem not initialized, creating...")
+            fileSystem = FileSystem()
+            fileSystem?.gameScene = self
+        }
+        
+        fileSystem?.loadDiskImage(url)
+    }
+    
+    func ejectHDD() {
+        print("🐛 GameScene.ejectHDD() called")
+        X68000_EjectHDD()
+    }
+    
     let userDefaults = UserDefaults.standard
     
     private func settings() {

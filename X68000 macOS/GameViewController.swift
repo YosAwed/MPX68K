@@ -61,6 +61,29 @@ class GameViewController: NSViewController {
     private func ejectFDDFromDrive(_ drive: Int) {
         gameScene?.ejectFDDFromDrive(drive)
     }
+    
+    // MARK: - HDD Management
+    @IBAction func openHDD(_ sender: Any) {
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Open Hard Disk Image"
+        openPanel.allowedContentTypes = [
+            UTType(filenameExtension: "hdf")!,
+            UTType(filenameExtension: "hdm")!
+        ]
+        openPanel.allowsMultipleSelection = false
+        
+        openPanel.begin { [weak self] response in
+            if response == .OK, let url = openPanel.url {
+                DispatchQueue.main.async {
+                    self?.gameScene?.loadHDD(url: url)
+                }
+            }
+        }
+    }
+    
+    @IBAction func ejectHDD(_ sender: Any) {
+        gameScene?.ejectHDD()
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()

@@ -661,6 +661,25 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="HDD" id="HDD-menu-item">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="HDD" id="HDD-submenu">
+                                    <items>
+                                        <menuItem title="Open Hard Disk..." keyEquivalent="h" id="HDD-open">
+                                            <connections>
+                                                <action selector="openHDD:" target="Ady-hI-5gd" id="HDD-open-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="HDD-separator"/>
+                                        <menuItem title="Eject Hard Disk" keyEquivalent="h" id="HDD-eject">
+                                            <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="ejectHDD:" target="Ady-hI-5gd" id="HDD-eject-action"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
                             <menuItem title="Window" id="aUF-d1-5bR">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Window" systemMenu="window" id="Td7-aD-5lo">

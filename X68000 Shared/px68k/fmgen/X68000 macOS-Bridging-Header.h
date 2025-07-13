@@ -30,6 +30,10 @@ void X68000_EjectFDD( const long drive );
 const int X68000_IsFDDReady( const long drive );
 const char* X68000_GetFDDFilename( const long drive );
 
+void X68000_EjectHDD();
+const int X68000_IsHDDReady();
+const char* X68000_GetHDDFilename();
+
 const long X68000_GetMIDIBufferSize();
 unsigned char* X68000_GetMIDIBuffer();
 
