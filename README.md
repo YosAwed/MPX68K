@@ -1,6 +1,7 @@
 # X68Mac
 
 A Sharp X68000 computer emulator for macOS and iOS platforms, based on the px68k emulator core.
+This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.com/hissorii/px68k). Based on his source code, [Goroman](https://github.com/GOROman) converted it for iOS, and I made it work on MacOS26.
 
 ## Overview
 
@@ -12,7 +13,7 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **Complete X68000 Hardware Emulation**: CPU, sound, graphics, and I/O
 - **M68000 CPU**: Powered by C68K emulator core
 - **FM Sound Synthesis**: High-quality audio via fmgen
-- **Multiple Disk Formats**: Support for .dim, .xdf, .d88, .hdm, .hdf files
+- **Multiple Disk Formats**: Support for .dim, .xdf, .hdf files
 
 ### macOS Enhancements
 - **Dual FDD Support**: Menu-driven management for Drive A and Drive B
@@ -39,7 +40,7 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ## ROM Files Setup
 
-X68Mac requires original Sharp X68000 system ROM files to function properly. These files are **not included** with the emulator and must be obtained separately.
+X68Mac requires original SHARP X68000 system ROM files to function properly. These files are **not included** with the emulator and must be obtained separately.
 
 ### Required ROM Files
 
@@ -88,7 +89,7 @@ X68000 iOS.app/
 
 ### Important Notes
 
-- **Legal Notice**: ROM files are copyrighted by Sharp Corporation. You must own an original X68000 system to legally use these files.
+- **Legal Notice**: ROM files are copyrighted by SHARP CORPORATION. You must own an original X68000 system to legally use these files.
 - **File Names**: ROM file names are case-sensitive and must be exactly `CGROM.DAT` and `IPLROM.DAT`.
 - **File Integrity**: Ensure ROM files are not corrupted. The emulator will display an error if files are missing or invalid.
 - **Backup**: Always keep backup copies of your ROM files in a safe location.
@@ -161,15 +162,13 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 |-----------|-------------|------|-------------------|
 | .dim | Standard disk image | Floppy | macOS, iOS |
 | .xdf | Extended disk format | Floppy | macOS, iOS |
-| .d88 | D88 disk format | Floppy | macOS, iOS |
-| .hdm | Hard disk image (Mac) | Hard Disk | macOS, iOS |
 | .hdf | Hard disk format | Hard Disk | macOS, iOS |
 
 ### Hard Disk Usage
 
 Hard disk images provide faster access and larger storage capacity compared to floppy disks:
 
-1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf/.hdm files
+1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf files
 2. **Boot Priority**: When both FDD and HDD are present, X68000 typically boots from HDD
 3. **Performance**: HDDs offer significantly faster loading times for large applications
 4. **Capacity**: Support for larger disk images suitable for complex software suites
@@ -204,7 +203,7 @@ Hard disk images provide faster access and larger storage capacity compared to f
 - ✅ **Menu Integration**: Native macOS menu bar with FDD and HDD shortcuts
 - ✅ **Multi-file Drag & Drop**: Automatic drive assignment by file type
 - ✅ **Visual Feedback**: Real-time button highlighting
-- ✅ **File Format Expansion**: Added .hdf and .hdm support for hard disks
+- ✅ **File Format Expansion**: Added .hdf support for hard disks
 
 ## Development
 
@@ -257,4 +256,4 @@ This project is based on px68k emulator. Please refer to the original px68k lice
 
 ---
 
-*Sharp X68000 is a trademark of Sharp Corporation. This project is not affiliated with Sharp Corporation.*
+*SHARP X68000 is a trademark of SHARP CORPORATION. This project is not affiliated with SHARP CORPORATION.*
