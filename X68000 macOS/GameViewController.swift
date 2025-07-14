@@ -84,6 +84,19 @@ class GameViewController: NSViewController {
     @IBAction func ejectHDD(_ sender: Any) {
         gameScene?.ejectHDD()
     }
+    
+    // MARK: - Screen Rotation Management
+    @IBAction func rotateScreen(_ sender: Any) {
+        gameScene?.rotateScreen()
+    }
+    
+    @IBAction func setLandscapeMode(_ sender: Any) {
+        gameScene?.setScreenRotation(.landscape)
+    }
+    
+    @IBAction func setPortraitMode(_ sender: Any) {
+        gameScene?.setScreenRotation(.portrait)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -106,10 +119,76 @@ class GameViewController: NSViewController {
         
         // ドラッグ&ドロップを有効にする
         setupDragAndDrop()
+        
+        // 画面回転変更の通知を監視
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenRotationChanged(_:)),
+            name: .screenRotationChanged,
+            object: nil
+        )
     }
     
     private func setupDragAndDrop() {
         view.registerForDraggedTypes([.fileURL])
+    }
+    
+    @objc private func screenRotationChanged(_ notification: Notification) {
+        guard let rotation = notification.object as? GameScene.ScreenRotation else { return }
+        
+        print("🐛 Screen rotation changed to: \(rotation.displayName)")
+        
+        // ウィンドウサイズを回転に応じて調整
+        DispatchQueue.main.async {
+            self.adjustWindowSizeForRotation(rotation)
+        }
+    }
+    
+    private func adjustWindowSizeForRotation(_ rotation: GameScene.ScreenRotation) {
+        guard let window = view.window else { return }
+        
+        let currentFrame = window.frame
+        
+        // 基本的なX68000解像度（768x512）に基づいて計算
+        let baseWidth: CGFloat = 768
+        let baseHeight: CGFloat = 512
+        
+        // 固定的な最適サイズを計算（現在のウィンドウサイズに依存しない）
+        let optimalScale: CGFloat = 1.5  // 適度なサイズ倍率
+        
+        let newContentSize: NSSize
+        
+        switch rotation {
+        case .landscape:
+            // 横画面：通常のアスペクト比
+            newContentSize = NSSize(
+                width: baseWidth * optimalScale,
+                height: baseHeight * optimalScale
+            )
+            
+        case .portrait:
+            // 縦画面：アスペクト比を反転し、縦長ウィンドウに
+            newContentSize = NSSize(
+                width: baseHeight * optimalScale,  // 元の高さが新しい幅
+                height: baseWidth * optimalScale   // 元の幅が新しい高さ
+            )
+        }
+        
+        // ウィンドウの新しい位置を計算（中央に配置）
+        let screenFrame = window.screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let newX = screenFrame.midX - newContentSize.width / 2
+        let newY = screenFrame.midY - newContentSize.height / 2
+        
+        let newFrame = window.frameRect(forContentRect: NSRect(
+            x: newX,
+            y: newY,
+            width: newContentSize.width,
+            height: newContentSize.height
+        ))
+        
+        window.setFrame(newFrame, display: true, animate: true)
+        
+        print("🐛 Window size adjusted for \(rotation.displayName): \(newContentSize)")
     }
 
 }

@@ -18,9 +18,10 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 ### macOS Enhancements
 - **Dual FDD Support**: Menu-driven management for Drive A and Drive B
 - **Hard Disk Support**: Complete HDD management with dedicated menu
+- **Screen Rotation**: 90-degree rotation support for vertical games (tate mode)
 - **Enhanced Joycard**: Keyboard, mouse, and GameController input
 - **Drag & Drop**: Multi-file support with automatic drive assignment
-- **Native Menu Integration**: Dedicated FDD and HDD menus with keyboard shortcuts
+- **Native Menu Integration**: Dedicated FDD, HDD, and Display menus with keyboard shortcuts
 
 ### Cross-Platform
 - **iOS Support**: Touch controls and document-based interface
@@ -139,6 +140,11 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **HDD → Open Hard Disk...** (⌘H): Insert hard disk image
 - **HDD → Eject Hard Disk** (⇧⌘H): Eject hard disk image
 
+#### Display Management
+- **Display → Rotate Screen** (⌘R): Rotate screen between landscape and portrait modes
+- **Display → Landscape Mode**: Set to standard horizontal orientation
+- **Display → Portrait Mode (90°)**: Set to vertical orientation for tate games
+
 #### Joycard Input
 - **Arrow Keys** or **WASD**: 8-direction movement
 - **Space** or **J**: Button A
@@ -180,6 +186,26 @@ Hard disk images provide faster access and larger storage capacity compared to f
 - **Development**: Use HDD for compilers and development tools
 - **Games**: Multi-disk games can be consolidated onto HDD
 
+### Screen Rotation (Tate Mode)
+
+The X68000 emulator supports 90-degree screen rotation for vertical games, commonly known as "tate mode":
+
+#### Supported Games
+- **Dragon Spirit**: Classic vertical shooter requiring portrait orientation
+- **Other Vertical Games**: Any X68000 game designed for vertical play
+
+#### Usage
+1. **Rotate Screen**: Use **Display → Rotate Screen** (⌘R) to toggle between orientations
+2. **Direct Selection**: Choose **Display → Portrait Mode (90°)** for vertical games
+3. **Window Adjustment**: macOS automatically resizes the window for optimal display
+4. **Control Consistency**: Joycard controls remain unchanged regardless of rotation
+
+#### Technical Features
+- **Smooth Rotation**: SpriteKit-based rotation with proper aspect ratio maintenance
+- **Persistent Settings**: Rotation preference is saved and restored between sessions
+- **Optimal Scaling**: Automatic scaling ensures games fill the available screen space
+- **No Performance Impact**: Rotation processing doesn't affect emulation performance
+
 ## Architecture
 
 ### Language Stack
@@ -199,11 +225,13 @@ Hard disk images provide faster access and larger storage capacity compared to f
 ### Version 2024.1
 - ✅ **Dual FDD Drive Support**: Independent Drive A/B management
 - ✅ **Hard Disk Drive Support**: Complete HDD management with menu integration
+- ✅ **Screen Rotation Support**: 90-degree rotation for vertical games (tate mode)
 - ✅ **Enhanced macOS Joycard**: Keyboard and mouse input support
-- ✅ **Menu Integration**: Native macOS menu bar with FDD and HDD shortcuts
+- ✅ **Menu Integration**: Native macOS menu bar with FDD, HDD, and Display shortcuts
 - ✅ **Multi-file Drag & Drop**: Automatic drive assignment by file type
 - ✅ **Visual Feedback**: Real-time button highlighting
 - ✅ **File Format Expansion**: Added .hdf support for hard disks
+- ✅ **Window Management**: Automatic window resizing for optimal display
 
 ## Development
 

@@ -131,6 +131,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
     }
+    
+    // MARK: - Screen Rotation Menu Actions
+    @IBAction func rotateScreen(_ sender: Any) {
+        print("🐛 AppDelegate.rotateScreen called")
+        gameViewController?.rotateScreen(sender)
+    }
+    
+    @IBAction func setLandscapeMode(_ sender: Any) {
+        print("🐛 AppDelegate.setLandscapeMode called")
+        gameViewController?.setLandscapeMode(sender)
+    }
+    
+    @IBAction func setPortraitMode(_ sender: Any) {
+        print("🐛 AppDelegate.setPortraitMode called")
+        gameViewController?.setPortraitMode(sender)
+    }
 
 }
 

@@ -14,6 +14,11 @@ import UIKit
 import AppKit
 #endif
 
+// Notification for screen rotation changes
+extension Notification.Name {
+    static let screenRotationChanged = Notification.Name("screenRotationChanged")
+}
+
 class GameScene: SKScene {
     
     private var clockMHz: Int = 24
@@ -27,6 +32,27 @@ class GameScene: SKScene {
     }
     private var currentInputMode: InputMode = .keyboard
     private var inputModeButton: SKLabelNode?
+    
+    // Screen rotation management
+    enum ScreenRotation: CaseIterable {
+        case landscape  // 横画面（通常）
+        case portrait   // 縦画面（90度回転）
+        
+        var angle: CGFloat {
+            switch self {
+            case .landscape: return 0
+            case .portrait: return .pi / 2  // 90度回転
+            }
+        }
+        
+        var displayName: String {
+            switch self {
+            case .landscape: return "Landscape"
+            case .portrait: return "Portrait (90°)"
+            }
+        }
+    }
+    private var currentRotation: ScreenRotation = .landscape
     
     // シフトキーの状態を追跡
     private var isShiftKeyPressed = false
@@ -175,12 +201,106 @@ class GameScene: SKScene {
         X68000_EjectHDD()
     }
     
+    // MARK: - Screen Rotation Management
+    func rotateScreen() {
+        print("🐛 GameScene.rotateScreen() called")
+        // 次の回転状態に切り替え
+        let allRotations = ScreenRotation.allCases
+        if let currentIndex = allRotations.firstIndex(of: currentRotation) {
+            let nextIndex = (currentIndex + 1) % allRotations.count
+            currentRotation = allRotations[nextIndex]
+        }
+        
+        applyScreenRotation()
+    }
+    
+    func setScreenRotation(_ rotation: ScreenRotation) {
+        print("🐛 GameScene.setScreenRotation() called with: \(rotation.displayName)")
+        currentRotation = rotation
+        applyScreenRotation()
+    }
+    
+    private func applyScreenRotation() {
+        print("🐛 Applying screen rotation: \(currentRotation.displayName)")
+        
+        // 回転とスケーリングを適用
+        applyRotationToSprite()
+        
+        // ユーザー設定に保存
+        userDefaults.set(currentRotation == .portrait, forKey: "ScreenRotation_Portrait")
+        
+        // macOSの場合はウィンドウサイズも調整
+        #if os(macOS)
+        notifyWindowSizeChange()
+        #endif
+    }
+    
+    
+    private func applyRotationToSprite() {
+        // エミュレータの基本画面サイズを取得
+        let w = Int(X68000_GetScreenWidth())
+        let h = Int(X68000_GetScreenHeight())
+        
+        // Scene全体のサイズを取得（ウィンドウサイズ）
+        let sceneSize = self.size
+        
+        // 回転状態に応じたスケーリングを計算
+        let scaleX: CGFloat
+        let scaleY: CGFloat
+        
+        switch currentRotation {
+        case .landscape:
+            // 通常の横画面：シーンサイズに合わせてスケーリング
+            scaleX = sceneSize.width / CGFloat(w)
+            scaleY = sceneSize.height / CGFloat(h)
+        case .portrait:
+            // 縦画面：回転後のフィット計算
+            // 回転後のエミュレータ画面（w×h が h×w になる）をシーンに収める
+            let rotatedWidth = CGFloat(h)  // 回転後の幅
+            let rotatedHeight = CGFloat(w) // 回転後の高さ
+            
+            // シーンサイズに収まるようにスケーリング
+            let scaleToFitX = sceneSize.width / rotatedWidth
+            let scaleToFitY = sceneSize.height / rotatedHeight
+            let uniformScale = min(scaleToFitX, scaleToFitY) // アスペクト比を維持
+            
+            scaleX = uniformScale
+            scaleY = uniformScale
+        }
+        
+        // スケーリングと回転を適用
+        spr.xScale = scaleX
+        spr.yScale = scaleY
+        spr.zRotation = currentRotation.angle
+        
+        // 回転時の位置調整（中央に配置）
+        spr.position = CGPoint(x: 0, y: 0)
+        
+        print("🐛 Applied rotation: \(currentRotation.displayName), scale: \(scaleX)x\(scaleY), scene: \(sceneSize)")
+    }
+    
+    #if os(macOS)
+    private func notifyWindowSizeChange() {
+        // macOSでウィンドウサイズ変更を通知
+        NotificationCenter.default.post(name: .screenRotationChanged, object: currentRotation)
+    }
+    #endif
+    
     let userDefaults = UserDefaults.standard
     
     private func settings() {
         if let clock = userDefaults.object(forKey: "clock") as? String {
             self.clockMHz = Int(clock)!
             print("CPU Clock: \(self.clockMHz) MHz")
+        }
+        
+        // 画面回転設定の読み込み
+        if userDefaults.bool(forKey: "ScreenRotation_Portrait") {
+            currentRotation = .portrait
+            print("Screen rotation loaded: Portrait")
+        } else {
+            currentRotation = .landscape
+            print("Screen rotation loaded: Landscape")
         }
         
         if let virtual_mouse = userDefaults.object(forKey: "virtual_mouse") as? Bool {
@@ -367,6 +487,11 @@ class GameScene: SKScene {
     override func didMove(to view: SKView) {
         print("didMove")
         self.setUpScene()
+        
+        // 初期化後に回転設定を適用
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.applyScreenRotation()
+        }
         
         // Timer will be started after emulator initialization in setUpScene()
         
@@ -731,8 +856,10 @@ class GameScene: SKScene {
         self.spr = SKSpriteNode(texture: tex, size: cgsize)
         self.spr.texture = tex
         self.spr.size = CGSize(width: w, height: h)
-        self.spr.xScale = CGFloat(screen_w) / CGFloat(w)
-        self.spr.yScale = CGFloat(screen_h) / CGFloat(h)
+        
+        // 回転状態に応じたスケーリングと回転を適用
+        applyRotationToSprite()
+        
         self.spr.zPosition = -1.0
         self.addChild(spr)
     }

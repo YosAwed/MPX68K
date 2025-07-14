@@ -680,6 +680,29 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="Display" id="Display-menu-item">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Display" id="Display-submenu">
+                                    <items>
+                                        <menuItem title="Rotate Screen" keyEquivalent="r" id="Display-rotate">
+                                            <connections>
+                                                <action selector="rotateScreen:" target="Ady-hI-5gd" id="Display-rotate-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="Display-separator"/>
+                                        <menuItem title="Landscape Mode" id="Display-landscape">
+                                            <connections>
+                                                <action selector="setLandscapeMode:" target="Ady-hI-5gd" id="Display-landscape-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Portrait Mode (90°)" id="Display-portrait">
+                                            <connections>
+                                                <action selector="setPortraitMode:" target="Ady-hI-5gd" id="Display-portrait-action"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
                             <menuItem title="Window" id="aUF-d1-5bR">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Window" systemMenu="window" id="Td7-aD-5lo">
