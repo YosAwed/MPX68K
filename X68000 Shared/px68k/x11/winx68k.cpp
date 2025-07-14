@@ -731,7 +731,7 @@ void X68000_GetImage( unsigned char* data ) {
 
 void FDD_SetFD(int drive, char* filename, int readonly);
 
-BYTE* s_disk_image_buffer[5] = {0};    // 2MB
+BYTE* s_disk_image_buffer[5] = {0};    // Dynamic allocation up to 80MB
 long s_disk_image_buffer_size[5] = {0};
 
 BYTE* X68000_GetDiskImageBufferPointer( const long drive, const long size ){

@@ -372,8 +372,8 @@ class FileSystem {
             // File should be accessible now with security scope
             let imageData: Data = try Data(contentsOf: url)
             
-            // Security: Validate file size (max 10MB for disk images)
-            let maxSize = 10 * 1024 * 1024 // 10MB
+            // Security: Validate file size (max 80MB for disk images)
+            let maxSize = 80 * 1024 * 1024 // 80MB
             guard imageData.count <= maxSize else {
                 print("Security: File too large: \(imageData.count) bytes")
                 return
