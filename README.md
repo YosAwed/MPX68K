@@ -24,7 +24,6 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **Native Menu Integration**: Dedicated FDD, HDD, and Display menus with keyboard shortcuts
 
 ### Cross-Platform
-- **iOS Support**: Touch controls and document-based interface
 - **macOS Support**: Native menu bar and keyboard/mouse input
 - **iCloud Integration**: Seamless file sync across devices
 - **Universal Binary**: Optimized for both Intel and Apple Silicon
@@ -34,10 +33,6 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 ### macOS
 - macOS 11.0 or later
 - Intel or Apple Silicon Mac
-
-### iOS
-- iOS 13.4 or later
-- iPhone or iPad
 
 ## ROM Files Setup
 
@@ -79,15 +74,6 @@ Place the ROM files in one of these locations:
    └── IPLROM.DAT
    ```
 
-#### iOS
-For iOS, the ROM files must be embedded in the app bundle during build:
-
-```
-X68000 iOS.app/
-├── CGROM.DAT
-└── IPLROM.DAT
-```
-
 ### Important Notes
 
 - **Legal Notice**: ROM files are copyrighted by SHARP CORPORATION. You must own an original X68000 system to legally use these files.
@@ -120,7 +106,7 @@ If you see garbled text or boot failures, verify that your ROM files are correct
    ```
 
 3. **Build the project:**
-   - Select your target platform (macOS or iOS)
+   - Select your target platform (macOS)
    - Build and run (⌘+R)
 
 ### Dependencies
@@ -157,18 +143,13 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - Hard disk images (.hdf, .hdm) → HDD loading
 - Mixed file types → Automatic assignment by file type
 
-### iOS Controls
-- **Touch Interface**: Native touch controls for joycard
-- **Document Browser**: Access files from various sources
-- **GameController**: MFi controller support
-
 ## File Formats
 
 | Extension | Description | Type | Platform Support |
 |-----------|-------------|------|-------------------|
-| .dim | Standard disk image | Floppy | macOS, iOS |
-| .xdf | Extended disk format | Floppy | macOS, iOS |
-| .hdf | Hard disk format | Hard Disk | macOS, iOS |
+| .dim | Standard disk image | Floppy | macOS |
+| .xdf | Extended disk format | Floppy | macOS |
+| .hdf | Hard disk format | Hard Disk | macOS |
 
 ### Hard Disk Usage
 
@@ -251,9 +232,6 @@ X68Mac/
 ```bash
 # Build macOS version
 xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS"
-
-# Build iOS version
-xcodebuild -project X68000.xcodeproj -scheme "X68000 iOS"
 ```
 
 ## Contributing
