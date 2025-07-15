@@ -7,155 +7,80 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		073F76E52431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
 		073F76E62431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
-		0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
-		0758DC58243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
 		0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
-		0758DC5E243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
 		0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
-		0758DC7B243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
 		0758DC7C243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
-		0758DC7E243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
 		0758DC7F243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
-		0758DD5C24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
 		0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
-		0760DC272434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC282434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
-		0760DC2A24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
 		0760DC2B24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
-		0764421A243328C3006E5208 /* FileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07644219243328C3006E5208 /* FileSystem.swift */; };
 		0764421B243328C3006E5208 /* FileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07644219243328C3006E5208 /* FileSystem.swift */; };
-		0771C5A12431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
 		0771C5A22431B129002D40F0 /* JoyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0771C5A02431B129002D40F0 /* JoyController.swift */; };
-		0786961D243D9A0D007FCCEA /* X68JoyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0786961C243D9A0D007FCCEA /* X68JoyCard.swift */; };
-		07869625243D9A8E007FCCEA /* X68Device.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07869624243D9A8E007FCCEA /* X68Device.swift */; };
 		07869626243D9A8E007FCCEA /* X68Device.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07869624243D9A8E007FCCEA /* X68Device.swift */; };
 		07869627243D9A91007FCCEA /* X68JoyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0786961C243D9A0D007FCCEA /* X68JoyCard.swift */; };
 		0786963E243DBB73007FCCEA /* TAAnalogJoyStick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0786963C243DBB73007FCCEA /* TAAnalogJoyStick.swift */; };
-		07869645243DBDF7007FCCEA /* jStick@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869641243DBDF7007FCCEA /* jStick@2x.png */; };
 		07869646243DBDF7007FCCEA /* jStick@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869641243DBDF7007FCCEA /* jStick@2x.png */; };
-		07869647243DBDF7007FCCEA /* jStick.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869642243DBDF7007FCCEA /* jStick.png */; };
 		07869648243DBDF7007FCCEA /* jStick.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869642243DBDF7007FCCEA /* jStick.png */; };
-		07869649243DBDF7007FCCEA /* jSubstrate@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869643243DBDF7007FCCEA /* jSubstrate@2x.png */; };
 		0786964A243DBDF7007FCCEA /* jSubstrate@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869643243DBDF7007FCCEA /* jSubstrate@2x.png */; };
-		0786964B243DBDF7007FCCEA /* jSubstrate.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869644243DBDF7007FCCEA /* jSubstrate.png */; };
 		0786964C243DBDF7007FCCEA /* jSubstrate.png in Resources */ = {isa = PBXBuildFile; fileRef = 07869644243DBDF7007FCCEA /* jSubstrate.png */; };
-		07A528BC24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
 		07A528BD24389F5300AFD00D /* X68MouseController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A528BB24389F5300AFD00D /* X68MouseController.swift */; };
-		07B71D7C243A350500953E25 /* MIDIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B71D7B243A350500953E25 /* MIDIController.swift */; };
 		07B71D7D243A350500953E25 /* MIDIController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B71D7B243A350500953E25 /* MIDIController.swift */; };
-		07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
 		07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF2E2430CC1B0034E485 /* IPLROM_DAT.c */; };
-		07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
 		07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */ = {isa = PBXBuildFile; fileRef = 07E6EF312430CCAE0034E485 /* CGROM_DAT.c */; };
-		07F4C6C7243065F9002CF5CA /* m68000.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C6243065F9002CF5CA /* m68000.c */; };
 		07F4C6C8243065F9002CF5CA /* m68000.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C6243065F9002CF5CA /* m68000.c */; };
-		07F4C6DC2430664B002CF5CA /* fmg_wrap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C92430664A002CF5CA /* fmg_wrap.cpp */; };
 		07F4C6DD2430664B002CF5CA /* fmg_wrap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6C92430664A002CF5CA /* fmg_wrap.cpp */; };
-		07F4C6DE2430664B002CF5CA /* fmtimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CA2430664A002CF5CA /* fmtimer.cpp */; };
 		07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CA2430664A002CF5CA /* fmtimer.cpp */; };
-		07F4C6E02430664B002CF5CA /* opm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CB2430664A002CF5CA /* opm.cpp */; };
 		07F4C6E12430664B002CF5CA /* opm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6CB2430664A002CF5CA /* opm.cpp */; };
-		07F4C6E62430664B002CF5CA /* fmgen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6D62430664B002CF5CA /* fmgen.cpp */; };
 		07F4C6E72430664B002CF5CA /* fmgen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6D62430664B002CF5CA /* fmgen.cpp */; };
-		07F4C7212430667D002CF5CA /* fdc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6EA24306679002CF5CA /* fdc.c */; };
 		07F4C7222430667D002CF5CA /* fdc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6EA24306679002CF5CA /* fdc.c */; };
-		07F4C7232430667D002CF5CA /* sasi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6ED2430667A002CF5CA /* sasi.c */; };
 		07F4C7242430667D002CF5CA /* sasi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6ED2430667A002CF5CA /* sasi.c */; };
-		07F4C7252430667D002CF5CA /* midi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6EE2430667A002CF5CA /* midi.c */; };
 		07F4C7262430667D002CF5CA /* midi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6EE2430667A002CF5CA /* midi.c */; };
-		07F4C7272430667D002CF5CA /* crtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F12430667A002CF5CA /* crtc.c */; };
 		07F4C7282430667D002CF5CA /* crtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F12430667A002CF5CA /* crtc.c */; };
-		07F4C7292430667D002CF5CA /* irqh.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F32430667A002CF5CA /* irqh.c */; };
 		07F4C72A2430667D002CF5CA /* irqh.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F32430667A002CF5CA /* irqh.c */; };
-		07F4C72B2430667D002CF5CA /* d68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F52430667A002CF5CA /* d68k.c */; };
 		07F4C72C2430667D002CF5CA /* d68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F52430667A002CF5CA /* d68k.c */; };
-		07F4C72D2430667D002CF5CA /* adpcm.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F62430667A002CF5CA /* adpcm.c */; };
 		07F4C72E2430667D002CF5CA /* adpcm.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F62430667A002CF5CA /* adpcm.c */; };
-		07F4C7312430667D002CF5CA /* scsi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F92430667A002CF5CA /* scsi.c */; };
 		07F4C7322430667D002CF5CA /* scsi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F92430667A002CF5CA /* scsi.c */; };
-		07F4C7332430667D002CF5CA /* disk_d88.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FA2430667A002CF5CA /* disk_d88.c */; };
 		07F4C7342430667D002CF5CA /* disk_d88.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FA2430667A002CF5CA /* disk_d88.c */; };
-		07F4C7352430667D002CF5CA /* mem_wrap.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FB2430667A002CF5CA /* mem_wrap.c */; };
 		07F4C7362430667D002CF5CA /* mem_wrap.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FB2430667A002CF5CA /* mem_wrap.c */; };
-		07F4C7372430667D002CF5CA /* palette.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FC2430667A002CF5CA /* palette.c */; };
 		07F4C7382430667D002CF5CA /* palette.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6FC2430667A002CF5CA /* palette.c */; };
-		07F4C7392430667D002CF5CA /* tvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7012430667B002CF5CA /* tvram.c */; };
 		07F4C73A2430667D002CF5CA /* tvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7012430667B002CF5CA /* tvram.c */; };
-		07F4C73B2430667D002CF5CA /* dmac.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7032430667B002CF5CA /* dmac.c */; };
 		07F4C73C2430667D002CF5CA /* dmac.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7032430667B002CF5CA /* dmac.c */; };
-		07F4C73D2430667D002CF5CA /* pia.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7042430667B002CF5CA /* pia.c */; };
 		07F4C73E2430667D002CF5CA /* pia.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7042430667B002CF5CA /* pia.c */; };
-		07F4C73F2430667D002CF5CA /* fdd.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7072430667B002CF5CA /* fdd.c */; };
 		07F4C7402430667D002CF5CA /* fdd.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7072430667B002CF5CA /* fdd.c */; };
-		07F4C7412430667D002CF5CA /* mfp.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70B2430667B002CF5CA /* mfp.c */; };
 		07F4C7422430667D002CF5CA /* mfp.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70B2430667B002CF5CA /* mfp.c */; };
-		07F4C7432430667D002CF5CA /* sysport.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70C2430667B002CF5CA /* sysport.c */; };
 		07F4C7442430667D002CF5CA /* sysport.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70C2430667B002CF5CA /* sysport.c */; };
-		07F4C7452430667D002CF5CA /* bg.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70D2430667B002CF5CA /* bg.c */; };
 		07F4C7462430667D002CF5CA /* bg.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70D2430667B002CF5CA /* bg.c */; };
-		07F4C7472430667D002CF5CA /* sram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70E2430667B002CF5CA /* sram.c */; };
 		07F4C7482430667D002CF5CA /* sram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70E2430667B002CF5CA /* sram.c */; };
-		07F4C7492430667D002CF5CA /* scc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7102430667C002CF5CA /* scc.c */; };
 		07F4C74A2430667D002CF5CA /* scc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7102430667C002CF5CA /* scc.c */; };
-		07F4C74B2430667D002CF5CA /* disk_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7122430667C002CF5CA /* disk_dim.c */; };
 		07F4C74C2430667D002CF5CA /* disk_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7122430667C002CF5CA /* disk_dim.c */; };
-		07F4C74F2430667D002CF5CA /* gvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7172430667C002CF5CA /* gvram.c */; };
 		07F4C7502430667D002CF5CA /* gvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7172430667C002CF5CA /* gvram.c */; };
-		07F4C7512430667D002CF5CA /* rtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71E2430667D002CF5CA /* rtc.c */; };
 		07F4C7522430667D002CF5CA /* rtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71E2430667D002CF5CA /* rtc.c */; };
-		07F4C7532430667D002CF5CA /* ioc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71F2430667D002CF5CA /* ioc.c */; };
 		07F4C7542430667D002CF5CA /* ioc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71F2430667D002CF5CA /* ioc.c */; };
-		07F4C7552430667D002CF5CA /* disk_xdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7202430667D002CF5CA /* disk_xdf.c */; };
 		07F4C7562430667D002CF5CA /* disk_xdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7202430667D002CF5CA /* disk_xdf.c */; };
-		07F4C7582430A73C002CF5CA /* AudioStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7572430A73C002CF5CA /* AudioStream.swift */; };
 		07F4C7592430A73C002CF5CA /* AudioStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7572430A73C002CF5CA /* AudioStream.swift */; };
-		07F863AE242F93EA00CBB224 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863AD242F93EA00CBB224 /* AppDelegate.swift */; };
-		07F863B0242F93EA00CBB224 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863AF242F93EA00CBB224 /* GameViewController.swift */; };
-		07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863B1242F93EA00CBB224 /* Main.storyboard */; };
-		07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863B4242F93EA00CBB224 /* LaunchScreen.storyboard */; };
 		07F863BF242F93EA00CBB224 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863BE242F93EA00CBB224 /* AppDelegate.swift */; };
 		07F863C1242F93EA00CBB224 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863C0242F93EA00CBB224 /* GameViewController.swift */; };
 		07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863C2242F93EA00CBB224 /* Main.storyboard */; };
-		07F863C6242F93EA00CBB224 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A2242F93E800CBB224 /* Actions.sks */; };
 		07F863C7242F93EA00CBB224 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A2242F93E800CBB224 /* Actions.sks */; };
-		07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863A4242F93E800CBB224 /* GameScene.swift */; };
 		07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863A4242F93E800CBB224 /* GameScene.swift */; };
-		07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A5242F93EA00CBB224 /* Assets.xcassets */; };
 		07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A5242F93EA00CBB224 /* Assets.xcassets */; };
-		07F8640B242F94BB00CBB224 /* dosio.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86403242F94BB00CBB224 /* dosio.c */; };
 		07F8640C242F94BB00CBB224 /* dosio.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86403242F94BB00CBB224 /* dosio.c */; };
-		07F8640D242F94BB00CBB224 /* peace.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86404242F94BB00CBB224 /* peace.c */; };
 		07F8640E242F94BB00CBB224 /* peace.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86404242F94BB00CBB224 /* peace.c */; };
-		07F8640F242F94BB00CBB224 /* fake.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86408242F94BB00CBB224 /* fake.c */; };
 		07F86410242F94BB00CBB224 /* fake.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86408242F94BB00CBB224 /* fake.c */; };
-		07F864B8242F97BE00CBB224 /* joystick.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86491242F97BC00CBB224 /* joystick.c */; };
 		07F864B9242F97BE00CBB224 /* joystick.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86491242F97BC00CBB224 /* joystick.c */; };
-		07F864BC242F97BE00CBB224 /* windraw.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86494242F97BC00CBB224 /* windraw.c */; };
 		07F864BD242F97BE00CBB224 /* windraw.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86494242F97BC00CBB224 /* windraw.c */; };
-		07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649B242F97BC00CBB224 /* winx68k.cpp */; };
 		07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649B242F97BC00CBB224 /* winx68k.cpp */; };
-		07F864C2242F97BE00CBB224 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A3242F97BD00CBB224 /* keyboard.c */; };
 		07F864C3242F97BE00CBB224 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A3242F97BD00CBB224 /* keyboard.c */; };
-		07F864C4242F97BE00CBB224 /* dswin.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A5242F97BD00CBB224 /* dswin.c */; };
 		07F864C5242F97BE00CBB224 /* dswin.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A5242F97BD00CBB224 /* dswin.c */; };
-		07F864CC242F97BE00CBB224 /* mouse.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A9242F97BD00CBB224 /* mouse.c */; };
 		07F864CD242F97BE00CBB224 /* mouse.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A9242F97BD00CBB224 /* mouse.c */; };
-		07F864CE242F97BE00CBB224 /* prop.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AA242F97BD00CBB224 /* prop.c */; };
 		07F864CF242F97BE00CBB224 /* prop.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AA242F97BD00CBB224 /* prop.c */; };
-		07F864D0242F97BE00CBB224 /* keytbl.inc in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AD242F97BD00CBB224 /* keytbl.inc */; };
 		07F864D1242F97BE00CBB224 /* keytbl.inc in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AD242F97BD00CBB224 /* keytbl.inc */; };
-		07F864D2242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
 		07F864D3242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
-		07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
-		07F864D8242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
-		07F864DA242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
 		07F864DB242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
-		3DECF02E263F52E700CC8449 /* TAAnalogJoyStick.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0786963C243DBB73007FCCEA /* TAAnalogJoyStick.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -273,7 +198,6 @@
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		07F863A5242F93EA00CBB224 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		07F863AA242F93EA00CBB224 /* X68000 for iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "X68000 for iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		07F863AD242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		07F863AF242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		07F863B2242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -329,11 +253,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		07F863A7242F93EA00CBB224 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			files = (
-			);
-		};
 		07F863B9242F93EA00CBB224 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -406,7 +325,6 @@
 		07F863AB242F93EA00CBB224 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				07F863AA242F93EA00CBB224 /* X68000 for iOS.app */,
 				07F863BC242F93EA00CBB224 /* X68000.app */,
 			);
 			name = Products;
@@ -606,21 +524,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		07F863A9242F93EA00CBB224 /* X68000 iOS */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 07F863D0242F93EA00CBB224 /* Build configuration list for PBXNativeTarget "X68000 iOS" */;
-			buildPhases = (
-				07F863A6242F93EA00CBB224 /* Sources */,
-				07F863A7242F93EA00CBB224 /* Frameworks */,
-				07F863A8242F93EA00CBB224 /* Resources */,
-			);
-			buildRules = (
-			);
-			name = "X68000 iOS";
-			productName = "X68000 iOS";
-			productReference = 07F863AA242F93EA00CBB224 /* X68000 for iOS.app */;
-			productType = "com.apple.product-type.application";
-		};
 		07F863BB242F93EA00CBB224 /* X68000 macOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 07F863D3242F93EA00CBB224 /* Build configuration list for PBXNativeTarget "X68000 macOS" */;
@@ -647,10 +550,6 @@
 				LastUpgradeCheck = 1640;
 				ORGANIZATIONNAME = NANKIN;
 				TargetAttributes = {
-					07F863A9242F93EA00CBB224 = {
-						CreatedOnToolsVersion = 11.4;
-						LastSwiftMigration = 1140;
-					};
 					07F863BB242F93EA00CBB224 = {
 						CreatedOnToolsVersion = 11.4;
 						LastSwiftMigration = 1140;
@@ -676,7 +575,6 @@
 			);
 			projectRoot = "";
 			targets = (
-				07F863A9242F93EA00CBB224 /* X68000 iOS */,
 				07F863BB242F93EA00CBB224 /* X68000 macOS */,
 			);
 		};
@@ -700,27 +598,6 @@
 /* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
-		07F863A8242F93EA00CBB224 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			files = (
-				0758DC7B243F137E0097E86C /* Settings.bundle in Resources */,
-				0758DC58243EFCE60097E86C /* ConfigScene.sks in Resources */,
-				07F864D4242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
-				07F863B3242F93EA00CBB224 /* Main.storyboard in Resources */,
-				07869647243DBDF7007FCCEA /* jStick.png in Resources */,
-				07869645243DBDF7007FCCEA /* jStick@2x.png in Resources */,
-				07869649243DBDF7007FCCEA /* jSubstrate@2x.png in Resources */,
-				07F863C6242F93EA00CBB224 /* Actions.sks in Resources */,
-				07F863B6242F93EA00CBB224 /* LaunchScreen.storyboard in Resources */,
-				0758DD5C24401BA20097E86C /* HDDIcon.png in Resources */,
-				07F863CC242F93EA00CBB224 /* Assets.xcassets in Resources */,
-				073F76E52431F438005B1F18 /* GameScene.sks in Resources */,
-				0753E5AC2431DF4600E14A81 /* X68000LogoW.png in Resources */,
-				0760DC272434F493004CA0CF /* FDD.png in Resources */,
-				0758DC7E243F1AC80097E86C /* Settings.png in Resources */,
-				0786964B243DBDF7007FCCEA /* jSubstrate.png in Resources */,
-			);
-		};
 		07F863BA242F93EA00CBB224 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -744,70 +621,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		07F863A6242F93EA00CBB224 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			files = (
-				07F4C7532430667D002CF5CA /* ioc.c in Sources */,
-				07F8640F242F94BB00CBB224 /* fake.c in Sources */,
-				07F4C6C7243065F9002CF5CA /* m68000.c in Sources */,
-				07F864B8242F97BE00CBB224 /* joystick.c in Sources */,
-				07A528BC24389F5300AFD00D /* X68MouseController.swift in Sources */,
-				07F863CA242F93EA00CBB224 /* GameScene.swift in Sources */,
-				07F4C7292430667D002CF5CA /* irqh.c in Sources */,
-				07E6EF322430CCAE0034E485 /* CGROM_DAT.c in Sources */,
-				07F4C7512430667D002CF5CA /* rtc.c in Sources */,
-				07F4C7472430667D002CF5CA /* sram.c in Sources */,
-				07F864CE242F97BE00CBB224 /* prop.c in Sources */,
-				07F4C7312430667D002CF5CA /* scsi.c in Sources */,
-				0786961D243D9A0D007FCCEA /* X68JoyCard.swift in Sources */,
-				07F4C73D2430667D002CF5CA /* pia.c in Sources */,
-				07F864D0242F97BE00CBB224 /* keytbl.inc in Sources */,
-				07F4C74F2430667D002CF5CA /* gvram.c in Sources */,
-				07F4C7272430667D002CF5CA /* crtc.c in Sources */,
-				07F4C7232430667D002CF5CA /* sasi.c in Sources */,
-				07F4C7212430667D002CF5CA /* fdc.c in Sources */,
-				0758DC5E243EFD830097E86C /* ConfigScene.swift in Sources */,
-				07F4C6DC2430664B002CF5CA /* fmg_wrap.cpp in Sources */,
-				07F864CC242F97BE00CBB224 /* mouse.c in Sources */,
-				07F4C73B2430667D002CF5CA /* dmac.c in Sources */,
-				07F4C7332430667D002CF5CA /* disk_d88.c in Sources */,
-				07F4C6E02430664B002CF5CA /* opm.cpp in Sources */,
-				0764421A243328C3006E5208 /* FileSystem.swift in Sources */,
-				07F4C7252430667D002CF5CA /* midi.c in Sources */,
-				07F4C7412430667D002CF5CA /* mfp.c in Sources */,
-				07F4C7582430A73C002CF5CA /* AudioStream.swift in Sources */,
-				07F4C7452430667D002CF5CA /* bg.c in Sources */,
-				07F4C7432430667D002CF5CA /* sysport.c in Sources */,
-				07F4C6E62430664B002CF5CA /* fmgen.cpp in Sources */,
-				07F4C72B2430667D002CF5CA /* d68k.c in Sources */,
-				07F864DA242F97BE00CBB224 /* timer.c in Sources */,
-				07F864C4242F97BE00CBB224 /* dswin.c in Sources */,
-				07F4C7352430667D002CF5CA /* mem_wrap.c in Sources */,
-				3DECF02E263F52E700CC8449 /* TAAnalogJoyStick.swift in Sources */,
-				07F864D8242F97BE00CBB224 /* status.c in Sources */,
-				07F4C74B2430667D002CF5CA /* disk_dim.c in Sources */,
-				07F4C73F2430667D002CF5CA /* fdd.c in Sources */,
-				07B71D7C243A350500953E25 /* MIDIController.swift in Sources */,
-				07F8640D242F94BB00CBB224 /* peace.c in Sources */,
-				07F4C7492430667D002CF5CA /* scc.c in Sources */,
-				0760DC2A24350DDC004CA0CF /* BenchMark.swift in Sources */,
-				07869625243D9A8E007FCCEA /* X68Device.swift in Sources */,
-				07F8640B242F94BB00CBB224 /* dosio.c in Sources */,
-				07F4C7392430667D002CF5CA /* tvram.c in Sources */,
-				0771C5A12431B129002D40F0 /* JoyController.swift in Sources */,
-				07F4C6DE2430664B002CF5CA /* fmtimer.cpp in Sources */,
-				07F4C7552430667D002CF5CA /* disk_xdf.c in Sources */,
-				07F864BC242F97BE00CBB224 /* windraw.c in Sources */,
-				07F863B0242F93EA00CBB224 /* GameViewController.swift in Sources */,
-				07F864D2242F97BE00CBB224 /* common.c in Sources */,
-				07F863AE242F93EA00CBB224 /* AppDelegate.swift in Sources */,
-				07F4C72D2430667D002CF5CA /* adpcm.c in Sources */,
-				07F4C7372430667D002CF5CA /* palette.c in Sources */,
-				07F864C2242F97BE00CBB224 /* keyboard.c in Sources */,
-				07F864BE242F97BE00CBB224 /* winx68k.cpp in Sources */,
-				07E6EF2F2430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
-			);
-		};
 		07F863B8242F93EA00CBB224 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -1019,81 +832,6 @@
 			};
 			name = Release;
 		};
-		07F863D1242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 iOS" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOSDebug.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 899;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(inherited)",
-					HAVE_C68K,
-					TARGET_IOS,
-				);
-				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
-				HEADER_SEARCH_PATHS = "";
-				INFOPLIST_FILE = "X68000 iOS/Info.plist";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 4.1.6;
-				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
-				PRODUCT_NAME = "X68000 for iOS";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALID_ARCHS = "arm64 arm64e armv7 armv7s";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_FILE = version.c;
-			};
-			name = Debug;
-		};
-		07F863D2242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 iOS" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = "X68000 iOS/X68000 for iOS.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 899;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					HAVE_C68K,
-					TARGET_IOS,
-				);
-				HEADER_SEARCH_PATHS = "";
-				INFOPLIST_FILE = "X68000 iOS/Info.plist";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 4.1.6;
-				OTHER_LDFLAGS = "-lc68k";
-				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
-				PRODUCT_NAME = "X68000 for iOS";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 iOS-Bridging-Header.h";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_FILE = version.c;
-			};
-			name = Release;
-		};
 		07F863D4242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 macOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1122,6 +860,12 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/c68k/build/Debug",
+					"$(BUILT_PRODUCTS_DIR)",
+					"$(BUILD_DIR)/Debug",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac_DEBUG";
@@ -1142,9 +886,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = NO;
 				CODE_SIGN_ENTITLEMENTS = "X68000 macOS/X68000.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = DQR9HH7KUY;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					HAVE_C68K,
@@ -1160,11 +907,19 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/c68k/build/Release",
+					"$(BUILT_PRODUCTS_DIR)",
+					"$(BUILD_DIR)/Release",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
 				PRODUCT_NAME = X68000;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = TestFlightX68;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 macOS-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -1179,14 +934,6 @@
 			buildConfigurations = (
 				07F863CE242F93EA00CBB224 /* Debug configuration for PBXProject "X68000" */,
 				07F863CF242F93EA00CBB224 /* Release configuration for PBXProject "X68000" */,
-			);
-			defaultConfigurationName = Debug;
-		};
-		07F863D0242F93EA00CBB224 /* Build configuration list for PBXNativeTarget "X68000 iOS" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				07F863D1242F93EA00CBB224 /* Debug configuration for PBXNativeTarget "X68000 iOS" */,
-				07F863D2242F93EA00CBB224 /* Release configuration for PBXNativeTarget "X68000 iOS" */,
 			);
 			defaultConfigurationName = Debug;
 		};
