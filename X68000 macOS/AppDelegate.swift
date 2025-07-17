@@ -51,7 +51,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
-        // Insert code here to tear down your application
+        // Save SRAM data before terminating
+        print("🐛 AppDelegate.applicationWillTerminate - saving SRAM")
+        gameViewController?.saveSRAM()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -448,4 +448,11 @@ class GameViewController: UIViewController, UIContextMenuInteractionDelegate {
     //   case 125:          ret = 0x112;           break;    // ↓
     //   case 126:          ret = 0x111;           break;    // ↑
     
+    func saveSRAM() {
+        print("🐛 iOS GameViewController.saveSRAM() called")
+        if let skView = self.view as? SKView,
+           let gameScene = skView.scene as? GameScene {
+            gameScene.fileSystem?.saveSRAM()
+        }
+    }
 }

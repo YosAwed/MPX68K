@@ -1099,7 +1099,7 @@ class FileSystem {
             return
         }
         
-        let data = Data(bytes: sramPointer, count: 0x400)
+        let data = Data(bytes: sramPointer, count: 0x4000)
         guard let url = getDocumentsPath("SRAM.DAT") else {
             print("Failed to get SRAM file path")
             return
@@ -1107,8 +1107,9 @@ class FileSystem {
         
         do {
             try data.write(to: url)
+            print("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)")
         } catch let error as NSError {
-            print(error)
+            print("Failed to save SRAM.DAT: \(error)")
         }
     }
     
@@ -1122,9 +1123,9 @@ class FileSystem {
         
         do {
             let data: Data = try Data(contentsOf: url)
-            // Security: Validate SRAM file size (should be exactly 0x400 bytes)
-            guard data.count == 0x400 else {
-                print("Security: Invalid SRAM file size: \(data.count), expected 0x400")
+            // Security: Validate SRAM file size (should be exactly 0x4000 bytes)
+            guard data.count == 0x4000 else {
+                print("Security: Invalid SRAM file size: \(data.count), expected 0x4000")
                 return
             }
             if let p = X68000_GetSRAMPointer() {

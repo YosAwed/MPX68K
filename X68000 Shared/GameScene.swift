@@ -75,7 +75,7 @@ class GameScene: SKScene {
     private var midiController: MIDIController = MIDIController()
     
     private var devices: [X68Device] = []
-    private var fileSystem: FileSystem?
+    var fileSystem: FileSystem?
     
     // Track currently loading files to prevent duplicate loads
     private static var currentlyLoadingFiles: Set<String> = []
@@ -698,7 +698,9 @@ class GameScene: SKScene {
     
     var aaa = 0
     var timer: Timer?
+    var sramSaveTimer: Timer?
     private let timerQueue = DispatchQueue(label: "timer.queue", qos: .userInteractive)
+    private var sramSaveCounter = 0
     
     func startUpdateTimer() {
         // Security: Ensure only one timer exists
@@ -709,6 +711,10 @@ class GameScene: SKScene {
         DispatchQueue.main.async {
             self.timer = Timer.scheduledTimer(timeInterval: 1.0 / 60.0, target: self, selector: #selector(self.updateGame), userInfo: nil, repeats: true)
             print("Update timer started successfully")
+            
+            // Start periodic SRAM save timer (every 30 seconds)
+            self.sramSaveTimer = Timer.scheduledTimer(timeInterval: 30.0, target: self, selector: #selector(self.periodicSRAMSave), userInfo: nil, repeats: true)
+            print("Periodic SRAM save timer started")
         }
     }
     
@@ -730,6 +736,8 @@ class GameScene: SKScene {
     func stopUpdateTimer() {
         timer?.invalidate()
         timer = nil
+        sramSaveTimer?.invalidate()
+        sramSaveTimer = nil
     }
     
     @objc func updateGame() {
@@ -806,6 +814,13 @@ class GameScene: SKScene {
         self.spr.yScale = CGFloat(screen_h) / CGFloat(h)
         self.spr.zPosition = -1.0
         self.addChild(spr)
+    }
+    
+    @objc func periodicSRAMSave() {
+        // Save SRAM periodically to prevent data loss
+        sramSaveCounter += 1
+        print("Periodic SRAM save #\(sramSaveCounter)")
+        fileSystem?.saveSRAM()
     }
     
     var d = [UInt8](repeating: 0xff, count: 768 * 512 * 4)

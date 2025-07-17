@@ -261,5 +261,10 @@ extension GameViewController: NSDraggingDestination {
         
         return true
     }
+    
+    func saveSRAM() {
+        print("🐛 GameViewController.saveSRAM() called")
+        gameScene?.fileSystem?.saveSRAM()
+    }
 }
 
