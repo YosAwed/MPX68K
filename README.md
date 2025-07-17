@@ -49,27 +49,11 @@ You need the following ROM files from an original X68000 system:
 
 ### Installation Locations
 
-#### macOS
-Place the ROM files in one of these locations:
+Place the ROM files in the location:
 
-1. **Application Bundle** (Recommended):
+1. **Document folder**:
    ```
-   X68000.app/Contents/Resources/
-   ├── CGROM.DAT
-   └── IPLROM.DAT
-   ```
-
-2. **User Application Support**:
-   ```
-   ~/Library/Application Support/X68000/
-   ├── CGROM.DAT
-   └── IPLROM.DAT
-   ```
-
-3. **Same directory as application**:
-   ```
-   /Applications/
-   ├── X68000.app
+   /Users/<username>/Documents/
    ├── CGROM.DAT
    └── IPLROM.DAT
    ```
