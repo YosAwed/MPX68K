@@ -51,7 +51,7 @@ class FileSystem {
         // iCloudコンテナのURL
         //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let path = (url?.appendingPathComponent("Documents"))!
+        let path = (url?.appendingPathComponent("X68000"))!
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
@@ -60,7 +60,7 @@ class FileSystem {
         
 #if true
         let fileURL = getDocumentsPath("README.txt")
-        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE. Plase put CGROM.DAT and IPLROM.DAT here."
+        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE. Please put CGROM.DAT, IPLROM.DAT, and disk images here.\nSRAM.DAT (save data) will also be saved in this directory."
         if ( FileManager.default.fileExists( atPath: fileURL!.path ) == true ) {
         } else {
             do {
@@ -78,7 +78,7 @@ class FileSystem {
         //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
-        let documentsURL = containerURL?.appendingPathComponent("Documents")
+        let documentsURL = containerURL?.appendingPathComponent("X68000")
         let url = documentsURL?.appendingPathComponent(filename)
         return url
     }
@@ -91,7 +91,8 @@ class FileSystem {
         
         // Search locations in priority order
         let searchPaths = [
-            containerURL.appendingPathComponent("Documents").appendingPathComponent(filename),
+            containerURL.appendingPathComponent("X68000").appendingPathComponent(filename),
+            containerURL.appendingPathComponent("Documents").appendingPathComponent(filename), // Legacy path for backward compatibility
             containerURL.appendingPathComponent("Inbox").appendingPathComponent(filename),
             containerURL.appendingPathComponent(filename) // Direct in documents root
         ]
@@ -114,7 +115,7 @@ class FileSystem {
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
         // コンテナに追加するフォルダのパス
-        if let documentsURL = containerURL?.appendingPathComponent("Documents") {
+        if let documentsURL = containerURL?.appendingPathComponent("X68000") {
             let dir = getDir( documentsURL )
             
             for n in dir {
@@ -201,7 +202,8 @@ class FileSystem {
         }
         
         var allowedPaths = [
-            documentsURL.appendingPathComponent("Documents"),
+            documentsURL.appendingPathComponent("X68000"),
+            documentsURL.appendingPathComponent("Documents"), // Legacy path for backward compatibility
             documentsURL.appendingPathComponent("Inbox")
         ]
         
