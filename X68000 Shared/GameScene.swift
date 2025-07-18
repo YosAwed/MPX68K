@@ -201,6 +201,13 @@ class GameScene: SKScene {
         X68000_EjectHDD()
     }
     
+    // MARK: - System Management
+    func resetSystem() {
+        print("🐛 GameScene.resetSystem() called - performing manual reset")
+        X68000_Reset()
+        print("🐛 System reset completed")
+    }
+    
     // MARK: - Screen Rotation Management
     func rotateScreen() {
         print("🐛 GameScene.rotateScreen() called")

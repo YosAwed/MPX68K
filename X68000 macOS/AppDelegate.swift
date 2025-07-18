@@ -149,6 +149,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         print("🐛 AppDelegate.setPortraitMode called")
         gameViewController?.setPortraitMode(sender)
     }
+    
+    // MARK: - System Menu Actions
+    @IBAction func resetSystem(_ sender: Any) {
+        print("🐛 AppDelegate.resetSystem called")
+        gameViewController?.resetSystem(sender)
+    }
 
 }
 

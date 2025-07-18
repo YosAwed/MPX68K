@@ -104,6 +104,19 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="System" id="System-menu-item">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="System" id="System-submenu">
+                                    <items>
+                                        <menuItem title="Reset" keyEquivalent="R" id="System-reset">
+                                            <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                            <connections>
+                                                <action selector="resetSystem:" target="Ady-hI-5gd" id="System-reset-action"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
                             <menuItem title="Display" id="Display-menu-item">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="Display" id="Display-submenu">

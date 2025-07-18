@@ -97,6 +97,11 @@ class GameViewController: NSViewController {
     @IBAction func setPortraitMode(_ sender: Any) {
         gameScene?.setScreenRotation(.portrait)
     }
+    
+    // MARK: - System Management
+    @IBAction func resetSystem(_ sender: Any) {
+        gameScene?.resetSystem()
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()

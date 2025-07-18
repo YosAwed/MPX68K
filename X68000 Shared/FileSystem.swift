@@ -390,11 +390,7 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
-                        // Small delay before reset to ensure stability
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            X68000_Reset()
-                            print("HDD loaded and reset complete")
-                        }
+                        print("HDD loaded successfully - no automatic reset")
                     }
                 } else {
                     var drive = 0
@@ -405,15 +401,7 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        if drive == 0 {
-                            // Small delay before reset to ensure stability
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                X68000_Reset()
-                                print("FDD loaded and reset complete (drive \(drive))")
-                            }
-                        } else {
-                            print("FDD loaded successfully (drive \(drive))")
-                        }
+                        print("FDD loaded successfully (drive \(drive)) - no automatic reset")
                     }
                 }
             }
@@ -818,8 +806,7 @@ class FileSystem {
             }
             
             group.notify(queue: .main) {
-                X68000_Reset()
-                print("A/B disk pair loading completed - reset done")
+                print("A/B disk pair loading completed - no automatic reset")
                 completion()
             }
         }
@@ -929,13 +916,7 @@ class FileSystem {
             if success {
                 print("Disk \(url.lastPathComponent) loaded successfully")
                 
-                // Reset only after A disk (drive 0) is loaded, or if it's the last disk
-                if isADisk || isLastDisk {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        X68000_Reset()
-                        print("Disk sequence loaded and reset complete")
-                    }
-                }
+                print("Disk sequence loaded - no automatic reset")
             }
             
             // Load next disk or complete
@@ -1211,13 +1192,7 @@ class FileSystem {
                 X68000_LoadFDD(drive, url.path)
                 print("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)")
                 
-                // Reset only if drive A is loaded
-                if drive == 0 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        X68000_Reset()
-                        print("FDD loaded and reset complete (drive \(drive))")
-                    }
-                }
+                print("FDD loaded to drive \(drive) - no automatic reset")
             } else {
                 print("Error: Failed to get FDD buffer pointer for drive \(drive)")
             }
