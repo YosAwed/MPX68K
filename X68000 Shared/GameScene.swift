@@ -286,6 +286,35 @@ class GameScene: SKScene {
         print("🐛 Applied rotation: \(currentRotation.displayName), scale: \(scaleX)x\(scaleY), scene: \(sceneSize)")
     }
     
+    // Apply rotation and scaling silently (for update loop)
+    private func applySpriteTransformSilently() {
+        let w = Int(X68000_GetScreenWidth())
+        let h = Int(X68000_GetScreenHeight())
+        let sceneSize = self.size
+        
+        let scaleX: CGFloat
+        let scaleY: CGFloat
+        
+        switch currentRotation {
+        case .landscape:
+            scaleX = sceneSize.width / CGFloat(w)
+            scaleY = sceneSize.height / CGFloat(h)
+        case .portrait:
+            let rotatedWidth = CGFloat(h)
+            let rotatedHeight = CGFloat(w)
+            let scaleToFitX = sceneSize.width / rotatedWidth
+            let scaleToFitY = sceneSize.height / rotatedHeight
+            let uniformScale = min(scaleToFitX, scaleToFitY)
+            scaleX = uniformScale
+            scaleY = uniformScale
+        }
+        
+        spr.xScale = scaleX
+        spr.yScale = scaleY
+        spr.zRotation = currentRotation.angle
+        spr.position = CGPoint(x: 0, y: 0)
+    }
+    
     #if os(macOS)
     private func notifyWindowSizeChange() {
         // macOSでウィンドウサイズ変更を通知
@@ -885,8 +914,8 @@ class GameScene: SKScene {
         self.spr.texture = tex
         self.spr.size = CGSize(width: w, height: h)
         
-        // 回転状態に応じたスケーリングと回転を適用
-        applyRotationToSprite()
+        // Apply current rotation and scaling without logging
+        applySpriteTransformSilently()
         
         self.spr.zPosition = -1.0
         self.addChild(spr)
