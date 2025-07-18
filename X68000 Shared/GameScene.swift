@@ -1479,9 +1479,9 @@ extension GameScene {
         case 25: return "9"  // 9キー
         case 29: return "0"  // 0キー
         
-        // 記号（シフトなし状態）
-        case 27: return "-"  // -/= キー
-        case 24: return "="  // =/+ キー（注意：これは仮、実際は複雑）
+        // 記号（シフトなし状態）- Japanese keyboard corrected
+        case 27: return "="  // =/+ キー (Japanese keyboard)
+        case 24: return "-"  // -/_ キー (Japanese keyboard)
         case 33: return "["
         case 30: return "]"
         case 42: return "\\"
