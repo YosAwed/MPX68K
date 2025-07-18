@@ -372,6 +372,12 @@ class GameScene: SKScene {
         // Setup input mode toggle button
         setupInputModeButton()
         
+        // Hide iOS legacy UI elements after startup sequence completes
+        // Title animations take ~4.5 seconds (titleSprite + label), so wait 6 seconds to be safe
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
+            self.hideIOSLegacyUI()
+        }
+        
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
@@ -888,6 +894,50 @@ class GameScene: SKScene {
         labelMIDI?.fontSize = 18
     }
     
+    private func hideIOSLegacyUI() {
+        print("Hiding iOS legacy UI elements after startup...")
+        
+        // Hide the iOS legacy Settings gear icon
+        if let settingsNode = self.childNode(withName: "//Settings") as? SKSpriteNode {
+            settingsNode.isHidden = true
+            settingsNode.removeFromParent()
+            print("Settings gear icon removed")
+        }
+        
+        // Mark title labels as non-interactive to prevent click activation
+        // but don't remove them so they can still be controlled by existing fade animations
+        if let titleLabel = self.label {
+            titleLabel.isUserInteractionEnabled = false
+            print("Main title label interaction disabled")
+        }
+        
+        // Disable interaction for all title-related labels
+        let titleNodeNames = ["//helloLabel", "//helloLabel2", "//labelTitle", "//labelTitle2"]
+        for nodeName in titleNodeNames {
+            if let node = self.childNode(withName: nodeName) {
+                node.isUserInteractionEnabled = false
+                print("Disabled interaction for title node: \(nodeName)")
+            }
+        }
+        
+        // Find and disable interaction for any labels containing title text
+        self.enumerateChildNodes(withName: "//*") { node, _ in
+            if let labelNode = node as? SKLabelNode {
+                if let text = labelNode.text {
+                    if text.contains("POWER TO MAKE") || text.contains("for macOS") || text.contains("for iOS") {
+                        labelNode.isUserInteractionEnabled = false
+                        print("Disabled interaction for title text node: \(node.name ?? "unknown")")
+                    }
+                }
+            }
+        }
+        
+        // Reduce visibility of MIDI label for cleaner macOS experience
+        labelMIDI?.alpha = 0.3
+        labelMIDI?.fontSize = 12
+        print("MIDI label visibility reduced")
+    }
+    
     private func hideTitleLogo() {
         // Immediately hide the title logo when clock is changed
         titleSprite?.removeAllActions()
@@ -1158,15 +1208,16 @@ extension GameScene {
             joycard?.handleMouseClick(at: location, pressed: true)
         }
         
-        // Only show spinny for clock control area (upper area, excluding mode button area)
-        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-            if let label = self.label {
-                if let pulseAction = SKAction(named: "Pulse") {
-                    label.run(pulseAction, withKey: "fadeInOut")
-                }
-            }
-            self.makeSpinny(at: location, color: SKColor.green)
-        }
+        // Clock control area disabled - no title label activation on click
+        // Spinny and title pulse animations have been disabled for cleaner macOS experience
+        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+        //     if let label = self.label {
+        //         if let pulseAction = SKAction(named: "Pulse") {
+        //             label.run(pulseAction, withKey: "fadeInOut")
+        //         }
+        //     }
+        //     self.makeSpinny(at: location, color: SKColor.green)
+        // }
     }
     
     override func mouseDragged(with event: NSEvent) {
@@ -1176,9 +1227,10 @@ extension GameScene {
         let modeButtonY = size.height/2 - 30
         let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
         
-        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-            self.makeSpinny(at: location, color: SKColor.blue)
-        }
+        // Spinny animation disabled for cleaner macOS experience
+        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+        //     self.makeSpinny(at: location, color: SKColor.blue)
+        // }
     }
     
     override func mouseUp(with event: NSEvent) {
@@ -1189,14 +1241,15 @@ extension GameScene {
             joycard?.handleMouseClick(at: location, pressed: false)
         }
         
-        // Only create spinny for clock control area (upper area, excluding mode button area)
-        let modeButtonX = -size.width/2 + 150
-        let modeButtonY = size.height/2 - 30
-        let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
-        
-        if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-            self.makeSpinny(at: location, color: SKColor.red)
-        }
+        // Spinny animation disabled for cleaner macOS experience  
+        // No upper area interactions to prevent unwanted UI activations
+        // let modeButtonX = -size.width/2 + 150
+        // let modeButtonY = size.height/2 - 30
+        // let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+        // 
+        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
+        //     self.makeSpinny(at: location, color: SKColor.red)
+        // }
     }
     
     

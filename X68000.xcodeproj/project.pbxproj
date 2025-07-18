@@ -102,7 +102,6 @@
 
 /* Begin PBXFileReference section */
 		073F76E42431F438005B1F18 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
-		073F76E7243213C1005B1F18 /* X68000 for iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "X68000 for iOS.entitlements"; sourceTree = "<group>"; };
 		073F76FB24323762005B1F18 /* c68k.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = c68k.xcodeproj; path = c68k/c68k.xcodeproj; sourceTree = "<group>"; };
 		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
 		0758DC57243EFCE60097E86C /* ConfigScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = ConfigScene.sks; sourceTree = "<group>"; };
@@ -113,7 +112,6 @@
 		0760DC262434F492004CA0CF /* FDD.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FDD.png; sourceTree = "<group>"; };
 		0760DC2924350DDC004CA0CF /* BenchMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchMark.swift; sourceTree = "<group>"; };
 		07644219243328C3006E5208 /* FileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystem.swift; sourceTree = "<group>"; };
-		0764421D24333257006E5208 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS13.4.sdk/System/Library/Frameworks/CloudKit.framework; sourceTree = DEVELOPER_DIR; };
 		0771C5A02431B129002D40F0 /* JoyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoyController.swift; sourceTree = "<group>"; };
 		078594F624335FF700B5F09C /* X68000.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000.entitlements; sourceTree = "<group>"; };
 		0786961C243D9A0D007FCCEA /* X68JoyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68JoyCard.swift; sourceTree = "<group>"; };
@@ -198,11 +196,6 @@
 		07F863A2242F93E800CBB224 /* Actions.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = Actions.sks; sourceTree = "<group>"; };
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		07F863A5242F93EA00CBB224 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		07F863AD242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		07F863AF242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		07F863B2242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
-		07F863B5242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		07F863B7242F93EA00CBB224 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		07F863BC242F93EA00CBB224 /* X68000.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = X68000.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		07F863BE242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		07F863C0242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
@@ -248,7 +241,6 @@
 		07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = menu_str_sjis.txt; sourceTree = "<group>"; };
 		07F864B4242F97BE00CBB224 /* status.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = status.c; sourceTree = "<group>"; };
 		07F864B7242F97BE00CBB224 /* timer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = timer.c; sourceTree = "<group>"; };
-		3DD3E149263EC1E8001A75F0 /* X68000 for iOSDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "X68000 for iOSDebug.entitlements"; sourceTree = "<group>"; };
 		3DD3E14A263EC71A001A75F0 /* X68000Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000Debug.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -273,7 +265,6 @@
 		0764421C24333257006E5208 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				0764421D24333257006E5208 /* CloudKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -292,7 +283,6 @@
 				0758DC7A243F137E0097E86C /* Settings.bundle */,
 				073F76FB24323762005B1F18 /* c68k.xcodeproj */,
 				07F863A1242F93E800CBB224 /* X68000 Shared */,
-				07F863AC242F93EA00CBB224 /* X68000 iOS */,
 				07F863BD242F93EA00CBB224 /* X68000 macOS */,
 				07F863AB242F93EA00CBB224 /* Products */,
 				0764421C24333257006E5208 /* Frameworks */,
@@ -328,20 +318,6 @@
 				07F863BC242F93EA00CBB224 /* X68000.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		07F863AC242F93EA00CBB224 /* X68000 iOS */ = {
-			isa = PBXGroup;
-			children = (
-				3DD3E149263EC1E8001A75F0 /* X68000 for iOSDebug.entitlements */,
-				073F76E7243213C1005B1F18 /* X68000 for iOS.entitlements */,
-				07F863AD242F93EA00CBB224 /* AppDelegate.swift */,
-				07F863AF242F93EA00CBB224 /* GameViewController.swift */,
-				07F863B1242F93EA00CBB224 /* Main.storyboard */,
-				07F863B4242F93EA00CBB224 /* LaunchScreen.storyboard */,
-				07F863B7242F93EA00CBB224 /* Info.plist */,
-			);
-			path = "X68000 iOS";
 			sourceTree = "<group>";
 		};
 		07F863BD242F93EA00CBB224 /* X68000 macOS */ = {
@@ -688,22 +664,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
-		07F863B1242F93EA00CBB224 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				07F863B2242F93EA00CBB224 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-		07F863B4242F93EA00CBB224 /* LaunchScreen.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				07F863B5242F93EA00CBB224 /* Base */,
-			);
-			name = LaunchScreen.storyboard;
-			sourceTree = "<group>";
-		};
 		07F863C2242F93EA00CBB224 /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -755,6 +715,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -817,6 +778,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
