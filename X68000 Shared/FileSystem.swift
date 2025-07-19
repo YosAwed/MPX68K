@@ -120,9 +120,14 @@ class FileSystem {
             
             for n in dir {
                 if let filename = n {
-                    // Security: Validate file paths and types
-                    if isValidDiskImageFile(filename) {
-                        loadDiskImage( filename )
+                    // Only process disk image files during boot, skip ROM and system files
+                    let ext = filename.pathExtension.lowercased()
+                    let validDiskExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
+                    if validDiskExtensions.contains(ext) {
+                        // Security: Validate file paths and types
+                        if isValidDiskImageFile(filename) {
+                            loadDiskImage( filename )
+                        }
                     }
                 }
             }

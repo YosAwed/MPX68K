@@ -1431,6 +1431,9 @@ extension GameScene {
         case 101: return 0x16b // F9
         case 109: return 0x16c // F10
         
+        // 記号キーの特殊マッピング（日本語キーボード対応）
+        case 41: return 0x28  // ' (single quote) -> X68000 : (colon) キーコード
+        
         default:
             return 0 // マッピングなし（文字キーは上位で処理）
         }
@@ -1480,13 +1483,13 @@ extension GameScene {
         case 29: return "0"  // 0キー
         
         // 記号（シフトなし状態）- Japanese keyboard corrected
-        case 27: return "="  // =/+ キー (Japanese keyboard)
-        case 24: return "-"  // -/_ キー (Japanese keyboard)
+        case 27: return "-"  // =/- キー (Japanese keyboard)
+        case 24: return "="  // -/_ キー (Japanese keyboard)
         case 33: return "["
         case 30: return "]"
         case 42: return "\\"
         case 39: return ";"
-        case 41: return "'"
+        // case 41: removed - handled as special key mapping
         case 43: return ","
         case 47: return "."
         case 44: return "/"
