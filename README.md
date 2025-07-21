@@ -1,11 +1,11 @@
-# X68Mac
+# MPX68K
 
 A Sharp X68000 computer emulator for macOS and iOS platforms, based on the px68k emulator core.
 This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.com/hissorii/px68k). Based on his source code, [Goroman](https://github.com/GOROman) converted it for iOS, and I made it work on MacOS.
 
 ## Overview
 
-X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on Apple platforms.
+MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on Apple platforms.
 
 ## Features
 
@@ -36,7 +36,7 @@ X68Mac provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ## ROM Files Setup
 
-X68Mac requires original SHARP X68000 system ROM files to function properly. These files are **not included** with the emulator and must be obtained separately.
+MPX68K requires original SHARP X68000 system ROM files to function properly. These files are **not included** with the emulator and must be obtained separately.
 
 ### Required ROM Files
 
@@ -80,8 +80,8 @@ If you see garbled text or boot failures, verify that your ROM files are correct
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YosAwed/X68Mac.git
-   cd X68Mac
+   git clone https://github.com/YosAwed/MPX68K.git
+   cd MPX68K
    ```
 
 2. **Open in Xcode:**
@@ -202,7 +202,7 @@ The X68000 emulator supports 90-degree screen rotation for vertical games, commo
 
 ### Project Structure
 ```
-X68Mac/
+MPX68K/
 ├── X68000 Shared/          # Cross-platform Swift code
 │   ├── px68k/              # C/C++ emulation core
 │   └── *.swift             # Swift UI and logic
@@ -241,8 +241,8 @@ This project is based on px68k emulator. Please refer to the original px68k lice
 
 ## Links
 
-- [GitHub Repository](https://github.com/YosAwed/X68Mac)
-- [Issues & Bug Reports](https://github.com/YosAwed/X68Mac/issues)
+- [GitHub Repository](https://github.com/YosAwed/MPX68K)
+- [Issues & Bug Reports](https://github.com/YosAwed/MPX68K/issues)
 
 ---
 
