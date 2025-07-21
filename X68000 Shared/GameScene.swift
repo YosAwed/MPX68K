@@ -330,14 +330,9 @@ class GameScene: SKScene {
             print("CPU Clock: \(self.clockMHz) MHz")
         }
         
-        // 画面回転設定の読み込み
-        if userDefaults.bool(forKey: "ScreenRotation_Portrait") {
-            currentRotation = .portrait
-            print("Screen rotation loaded: Portrait")
-        } else {
-            currentRotation = .landscape
-            print("Screen rotation loaded: Landscape")
-        }
+        // 画面回転設定の読み込み - 起動時は常に横画面に強制
+        currentRotation = .landscape
+        print("Screen rotation forced to Landscape on startup")
         
         if let virtual_mouse = userDefaults.object(forKey: "virtual_mouse") as? Bool {
             print("virtual_mouse: \(virtual_mouse)")
@@ -384,6 +379,9 @@ class GameScene: SKScene {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.isEmulatorInitialized = true
             print("Emulator initialization complete - using SpriteKit update")
+            
+            // Apply saved screen rotation after emulator is fully initialized
+            self.applyScreenRotation()
         }
         
         mouseController = X68MouseController()
@@ -530,10 +528,7 @@ class GameScene: SKScene {
         print("didMove")
         self.setUpScene()
         
-        // 初期化後に回転設定を適用
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.applyScreenRotation()
-        }
+        // Screen rotation will be applied after emulator initialization in setUpScene()
         
         // Timer will be started after emulator initialization in setUpScene()
         
@@ -1430,10 +1425,7 @@ extension GameScene {
         case 100: return 0x16a // F8
         case 101: return 0x16b // F9
         case 109: return 0x16c // F10
-        
-        // 記号キーの特殊マッピング（日本語キーボード対応）
-        case 41: return 0x28  // ' (single quote) -> X68000 : (colon) キーコード
-        
+                
         default:
             return 0 // マッピングなし（文字キーは上位で処理）
         }
@@ -1489,7 +1481,7 @@ extension GameScene {
         case 30: return "]"
         case 42: return "\\"
         case 39: return ";"
-        // case 41: removed - handled as special key mapping
+        case 41: return "'"
         case 43: return ","
         case 47: return "."
         case 44: return "/"

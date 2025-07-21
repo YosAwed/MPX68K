@@ -132,6 +132,11 @@ class GameViewController: NSViewController {
             name: .screenRotationChanged,
             object: nil
         )
+        
+        // アプリ起動時は常に横長ウィンドウサイズでスタート
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.forceInitialLandscapeWindow()
+        }
     }
     
     private func setupDragAndDrop() {
@@ -147,6 +152,20 @@ class GameViewController: NSViewController {
         DispatchQueue.main.async {
             self.adjustWindowSizeForRotation(rotation)
         }
+    }
+    
+    private func adjustWindowSizeForSavedRotation() {
+        let userDefaults = UserDefaults.standard
+        let isPortrait = userDefaults.bool(forKey: "ScreenRotation_Portrait")
+        let savedRotation: GameScene.ScreenRotation = isPortrait ? .portrait : .landscape
+        
+        print("🐛 Adjusting window size for saved rotation: \(savedRotation.displayName)")
+        adjustWindowSizeForRotation(savedRotation)
+    }
+    
+    private func forceInitialLandscapeWindow() {
+        print("🐛 Forcing initial landscape window size")
+        adjustWindowSizeForRotation(.landscape)
     }
     
     private func adjustWindowSizeForRotation(_ rotation: GameScene.ScreenRotation) {
