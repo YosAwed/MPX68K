@@ -133,16 +133,16 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="Clock-separator"/>
-                                        <menuItem title="50 MHz" keyEquivalent="5" id="Clock-50mhz">
+                                        <menuItem title="40 MHz" keyEquivalent="5" id="Clock-40mhz">
                                             <modifierMask key="keyEquivalentModifierMask" control="YES"/>
                                             <connections>
-                                                <action selector="setClock50MHz:" target="Ady-hI-5gd" id="Clock-50mhz-action"/>
+                                                <action selector="setClock40MHz:" target="Ady-hI-5gd" id="Clock-40mhz-action"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="100 MHz" keyEquivalent="6" id="Clock-100mhz">
+                                        <menuItem title="50 MHz (Max)" keyEquivalent="6" id="Clock-50mhz-max">
                                             <modifierMask key="keyEquivalentModifierMask" control="YES"/>
                                             <connections>
-                                                <action selector="setClock100MHz:" target="Ady-hI-5gd" id="Clock-100mhz-action"/>
+                                                <action selector="setClock50MHz:" target="Ady-hI-5gd" id="Clock-50mhz-max-action"/>
                                             </connections>
                                         </menuItem>
                                     </items>

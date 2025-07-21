@@ -204,13 +204,20 @@ class GameScene: SKScene {
     // MARK: - Clock Management
     func setCPUClock(_ mhz: Int) {
         print("🐛 GameScene.setCPUClock() called with: \(mhz) MHz")
-        clockMHz = mhz
+        
+        // Clamp clock speed to safe range to prevent integer overflow in emulator core
+        let safeMHz = max(1, min(mhz, 50))  // Limit to 50MHz maximum
+        if safeMHz != mhz {
+            print("🐛 Clock speed clamped from \(mhz) MHz to \(safeMHz) MHz for stability")
+        }
+        
+        clockMHz = safeMHz
         
         // Save to UserDefaults
-        userDefaults.set("\(mhz)", forKey: "clock")
+        userDefaults.set("\(safeMHz)", forKey: "clock")
         
         // Show visual feedback
-        showClockChangeNotification(mhz)
+        showClockChangeNotification(safeMHz)
         
         print("🐛 CPU Clock set to: \(clockMHz) MHz")
     }

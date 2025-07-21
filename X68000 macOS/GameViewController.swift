@@ -115,12 +115,12 @@ class GameViewController: NSViewController {
         gameScene?.setCPUClock(24)
     }
     
-    @IBAction func setClock50MHz(_ sender: Any) {
-        gameScene?.setCPUClock(50)
+    @IBAction func setClock40MHz(_ sender: Any) {
+        gameScene?.setCPUClock(40)
     }
     
-    @IBAction func setClock100MHz(_ sender: Any) {
-        gameScene?.setCPUClock(100)
+    @IBAction func setClock50MHz(_ sender: Any) {
+        gameScene?.setCPUClock(50)
     }
     
     // MARK: - System Management
