@@ -241,8 +241,8 @@ This project is based on px68k emulator. Please refer to the original px68k lice
 
 ## Links
 
-- [GitHub Repository](https://github.com/YosAwed/MPX68K)
-- [Issues & Bug Reports](https://github.com/YosAwed/MPX68K/issues)
+- [GitHub Repository](https://github.com/YosAwed/X68Mac)
+- [Issues & Bug Reports](https://github.com/YosAwed/X68Mac/issues)
 
 ---
 
