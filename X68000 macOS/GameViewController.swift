@@ -98,6 +98,31 @@ class GameViewController: NSViewController {
         gameScene?.setScreenRotation(.portrait)
     }
     
+    // MARK: - Clock Management
+    @IBAction func setClock1MHz(_ sender: Any) {
+        gameScene?.setCPUClock(1)
+    }
+    
+    @IBAction func setClock10MHz(_ sender: Any) {
+        gameScene?.setCPUClock(10)
+    }
+    
+    @IBAction func setClock16MHz(_ sender: Any) {
+        gameScene?.setCPUClock(16)
+    }
+    
+    @IBAction func setClock24MHz(_ sender: Any) {
+        gameScene?.setCPUClock(24)
+    }
+    
+    @IBAction func setClock50MHz(_ sender: Any) {
+        gameScene?.setCPUClock(50)
+    }
+    
+    @IBAction func setClock100MHz(_ sender: Any) {
+        gameScene?.setCPUClock(100)
+    }
+    
     // MARK: - System Management
     @IBAction func resetSystem(_ sender: Any) {
         gameScene?.resetSystem()

@@ -104,6 +104,50 @@
                                     </items>
                                 </menu>
                             </menuItem>
+                            <menuItem title="Clock" id="Clock-menu-item">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <menu key="submenu" title="Clock" id="Clock-submenu">
+                                    <items>
+                                        <menuItem title="1 MHz" keyEquivalent="1" id="Clock-1mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock1MHz:" target="Ady-hI-5gd" id="Clock-1mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="10 MHz" keyEquivalent="2" id="Clock-10mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock10MHz:" target="Ady-hI-5gd" id="Clock-10mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="16 MHz" keyEquivalent="3" id="Clock-16mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock16MHz:" target="Ady-hI-5gd" id="Clock-16mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="24 MHz (Default)" keyEquivalent="4" id="Clock-24mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock24MHz:" target="Ady-hI-5gd" id="Clock-24mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="Clock-separator"/>
+                                        <menuItem title="50 MHz" keyEquivalent="5" id="Clock-50mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock50MHz:" target="Ady-hI-5gd" id="Clock-50mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="100 MHz" keyEquivalent="6" id="Clock-100mhz">
+                                            <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                            <connections>
+                                                <action selector="setClock100MHz:" target="Ady-hI-5gd" id="Clock-100mhz-action"/>
+                                            </connections>
+                                        </menuItem>
+                                    </items>
+                                </menu>
+                            </menuItem>
                             <menuItem title="System" id="System-menu-item">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="System" id="System-submenu">

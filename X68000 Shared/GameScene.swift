@@ -201,6 +201,43 @@ class GameScene: SKScene {
         X68000_EjectHDD()
     }
     
+    // MARK: - Clock Management
+    func setCPUClock(_ mhz: Int) {
+        print("🐛 GameScene.setCPUClock() called with: \(mhz) MHz")
+        clockMHz = mhz
+        
+        // Save to UserDefaults
+        userDefaults.set("\(mhz)", forKey: "clock")
+        
+        // Show visual feedback
+        showClockChangeNotification(mhz)
+        
+        print("🐛 CPU Clock set to: \(clockMHz) MHz")
+    }
+    
+    private func showClockChangeNotification(_ mhz: Int) {
+        let notification = SKLabelNode(text: "\(mhz) MHz")
+        notification.fontName = "Helvetica-Bold"
+        notification.fontSize = 48
+        notification.fontColor = .yellow
+        notification.zPosition = 15
+        notification.position = CGPoint(x: 0, y: 0)
+        notification.alpha = 0
+        
+        let fadeSequence = SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.3),
+            SKAction.wait(forDuration: 1.2),
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ])
+        
+        notification.run(fadeSequence)
+        addChild(notification)
+        
+        // Hide title logo when clock is changed
+        hideTitleLogo()
+    }
+    
     // MARK: - System Management
     func resetSystem() {
         print("🐛 GameScene.resetSystem() called - performing manual reset")
