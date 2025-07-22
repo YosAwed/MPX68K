@@ -186,14 +186,46 @@ class GameScene: SKScene {
     // MARK: - HDD Management
     func loadHDD(url: URL) {
         print("🐛 GameScene.loadHDD() called with: \(url.lastPathComponent)")
+        print("🐛 File extension: \(url.pathExtension)")
+        print("🐛 Full path: \(url.path)")
         
-        if fileSystem == nil {
-            print("🐛 FileSystem not initialized, creating...")
-            fileSystem = FileSystem()
-            fileSystem?.gameScene = self
+        // Direct HDD loading to avoid complex FileSystem routing that may fail in TestFlight
+        let extname = url.pathExtension.lowercased()
+        
+        // Check if this is a valid HDD file
+        if extname == "hdf" {
+            print("🔧 Loading HDD file directly: \(extname.uppercased())")
+            
+            do {
+                let imageData = try Data(contentsOf: url)
+                print("🔧 Successfully read HDD data: \(imageData.count) bytes")
+                
+                // Security: Validate HDD file size (reasonable limit for hard disk images)
+                let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
+                guard imageData.count <= maxSize else {
+                    print("❌ HDD file too large: \(imageData.count) bytes")
+                    return
+                }
+                
+                DispatchQueue.main.async {
+                    if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
+                        imageData.copyBytes(to: p, count: imageData.count)
+                        X68000_LoadHDD(url.absoluteString)
+                        print("✅ HDD loaded successfully: \(url.lastPathComponent)")
+                        
+                        // Save SRAM after HDD loading
+                        self.fileSystem?.saveSRAM()
+                    } else {
+                        print("❌ Failed to get HDD buffer pointer")
+                    }
+                }
+            } catch {
+                print("❌ Error reading HDD file: \(error)")
+            }
+        } else {
+            print("❌ Invalid HDD file extension: \(extname)")
+            print("❌ Expected: hdf")
         }
-        
-        fileSystem?.loadDiskImage(url)
     }
     
     func ejectHDD() {

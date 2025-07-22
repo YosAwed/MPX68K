@@ -111,10 +111,36 @@ class GameViewController: NSViewController {
         
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
-        openPanel.allowedContentTypes = [
-            UTType(filenameExtension: "hdf")!,
-            UTType(filenameExtension: "hdm")!
-        ]
+        
+        // Create UTTypes for HDF file extension with fallback
+        var allowedTypes: [UTType] = []
+        
+        if let hdfType = UTType(filenameExtension: "hdf") {
+            allowedTypes.append(hdfType)
+            print("🔧 Added HDF UTType successfully")
+        } else {
+            print("⚠️  Failed to create HDF UTType, using fallback")
+            // Fallback for unknown extensions - use exported type or data type
+            let exportedType = UTType(exportedAs: "NANKIN.X68000.1.HDD")
+            allowedTypes.append(exportedType)
+        }
+        
+        
+        // Add generic data type as additional fallback
+        allowedTypes.append(.data)
+        
+        // For older macOS versions, also set allowedFileTypes as fallback
+        if #available(macOS 11.0, *) {
+            openPanel.allowedContentTypes = allowedTypes
+        } else {
+            openPanel.allowedFileTypes = ["hdf"]
+            print("🔧 Using legacy allowedFileTypes for older macOS")
+        }
+        
+        // Allow all files as emergency fallback (user can still filter manually)
+        openPanel.allowsOtherFileTypes = true
+        
+        print("🔧 HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true")
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
