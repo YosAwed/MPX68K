@@ -40,6 +40,8 @@ class GameViewController: NSViewController {
     }
     
     private func openFDDForDrive(_ drive: Int) {
+        print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
+        
         let openPanel = NSOpenPanel()
         openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "A" : "B")"
         openPanel.allowedContentTypes = [
@@ -50,20 +52,51 @@ class GameViewController: NSViewController {
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
         
-        // Set default directory to user's Documents folder for better accessibility
-        if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            openPanel.directoryURL = documentsURL
+        // Try to set default directory to user's actual Documents folder first
+        var defaultDirectory: URL?
+        
+        // Priority 1: User's actual Documents/X68000 folder
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+            print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+        }
+        // Priority 2: User's Documents folder
+        else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+                print("🔧 Using user Documents as default: \(userDocuments.path)")
+            }
+        }
+        // Priority 3: Sandboxed Documents folder
+        else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+            print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
         }
         
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+        
+        print("🔧 NSOpenPanel configured, showing dialog...")
+        
         openPanel.begin { [weak self] response in
+            print("🔧 NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
             if response == .OK, let url = openPanel.url {
-                print("🐛 NSOpenPanel selected file: \(url.path)")
+                print("✅ NSOpenPanel selected file: \(url.path)")
+                let accessible = url.startAccessingSecurityScopedResource()
+                print("🔧 Security-scoped resource access: \(accessible)")
+                
                 DispatchQueue.main.async {
                     self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
+                    if accessible {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                 }
             } else {
-                print("🐛 NSOpenPanel cancelled or failed")
+                print("❌ NSOpenPanel cancelled or failed")
             }
         }
     }
@@ -74,6 +107,8 @@ class GameViewController: NSViewController {
     
     // MARK: - HDD Management
     @IBAction func openHDD(_ sender: Any) {
+        print("🔧 Opening HDD dialog")
+        
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
         openPanel.allowedContentTypes = [
@@ -81,12 +116,53 @@ class GameViewController: NSViewController {
             UTType(filenameExtension: "hdm")!
         ]
         openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+        
+        // Set default directory using same logic as FDD
+        var defaultDirectory: URL?
+        
+        // Priority 1: User's actual Documents/X68000 folder
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+            print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+        }
+        // Priority 2: User's Documents folder
+        else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+                print("🔧 Using user Documents as default: \(userDocuments.path)")
+            }
+        }
+        // Priority 3: Sandboxed Documents folder
+        else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+            print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
+        }
+        
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+        
+        print("🔧 NSOpenPanel configured for HDD, showing dialog...")
         
         openPanel.begin { [weak self] response in
+            print("🔧 HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
             if response == .OK, let url = openPanel.url {
+                print("✅ NSOpenPanel selected HDD file: \(url.path)")
+                let accessible = url.startAccessingSecurityScopedResource()
+                print("🔧 HDD Security-scoped resource access: \(accessible)")
+                
                 DispatchQueue.main.async {
                     self?.gameScene?.loadHDD(url: url)
+                    if accessible {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                 }
+            } else {
+                print("❌ HDD NSOpenPanel cancelled or failed")
             }
         }
     }

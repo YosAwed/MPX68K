@@ -90,7 +90,7 @@ class FileSystem {
         }
         
         // Search locations in priority order
-        let searchPaths = [
+        var searchPaths = [
             containerURL.appendingPathComponent("X68000").appendingPathComponent(filename),
             containerURL.appendingPathComponent("Documents").appendingPathComponent(filename), // Legacy path for backward compatibility
             containerURL.appendingPathComponent("Inbox").appendingPathComponent(filename),
@@ -99,14 +99,35 @@ class FileSystem {
             containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
         ]
         
-        for path in searchPaths {
-            if FileManager.default.fileExists(atPath: path.path) {
-                print("Found \(filename) at: \(path.path)")
-                return path
+        // Add actual user Documents directory paths (requires user-selected file access entitlement)
+        if let userHome = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first {
+            let userDocumentsX68000 = userHome.appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
+            searchPaths.append(userDocumentsX68000)
+            print("Added user Documents search path: \(userDocumentsX68000.path)")
+        }
+        
+        // Also try direct access to common user Documents location
+        let commonUserDocumentsPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
+        searchPaths.append(commonUserDocumentsPath)
+        print("Added common Documents search path: \(commonUserDocumentsPath.path)")
+        
+        print("🔍 Searching for \(filename) in \(searchPaths.count) locations:")
+        for (index, path) in searchPaths.enumerated() {
+            let exists = FileManager.default.fileExists(atPath: path.path)
+            let accessible = FileManager.default.isReadableFile(atPath: path.path)
+            print("  \(index + 1). \(path.path) - exists: \(exists), accessible: \(accessible)")
+            
+            if exists {
+                if accessible {
+                    print("✅ Found \(filename) at: \(path.path)")
+                    return path
+                } else {
+                    print("⚠️  File exists but not accessible due to permissions: \(path.path)")
+                }
             }
         }
         
-        print("File \(filename) not found in any search location")
+        print("❌ File \(filename) not found in any accessible location")
         return nil
     }
     
