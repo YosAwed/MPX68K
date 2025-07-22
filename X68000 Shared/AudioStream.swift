@@ -115,18 +115,20 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
     let audioData = buffer.pointee.mAudioData
     let size = buffer.pointee.mAudioDataBytesCapacity / 4
     
-    // Quick safety check for reasonable buffer size
-    if size > 0 && size <= 8192 {
+    // Enhanced safety check with better noise prevention
+    if size > 0 && size <= 16384 {  // Increased buffer size limit for better compatibility
         let mAudioDataPrt = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
         
-        // Call the audio generation function directly without clearing
-        // The X68000 audio system will handle the data properly
+        // Pre-clear buffer to prevent noise artifacts from previous data
+        memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
+        
+        // Call the audio generation function
         X68000_AudioCallBack(mAudioDataPrt, UInt32(size))
         
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
     } else {
-        // Only clear and enqueue if size is invalid
+        // Clear and enqueue if size is invalid
         memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
@@ -159,8 +161,8 @@ class AudioStream {
             mReserved:          0
         )
 
-        // Calculate buffer size based on sample rate to provide ~100ms of audio buffer
-        let bufferDurationSeconds: Float64 = 0.1  // 100ms
+        // Calculate buffer size based on sample rate to provide ~50ms of audio buffer for lower latency
+        let bufferDurationSeconds: Float64 = 0.05  // 50ms for reduced latency and stuttering
         let framesPerBuffer = UInt32(Float64(samplingrate) * bufferDurationSeconds)
         bufferByteSize = framesPerBuffer * dataFormat.mBytesPerFrame
         

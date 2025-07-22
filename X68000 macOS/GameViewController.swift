@@ -48,12 +48,22 @@ class GameViewController: NSViewController {
             UTType(filenameExtension: "d88")!
         ]
         openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        
+        // Set default directory to user's Documents folder for better accessibility
+        if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            openPanel.directoryURL = documentsURL
+        }
         
         openPanel.begin { [weak self] response in
             if response == .OK, let url = openPanel.url {
+                print("🐛 NSOpenPanel selected file: \(url.path)")
                 DispatchQueue.main.async {
                     self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
                 }
+            } else {
+                print("🐛 NSOpenPanel cancelled or failed")
             }
         }
     }

@@ -94,7 +94,9 @@ class FileSystem {
             containerURL.appendingPathComponent("X68000").appendingPathComponent(filename),
             containerURL.appendingPathComponent("Documents").appendingPathComponent(filename), // Legacy path for backward compatibility
             containerURL.appendingPathComponent("Inbox").appendingPathComponent(filename),
-            containerURL.appendingPathComponent(filename) // Direct in documents root
+            containerURL.appendingPathComponent(filename), // Direct in documents root
+            // Also check the actual sandboxed container directory path
+            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
         ]
         
         for path in searchPaths {

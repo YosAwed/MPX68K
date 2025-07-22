@@ -114,7 +114,8 @@ static void sound_send(int length)
        memset(write_start, 0, total_bytes);
    }
 
-   // Generate audio with both sources
+   // Generate audio with both sources - prevent buffer overlap issues
+   memset(pbwp, 0, total_bytes);  // Clear buffer first to prevent noise artifacts
    ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
 
@@ -185,9 +186,10 @@ cb_start:
 
       datalen = pbwp - pbrp;
 
-      // needs more data - generate extra to prevent underruns
+      // needs more data - generate predictable amount to prevent underruns
 	   if (datalen < len) {
-		   int extra_samples = ((len - datalen) / 4) + 512; // Generate extra samples
+		   int missing_bytes = len - datalen;
+		   int extra_samples = (missing_bytes / 4) + 256; // Fixed buffer size to reduce stuttering
 		   DSound_Send(extra_samples);
 //		   printf("MORE!");
 	   }
@@ -232,7 +234,8 @@ cb_start:
          lenb = len - lena;
 
 		  if (pbwp - pbsp < lenb) {
-            int needed_samples = ((lenb - (pbwp - pbsp)) / 4) + 256; // Generate extra samples  
+            int missing_bytes = lenb - (pbwp - pbsp);
+            int needed_samples = (missing_bytes / 4) + 128; // Smaller buffer to reduce latency
             DSound_Send(needed_samples);
 		  }
 #if 0
