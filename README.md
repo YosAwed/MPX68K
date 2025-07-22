@@ -51,9 +51,9 @@ You need the following ROM files from an original X68000 system:
 
 Place the ROM files in the location:
 
-1. **Document folder**:
+1. **iCloud Document folder**:
    ```
-   /Users/<username>/Documents/
+   /Users/<username>/Documents/X68000 (/Users/<username>/Libraries/Containers/X68000/Data)
    ├── CGROM.DAT
    └── IPLROM.DAT
    ```
