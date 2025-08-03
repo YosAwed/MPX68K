@@ -173,6 +173,8 @@ The X68000 emulator supports 90-degree screen rotation for vertical games, commo
 
 ## Architecture
 
+MPX68K uses a multi-layered architecture that bridges modern Swift UI frameworks with low-level C/C++ emulation code.
+
 ### Language Stack
 - **Swift**: UI layer, device management, file system
 - **C**: Core emulation engine (CPU, hardware)
@@ -184,6 +186,8 @@ The X68000 emulator supports 90-degree screen rotation for vertical games, commo
 - **JoyController.swift**: GameController integration
 - **X68JoyCard.swift**: Virtual joycard implementation
 - **px68k/**: Complete X68000 hardware emulation in C/C++
+
+For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Recent Updates
 
