@@ -70,6 +70,11 @@ class GameScene: SKScene {
     var screen_h: Float = 1024.0
     private var isEmulatorInitialized: Bool = false
     
+    // Performance optimization: Pre-allocated texture for reuse
+    private var preAllocatedTexture: SKTexture?
+    private var lastScreenWidth: Int = 0
+    private var lastScreenHeight: Int = 0
+    
     private var audioStream: AudioStream?
     private var mouseController: X68MouseController?
     private var midiController: MIDIController = MIDIController()
@@ -915,18 +920,31 @@ class GameScene: SKScene {
         X68000_GetImage(&d)
         
         let cgsize = CGSize(width: w, height: h)
+        
+        // Performance optimization: Reduce texture recreation overhead
+        let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
+        
+        // Always update texture data, but optimize sprite management
         let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
         
-        self.spr.removeFromParent()
-        self.spr = SKSpriteNode(texture: tex, size: cgsize)
-        self.spr.texture = tex
-        self.spr.size = CGSize(width: w, height: h)
-        let scale_x: CGFloat = 768.0 / CGFloat(w)
-        let scale_y: CGFloat = 512.0 / CGFloat(h)
-        self.spr.xScale = CGFloat(screen_w) / CGFloat(w)
-        self.spr.yScale = CGFloat(screen_h) / CGFloat(h)
-        self.spr.zPosition = -1.0
-        self.addChild(spr)
+        if screenSizeChanged || spr.parent == nil {
+            // Screen size changed or sprite not added yet
+            lastScreenWidth = w
+            lastScreenHeight = h
+            
+            if spr.parent != nil {
+                spr.removeFromParent()
+            }
+            
+            spr = SKSpriteNode(texture: tex, size: cgsize)
+            spr.xScale = CGFloat(screen_w) / CGFloat(w)
+            spr.yScale = CGFloat(screen_h) / CGFloat(h)
+            spr.zPosition = -1.0
+            self.addChild(spr)
+        } else {
+            // Just update texture, keep sprite
+            spr.texture = tex
+        }
     }
     
     @objc func periodicSRAMSave() {

@@ -322,7 +322,7 @@ WinX68k_Cleanup(void)
     }
 }
 
-#define CLOCK_SLICE 200
+#define CLOCK_SLICE 1500  // Performance optimization: Increased from 200 to 1500 to reduce loop overhead
 // -----------------------------------------------------------------------------------
 //  �����Τᤤ��롼��
 // -----------------------------------------------------------------------------------

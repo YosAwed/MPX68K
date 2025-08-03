@@ -113,17 +113,42 @@ func bridge<T : AnyObject>(_ ptr : UnsafeRawPointer) -> T {
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
     
     let audioData = buffer.pointee.mAudioData
-    let size = buffer.pointee.mAudioDataBytesCapacity / 4
+    let size = buffer.pointee.mAudioDataBytesCapacity / 4  // Size in samples (16-bit stereo)
     
     // Enhanced safety check with better noise prevention
-    if size > 0 && size <= 16384 {  // Increased buffer size limit for better compatibility
-        let mAudioDataPrt = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
+    if size > 0 && size <= 32768 {  // Further increased buffer size limit for 100ms buffers
+        let mAudioDataPtr = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
         
-        // Pre-clear buffer to prevent noise artifacts from previous data
+        // Pre-clear buffer completely to prevent any residual noise
         memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
         
         // Call the audio generation function
-        X68000_AudioCallBack(mAudioDataPrt, UInt32(size))
+        X68000_AudioCallBack(mAudioDataPtr, UInt32(size))
+        
+        // Post-process: Apply soft limiting to prevent clipping and pops
+        for i in 0..<Int(size * 2) {  // size * 2 for stereo samples
+            let sample = mAudioDataPtr[i]
+            // Soft limiting to prevent harsh clipping
+            if sample > 32000 {
+                mAudioDataPtr[i] = 32000
+            } else if sample < -32000 {
+                mAudioDataPtr[i] = -32000
+            }
+        }
+        
+        // Check for actual audio content to prevent unnecessary processing
+        var hasAudio = false
+        for i in 0..<Int(size * 2) {
+            if abs(mAudioDataPtr[i]) > 10 {  // Threshold for detecting actual audio
+                hasAudio = true
+                break
+            }
+        }
+        
+        // If no significant audio, ensure complete silence
+        if !hasAudio {
+            memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
+        }
         
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
@@ -161,8 +186,8 @@ class AudioStream {
             mReserved:          0
         )
 
-        // Calculate buffer size based on sample rate to provide ~50ms of audio buffer for lower latency
-        let bufferDurationSeconds: Float64 = 0.05  // 50ms for reduced latency and stuttering
+        // Calculate buffer size based on sample rate to provide ~100ms of audio buffer for stability
+        let bufferDurationSeconds: Float64 = 0.1  // 100ms for better stability and reduced stuttering
         let framesPerBuffer = UInt32(Float64(samplingrate) * bufferDurationSeconds)
         bufferByteSize = framesPerBuffer * dataFormat.mBytesPerFrame
         
@@ -177,13 +202,9 @@ class AudioStream {
             0,
             &queue)
         
-        // Set audio queue properties for better performance
+        // Set audio queue properties for better performance and stability
         if let queue = queue {
-            // Set high priority for audio processing
-            var priority: UInt32 = 1  // High priority
-            AudioQueueSetProperty(queue, kAudioQueueProperty_TimePitchBypass, &priority, UInt32(MemoryLayout<UInt32>.size))
-            
-            // Enable hardware acceleration if available
+            // Disable level metering for better performance
             var enableLevelMetering: UInt32 = 0
             AudioQueueSetProperty(queue, kAudioQueueProperty_EnableLevelMetering, &enableLevelMetering, UInt32(MemoryLayout<UInt32>.size))
         }
