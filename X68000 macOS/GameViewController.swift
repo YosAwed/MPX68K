@@ -197,6 +197,91 @@ class GameViewController: NSViewController {
         gameScene?.ejectHDD()
     }
     
+    @IBAction func createEmptyHDD(_ sender: Any) {
+        print("🔧 Creating empty HDD dialog")
+        
+        // Step 1: Show size selection alert
+        let alert = NSAlert()
+        alert.messageText = "Create Empty Hard Disk"
+        alert.informativeText = "Select the size for the new hard disk image:"
+        alert.alertStyle = .informational
+        
+        // Add size options
+        alert.addButton(withTitle: "10 MB")
+        alert.addButton(withTitle: "20 MB") 
+        alert.addButton(withTitle: "40 MB")
+        alert.addButton(withTitle: "80 MB")
+        alert.addButton(withTitle: "Cancel")
+        
+        let response = alert.runModal()
+        
+        // Check for Cancel button (fifth button)
+        if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 4 {
+            print("🔧 HDD creation cancelled")
+            return
+        }
+        
+        // Determine size based on button selection
+        let sizeInMB: Int
+        let sizeInBytes: Int
+        
+        switch response.rawValue {
+        case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue:   // 10 MB
+            sizeInMB = 10
+            sizeInBytes = 10 * 1024 * 1024
+        case NSApplication.ModalResponse.alertSecondButtonReturn.rawValue:  // 20 MB
+            sizeInMB = 20
+            sizeInBytes = 20 * 1024 * 1024
+        case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue:   // 40 MB
+            sizeInMB = 40
+            sizeInBytes = 40 * 1024 * 1024
+        case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3:  // 80 MB (fourth button)
+            sizeInMB = 80
+            sizeInBytes = 80 * 1024 * 1024
+        default:
+            print("❌ Unexpected button response")
+            return
+        }
+        
+        print("🔧 Selected HDD size: \(sizeInMB) MB (\(sizeInBytes) bytes)")
+        
+        // Step 2: Show save dialog
+        let savePanel = NSSavePanel()
+        savePanel.title = "Create Hard Disk Image"
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "hdf") ?? .data]
+        savePanel.nameFieldStringValue = "NewHDD_\(sizeInMB)MB.hdf"
+        
+        // Set default directory - same logic as openHDD
+        var defaultDirectory: URL?
+        
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+        } else {
+            let userDocuments = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+            }
+        }
+        
+        if let defaultDir = defaultDirectory {
+            savePanel.directoryURL = defaultDir
+            print("🔧 Set HDD creation default directory to: \(defaultDir.path)")
+        }
+        
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else {
+                print("❌ HDD creation save dialog cancelled")
+                return
+            }
+            
+            print("🔧 Creating HDD at: \(url.path)")
+            
+            // Step 3: Create the empty HDD file
+            self.gameScene?.createEmptyHDD(at: url, sizeInBytes: sizeInBytes)
+        }
+    }
+    
     // MARK: - Screen Rotation Management
     @IBAction func rotateScreen(_ sender: Any) {
         gameScene?.rotateScreen()
@@ -274,6 +359,14 @@ class GameViewController: NSViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.forceInitialLandscapeWindow()
         }
+        
+        // Set up window delegate for close events
+        DispatchQueue.main.async {
+            if let window = self.view.window {
+                window.delegate = self
+                print("🐛 Window delegate set for close event handling")
+            }
+        }
     }
     
     private func setupDragAndDrop() {
@@ -308,7 +401,7 @@ class GameViewController: NSViewController {
     private func adjustWindowSizeForRotation(_ rotation: GameScene.ScreenRotation) {
         guard let window = view.window else { return }
         
-        let currentFrame = window.frame
+        _ = window.frame  // Get current frame for potential future use
         
         // 基本的なX68000解像度（768x512）に基づいて計算
         let baseWidth: CGFloat = 768
@@ -351,7 +444,36 @@ class GameViewController: NSViewController {
         
         print("🐛 Window size adjusted for \(rotation.displayName): \(newContentSize)")
     }
+    
+    deinit {
+        print("🐛 GameViewController.deinit - final save")
+        // Final save attempt
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+    }
 
+}
+
+// MARK: - Window Delegate Support
+extension GameViewController: NSWindowDelegate {
+    
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        print("🐛 Window is about to close - saving all data")
+        
+        // Save HDD and SRAM before window closes
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+        
+        return true
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        print("🐛 Window will close - final save attempt")
+        
+        // Final save attempt
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+    }
 }
 
 // MARK: - Drag and Drop Support
@@ -425,6 +547,18 @@ extension GameViewController: NSDraggingDestination {
     
     func saveSRAM() {
         print("🐛 GameViewController.saveSRAM() called")
+        gameScene?.fileSystem?.saveSRAM()
+        
+        // Also save HDD changes
+        gameScene?.saveHDD()
+    }
+    
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        print("🐛 GameViewController.viewWillDisappear - saving data before disappearing")
+        
+        // Save HDD changes when view is about to disappear
+        gameScene?.saveHDD()
         gameScene?.fileSystem?.saveSRAM()
     }
 }

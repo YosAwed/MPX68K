@@ -782,7 +782,28 @@ void X68000_LoadHDD( const char* filename )
 {
 	printf("X68000_LoadHDD( \"%s\" )\n", filename);
 	strncpy( Config.HDImage[0], filename , MAX_PATH);
-
+	
+	// Get HDD image file size and report it to SASI for capacity reporting
+	FILE* fp = fopen(filename, "rb");
+	if (fp) {
+		fseek(fp, 0, SEEK_END);
+		DWORD size = ftell(fp);
+		fclose(fp);
+		
+		// Report size to SASI for multiple drive indices to ensure compatibility
+		// Set size for drive 0 (common case) and other potential indices
+		SASI_SetImageSize(0, size);  // Primary HDD typically maps to drive 0
+		
+		// Also set for other potential drive indices that SASI might use
+		// depending on SASI_Device*2+SASI_Unit calculation
+		for (int i = 1; i < 5; i++) {
+			SASI_SetImageSize(i, size);
+		}
+		
+		printf("HDD image size: %d bytes (%d MB) - set for all drive indices\n", size, size / (1024*1024));
+	} else {
+		printf("Warning: Could not determine HDD image size for: %s\n", filename);
+	}
 }
 
 void X68000_EjectHDD()
@@ -799,6 +820,20 @@ const int X68000_IsHDDReady()
 const char* X68000_GetHDDFilename()
 {
 	return Config.HDImage[0];
+}
+
+void X68000_SaveHDD()
+{
+	// Direct file writes implemented - this function is now legacy
+	// SASI_Flush() writes sectors directly to files as they are modified
+	printf("X68000_SaveHDD: Direct file writes enabled - no bulk save needed\n");
+	printf("X68000_SaveHDD: Data is written to disk immediately via SASI_Flush()\n");
+}
+
+const int X68000_IsHDDDirty()
+{
+	// Return dirty flag status for primary HDD (drive 0)
+	return SASI_IsDirty(0) ? 1 : 0;
 }
 
 unsigned char* X68000_GetSRAMPointer()

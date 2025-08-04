@@ -77,6 +77,8 @@ class GameScene: SKScene {
     
     private var audioStream: AudioStream?
     private var mouseController: X68MouseController?
+    
+    // HDD auto-save removed - direct writes implemented
     private var midiController: MIDIController = MIDIController()
     
     private var devices: [X68Device] = []
@@ -215,7 +217,7 @@ class GameScene: SKScene {
                 DispatchQueue.main.async {
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.absoluteString)
+                        X68000_LoadHDD(url.path)  // Use url.path instead of url.absoluteString
                         print("✅ HDD loaded successfully: \(url.lastPathComponent)")
                         
                         // Save SRAM after HDD loading
@@ -235,7 +237,87 @@ class GameScene: SKScene {
     
     func ejectHDD() {
         print("🐛 GameScene.ejectHDD() called")
+        
+        // Save HDD changes before ejecting
+        if X68000_IsHDDReady() != 0 {
+            print("🔧 Saving HDD changes before ejecting...")
+            X68000_SaveHDD()
+        }
+        
         X68000_EjectHDD()
+    }
+    
+    func saveHDD() {
+        print("🔧 GameScene.saveHDD() called")
+        if X68000_IsHDDReady() != 0 {
+            X68000_SaveHDD()
+        } else {
+            print("⚠️ No HDD loaded to save")
+        }
+    }
+    
+    // Auto-save system removed - SASI writes directly to files
+    
+    func createEmptyHDD(at url: URL, sizeInBytes: Int) {
+        print("🔧 GameScene.createEmptyHDD() called")
+        print("🔧 Target file: \(url.path)")
+        print("🔧 Size: \(sizeInBytes) bytes (\(sizeInBytes / (1024 * 1024)) MB)")
+        
+        // Validate size (must be reasonable for X68000 HDD)
+        let maxSize = 80 * 1024 * 1024 // 80MB maximum
+        let minSize = 1024 * 1024      // 1MB minimum
+        
+        guard sizeInBytes >= minSize && sizeInBytes <= maxSize else {
+            print("❌ Invalid HDD size: \(sizeInBytes) bytes")
+            showAlert(title: "Error", message: "Invalid HDD size. Must be between 1MB and 80MB.")
+            return
+        }
+        
+        // Ensure size is multiple of 256 bytes (sector size)
+        guard sizeInBytes % 256 == 0 else {
+            print("❌ HDD size must be multiple of 256 bytes (sector size)")
+            showAlert(title: "Error", message: "HDD size must be multiple of 256 bytes.")
+            return
+        }
+        
+        do {
+            // Create empty data filled with zeros
+            let emptyData = Data(repeating: 0, count: sizeInBytes)
+            
+            // Write to file
+            try emptyData.write(to: url)
+            
+            print("✅ Empty HDD created successfully: \(url.lastPathComponent)")
+            print("✅ Size: \(emptyData.count) bytes")
+            
+            // Automatically load the created HDD
+            DispatchQueue.main.async {
+                print("🔧 Auto-loading created HDD...")
+                self.loadHDD(url: url)
+                
+                // Show success message
+                self.showAlert(title: "Success", 
+                              message: "Empty HDD '\(url.lastPathComponent)' created and mounted successfully.")
+            }
+            
+        } catch {
+            print("❌ Error creating HDD file: \(error)")
+            showAlert(title: "Error", 
+                     message: "Failed to create HDD file: \(error.localizedDescription)")
+        }
+    }
+    
+    private func showAlert(title: String, message: String) {
+        #if os(macOS)
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+        #endif
     }
     
     // MARK: - Clock Management
@@ -593,6 +675,14 @@ class GameScene: SKScene {
     }
     
     deinit {
+        // Save HDD before cleanup
+        if X68000_IsHDDReady() != 0 {
+            print("🔧 Final HDD save in deinit...")
+            X68000_SaveHDD()
+        }
+        
+        // Direct file writes - no timer needed
+        
         // Cleanup
         isEmulatorInitialized = false
     }
@@ -612,6 +702,8 @@ class GameScene: SKScene {
         // Screen rotation will be applied after emulator initialization in setUpScene()
         
         // Timer will be started after emulator initialization in setUpScene()
+        
+        // Direct file writes enabled - no timer needed
         
         let moveJoystickHiddenArea = TLAnalogJoystickHiddenArea(rect: CGRect(x: -scene!.size.width / 2, y: -scene!.size.height * 0.5, width: scene!.size.width / 2, height: scene!.size.height * 0.9))
         moveJoystickHiddenArea.joystick = moveJoystick

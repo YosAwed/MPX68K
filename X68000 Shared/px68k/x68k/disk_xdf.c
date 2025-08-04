@@ -8,6 +8,7 @@ static char           XDFFile[4][MAX_PATH];
 static int            XDFCur[4] = {0, 0, 0, 0};
 static int            XDFTrk[4] = {0, 0, 0, 0};
 static unsigned char* XDFImg[4] = {0, 0, 0, 0};
+static int            XDFDirty[4] = {0, 0, 0, 0};  // Track if disk has been modified
 
 void XDF_Init(void)
 {
@@ -16,6 +17,7 @@ void XDF_Init(void)
 	for (drv=0; drv<4; drv++) {
 		XDFCur[drv] = 0;
 		XDFImg[drv] = 0;
+		XDFDirty[drv] = 0;
 		ZeroMemory(XDFFile[drv], MAX_PATH);
 	}
 }
@@ -65,21 +67,28 @@ int XDF_Eject(int drv)
 		ZeroMemory(XDFFile[drv], MAX_PATH);
 		return FALSE;
 	}
-	if ( !FDD_IsReadOnly(drv) ) {
+	// Only save if disk has been modified and direct writes failed
+	if ( !FDD_IsReadOnly(drv) && XDFDirty[drv] ) {
+		printf("XDF: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(XDFFile[drv]);
 		if ( !fp ) goto xdf_eject_error;
 		File_Seek(fp, 0, FSEEK_SET);
 		if ( File_Write(fp, XDFImg[drv], 1261568)!=1261568 ) goto xdf_eject_error;
 		File_Close(fp);
+		printf("XDF: Disk saved successfully (Drive:%d)\n", drv);
+	} else if ( XDFDirty[drv] ) {
+		printf("XDF: Disk is dirty but read-only - changes discarded (Drive:%d)\n", drv);
 	}
 	free(XDFImg[drv]);
 	XDFImg[drv] = 0;
+	XDFDirty[drv] = 0;  // Clear dirty flag
 	ZeroMemory(XDFFile[drv], MAX_PATH);
 	return TRUE;
 
 xdf_eject_error:
 	free(XDFImg[drv]);
 	XDFImg[drv] = 0;
+	XDFDirty[drv] = 0;  // Clear dirty flag
 	ZeroMemory(XDFFile[drv], MAX_PATH);
 	return FALSE;
 }
@@ -181,6 +190,7 @@ int XDF_ReadDiag(int drv, FDCID* id, FDCID* retid, unsigned char* buf)
 int XDF_Write(int drv, FDCID* id, unsigned char* buf, int del)
 {
 	int pos;
+	FILE* fp;
 	(void)del;
 	if ( (drv<0)||(drv>3) ) return FALSE;
 	if ( (XDFTrk[drv]<0)||(XDFTrk[drv]>153) ) return FALSE;
@@ -190,7 +200,35 @@ int XDF_Write(int drv, FDCID* id, unsigned char* buf, int del)
 	if ( (id->h!=0)&&(id->h!=1) ) return FALSE;
 	if ( id->n!=3 ) return FALSE;
 	pos = ((((id->c<<1)+(id->h))*8)+(id->r-1))<<10;
+	
+	// Update memory buffer
 	memcpy(XDFImg[drv]+pos, buf, 1024);
+	
+	// Direct file I/O - write immediately to actual file
+	if ( !FDD_IsReadOnly(drv) && XDFFile[drv][0] != '\0' ) {
+		fp = fopen(XDFFile[drv], "r+b");
+		if ( fp ) {
+			if ( fseek(fp, pos, SEEK_SET) == 0 ) {
+				if ( fwrite(buf, 1, 1024, fp) == 1024 ) {
+					fflush(fp);  // Ensure data is written to disk immediately
+					printf("XDF: Sector written directly to file at pos %d (Drive:%d)\n", pos, drv);
+				} else {
+					printf("XDF: Warning - Failed to write sector to file\n");
+					XDFDirty[drv] = 1;  // Mark as dirty if direct write failed
+				}
+			} else {
+				printf("XDF: Warning - Failed to seek to position %d\n", pos);
+				XDFDirty[drv] = 1;  // Mark as dirty if seek failed
+			}
+			fclose(fp);
+		} else {
+			printf("XDF: Warning - Failed to open file for writing: %s\n", XDFFile[drv]);
+			XDFDirty[drv] = 1;  // Mark as dirty if file open failed
+		}
+	} else {
+		XDFDirty[drv] = 1;  // Mark as dirty if read-only or no file
+	}
+	
 	XDFCur[drv] = (id->r)&7;
 	return TRUE;
 }

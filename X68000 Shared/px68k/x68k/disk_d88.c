@@ -35,6 +35,7 @@ static D88_SECTINFO* D88Trks[4][164];
 static char          D88File[4][MAX_PATH];
 static D88_SECTINFO* D88Cur[4] = {0, 0, 0, 0};
 static D88_SECTINFO* D88Top[4] = {0, 0, 0, 0};
+static int           D88Dirty[4] = {0, 0, 0, 0};  // Track if disk has been modified
 
 void D88_Init(void)
 {
@@ -44,6 +45,7 @@ void D88_Init(void)
 		for (trk=0; trk<164; trk++) D88Trks[drv][trk] = 0;
 		ZeroMemory(&D88Head[drv], sizeof(D88_HEADER));
 		ZeroMemory(D88File[drv], MAX_PATH);
+		D88Dirty[drv] = 0;
 	}
 }
 
@@ -78,7 +80,7 @@ int D88_SetFD(int drv, char* filename)
 
 	for (trk=0; trk<164; trk++) {
 		long ptr = D88Head[drv].trackp[trk];
-		D88_SECTINFO *si, *oldsi;
+		D88_SECTINFO *si, *oldsi = NULL;
 		
 		if ( (ptr>=(long)sizeof(D88_HEADER))&&(ptr<D88Head[drv].fd_size) ) {
 			d88s.sectors = 65535;
@@ -129,7 +131,7 @@ int D88_SetFD(int drv, char* filename)
 	
 	for (trk=0; trk<164; trk++) {
 		long ptr = D88Head[drv].trackp[trk];
-		D88_SECTINFO *si, *oldsi;
+		D88_SECTINFO *si, *oldsi = NULL;
 		
 		if ( (ptr>=(long)sizeof(D88_HEADER))&&(ptr<D88Head[drv].fd_size) ) {
 			d88s.sectors = 65535;
@@ -177,7 +179,9 @@ int D88_Eject(int drv)
 
 	if ( !D88File[drv][0] ) return FALSE;
 
-	if ( !FDD_IsReadOnly(drv) ) {
+	// Only save if disk has been modified
+	if ( !FDD_IsReadOnly(drv) && D88Dirty[drv] ) {
+		printf("D88: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(D88File[drv]);
 		if ( fp ) {
 			pos = sizeof(D88_HEADER);
@@ -203,7 +207,12 @@ int D88_Eject(int drv)
 				D88Trks[drv][trk] = 0;
 			}
 			File_Close(fp);
+			printf("D88: Disk saved successfully (Drive:%d)\n", drv);
+		} else {
+			printf("D88: Warning - Failed to save dirty disk (Drive:%d)\n", drv);
 		}
+	} else if ( D88Dirty[drv] ) {
+		printf("D88: Disk is dirty but read-only - changes discarded (Drive:%d)\n", drv);
 	}
 
 	for (trk=0; trk<164; trk++) {
@@ -217,6 +226,7 @@ int D88_Eject(int drv)
 	}
 	ZeroMemory(&D88Head[drv], sizeof(D88_HEADER));
 	ZeroMemory(D88File[drv], MAX_PATH);
+	D88Dirty[drv] = 0;  // Clear dirty flag
 
 	return TRUE;
 }
@@ -385,6 +395,11 @@ int D88_Write(int drv, FDCID* id, unsigned char* buf, int del)
 			int len = 128<<id->n;
 			memcpy(((unsigned char*)si)+sizeof(D88_SECTINFO), buf, len);
 			si->sect.del_flg = ((del)?0x10:0x00);
+			
+			// Mark disk as dirty for later saving
+			D88Dirty[drv] = 1;
+			printf("D88: Sector written to memory buffer (Drive:%d) - marked dirty\n", drv);
+			
 			if ( si->next )
 				D88Cur[drv] = si->next;
 			else

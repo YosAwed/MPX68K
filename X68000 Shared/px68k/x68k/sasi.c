@@ -26,6 +26,7 @@ BYTE SASI_Mes = 0;
 BYTE SASI_Error = 0;
 BYTE SASI_SenseStatBuf[4];
 BYTE SASI_SenseStatPtr = 0;
+WORD SASI_BufSize = 256;  // Current buffer size (256 for normal sectors, 8 for READ CAPACITY)
 
 int        hddtrace = 0;
 
@@ -45,6 +46,8 @@ int SASI_IsReady(void)
 extern BYTE* s_disk_image_buffer[5];
 
 static int s_Sasi_pos;
+static DWORD s_Sasi_image_size[5] = {0}; // Track HDD image sizes for capacity reporting
+static BYTE s_Sasi_dirty_flag[5] = {0}; // Track if HDD data has been modified
 int Sasi_Open(const char* filename) {
 //	printf( "%s( \"%s\" )\n", __FUNCTION__, filename );
 	s_Sasi_pos = 0;
@@ -85,6 +88,51 @@ int Sasi_Close( HANDLE fp ) {
 	return 0;
 }
 
+// Set HDD image size for capacity reporting (called when loading HDD)
+void SASI_SetImageSize(int drive, DWORD size_bytes) {
+	if (drive >= 0 && drive < 5) {
+		s_Sasi_image_size[drive] = size_bytes;
+		printf("SASI_SetImageSize: Set drive %d size to %d bytes (%d MB)\n", 
+		       drive, size_bytes, size_bytes / (1024*1024));
+	} else {
+		printf("SASI_SetImageSize: Invalid drive index %d\n", drive);
+	}
+}
+
+// Get number of sectors for specified drive
+static DWORD SASI_GetSectorCount(int drive) {
+	if (drive >= 0 && drive < 5 && s_Sasi_image_size[drive] > 0) {
+		return s_Sasi_image_size[drive] / 256;  // 256 bytes per sector
+	}
+	return 0;
+}
+
+// Get HDD image size for specified drive (public function)
+DWORD SASI_GetImageSize(int drive) {
+	if (drive >= 0 && drive < 5) {
+		DWORD size = s_Sasi_image_size[drive];
+		printf("SASI_GetImageSize: Drive %d size is %d bytes\n", drive, size);
+		return size;
+	}
+	printf("SASI_GetImageSize: Invalid drive index %d\n", drive);
+	return 0;
+}
+
+// Check if HDD has been modified since last save
+BYTE SASI_IsDirty(int drive) {
+	if (drive >= 0 && drive < 5) {
+		return s_Sasi_dirty_flag[drive];
+	}
+	return 0;
+}
+
+// Clear dirty flag after successful save
+void SASI_ClearDirtyFlag(int drive) {
+	if (drive >= 0 && drive < 5) {
+		s_Sasi_dirty_flag[drive] = 0;
+	}
+}
+
 // -----------------------------------------------------------------------
 //   わりこみ～
 // -----------------------------------------------------------------------
@@ -116,10 +164,38 @@ void SASI_Init(void)
 	SASI_Device = 0;
 	SASI_Unit = 0;
 	SASI_BufPtr = 0;
+	SASI_BufSize = 256;
 	SASI_RW = 0;
 	SASI_Stat = 0;
 	SASI_Error = 0;
 	SASI_SenseStatPtr = 0;
+	
+	// Initialize image size and dirty flag arrays
+	for (int i = 0; i < 5; i++) {
+		s_Sasi_image_size[i] = 0;
+		s_Sasi_dirty_flag[i] = 0;
+	}
+	printf("SASI_Init: Initialized image size and dirty flag arrays\n");
+	
+	// Restore HDD size if already loaded (after reset)
+	if (Config.HDImage[0][0] != '\0') {
+		// HDD is already loaded, restore size information
+		FILE* fp = fopen(Config.HDImage[0], "rb");
+		if (fp) {
+			fseek(fp, 0, SEEK_END);
+			DWORD size = ftell(fp);
+			fclose(fp);
+			
+			// Restore size for all drive indices
+			for (int i = 0; i < 5; i++) {
+				s_Sasi_image_size[i] = size;
+			}
+			printf("SASI_Init: Restored HDD size after reset: %d bytes (%d MB)\n", 
+			       size, size / (1024*1024));
+		} else {
+			printf("SASI_Init: Warning - Could not access HDD file after reset: %s\n", Config.HDImage[0]);
+		}
+	}
 }
 
 
@@ -128,32 +204,33 @@ void SASI_Init(void)
 // -----------------------------------------------------------------------
 short SASI_Seek(void)
 {
-	FILEH fp;
+	// Direct file I/O - bypass SASI macros to read from actual file
+	FILE* fp;
 
 if (hddtrace) {
-FILE *fp;
-fp=fopen("_trace68.txt", "a");
-fprintf(fp, "Seek  - Sector:%d  (Time:%08X)\n", SASI_Sector, timeGetTime());
-fclose(fp);
+FILE *fp_trace;
+fp_trace=fopen("_trace68.txt", "a");
+fprintf(fp_trace, "Seek  - Sector:%d  (Time:%08X)\n", SASI_Sector, timeGetTime());
+fclose(fp_trace);
 }
 	ZeroMemory(SASI_Buf, 256);
-	fp = File_Open(Config.HDImage[SASI_Device*2+SASI_Unit]);
+	fp = fopen(Config.HDImage[SASI_Device*2+SASI_Unit], "rb");
 	if (!fp)
 	{
 		ZeroMemory(SASI_Buf, 256);
 		return -1;
 	}
-	if (File_Seek(fp, SASI_Sector<<8, FSEEK_SET)!=(SASI_Sector<<8)) 
+	if (fseek(fp, SASI_Sector<<8, SEEK_SET) != 0) 
 	{
-		File_Close(fp);
+		fclose(fp);
 		return 0;
 	}
-	if (File_Read(fp, SASI_Buf, 256)!=256)
+	if (fread(SASI_Buf, 1, 256, fp) != 256)
 	{
-		File_Close(fp);
+		fclose(fp);
 		return 0;
 	}
-	File_Close(fp);
+	fclose(fp);
 
 	return 1;
 }
@@ -163,21 +240,27 @@ fclose(fp);
 //   しーく（ライト時）
 // -----------------------------------------------------------------------
 short SASI_Flush(void)
-{	FILEH fp;
+{
+	// Direct file I/O - bypass SASI macros to write to actual file
+	FILE* fp;
 
-	fp = File_Open(Config.HDImage[SASI_Device*2+SASI_Unit]);
+	fp = fopen(Config.HDImage[SASI_Device*2+SASI_Unit], "r+b");
 	if (!fp) return -1;
-	if (File_Seek(fp, SASI_Sector<<8, FSEEK_SET)!=(SASI_Sector<<8))
+	if (fseek(fp, SASI_Sector<<8, SEEK_SET) != 0)
 	{
-		File_Close(fp);
+		fclose(fp);
 		return 0;
 	}
-	if (File_Write(fp, SASI_Buf, 256)!=256)
+	if (fwrite(SASI_Buf, 1, 256, fp) != 256)
 	{
-		File_Close(fp);
+		fclose(fp);
 		return 0;
 	}
-	File_Close(fp);
+	fflush(fp);  // Ensure data is written to disk immediately
+	fclose(fp);
+	
+	// Data successfully written to file - no longer needs dirty flag tracking
+	printf("SASI: Sector %d written directly to file (Device:%d Unit:%d)\n", SASI_Sector, SASI_Device, SASI_Unit);
 
 if (hddtrace) {
 FILE *fp;
@@ -219,13 +302,14 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 		if ((SASI_Phase==3)&&(SASI_RW))	// データリード中～
 		{
 			ret = SASI_Buf[SASI_BufPtr++];
-			if (SASI_BufPtr==256)
+			if (SASI_BufPtr==SASI_BufSize)
 			{
 				SASI_Blocks--;
 				if (SASI_Blocks)		// まだ読むブロックがある？
 				{
 					SASI_Sector++;
 					SASI_BufPtr = 0;
+					SASI_BufSize = 256;  // Reset to normal sector size for subsequent reads
 					result = SASI_Seek();	// 次のセクタをバッファに読む
 					if (!result)		// result=0：イメージの最後（＝無効なセクタ）なら
 					{
@@ -339,6 +423,7 @@ void SASI_CheckCmd(void)
 		SASI_Phase++;
 		SASI_RW = 1;
 		SASI_BufPtr = 0;
+		SASI_BufSize = 256;  // Normal 256-byte sectors
 		SASI_Stat = 0;
 		result = SASI_Seek();
 		if ( (result==0)||(result==-1) )
@@ -353,6 +438,7 @@ void SASI_CheckCmd(void)
 		SASI_Phase++;
 		SASI_RW = 0;
 		SASI_BufPtr = 0;
+		SASI_BufSize = 256;  // Normal 256-byte sectors
 		SASI_Stat = 0;
 		ZeroMemory(SASI_Buf, 256);
 		result = SASI_Seek();
@@ -374,6 +460,42 @@ void SASI_CheckCmd(void)
 		}
 		SASI_Phase += 2;
 //		SASI_Phase = 9;
+		break;
+	case 0x25:					// Read Capacity (SCSI command for HDD capacity)
+		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		{
+			DWORD sectorCount = SASI_GetSectorCount(SASI_Device*2+SASI_Unit);
+			if (sectorCount > 0) {
+				// Return capacity data: Last logical block address (4 bytes) + Block length (4 bytes)
+				DWORD lastLBA = sectorCount - 1;
+				SASI_Buf[0] = (BYTE)(lastLBA >> 24);
+				SASI_Buf[1] = (BYTE)(lastLBA >> 16);
+				SASI_Buf[2] = (BYTE)(lastLBA >> 8);
+				SASI_Buf[3] = (BYTE)lastLBA;
+				SASI_Buf[4] = 0x00;  // Block length = 256 bytes
+				SASI_Buf[5] = 0x00;
+				SASI_Buf[6] = 0x01;
+				SASI_Buf[7] = 0x00;
+				
+				SASI_BufPtr = 0;
+				SASI_Phase = 3;  // Data phase
+				SASI_RW = 1;     // Read operation
+				SASI_Blocks = 1; // 1 block to read
+				SASI_BufSize = 8; // 8 bytes for READ CAPACITY
+				SASI_Stat = 0;
+				printf("SASI: READ CAPACITY - sectors: %d, last LBA: %d\n", sectorCount, lastLBA);
+			} else {
+				SASI_Stat = 0x02;
+				SASI_Error = 0x7f;
+				SASI_Phase += 2;
+			}
+		}
+		else
+		{
+			SASI_Stat = 0x02;
+			SASI_Error = 0x7f;
+			SASI_Phase += 2;
+		}
 		break;
 	case 0xc2:
 		SASI_Phase = 10;
@@ -457,6 +579,7 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 		SASI_Device = 0;
 		SASI_Unit = 0;
 		SASI_BufPtr = 0;
+		SASI_BufSize = 256;
 		SASI_RW = 0;
 		SASI_Stat = 0;
 		SASI_Error = 0;
@@ -476,7 +599,7 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 		else if ((SASI_Phase==3)&&(!SASI_RW))		// データライト中～
 		{
 			SASI_Buf[SASI_BufPtr++] = data;
-			if (SASI_BufPtr==256)
+			if (SASI_BufPtr==SASI_BufSize)
 			{
 				result = SASI_Flush();		// 現在のバッファを書き出す
 				SASI_Blocks--;
@@ -484,6 +607,7 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 				{
 					SASI_Sector++;
 					SASI_BufPtr = 0;
+					SASI_BufSize = 256;  // Reset to normal sector size for subsequent writes
 					result = SASI_Seek();	// 次のセクタをバッファに読む
 					if (!result)		// result=0：イメージの最後（＝無効なセクタ）なら
 					{

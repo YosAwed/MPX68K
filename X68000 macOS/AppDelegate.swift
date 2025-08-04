@@ -48,6 +48,87 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
+        setupHDDMenu()
+    }
+    
+    private func setupHDDMenu() {
+        // Find and modify the HDD menu programmatically
+        guard let mainMenu = NSApplication.shared.mainMenu else {
+            print("❌ Could not find main menu")
+            return
+        }
+        
+        // Look for HDD menu item
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu {
+                // Search for "HDD" menu or containing HDD-related items
+                if submenu.title.contains("HDD") || 
+                   submenu.items.contains(where: { $0.title.contains("Hard Disk") || $0.title.contains("ハードディスク") }) {
+                    
+                    print("🔧 Found HDD menu: \(submenu.title)")
+                    
+                    // Add separator if not already present
+                    let separator = NSMenuItem.separator()
+                    submenu.addItem(separator)
+                    
+                    // Add "Create Empty HDD..." menu item
+                    let createHDDItem = NSMenuItem(
+                        title: "空のHDDを作成...",
+                        action: #selector(createEmptyHDD(_:)),
+                        keyEquivalent: ""
+                    )
+                    createHDDItem.target = self
+                    submenu.addItem(createHDDItem)
+                    
+                    // Add "Save HDD" menu item
+                    let saveHDDItem = NSMenuItem(
+                        title: "HDDを保存",
+                        action: #selector(saveHDD(_:)),
+                        keyEquivalent: "s"
+                    )
+                    saveHDDItem.keyEquivalentModifierMask = [.command, .shift]
+                    saveHDDItem.target = self
+                    submenu.addItem(saveHDDItem)
+                    
+                    print("✅ Added 'Create Empty HDD...' and 'Save HDD' menu items")
+                    return
+                }
+            }
+        }
+        
+        // If HDD menu not found, check File menu as backup
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu,
+               submenu.title.contains("File") || submenu.title.contains("ファイル") {
+                
+                print("🔧 Adding HDD creation to File menu as fallback")
+                
+                let separator = NSMenuItem.separator()
+                submenu.addItem(separator)
+                
+                let createHDDItem = NSMenuItem(
+                    title: "空のHDDを作成...",
+                    action: #selector(createEmptyHDD(_:)),
+                    keyEquivalent: ""
+                )
+                createHDDItem.target = self
+                submenu.addItem(createHDDItem)
+                
+                let saveHDDItem = NSMenuItem(
+                    title: "HDDを保存",
+                    action: #selector(saveHDD(_:)),
+                    keyEquivalent: "s"
+                )
+                saveHDDItem.keyEquivalentModifierMask = [.command, .shift]
+                saveHDDItem.target = self
+                submenu.addItem(saveHDDItem)
+                
+                print("✅ Added 'Create Empty HDD...' and 'Save HDD' to File menu")
+                return
+            }
+        }
+        
+        print("❌ Could not find suitable menu to add HDD creation item")
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
@@ -58,6 +139,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
+    }
+    
+    func applicationWillHide(_ notification: Notification) {
+        print("🐛 AppDelegate.applicationWillHide - saving data")
+        gameViewController?.saveSRAM()
+    }
+    
+    func applicationWillResignActive(_ notification: Notification) {
+        print("🐛 AppDelegate.applicationWillResignActive - saving data")
+        gameViewController?.saveSRAM()
     }
     
     // ファイルメニューからの「開く」アクション
@@ -132,6 +223,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBAction func ejectHDD(_ sender: Any) {
         print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
+    }
+    
+    @IBAction func createEmptyHDD(_ sender: Any) {
+        print("🐛 AppDelegate.createEmptyHDD called")
+        gameViewController?.createEmptyHDD(sender)
+    }
+    
+    @IBAction func saveHDD(_ sender: Any) {
+        print("🐛 AppDelegate.saveHDD called")
+        gameViewController?.gameScene?.saveHDD()
     }
     
     // MARK: - Screen Rotation Menu Actions

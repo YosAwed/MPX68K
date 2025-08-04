@@ -32,6 +32,7 @@ static char           DIMFile[4][MAX_PATH];
 static int            DIMCur[4] = {0, 0, 0, 0};
 static int            DIMTrk[4] = {0, 0, 0, 0};
 static unsigned char* DIMImg[4] = {0, 0, 0, 0};
+static int            DIMDirty[4] = {0, 0, 0, 0};  // Track if disk has been modified
 
 void DIM_Init(void)
 {
@@ -40,6 +41,7 @@ void DIM_Init(void)
 	for (drv=0; drv<4; drv++) {
 		DIMCur[drv] = 0;
 		DIMImg[drv] = 0;
+		DIMDirty[drv] = 0;
 		ZeroMemory(DIMFile[drv], MAX_PATH);
 	}
 }
@@ -139,7 +141,9 @@ int DIM_Eject(int drv)
 	dh = (DIM_HEADER*)DIMImg[drv];
 	len = SctLength[dh->type];
 	p = DIMImg[drv]+sizeof(DIM_HEADER);
-	if ( !FDD_IsReadOnly(drv) ) {
+	// Only save if disk has been modified and direct writes failed
+	if ( !FDD_IsReadOnly(drv) && DIMDirty[drv] ) {
+		printf("DIM: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(DIMFile[drv]);
 		if ( !fp ) goto dim_eject_error;
 		File_Seek(fp, 0, FSEEK_SET);
@@ -151,15 +155,20 @@ int DIM_Eject(int drv)
 			p += len;
 		}
 		File_Close(fp);
+		printf("DIM: Disk saved successfully (Drive:%d)\n", drv);
+	} else if ( DIMDirty[drv] ) {
+		printf("DIM: Disk is dirty but read-only - changes discarded (Drive:%d)\n", drv);
 	}
 	free(DIMImg[drv]);
 	DIMImg[drv] = 0;
+	DIMDirty[drv] = 0;  // Clear dirty flag
 	ZeroMemory(DIMFile[drv], MAX_PATH);
 	return TRUE;
 
 dim_eject_error:
 	free(DIMImg[drv]);
 	DIMImg[drv] = 0;
+	DIMDirty[drv] = 0;  // Clear dirty flag
 	ZeroMemory(DIMFile[drv], MAX_PATH);
 	return FALSE;
 }
@@ -369,6 +378,8 @@ int DIM_ReadDiag(int drv, FDCID* id, FDCID* retid, unsigned char* buf)
 int DIM_Write(int drv, FDCID* id, unsigned char* buf, int del)
 {
 	int pos;
+	FILE* fp;
+	int sector_size;
 	(void)del;
 	if ( (drv<0)||(drv>3) ) return FALSE;
 	if ( !DIMImg[drv] ) return FALSE;
@@ -376,7 +387,37 @@ int DIM_Write(int drv, FDCID* id, unsigned char* buf, int del)
 	if ( !CheckTrack(drv, (id->c<<1)+(id->h&1)) ) return FALSE;
 	pos = GetPos(drv, id);
 	if ( !pos ) return FALSE;
-	memcpy(DIMImg[drv]+pos, buf, (id->n==2)?512:1024);
+	
+	sector_size = (id->n==2)?512:1024;
+	
+	// Update memory buffer
+	memcpy(DIMImg[drv]+pos, buf, sector_size);
+	
+	// Direct file I/O - write immediately to actual file
+	if ( !FDD_IsReadOnly(drv) && DIMFile[drv][0] != '\0' ) {
+		fp = fopen(DIMFile[drv], "r+b");
+		if ( fp ) {
+			if ( fseek(fp, pos, SEEK_SET) == 0 ) {
+				if ( fwrite(buf, 1, sector_size, fp) == sector_size ) {
+					fflush(fp);  // Ensure data is written to disk immediately
+					printf("DIM: Sector written directly to file at pos %d (Drive:%d)\n", pos, drv);
+				} else {
+					printf("DIM: Warning - Failed to write sector to file\n");
+					DIMDirty[drv] = 1;  // Mark as dirty if direct write failed
+				}
+			} else {
+				printf("DIM: Warning - Failed to seek to position %d\n", pos);
+				DIMDirty[drv] = 1;  // Mark as dirty if seek failed
+			}
+			fclose(fp);
+		} else {
+			printf("DIM: Warning - Failed to open file for writing: %s\n", DIMFile[drv]);
+			DIMDirty[drv] = 1;  // Mark as dirty if file open failed
+		}
+	} else {
+		DIMDirty[drv] = 1;  // Mark as dirty if read-only or no file
+	}
+	
 	DIMCur[drv] = IncTrk(drv, id->r-1);
 	return TRUE;
 }
