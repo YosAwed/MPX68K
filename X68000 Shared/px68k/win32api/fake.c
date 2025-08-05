@@ -84,7 +84,7 @@ midiOutPrepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh)
 	(void)hmo;
 	(void)pmh;
 	(void)cbmh;
-	return !MIDIERR_STILLPLAYING;	// (¤©
+	return !MIDIERR_STILLPLAYING;	// (ï¿½ï¿½
 }
 
 WINMMAPI MMRESULT WINAPI
@@ -126,7 +126,7 @@ midiOutOpen(LPHMIDIOUT phmo, UINT uDeviceID, DWORD dwCallback,
 	(void)dwCallback;
 	(void)dwInstance;
 	(void)fdwOpen;
-	return !MMSYSERR_NOERROR;	// (¤£
+	return !MMSYSERR_NOERROR;	// (ï¿½ï¿½
 }
 
 WINMMAPI MMRESULT WINAPI
@@ -206,7 +206,7 @@ WritePrivateProfileString(LPCSTR sect, LPCSTR key, LPCSTR str, LPCSTR inifile)
 		    && lbuf[strlen(key)] == '=') {
 			found = 1;
 			snprintf(newbuf, sizeof(newbuf), "%s=%s\n", key, str);
-			delta = strlen(newbuf) - strlen(lbuf);
+			delta = (int)(strlen(newbuf) - strlen(lbuf));
 			if (delta == 0) {
 				if (!strncasecmp(newbuf, lbuf, strlen(newbuf)))
 					break;

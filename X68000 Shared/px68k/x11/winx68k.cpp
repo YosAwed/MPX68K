@@ -572,7 +572,7 @@ int original_main(int argc, const char *argv[], const long samplingrate )
 //        return 1;
 
     dosio_init();
-    file_setcd((char*)"./");
+    file_setcd(const_cast<char*>("./"));
     LoadConfig();
 	
 	Config.SampleRate = (int)samplingrate;

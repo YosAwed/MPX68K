@@ -69,7 +69,7 @@ void X68000_Joystick_Set(BYTE num, BYTE data)
     if ( (num==0)||(num==1) ) s_JoyData[num] = ~data;   // Neg. Logic
 }
 
-void FASTCALL Joystick_Update()
+void FASTCALL Joystick_Update(void)
 {
     for ( int i=0; i<2; ++i ) {
         JoyState0[i] = s_JoyData[i];

@@ -50,7 +50,7 @@ int DSound_Init(unsigned long rate, unsigned long buflen)
 {
 //    DWORD samples;
     
-    printf("Sound Init Sampling Rate:%dHz buflen:%d\n", rate, buflen );
+    printf("Sound Init Sampling Rate:%luHz buflen:%lu\n", rate, buflen );
 
     // Enhanced initialization: Clear all audio buffers thoroughly to prevent startup noise
     memset(pcmbuffer, 0, PCMBUF_SIZE);
@@ -69,7 +69,7 @@ int DSound_Init(unsigned long rate, unsigned long buflen)
     
     printf("Audio buffers initialized with silence to prevent startup noise\n");
 
-    ratebase = rate;
+    ratebase = (DWORD)rate;
 
     return TRUE;
 }
@@ -109,7 +109,7 @@ static void sound_send(int length)
    BYTE *write_end = write_start + total_bytes;
    if (write_end > pbep) {
        // Handle wrap-around case - clear in two parts
-       int first_part = pbep - write_start;
+       int first_part = (int)(pbep - write_start);
        int second_part = total_bytes - first_part;
        
        // Clear first part
@@ -191,7 +191,7 @@ cb_start:
       // |         |             |          |
       // pbsp     pbrp          pbwp       pbep
 
-      datalen = pbwp - pbrp;
+      datalen = (int)(pbwp - pbrp);
 
       // needs more data - generate predictable amount to prevent underruns
 	   if (datalen < len) {
@@ -229,7 +229,7 @@ cb_start:
       // |         |             |          |
       // pbsp     pbwp          pbrp       pbep
 
-      lena = pbep - pbrp;
+      lena = (int)(pbep - pbrp);
       if (lena >= len)
       {
          buf = pbrp;
@@ -241,7 +241,7 @@ cb_start:
          lenb = len - lena;
 
 		  if (pbwp - pbsp < lenb) {
-            int missing_bytes = lenb - (pbwp - pbsp);
+            int missing_bytes = lenb - (int)(pbwp - pbsp);
             int needed_samples = (missing_bytes / 4) + 128; // Smaller buffer to reduce latency
             DSound_Send(needed_samples);
 		  }

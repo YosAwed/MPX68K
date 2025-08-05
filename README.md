@@ -26,13 +26,12 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 ### Cross-Platform
 - **macOS Support**: Native menu bar and keyboard/mouse input
 - **iCloud Integration**: Seamless file sync across devices
-- **Universal Binary**: Optimized for both Intel and Apple Silicon
 
 ## System Requirements
 
 ### macOS
 - macOS 11.0 or later
-- Intel or Apple Silicon Mac
+- Apple Silicon Mac only
 
 ## ROM Files Setup
 
@@ -121,12 +120,6 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Z** or **K**: Button B
 - **Mouse**: Click on visual joycard buttons
 
-#### Drag & Drop
-- Single floppy disk → Drive A
-- Two floppy disks → Drive A and Drive B automatically
-- Hard disk images (.hdf, .hdm) → HDD loading
-- Mixed file types → Automatic assignment by file type
-
 ## File Formats
 
 | Extension | Description | Type | Platform Support |
@@ -191,7 +184,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 
 ## Recent Updates
 
-### Version 2024.1
+### Version 4.1.0
 - ✅ **Dual FDD Drive Support**: Independent Drive A/B management
 - ✅ **Hard Disk Drive Support**: Complete HDD management with menu integration
 - ✅ **Screen Rotation Support**: 90-degree rotation for vertical games (tate mode)

@@ -55,7 +55,7 @@ static int GetDiskType(char* file)
 	if ( p ) {
 		memset(tmp, 0, 8);
 		strncpy(tmp, p+1, 3);
-		ConvertCapital(tmp);
+		ConvertCapital((unsigned char*)tmp);
 		if ( (!strncmp(tmp, "D88", 3))||(!strncmp(tmp, "88D", 3)) )
 			ret = FD_D88;
 		else if ( !strncmp(tmp, "DIM", 3) )

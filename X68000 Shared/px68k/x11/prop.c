@@ -40,7 +40,7 @@ char	KEYCONFFILE[] = "xkeyconf.dat";
 
 int	CurrentHDDNo = 0;
 
-char ini_title[] = "WinX68k";
+const char ini_title[] = "WinX68k";
 
 // Unused array - commented out to fix warnings
 // static const char MIDI_TYPE_NAME[4][3] = {

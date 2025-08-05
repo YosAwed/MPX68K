@@ -615,9 +615,9 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 	case 1: scrx = GrphScrollX[1]; scry = GrphScrollY[1]; break;
 	case 2: scrx = GrphScrollX[2]; scry = GrphScrollY[2]; break;
 	case 3: scrx = GrphScrollX[3]; scry = GrphScrollY[3]; break;
+	default: scrx = GrphScrollX[0]; scry = GrphScrollY[0]; break; // Should never reach here due to page &= 3
 	}
 
-{
 	DWORD x, y;
 	DWORD off;
 	DWORD i;
@@ -680,7 +680,6 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 				off -= 0x400;
 		}
 	}
-}
 }
 
 

@@ -218,7 +218,7 @@ void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *p
 		length--;
 	}
 
-	ADPCM_DifBuf = ADPCM_WrPtr-ADPCM_RdPtr;
+	ADPCM_DifBuf = (int)(ADPCM_WrPtr-ADPCM_RdPtr);
 	if ( ADPCM_DifBuf<0 ) ADPCM_DifBuf += ADPCM_BufSize;
 }
 

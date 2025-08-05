@@ -1405,11 +1405,10 @@ extension GameScene {
     
     
     override func keyDown(with event: NSEvent) {
-        // Reduced logging for performance - only log unmapped keys
         // print("key press: \(event) keyCode: \(event.keyCode)")
         
-        // Check for mode toggle key (Tab key)
-        if event.keyCode == 48 { // Tab key
+        // Check for mode toggle key (F1 key instead of Tab)
+        if event.keyCode == 122 { // F1 key
             toggleInputMode()
             return
         }
@@ -1431,7 +1430,6 @@ extension GameScene {
     private func handleX68KeyboardInput(_ event: NSEvent, isKeyDown: Bool) {
         // シフトキーの状態をチェックして、状態変化があれば送信
         let isShiftPressed = event.modifierFlags.contains(.shift)
-        // Reduced logging for performance
         // print("🐛 Shift key pressed: \(isShiftPressed)")
         
         if isKeyDown {
@@ -1497,15 +1495,14 @@ extension GameScene {
             }
         }
         
-        // Only log unmapped keys for debugging when needed
         // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
     }
     
     override func keyUp(with event: NSEvent) {
-        // Skip Tab key for mode toggle
-        if event.keyCode == 48 { // Tab key
-            return
-        }
+        // Skip Tab key for mode toggle - DISABLED
+        // if event.keyCode == 48 { // Tab key
+        //     return
+        // }
         
         // Mode-specific input handling
         switch currentInputMode {
