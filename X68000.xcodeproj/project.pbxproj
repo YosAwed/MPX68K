@@ -76,7 +76,6 @@
 		07F864C5242F97BE00CBB224 /* dswin.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A5242F97BD00CBB224 /* dswin.c */; };
 		07F864CD242F97BE00CBB224 /* mouse.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A9242F97BD00CBB224 /* mouse.c */; };
 		07F864CF242F97BE00CBB224 /* prop.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AA242F97BD00CBB224 /* prop.c */; };
-		07F864D1242F97BE00CBB224 /* keytbl.inc in Sources */ = {isa = PBXBuildFile; fileRef = 07F864AD242F97BD00CBB224 /* keytbl.inc */; };
 		07F864D3242F97BE00CBB224 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B0242F97BD00CBB224 /* common.c */; };
 		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
@@ -614,7 +613,6 @@
 				07F864CF242F97BE00CBB224 /* prop.c in Sources */,
 				07F4C7322430667D002CF5CA /* scsi.c in Sources */,
 				07F4C73E2430667D002CF5CA /* pia.c in Sources */,
-				07F864D1242F97BE00CBB224 /* keytbl.inc in Sources */,
 				07F4C7502430667D002CF5CA /* gvram.c in Sources */,
 				07F4C7282430667D002CF5CA /* crtc.c in Sources */,
 				07869626243D9A8E007FCCEA /* X68Device.swift in Sources */,
@@ -729,7 +727,7 @@
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_WARN_UNUSED_VARIABLE = NO;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -786,7 +784,7 @@
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_WARN_UNUSED_VARIABLE = NO;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;

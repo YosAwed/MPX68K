@@ -1,0 +1,278 @@
+From c8fac0cdedb960e425a82f17634da89c264b88bf Mon Sep 17 00:00:00 2001
+From: X68Mac Contributor <contributor@x68mac.dev>
+Date: Tue, 5 Aug 2025 05:00:12 -0400
+Subject: [PATCH] Improve code documentation and internationalization
+
+- Translate Japanese comments to English for better international collaboration
+- Add comprehensive Swift DocC documentation to GameScene class
+- Add SwiftLint configuration for code quality enforcement
+- Enhance README.md with Contributing guidelines and Development setup
+- Improve code maintainability and accessibility for global contributors
+---
+ .swiftlint.yml                  | 70 ++++++++++++++++++++++++++++++
+ README.md                       | 75 +++++++++++++++++++++++++++++++++
+ X68000 Shared/AudioStream.swift |  4 +-
+ X68000 Shared/FileSystem.swift  |  4 +-
+ X68000 Shared/GameScene.swift   | 21 +++++++--
+ 5 files changed, 166 insertions(+), 8 deletions(-)
+ create mode 100644 .swiftlint.yml
+
+diff --git a/.swiftlint.yml b/.swiftlint.yml
+new file mode 100644
+index 0000000..4319cd9
+--- /dev/null
++++ b/.swiftlint.yml
+@@ -0,0 +1,70 @@
++# SwiftLint Configuration for X68Mac
++# This configuration provides basic code quality rules for the project
++
++# Disable rules that may conflict with existing codebase
++disabled_rules:
++  - trailing_whitespace # Allow existing whitespace patterns
++  - line_length # Allow longer lines for complex emulation code
++
++# Enable additional rules for better code quality
++opt_in_rules:
++  - empty_count
++  - empty_string
++  - explicit_init
++  - first_where
++  - force_unwrapping
++  - implicit_return
++  - joined_default_parameter
++  - literal_expression_end_indentation
++  - multiline_arguments
++  - multiline_function_chains
++  - multiline_literal_brackets
++  - multiline_parameters
++  - operator_usage_whitespace
++  - overridden_super_call
++  - redundant_nil_coalescing
++  - redundant_type_annotation
++  - single_test_class
++  - sorted_first_last
++  - unneeded_parentheses_in_closure_argument
++  - vertical_parameter_alignment_on_call
++
++# Customize rule parameters
++line_length:
++  warning: 120
++  error: 150
++  ignores_function_declarations: true
++  ignores_comments: true
++  ignores_urls: true
++
++function_body_length:
++  warning: 60
++  error: 100
++
++type_body_length:
++  warning: 300
++  error: 500
++
++file_length:
++  warning: 500
++  error: 1000
++
++cyclomatic_complexity:
++  warning: 15
++  error: 25
++
++# Exclude certain paths
++excluded:
++  - Carthage
++  - Pods
++  - .build
++  - c68k # Exclude C/C++ emulation core
++  - px68k # Exclude C/C++ emulation core
++
++# Include specific file types
++included:
++  - "*.swift"
++
++# Reporter type
++reporter: "xcode"
++
+diff --git a/README.md b/README.md
+index be229f4..a91d0da 100644
+--- a/README.md
++++ b/README.md
+@@ -243,6 +243,81 @@ This project is based on px68k emulator. Please refer to the original px68k lice
+ - **fmgen**: FM sound synthesis library
+ - **Sharp**: Original X68000 computer system
+ 
++## Development Setup
++
++### Prerequisites
++
++- **Xcode 13.0 or later**: Required for building the project
++- **macOS 11.0 or later**: Development environment requirement
++- **Git**: For version control and contributing
++
++### Building from Source
++
++1. **Clone the repository:**
++   ```shell
++   git clone https://github.com/YosAwed/X68Mac.git
++   cd X68Mac
++   ```
++
++2. **Open in Xcode:**
++   ```shell
++   open X68000.xcodeproj
++   ```
++
++3. **Build the project:**
++   - Select your target platform (macOS)
++   - Build and run (⌘+R)
++
++### Code Quality
++
++This project uses SwiftLint for code quality enforcement. Install SwiftLint:
++
++```shell
++brew install swiftlint
++```
++
++Run SwiftLint before submitting changes:
++
++```shell
++swiftlint
++```
++
++## Contributing
++
++We welcome contributions to improve X68Mac! Here's how you can help:
++
++### Getting Started
++
++1. **Fork the repository** on GitHub
++2. **Create a feature branch** from `master`:
++   ```shell
++   git checkout -b feature/your-feature-name
++   ```
++3. **Make your changes** following our coding guidelines
++4. **Test your changes** thoroughly
++5. **Submit a pull request** with a clear description
++
++### Coding Guidelines
++
++- **Language**: Use English for all comments and documentation
++- **Style**: Follow Swift API Design Guidelines
++- **Documentation**: Add Swift DocC comments for public APIs
++- **Testing**: Include tests for new functionality when possible
++
++### Types of Contributions
++
++- **Bug fixes**: Help resolve issues and improve stability
++- **Documentation**: Improve README, code comments, and guides
++- **Features**: Add new emulation features or UI improvements
++- **Code quality**: Refactoring, performance improvements, and cleanup
++
++### Reporting Issues
++
++- Use the [GitHub Issues](https://github.com/YosAwed/X68Mac/issues) page
++- Provide detailed reproduction steps
++- Include system information (macOS version, hardware)
++- Attach relevant log files or screenshots
++
+ ## Links
+ 
+ - [GitHub Repository](https://github.com/YosAwed/X68Mac)
+diff --git a/X68000 Shared/AudioStream.swift b/X68000 Shared/AudioStream.swift
+index 893b97c..00cba7a 100644
+--- a/X68000 Shared/AudioStream.swift	
++++ b/X68000 Shared/AudioStream.swift	
+@@ -30,7 +30,7 @@ class AudioStream {
+     {
+         print("Play")
+ 
+-        // プレイヤーノードからオーディオフォーマットを取得
++        // Get audio format from player node
+              let outputNode = audioEngine.outputNode
+         let format = outputNode.inputFormat(forBus: 0)
+         print("\(format.sampleRate)")
+@@ -53,7 +53,7 @@ class AudioStream {
+             return noErr
+         })
+ 
+-        // オーディオエンジンにプレイヤーをアタッチ
++        // Attach player to audio engine
+         sourceNode?.reset()
+         audioEngine.attach(sourceNode!)
+ 
+diff --git a/X68000 Shared/FileSystem.swift b/X68000 Shared/FileSystem.swift
+index 5fd02a6..d161592 100644
+--- a/X68000 Shared/FileSystem.swift	
++++ b/X68000 Shared/FileSystem.swift	
+@@ -48,7 +48,7 @@ class FileSystem {
+     }
+     
+     func createDocumentsFolder() {
+-        // iCloudコンテナのURL
++        // iCloud container URL
+         //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+         let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+         let path = (url?.appendingPathComponent("X68000"))!
+@@ -137,7 +137,7 @@ class FileSystem {
+         //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+         
+-        // コンテナに追加するフォルダのパス
++        // Path to folder to add to container
+         if let documentsURL = containerURL?.appendingPathComponent("X68000") {
+             let dir = getDir( documentsURL )
+             
+diff --git a/X68000 Shared/GameScene.swift b/X68000 Shared/GameScene.swift
+index 6494223..0cc2639 100644
+--- a/X68000 Shared/GameScene.swift	
++++ b/X68000 Shared/GameScene.swift	
+@@ -19,6 +19,19 @@ extension Notification.Name {
+     static let screenRotationChanged = Notification.Name("screenRotationChanged")
+ }
+ 
++/**
++ * Main game scene for X68000 emulation.
++ * 
++ * This class manages the primary emulation viewport, handling user input,
++ * screen rendering, and emulation control. It serves as the bridge between
++ * the Swift UI layer and the underlying C/C++ emulation core.
++ *
++ * Key responsibilities:
++ * - Managing emulation display and screen rotation
++ * - Processing keyboard and controller input
++ * - Coordinating with audio and file systems
++ * - Handling UI state and mode switching
++ */
+ class GameScene: SKScene {
+     
+     private var clockMHz: Int = 24
+@@ -35,13 +48,13 @@ class GameScene: SKScene {
+     
+     // Screen rotation management
+     enum ScreenRotation: CaseIterable {
+-        case landscape  // 横画面（通常）
+-        case portrait   // 縦画面（90度回転）
++        case landscape  // Landscape (normal)
++        case portrait   // Portrait (90 degree rotation)
+         
+         var angle: CGFloat {
+             switch self {
+             case .landscape: return 0
+-            case .portrait: return .pi / 2  // 90度回転
++            case .portrait: return .pi / 2  // 90 degree rotation
+             }
+         }
+         
+@@ -54,7 +67,7 @@ class GameScene: SKScene {
+     }
+     private var currentRotation: ScreenRotation = .landscape
+     
+-    // シフトキーの状態を追跡
++    // Track shift key state
+     private var isShiftKeyPressed = false
+     
+     fileprivate var label: SKLabelNode?
+-- 
+2.34.1
+

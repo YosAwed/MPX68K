@@ -8,45 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		073F771B243237AD005B1F18 /* c68kexec.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F7704243237AD005B1F18 /* c68kexec.c */; };
-		073F771C243237AD005B1F18 /* c68k_op9.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7706243237AD005B1F18 /* c68k_op9.inc */; };
-		073F771D243237AD005B1F18 /* c68k_op8.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7707243237AD005B1F18 /* c68k_op8.inc */; };
-		073F771E243237AD005B1F18 /* c68kmac.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7708243237AD005B1F18 /* c68kmac.inc */; };
-		073F771F243237AD005B1F18 /* c68k_ini.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7709243237AD005B1F18 /* c68k_ini.inc */; };
 		073F7720243237AD005B1F18 /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F770A243237AD005B1F18 /* c68k.c */; };
-		073F7721243237AD005B1F18 /* c68k_opC.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770B243237AD005B1F18 /* c68k_opC.inc */; };
-		073F7722243237AD005B1F18 /* c68k_op5.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770D243237AD005B1F18 /* c68k_op5.inc */; };
-		073F7723243237AD005B1F18 /* c68k_op4.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770E243237AD005B1F18 /* c68k_op4.inc */; };
-		073F7724243237AD005B1F18 /* c68k_opB.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770F243237AD005B1F18 /* c68k_opB.inc */; };
-		073F7725243237AD005B1F18 /* c68k_op6.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7710243237AD005B1F18 /* c68k_op6.inc */; };
-		073F7726243237AD005B1F18 /* c68k_op7.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7711243237AD005B1F18 /* c68k_op7.inc */; };
-		073F7727243237AD005B1F18 /* c68k_opA.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7712243237AD005B1F18 /* c68k_opA.inc */; };
-		073F7728243237AD005B1F18 /* c68k_op3.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7713243237AD005B1F18 /* c68k_op3.inc */; };
-		073F7729243237AD005B1F18 /* c68k_opE.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7714243237AD005B1F18 /* c68k_opE.inc */; };
-		073F772A243237AD005B1F18 /* c68k_opD.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7715243237AD005B1F18 /* c68k_opD.inc */; };
-		073F772B243237AD005B1F18 /* c68k_op2.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7716243237AD005B1F18 /* c68k_op2.inc */; };
-		073F772C243237AD005B1F18 /* c68k_op0.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7717243237AD005B1F18 /* c68k_op0.inc */; };
-		073F772D243237AD005B1F18 /* c68k_opF.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7718243237AD005B1F18 /* c68k_opF.inc */; };
-		073F772E243237AD005B1F18 /* c68k_op1.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7719243237AD005B1F18 /* c68k_op1.inc */; };
-		07E2E65F24324103007EFB06 /* c68kmac.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7708243237AD005B1F18 /* c68kmac.inc */; };
-		07E2E66024324103007EFB06 /* c68k_opC.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770B243237AD005B1F18 /* c68k_opC.inc */; };
-		07E2E66124324103007EFB06 /* c68k_op3.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7713243237AD005B1F18 /* c68k_op3.inc */; };
-		07E2E66224324103007EFB06 /* c68k_opE.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7714243237AD005B1F18 /* c68k_opE.inc */; };
-		07E2E66324324103007EFB06 /* c68k_op4.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770E243237AD005B1F18 /* c68k_op4.inc */; };
 		07E2E66424324103007EFB06 /* c68kexec.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F7704243237AD005B1F18 /* c68kexec.c */; };
 		07E2E66524324103007EFB06 /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F770A243237AD005B1F18 /* c68k.c */; };
-		07E2E66624324103007EFB06 /* c68k_opB.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770F243237AD005B1F18 /* c68k_opB.inc */; };
-		07E2E66724324103007EFB06 /* c68k_op5.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770D243237AD005B1F18 /* c68k_op5.inc */; };
-		07E2E66824324103007EFB06 /* c68k_op6.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7710243237AD005B1F18 /* c68k_op6.inc */; };
-		07E2E66924324103007EFB06 /* c68k_op8.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7707243237AD005B1F18 /* c68k_op8.inc */; };
-		07E2E66A24324103007EFB06 /* c68k_opF.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7718243237AD005B1F18 /* c68k_opF.inc */; };
-		07E2E66B24324103007EFB06 /* c68k_op9.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7706243237AD005B1F18 /* c68k_op9.inc */; };
-		07E2E66C24324103007EFB06 /* c68k_op1.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7719243237AD005B1F18 /* c68k_op1.inc */; };
-		07E2E66D24324103007EFB06 /* c68k_op7.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7711243237AD005B1F18 /* c68k_op7.inc */; };
-		07E2E66E24324103007EFB06 /* c68k_op0.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7717243237AD005B1F18 /* c68k_op0.inc */; };
-		07E2E66F24324103007EFB06 /* c68k_op2.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7716243237AD005B1F18 /* c68k_op2.inc */; };
-		07E2E67024324103007EFB06 /* c68k_ini.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7709243237AD005B1F18 /* c68k_ini.inc */; };
-		07E2E67124324103007EFB06 /* c68k_opD.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7715243237AD005B1F18 /* c68k_opD.inc */; };
-		07E2E67224324103007EFB06 /* c68k_opA.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7712243237AD005B1F18 /* c68k_opA.inc */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -215,7 +179,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 1610;
+				LastUpgradeCheck = 1640;
 				ORGANIZATIONNAME = GOROman;
 				TargetAttributes = {
 					073F76F024323762005B1F18 = {
@@ -247,26 +211,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				073F771E243237AD005B1F18 /* c68kmac.inc in Sources */,
-				073F7721243237AD005B1F18 /* c68k_opC.inc in Sources */,
-				073F7728243237AD005B1F18 /* c68k_op3.inc in Sources */,
-				073F7729243237AD005B1F18 /* c68k_opE.inc in Sources */,
-				073F7723243237AD005B1F18 /* c68k_op4.inc in Sources */,
 				073F771B243237AD005B1F18 /* c68kexec.c in Sources */,
 				073F7720243237AD005B1F18 /* c68k.c in Sources */,
-				073F7724243237AD005B1F18 /* c68k_opB.inc in Sources */,
-				073F7722243237AD005B1F18 /* c68k_op5.inc in Sources */,
-				073F7725243237AD005B1F18 /* c68k_op6.inc in Sources */,
-				073F771D243237AD005B1F18 /* c68k_op8.inc in Sources */,
-				073F772D243237AD005B1F18 /* c68k_opF.inc in Sources */,
-				073F771C243237AD005B1F18 /* c68k_op9.inc in Sources */,
-				073F772E243237AD005B1F18 /* c68k_op1.inc in Sources */,
-				073F7726243237AD005B1F18 /* c68k_op7.inc in Sources */,
-				073F772C243237AD005B1F18 /* c68k_op0.inc in Sources */,
-				073F772B243237AD005B1F18 /* c68k_op2.inc in Sources */,
-				073F771F243237AD005B1F18 /* c68k_ini.inc in Sources */,
-				073F772A243237AD005B1F18 /* c68k_opD.inc in Sources */,
-				073F7727243237AD005B1F18 /* c68k_opA.inc in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,26 +220,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				07E2E65F24324103007EFB06 /* c68kmac.inc in Sources */,
-				07E2E66024324103007EFB06 /* c68k_opC.inc in Sources */,
-				07E2E66124324103007EFB06 /* c68k_op3.inc in Sources */,
-				07E2E66224324103007EFB06 /* c68k_opE.inc in Sources */,
-				07E2E66324324103007EFB06 /* c68k_op4.inc in Sources */,
 				07E2E66424324103007EFB06 /* c68kexec.c in Sources */,
 				07E2E66524324103007EFB06 /* c68k.c in Sources */,
-				07E2E66624324103007EFB06 /* c68k_opB.inc in Sources */,
-				07E2E66724324103007EFB06 /* c68k_op5.inc in Sources */,
-				07E2E66824324103007EFB06 /* c68k_op6.inc in Sources */,
-				07E2E66924324103007EFB06 /* c68k_op8.inc in Sources */,
-				07E2E66A24324103007EFB06 /* c68k_opF.inc in Sources */,
-				07E2E66B24324103007EFB06 /* c68k_op9.inc in Sources */,
-				07E2E66C24324103007EFB06 /* c68k_op1.inc in Sources */,
-				07E2E66D24324103007EFB06 /* c68k_op7.inc in Sources */,
-				07E2E66E24324103007EFB06 /* c68k_op0.inc in Sources */,
-				07E2E66F24324103007EFB06 /* c68k_op2.inc in Sources */,
-				07E2E67024324103007EFB06 /* c68k_ini.inc in Sources */,
-				07E2E67124324103007EFB06 /* c68k_opD.inc in Sources */,
-				07E2E67224324103007EFB06 /* c68k_opA.inc in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,6 +401,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)_DEBUG";
 				SDKROOT = macosx;
@@ -492,6 +421,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

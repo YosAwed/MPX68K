@@ -36,15 +36,16 @@
 #include "prop.h"
 
 BYTE	LastCode = 0;
-BYTE	KEYCONFFILE[] = "xkeyconf.dat";
+char	KEYCONFFILE[] = "xkeyconf.dat";
 
 int	CurrentHDDNo = 0;
 
-BYTE ini_title[] = "WinX68k";
+char ini_title[] = "WinX68k";
 
-static const char MIDI_TYPE_NAME[4][3] = {
-	"LA", "GM", "GS", "XG"
-};
+// Unused array - commented out to fix warnings
+// static const char MIDI_TYPE_NAME[4][3] = {
+//	"LA", "GM", "GS", "XG"
+// };
 
 BYTE KeyTableBk[512];
 
@@ -176,7 +177,6 @@ void LoadConfig(void)
 {
 	int	i, j;
 	char	buf[CFGLEN];
-	FILEH fp;
 
 	winx = GetPrivateProfileInt(ini_title, "WinPosX", 0, winx68k_ini);
 	winy = GetPrivateProfileInt(ini_title, "WinPosY", 0, winx68k_ini);
@@ -318,7 +318,6 @@ void SaveConfig(void)
 {
 	int	i, j;
 	char	buf[CFGLEN], buf2[CFGLEN];
-	FILEH fp;
 
 	wsprintf(buf, "%d", winx);
 	WritePrivateProfileString(ini_title, "WinPosX", buf, winx68k_ini);
@@ -430,7 +429,7 @@ void SaveConfig(void)
 
 	for (i = 0; i < 2; i++)
 	{
-		printf("i: %d", i);
+		// printf("i: %d", i);  // Debug output commented out
 		sprintf(buf, "FDD%d", i);
 		WritePrivateProfileString(ini_title, buf, Config.FDDImage[i], winx68k_ini);
 	}

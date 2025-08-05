@@ -30,7 +30,7 @@ class AudioStream {
     {
         print("Play")
 
-        // プレイヤーノードからオーディオフォーマットを取得
+        // Get audio format from player node
              let outputNode = audioEngine.outputNode
         let format = outputNode.inputFormat(forBus: 0)
         print("\(format.sampleRate)")
@@ -53,7 +53,7 @@ class AudioStream {
             return noErr
         })
 
-        // オーディオエンジンにプレイヤーをアタッチ
+        // Attach player to audio engine
         sourceNode?.reset()
         audioEngine.attach(sourceNode!)
 

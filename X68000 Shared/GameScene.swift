@@ -19,6 +19,19 @@ extension Notification.Name {
     static let screenRotationChanged = Notification.Name("screenRotationChanged")
 }
 
+/**
+ * Main game scene for X68000 emulation.
+ * 
+ * This class manages the primary emulation viewport, handling user input,
+ * screen rendering, and emulation control. It serves as the bridge between
+ * the Swift UI layer and the underlying C/C++ emulation core.
+ *
+ * Key responsibilities:
+ * - Managing emulation display and screen rotation
+ * - Processing keyboard and controller input
+ * - Coordinating with audio and file systems
+ * - Handling UI state and mode switching
+ */
 class GameScene: SKScene {
     
     private var clockMHz: Int = 24
@@ -35,13 +48,13 @@ class GameScene: SKScene {
     
     // Screen rotation management
     enum ScreenRotation: CaseIterable {
-        case landscape  // 横画面（通常）
-        case portrait   // 縦画面（90度回転）
+        case landscape  // Landscape (normal)
+        case portrait   // Portrait (90 degree rotation)
         
         var angle: CGFloat {
             switch self {
             case .landscape: return 0
-            case .portrait: return .pi / 2  // 90度回転
+            case .portrait: return .pi / 2  // 90 degree rotation
             }
         }
         
@@ -54,7 +67,7 @@ class GameScene: SKScene {
     }
     private var currentRotation: ScreenRotation = .landscape
     
-    // シフトキーの状態を追跡
+    // Track shift key state
     private var isShiftKeyPressed = false
     
     fileprivate var label: SKLabelNode?
@@ -913,14 +926,14 @@ class GameScene: SKScene {
     private var sramSaveCounter = 0
     
     func startUpdateTimer() {
-        // Security: Ensure only one timer exists
+        // Performance optimization: Use SpriteKit's native update() instead of Timer
+        // This eliminates duplicate update loops and improves performance
+        
         stopUpdateTimer()
         
-        print("Starting update timer...")
-        // Start timer on main queue for UI updates
+        // Only start SRAM save timer - main updates handled by SpriteKit update()
         DispatchQueue.main.async {
-            self.timer = Timer.scheduledTimer(timeInterval: 1.0 / 60.0, target: self, selector: #selector(self.updateGame), userInfo: nil, repeats: true)
-            print("Update timer started successfully")
+            print("Using SpriteKit native update - Timer-based updates disabled for performance")
             
             // Start periodic SRAM save timer (every 30 seconds)
             self.sramSaveTimer = Timer.scheduledTimer(timeInterval: 30.0, target: self, selector: #selector(self.periodicSRAMSave), userInfo: nil, repeats: true)
@@ -951,40 +964,40 @@ class GameScene: SKScene {
     }
     
     @objc func updateGame() {
-        // Security: Thread-safe counter increment
-        timerQueue.async {
-            self.aaa += 1
-            if self.aaa % 100 == 0 {
-                DispatchQueue.main.async {
-                    print(self.aaa)
-                }
-            }
-        }
-        
-        // Perform game update on main thread
-        DispatchQueue.main.async {
-            self.performGameUpdate()
-        }
+        // Legacy method - replaced by SpriteKit native update() for performance
+        // This method is no longer called to eliminate duplicate updates
     }
     
     private func performGameUpdate() {
+        // Legacy method - functionality moved to SpriteKit update() method
+        // This eliminates duplicate processing and improves performance
+    }
+    
+    @objc func periodicSRAMSave() {
+        // Save SRAM periodically to prevent data loss
+        sramSaveCounter += 1
+        print("Periodic SRAM save #\(sramSaveCounter)")
+        fileSystem?.saveSRAM()
+    }
+    
+    var d = [UInt8](repeating: 0xff, count: 768 * 512 * 4)
+    var w: Int = 1
+    var h: Int = 1
+    
+    override func update(_ currentTime: TimeInterval) {
+        // Optimization: Use SpriteKit's native update instead of duplicate Timer-based updates
+        // This replaces the Timer-based updateGame() method for better performance
+        
         // Safety: Only update if emulator is properly initialized
         guard isEmulatorInitialized else {
-            print("Warning: Emulator not yet initialized, skipping update")
             return
         }
         
-        // Debug: Log update calls periodically
-        if aaa % 300 == 0 {
-            print("GameUpdate running - frame \(aaa)")
-        }
-        
-        // Update devices only when necessary for current input mode
+        // Optimized device updates based on input mode
         if currentInputMode == .joycard {
-            // Only update joycard device in joycard mode
-            joycard?.Update(CFAbsoluteTimeGetCurrent())
+            joycard?.Update(currentTime)
         }
-        // Other devices updated less frequently or as needed
+        // Skip unnecessary device updates to improve performance
         
         mouseController?.SetScreenSize(width: Float(w), height: Float(h))
         mouseController?.Update()
@@ -996,8 +1009,6 @@ class GameScene: SKScene {
         if let midi_buffer = X68000_GetMIDIBuffer() {
             labelMIDI?.text = "MIDI OUT:\(midi_count)"
             midiController.Send(midi_buffer, midi_count)
-        } else {
-            print("Error: Failed to get MIDI buffer")
         }
         
         w = Int(X68000_GetScreenWidth())
@@ -1005,7 +1016,6 @@ class GameScene: SKScene {
         
         // Security: Validate screen dimensions
         guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
-            print("Error: Invalid screen dimensions: \(w)x\(h)")
             return
         }
         
@@ -1037,69 +1047,6 @@ class GameScene: SKScene {
             // Just update texture, keep sprite
             spr.texture = tex
         }
-    }
-    
-    @objc func periodicSRAMSave() {
-        // Save SRAM periodically to prevent data loss
-        sramSaveCounter += 1
-        print("Periodic SRAM save #\(sramSaveCounter)")
-        fileSystem?.saveSRAM()
-    }
-    
-    var d = [UInt8](repeating: 0xff, count: 768 * 512 * 4)
-    var w: Int = 1
-    var h: Int = 1
-    
-    override func update(_ currentTime: TimeInterval) {
-        // Safety: Only update if emulator is properly initialized
-        guard isEmulatorInitialized else {
-            return
-        }
-        
-        // Optimized device updates based on input mode
-        if currentInputMode == .joycard {
-            joycard?.Update(currentTime)
-        }
-        // Skip unnecessary device updates to improve performance
-        
-        mouseController?.SetScreenSize(width: Float(w), height: Float(h))
-        mouseController?.Update()
-        
-        X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
-        let midi_count = X68000_GetMIDIBufferSize()
-        
-        // Security: Validate MIDI buffer pointer before use
-        if let midi_buffer = X68000_GetMIDIBuffer() {
-            labelMIDI?.text = "MIDI OUT:\(midi_count)"
-            midiController.Send(midi_buffer, midi_count)
-        } else {
-            print("Error: Failed to get MIDI buffer")
-        }
-        
-        w = Int(X68000_GetScreenWidth())
-        h = Int(X68000_GetScreenHeight())
-        
-        // Security: Validate screen dimensions
-        guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
-            print("Error: Invalid screen dimensions: \(w)x\(h)")
-            return
-        }
-        
-        X68000_GetImage(&d)
-        
-        let cgsize = CGSize(width: w, height: h)
-        let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
-        
-        self.spr.removeFromParent()
-        self.spr = SKSpriteNode(texture: tex, size: cgsize)
-        self.spr.texture = tex
-        self.spr.size = CGSize(width: w, height: h)
-        
-        // Apply current rotation and scaling without logging
-        applySpriteTransformSilently()
-        
-        self.spr.zPosition = -1.0
-        self.addChild(spr)
     }
     
     // MARK: - UI Layout Management
@@ -1471,7 +1418,8 @@ extension GameScene {
     
     
     override func keyDown(with event: NSEvent) {
-        print("key press: \(event) keyCode: \(event.keyCode)")
+        // Reduced logging for performance - only log unmapped keys
+        // print("key press: \(event) keyCode: \(event.keyCode)")
         
         // Check for mode toggle key (Tab key)
         if event.keyCode == 48 { // Tab key
@@ -1496,24 +1444,25 @@ extension GameScene {
     private func handleX68KeyboardInput(_ event: NSEvent, isKeyDown: Bool) {
         // シフトキーの状態をチェックして、状態変化があれば送信
         let isShiftPressed = event.modifierFlags.contains(.shift)
-        print("🐛 Shift key pressed: \(isShiftPressed)")
+        // Reduced logging for performance
+        // print("🐛 Shift key pressed: \(isShiftPressed)")
         
         if isKeyDown {
             if isShiftPressed && !isShiftKeyPressed {
                 // シフトキーが押された
-                print("🐛 Sending SHIFT DOWN")
+                // print("🐛 Sending SHIFT DOWN")
                 X68000_Key_Down(0x1e1) // KeyTable拡張領域のシフトキー
                 isShiftKeyPressed = true
             } else if !isShiftPressed && isShiftKeyPressed {
                 // シフトキーが離された
-                print("🐛 Sending SHIFT UP")
+                // print("🐛 Sending SHIFT UP")
                 X68000_Key_Up(0x1e1)
                 isShiftKeyPressed = false
             }
         } else {
             if !isShiftPressed && isShiftKeyPressed {
                 // シフトキーが離された
-                print("🐛 Sending SHIFT UP")
+                // print("🐛 Sending SHIFT UP")
                 X68000_Key_Up(0x1e1)
                 isShiftKeyPressed = false
             }
@@ -1522,7 +1471,7 @@ extension GameScene {
         // 最初に特殊キー（文字なし）をチェック
         let x68KeyTableIndex = getMacKeyToX68KeyTableIndex(event.keyCode)
         if x68KeyTableIndex != 0 {
-            print("🐛 Using special key KeyTable index: \(x68KeyTableIndex) for keyCode: \(event.keyCode)")
+            // print("🐛 Using special key KeyTable index: \(x68KeyTableIndex) for keyCode: \(event.keyCode)")
             if isKeyDown {
                 X68000_Key_Down(x68KeyTableIndex)
             } else {
@@ -1534,7 +1483,7 @@ extension GameScene {
         // 物理キーベースのマッピング（修飾キーに依存しない基本文字）
         if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
             let ascii = baseChar.asciiValue!
-            print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
+            // print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
             if isKeyDown {
                 X68000_Key_Down(UInt32(ascii))
             } else {
@@ -1548,10 +1497,10 @@ extension GameScene {
             let char = characters.first!
             let asciiValue = char.asciiValue
             
-            print("🐛 Fallback character: '\(char)' ASCII: \(asciiValue ?? 0)")
+            // print("🐛 Fallback character: '\(char)' ASCII: \(asciiValue ?? 0)")
             
             if let ascii = asciiValue {
-                print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
+                // print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
                 if isKeyDown {
                     X68000_Key_Down(UInt32(ascii))
                 } else {
@@ -1561,7 +1510,8 @@ extension GameScene {
             }
         }
         
-        print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
+        // Only log unmapped keys for debugging when needed
+        // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
     }
     
     override func keyUp(with event: NSEvent) {

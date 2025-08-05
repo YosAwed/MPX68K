@@ -17,8 +17,9 @@ class GameViewController: NSViewController {
     var gameScene: GameScene?
     
     func load(_ url: URL) {
-        print("🐛 GameViewController.load() called with: \(url.lastPathComponent)")
-        print("🐛 Full path: \(url.path)")
+        // Reduced logging for performance
+        // print("🐛 GameViewController.load() called with: \(url.lastPathComponent)")
+        // print("🐛 Full path: \(url.path)")
         gameScene?.load(url: url)
     }
     
@@ -40,7 +41,8 @@ class GameViewController: NSViewController {
     }
     
     private func openFDDForDrive(_ drive: Int) {
-        print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
+        // Reduced logging for performance
+        // print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
         
         let openPanel = NSOpenPanel()
         openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "A" : "B")"
@@ -61,33 +63,39 @@ class GameViewController: NSViewController {
         let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
         if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
             defaultDirectory = userDocumentsX68000
-            print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+            // Reduced logging for performance
+            // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
         }
         // Priority 2: User's Documents folder
         else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
             if FileManager.default.fileExists(atPath: userDocuments.path) {
                 defaultDirectory = userDocuments
-                print("🔧 Using user Documents as default: \(userDocuments.path)")
+                // Reduced logging for performance
+                // print("🔧 Using user Documents as default: \(userDocuments.path)")
             }
         }
         // Priority 3: Sandboxed Documents folder
         else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             defaultDirectory = documentsURL
-            print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
+            // Reduced logging for performance
+            // print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
         }
         
         if let defaultDir = defaultDirectory {
             openPanel.directoryURL = defaultDir
         }
         
-        print("🔧 NSOpenPanel configured, showing dialog...")
+        // Reduced logging for performance
+        // print("🔧 NSOpenPanel configured, showing dialog...")
         
         openPanel.begin { [weak self] response in
-            print("🔧 NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
+            // Reduced logging for performance
+            // print("🔧 NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
             if response == .OK, let url = openPanel.url {
                 print("✅ NSOpenPanel selected file: \(url.path)")
                 let accessible = url.startAccessingSecurityScopedResource()
-                print("🔧 Security-scoped resource access: \(accessible)")
+                // Reduced logging for performance
+                // print("🔧 Security-scoped resource access: \(accessible)")
                 
                 DispatchQueue.main.async {
                     self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
@@ -153,19 +161,22 @@ class GameViewController: NSViewController {
         let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
         if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
             defaultDirectory = userDocumentsX68000
-            print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+            // Reduced logging for performance
+            // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
         }
         // Priority 2: User's Documents folder
         else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
             if FileManager.default.fileExists(atPath: userDocuments.path) {
                 defaultDirectory = userDocuments
-                print("🔧 Using user Documents as default: \(userDocuments.path)")
+                // Reduced logging for performance
+                // print("🔧 Using user Documents as default: \(userDocuments.path)")
             }
         }
         // Priority 3: Sandboxed Documents folder
         else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             defaultDirectory = documentsURL
-            print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
+            // Reduced logging for performance
+            // print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
         }
         
         if let defaultDir = defaultDirectory {
@@ -344,6 +355,9 @@ class GameViewController: NSViewController {
         skView.showsNodeCount = true
         skView.showsDrawCount = true
         
+        // Enable keyboard input for the SKView
+        view.window?.makeFirstResponder(self.view)
+        
         // ドラッグ&ドロップを有効にする
         setupDragAndDrop()
         
@@ -371,6 +385,27 @@ class GameViewController: NSViewController {
     
     private func setupDragAndDrop() {
         view.registerForDraggedTypes([.fileURL])
+    }
+    
+    // MARK: - First Responder and Keyboard Handling
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        // Ensure the view becomes first responder to receive keyboard events
+        view.window?.makeFirstResponder(self)
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        // Forward keyboard events to the game scene
+        gameScene?.keyDown(with: event)
+    }
+    
+    override func keyUp(with event: NSEvent) {
+        // Forward keyboard events to the game scene
+        gameScene?.keyUp(with: event)
     }
     
     @objc private func screenRotationChanged(_ notification: Notification) {

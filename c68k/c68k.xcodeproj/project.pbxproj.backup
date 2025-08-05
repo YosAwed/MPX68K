@@ -1,0 +1,537 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		073F771B243237AD005B1F18 /* c68kexec.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F7704243237AD005B1F18 /* c68kexec.c */; };
+		073F771C243237AD005B1F18 /* c68k_op9.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7706243237AD005B1F18 /* c68k_op9.inc */; };
+		073F771D243237AD005B1F18 /* c68k_op8.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7707243237AD005B1F18 /* c68k_op8.inc */; };
+		073F771E243237AD005B1F18 /* c68kmac.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7708243237AD005B1F18 /* c68kmac.inc */; };
+		073F771F243237AD005B1F18 /* c68k_ini.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7709243237AD005B1F18 /* c68k_ini.inc */; };
+		073F7720243237AD005B1F18 /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F770A243237AD005B1F18 /* c68k.c */; };
+		073F7721243237AD005B1F18 /* c68k_opC.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770B243237AD005B1F18 /* c68k_opC.inc */; };
+		073F7722243237AD005B1F18 /* c68k_op5.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770D243237AD005B1F18 /* c68k_op5.inc */; };
+		073F7723243237AD005B1F18 /* c68k_op4.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770E243237AD005B1F18 /* c68k_op4.inc */; };
+		073F7724243237AD005B1F18 /* c68k_opB.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770F243237AD005B1F18 /* c68k_opB.inc */; };
+		073F7725243237AD005B1F18 /* c68k_op6.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7710243237AD005B1F18 /* c68k_op6.inc */; };
+		073F7726243237AD005B1F18 /* c68k_op7.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7711243237AD005B1F18 /* c68k_op7.inc */; };
+		073F7727243237AD005B1F18 /* c68k_opA.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7712243237AD005B1F18 /* c68k_opA.inc */; };
+		073F7728243237AD005B1F18 /* c68k_op3.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7713243237AD005B1F18 /* c68k_op3.inc */; };
+		073F7729243237AD005B1F18 /* c68k_opE.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7714243237AD005B1F18 /* c68k_opE.inc */; };
+		073F772A243237AD005B1F18 /* c68k_opD.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7715243237AD005B1F18 /* c68k_opD.inc */; };
+		073F772B243237AD005B1F18 /* c68k_op2.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7716243237AD005B1F18 /* c68k_op2.inc */; };
+		073F772C243237AD005B1F18 /* c68k_op0.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7717243237AD005B1F18 /* c68k_op0.inc */; };
+		073F772D243237AD005B1F18 /* c68k_opF.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7718243237AD005B1F18 /* c68k_opF.inc */; };
+		073F772E243237AD005B1F18 /* c68k_op1.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7719243237AD005B1F18 /* c68k_op1.inc */; };
+		07E2E65F24324103007EFB06 /* c68kmac.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7708243237AD005B1F18 /* c68kmac.inc */; };
+		07E2E66024324103007EFB06 /* c68k_opC.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770B243237AD005B1F18 /* c68k_opC.inc */; };
+		07E2E66124324103007EFB06 /* c68k_op3.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7713243237AD005B1F18 /* c68k_op3.inc */; };
+		07E2E66224324103007EFB06 /* c68k_opE.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7714243237AD005B1F18 /* c68k_opE.inc */; };
+		07E2E66324324103007EFB06 /* c68k_op4.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770E243237AD005B1F18 /* c68k_op4.inc */; };
+		07E2E66424324103007EFB06 /* c68kexec.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F7704243237AD005B1F18 /* c68kexec.c */; };
+		07E2E66524324103007EFB06 /* c68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 073F770A243237AD005B1F18 /* c68k.c */; };
+		07E2E66624324103007EFB06 /* c68k_opB.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770F243237AD005B1F18 /* c68k_opB.inc */; };
+		07E2E66724324103007EFB06 /* c68k_op5.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F770D243237AD005B1F18 /* c68k_op5.inc */; };
+		07E2E66824324103007EFB06 /* c68k_op6.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7710243237AD005B1F18 /* c68k_op6.inc */; };
+		07E2E66924324103007EFB06 /* c68k_op8.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7707243237AD005B1F18 /* c68k_op8.inc */; };
+		07E2E66A24324103007EFB06 /* c68k_opF.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7718243237AD005B1F18 /* c68k_opF.inc */; };
+		07E2E66B24324103007EFB06 /* c68k_op9.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7706243237AD005B1F18 /* c68k_op9.inc */; };
+		07E2E66C24324103007EFB06 /* c68k_op1.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7719243237AD005B1F18 /* c68k_op1.inc */; };
+		07E2E66D24324103007EFB06 /* c68k_op7.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7711243237AD005B1F18 /* c68k_op7.inc */; };
+		07E2E66E24324103007EFB06 /* c68k_op0.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7717243237AD005B1F18 /* c68k_op0.inc */; };
+		07E2E66F24324103007EFB06 /* c68k_op2.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7716243237AD005B1F18 /* c68k_op2.inc */; };
+		07E2E67024324103007EFB06 /* c68k_ini.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7709243237AD005B1F18 /* c68k_ini.inc */; };
+		07E2E67124324103007EFB06 /* c68k_opD.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7715243237AD005B1F18 /* c68k_opD.inc */; };
+		07E2E67224324103007EFB06 /* c68k_opA.inc in Sources */ = {isa = PBXBuildFile; fileRef = 073F7712243237AD005B1F18 /* c68k_opA.inc */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		073F76EF24323762005B1F18 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "include/$(PRODUCT_NAME)";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		07E2E67424324103007EFB06 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "include/$(PRODUCT_NAME)";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		073F76F124323762005B1F18 /* libc68k.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		073F7704243237AD005B1F18 /* c68kexec.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = c68kexec.c; sourceTree = "<group>"; };
+		073F7705243237AD005B1F18 /* core.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = core.h; sourceTree = "<group>"; };
+		073F7706243237AD005B1F18 /* c68k_op9.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op9.inc; sourceTree = "<group>"; };
+		073F7707243237AD005B1F18 /* c68k_op8.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op8.inc; sourceTree = "<group>"; };
+		073F7708243237AD005B1F18 /* c68kmac.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68kmac.inc; sourceTree = "<group>"; };
+		073F7709243237AD005B1F18 /* c68k_ini.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_ini.inc; sourceTree = "<group>"; };
+		073F770A243237AD005B1F18 /* c68k.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = c68k.c; sourceTree = "<group>"; };
+		073F770B243237AD005B1F18 /* c68k_opC.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opC.inc; sourceTree = "<group>"; };
+		073F770C243237AD005B1F18 /* c68k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = c68k.h; sourceTree = "<group>"; };
+		073F770D243237AD005B1F18 /* c68k_op5.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op5.inc; sourceTree = "<group>"; };
+		073F770E243237AD005B1F18 /* c68k_op4.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op4.inc; sourceTree = "<group>"; };
+		073F770F243237AD005B1F18 /* c68k_opB.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opB.inc; sourceTree = "<group>"; };
+		073F7710243237AD005B1F18 /* c68k_op6.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op6.inc; sourceTree = "<group>"; };
+		073F7711243237AD005B1F18 /* c68k_op7.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op7.inc; sourceTree = "<group>"; };
+		073F7712243237AD005B1F18 /* c68k_opA.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opA.inc; sourceTree = "<group>"; };
+		073F7713243237AD005B1F18 /* c68k_op3.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op3.inc; sourceTree = "<group>"; };
+		073F7714243237AD005B1F18 /* c68k_opE.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opE.inc; sourceTree = "<group>"; };
+		073F7715243237AD005B1F18 /* c68k_opD.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opD.inc; sourceTree = "<group>"; };
+		073F7716243237AD005B1F18 /* c68k_op2.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op2.inc; sourceTree = "<group>"; };
+		073F7717243237AD005B1F18 /* c68k_op0.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op0.inc; sourceTree = "<group>"; };
+		073F7718243237AD005B1F18 /* c68k_opF.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_opF.inc; sourceTree = "<group>"; };
+		073F7719243237AD005B1F18 /* c68k_op1.inc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = c68k_op1.inc; sourceTree = "<group>"; };
+		07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libc68k_mac_DEBUG.a; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		073F76EE24323762005B1F18 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		07E2E67324324103007EFB06 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		073F76E824323762005B1F18 = {
+			isa = PBXGroup;
+			children = (
+				073F7701243237AD005B1F18 /* m68000 */,
+				073F76F224323762005B1F18 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		073F76F224323762005B1F18 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				073F76F124323762005B1F18 /* libc68k.a */,
+				07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		073F7701243237AD005B1F18 /* m68000 */ = {
+			isa = PBXGroup;
+			children = (
+				073F7703243237AD005B1F18 /* c68k */,
+			);
+			name = m68000;
+			path = "../X68000 Shared/px68k/m68000";
+			sourceTree = "<group>";
+		};
+		073F7703243237AD005B1F18 /* c68k */ = {
+			isa = PBXGroup;
+			children = (
+				073F7704243237AD005B1F18 /* c68kexec.c */,
+				073F7705243237AD005B1F18 /* core.h */,
+				073F7706243237AD005B1F18 /* c68k_op9.inc */,
+				073F7707243237AD005B1F18 /* c68k_op8.inc */,
+				073F7708243237AD005B1F18 /* c68kmac.inc */,
+				073F7709243237AD005B1F18 /* c68k_ini.inc */,
+				073F770A243237AD005B1F18 /* c68k.c */,
+				073F770B243237AD005B1F18 /* c68k_opC.inc */,
+				073F770C243237AD005B1F18 /* c68k.h */,
+				073F770D243237AD005B1F18 /* c68k_op5.inc */,
+				073F770E243237AD005B1F18 /* c68k_op4.inc */,
+				073F770F243237AD005B1F18 /* c68k_opB.inc */,
+				073F7710243237AD005B1F18 /* c68k_op6.inc */,
+				073F7711243237AD005B1F18 /* c68k_op7.inc */,
+				073F7712243237AD005B1F18 /* c68k_opA.inc */,
+				073F7713243237AD005B1F18 /* c68k_op3.inc */,
+				073F7714243237AD005B1F18 /* c68k_opE.inc */,
+				073F7715243237AD005B1F18 /* c68k_opD.inc */,
+				073F7716243237AD005B1F18 /* c68k_op2.inc */,
+				073F7717243237AD005B1F18 /* c68k_op0.inc */,
+				073F7718243237AD005B1F18 /* c68k_opF.inc */,
+				073F7719243237AD005B1F18 /* c68k_op1.inc */,
+			);
+			path = c68k;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		073F76F024323762005B1F18 /* c68k */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 073F76F824323762005B1F18 /* Build configuration list for PBXNativeTarget "c68k" */;
+			buildPhases = (
+				073F76ED24323762005B1F18 /* Sources */,
+				073F76EE24323762005B1F18 /* Frameworks */,
+				073F76EF24323762005B1F18 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = c68k;
+			productName = c68k;
+			productReference = 073F76F124323762005B1F18 /* libc68k.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		07E2E65D24324103007EFB06 /* c68k_mac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 07E2E67524324103007EFB06 /* Build configuration list for PBXNativeTarget "c68k_mac" */;
+			buildPhases = (
+				07E2E65E24324103007EFB06 /* Sources */,
+				07E2E67324324103007EFB06 /* Frameworks */,
+				07E2E67424324103007EFB06 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = c68k_mac;
+			productName = c68k;
+			productReference = 07E2E67824324103007EFB06 /* libc68k_mac_DEBUG.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		073F76E924323762005B1F18 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1140;
+				LastUpgradeCheck = 1610;
+				ORGANIZATIONNAME = GOROman;
+				TargetAttributes = {
+					073F76F024323762005B1F18 = {
+						CreatedOnToolsVersion = 11.4;
+					};
+				};
+			};
+			buildConfigurationList = 073F76EC24323762005B1F18 /* Build configuration list for PBXProject "c68k" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 073F76E824323762005B1F18;
+			productRefGroup = 073F76F224323762005B1F18 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				073F76F024323762005B1F18 /* c68k */,
+				07E2E65D24324103007EFB06 /* c68k_mac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		073F76ED24323762005B1F18 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				073F771E243237AD005B1F18 /* c68kmac.inc in Sources */,
+				073F7721243237AD005B1F18 /* c68k_opC.inc in Sources */,
+				073F7728243237AD005B1F18 /* c68k_op3.inc in Sources */,
+				073F7729243237AD005B1F18 /* c68k_opE.inc in Sources */,
+				073F7723243237AD005B1F18 /* c68k_op4.inc in Sources */,
+				073F771B243237AD005B1F18 /* c68kexec.c in Sources */,
+				073F7720243237AD005B1F18 /* c68k.c in Sources */,
+				073F7724243237AD005B1F18 /* c68k_opB.inc in Sources */,
+				073F7722243237AD005B1F18 /* c68k_op5.inc in Sources */,
+				073F7725243237AD005B1F18 /* c68k_op6.inc in Sources */,
+				073F771D243237AD005B1F18 /* c68k_op8.inc in Sources */,
+				073F772D243237AD005B1F18 /* c68k_opF.inc in Sources */,
+				073F771C243237AD005B1F18 /* c68k_op9.inc in Sources */,
+				073F772E243237AD005B1F18 /* c68k_op1.inc in Sources */,
+				073F7726243237AD005B1F18 /* c68k_op7.inc in Sources */,
+				073F772C243237AD005B1F18 /* c68k_op0.inc in Sources */,
+				073F772B243237AD005B1F18 /* c68k_op2.inc in Sources */,
+				073F771F243237AD005B1F18 /* c68k_ini.inc in Sources */,
+				073F772A243237AD005B1F18 /* c68k_opD.inc in Sources */,
+				073F7727243237AD005B1F18 /* c68k_opA.inc in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		07E2E65E24324103007EFB06 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				07E2E65F24324103007EFB06 /* c68kmac.inc in Sources */,
+				07E2E66024324103007EFB06 /* c68k_opC.inc in Sources */,
+				07E2E66124324103007EFB06 /* c68k_op3.inc in Sources */,
+				07E2E66224324103007EFB06 /* c68k_opE.inc in Sources */,
+				07E2E66324324103007EFB06 /* c68k_op4.inc in Sources */,
+				07E2E66424324103007EFB06 /* c68kexec.c in Sources */,
+				07E2E66524324103007EFB06 /* c68k.c in Sources */,
+				07E2E66624324103007EFB06 /* c68k_opB.inc in Sources */,
+				07E2E66724324103007EFB06 /* c68k_op5.inc in Sources */,
+				07E2E66824324103007EFB06 /* c68k_op6.inc in Sources */,
+				07E2E66924324103007EFB06 /* c68k_op8.inc in Sources */,
+				07E2E66A24324103007EFB06 /* c68k_opF.inc in Sources */,
+				07E2E66B24324103007EFB06 /* c68k_op9.inc in Sources */,
+				07E2E66C24324103007EFB06 /* c68k_op1.inc in Sources */,
+				07E2E66D24324103007EFB06 /* c68k_op7.inc in Sources */,
+				07E2E66E24324103007EFB06 /* c68k_op0.inc in Sources */,
+				07E2E66F24324103007EFB06 /* c68k_op2.inc in Sources */,
+				07E2E67024324103007EFB06 /* c68k_ini.inc in Sources */,
+				07E2E67124324103007EFB06 /* c68k_opD.inc in Sources */,
+				07E2E67224324103007EFB06 /* c68k_opA.inc in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		073F76F624323762005B1F18 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		073F76F724323762005B1F18 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		073F76F924323762005B1F18 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7JBC998RH7;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "";
+			};
+			name = Debug;
+		};
+		073F76FA24323762005B1F18 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7JBC998RH7;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "";
+			};
+			name = Release;
+		};
+		07E2E67624324103007EFB06 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = LA9X3DU626;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)_DEBUG";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		07E2E67724324103007EFB06 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = LA9X3DU626;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					HAVE_C68K,
+					C68K_NO_JUMP_TABLE,
+				);
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		073F76EC24323762005B1F18 /* Build configuration list for PBXProject "c68k" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				073F76F624323762005B1F18 /* Debug */,
+				073F76F724323762005B1F18 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		073F76F824323762005B1F18 /* Build configuration list for PBXNativeTarget "c68k" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				073F76F924323762005B1F18 /* Debug */,
+				073F76FA24323762005B1F18 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		07E2E67524324103007EFB06 /* Build configuration list for PBXNativeTarget "c68k_mac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07E2E67624324103007EFB06 /* Debug */,
+				07E2E67724324103007EFB06 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 073F76E924323762005B1F18 /* Project object */;
+}

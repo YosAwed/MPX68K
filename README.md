@@ -243,6 +243,81 @@ This project is based on px68k emulator. Please refer to the original px68k lice
 - **fmgen**: FM sound synthesis library
 - **Sharp**: Original X68000 computer system
 
+## Development Setup
+
+### Prerequisites
+
+- **Xcode 13.0 or later**: Required for building the project
+- **macOS 11.0 or later**: Development environment requirement
+- **Git**: For version control and contributing
+
+### Building from Source
+
+1. **Clone the repository:**
+   ```shell
+   git clone https://github.com/YosAwed/X68Mac.git
+   cd X68Mac
+   ```
+
+2. **Open in Xcode:**
+   ```shell
+   open X68000.xcodeproj
+   ```
+
+3. **Build the project:**
+   - Select your target platform (macOS)
+   - Build and run (⌘+R)
+
+### Code Quality
+
+This project uses SwiftLint for code quality enforcement. Install SwiftLint:
+
+```shell
+brew install swiftlint
+```
+
+Run SwiftLint before submitting changes:
+
+```shell
+swiftlint
+```
+
+## Contributing
+
+We welcome contributions to improve X68Mac! Here's how you can help:
+
+### Getting Started
+
+1. **Fork the repository** on GitHub
+2. **Create a feature branch** from `master`:
+   ```shell
+   git checkout -b feature/your-feature-name
+   ```
+3. **Make your changes** following our coding guidelines
+4. **Test your changes** thoroughly
+5. **Submit a pull request** with a clear description
+
+### Coding Guidelines
+
+- **Language**: Use English for all comments and documentation
+- **Style**: Follow Swift API Design Guidelines
+- **Documentation**: Add Swift DocC comments for public APIs
+- **Testing**: Include tests for new functionality when possible
+
+### Types of Contributions
+
+- **Bug fixes**: Help resolve issues and improve stability
+- **Documentation**: Improve README, code comments, and guides
+- **Features**: Add new emulation features or UI improvements
+- **Code quality**: Refactoring, performance improvements, and cleanup
+
+### Reporting Issues
+
+- Use the [GitHub Issues](https://github.com/YosAwed/X68Mac/issues) page
+- Provide detailed reproduction steps
+- Include system information (macOS version, hardware)
+- Attach relevant log files or screenshots
+
 ## Links
 
 - [GitHub Repository](https://github.com/YosAwed/X68Mac)

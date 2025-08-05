@@ -195,43 +195,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // MARK: - FDD Menu Actions
     @IBAction func openFDDDriveA(_ sender: Any) {
-        print("🐛 AppDelegate.openFDDDriveA called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.openFDDDriveA called")
         gameViewController?.openFDDDriveA(sender)
     }
     
     @IBAction func openFDDDriveB(_ sender: Any) {
-        print("🐛 AppDelegate.openFDDDriveB called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.openFDDDriveB called")
         gameViewController?.openFDDDriveB(sender)
     }
     
     @IBAction func ejectFDDDriveA(_ sender: Any) {
-        print("🐛 AppDelegate.ejectFDDDriveA called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.ejectFDDDriveA called")
         gameViewController?.ejectFDDDriveA(sender)
     }
     
     @IBAction func ejectFDDDriveB(_ sender: Any) {
-        print("🐛 AppDelegate.ejectFDDDriveB called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.ejectFDDDriveB called")
         gameViewController?.ejectFDDDriveB(sender)
     }
     
     // MARK: - HDD Menu Actions
     @IBAction func openHDD(_ sender: Any) {
-        print("🐛 AppDelegate.openHDD called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.openHDD called")
         gameViewController?.openHDD(sender)
     }
     
     @IBAction func ejectHDD(_ sender: Any) {
-        print("🐛 AppDelegate.ejectHDD called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
-        print("🐛 AppDelegate.createEmptyHDD called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.createEmptyHDD called")
         gameViewController?.createEmptyHDD(sender)
     }
     
     @IBAction func saveHDD(_ sender: Any) {
-        print("🐛 AppDelegate.saveHDD called")
+        // Reduced logging for performance
+        // print("🐛 AppDelegate.saveHDD called")
         gameViewController?.gameScene?.saveHDD()
     }
     

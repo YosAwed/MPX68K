@@ -48,7 +48,7 @@ class FileSystem {
     }
     
     func createDocumentsFolder() {
-        // iCloudコンテナのURL
+        // iCloud container URL
         //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let path = (url?.appendingPathComponent("X68000"))!
@@ -137,7 +137,7 @@ class FileSystem {
         //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
-        // コンテナに追加するフォルダのパス
+        // Path to folder to add to container
         if let documentsURL = containerURL?.appendingPathComponent("X68000") {
             let dir = getDir( documentsURL )
             
