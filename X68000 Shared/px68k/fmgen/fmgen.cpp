@@ -368,7 +368,9 @@ void Operator::MakeTable()
 
 inline void FM::Operator::SetDPBN(uint dp, uint bn)
 {
-	dp_ = dp, bn_ = bn; param_changed_ = true; 
+    dp_ = dp;
+    bn_ = bn;
+    param_changed_ = true;
 	PARAMCHANGE(1);
 }
 

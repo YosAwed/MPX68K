@@ -61,7 +61,7 @@ file_open(LPSTR filename)
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-      printf("file_open(\"%s\")=%d\n",filename,ret);
+      printf("file_open(\"%s\")=%p\n",filename,ret);
         if (ret == (FILEH)INVALID_HANDLE_VALUE) {
 		ret = CreateFile(filename, GENERIC_READ,
 		    0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -81,7 +81,7 @@ file_create(LPSTR filename, int ftype)
 	ret = CreateFile(filename, GENERIC_READ | GENERIC_WRITE,
 	    0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    printf("file_create(\"%s\")=%d\n",filename,ret);
+    printf("file_create(\"%s\")=%p\n",filename,ret);
 
     if (ret == (FILEH)INVALID_HANDLE_VALUE)
 		return (FILEH)FALSE;
@@ -383,7 +383,7 @@ ex_a2i(LPSTR str, int min, int max)
 void
 cutyen(LPSTR str)
 {
-	int pos = strlen(str) - 1;
+	size_t pos = strlen(str) - 1;
 
 	if ((pos > 0) && (str[pos] == '/'))
 		str[pos] = '\0';
@@ -392,7 +392,7 @@ cutyen(LPSTR str)
 void
 plusyen(LPSTR str, int len)
 {
-	int	pos = strlen(str);
+	size_t	pos = strlen(str);
 
 	if (pos) {
 		if (str[pos-1] == '/')
@@ -417,7 +417,7 @@ fname_mix(LPSTR str, LPSTR mix, int size)
 	if (mix[0] == '/')
 		str[0] = '\0';
 
-	len = strlen(str);
+	len = (int)strlen(str);
 	p = str + len;
 	check = '.';
 	while (len < size) {
@@ -436,7 +436,7 @@ fname_mix(LPSTR str, LPSTR mix, int size)
 				mix += 2;
 				cutyen(str);
 				cutFileName(str);
-				len = strlen(str);
+				len = (int)strlen(str);
 				p = str + len;
 				continue;
 			}

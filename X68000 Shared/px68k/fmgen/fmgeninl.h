@@ -83,21 +83,24 @@ inline int Operator::IsOn()
 //	Detune (0-7)
 inline void Operator::SetDT(uint dt)
 {
-	detune_ = dt * 0x20, param_changed_ = true;
+    detune_ = dt * 0x20;
+    param_changed_ = true;
 	PARAMCHANGE(4);
 }
 
 //	DT2 (0-3)
 inline void Operator::SetDT2(uint dt2)
 {
-	detune2_ = dt2 & 3, param_changed_ = true;
+    detune2_ = dt2 & 3;
+    param_changed_ = true;
 	PARAMCHANGE(5);
 }
 
 //	Multiple (0-15)
 inline void Operator::SetMULTI(uint mul)	
 { 
-	multiple_ = mul, param_changed_ = true;
+    multiple_ = mul;
+    param_changed_ = true;
 	PARAMCHANGE(6);
 }
 
@@ -106,7 +109,8 @@ inline void Operator::SetTL(uint tl, bool csm)
 {
 	if (!csm)
 	{
-		tl_ = tl, param_changed_ = true;
+        tl_ = tl;
+        param_changed_ = true;
 		PARAMCHANGE(7);
 	}
 	tl_latch_ = tl;

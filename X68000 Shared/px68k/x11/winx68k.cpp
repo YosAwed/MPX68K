@@ -369,7 +369,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
         clkdiv = 10;
     }
 #else
-    clkdiv = clockMHz;
+    clkdiv = (DWORD)clockMHz;
     clk_total = (clk_total*clkdiv)/10;
 
 #endif
@@ -572,7 +572,7 @@ int original_main(int argc, const char *argv[], const long samplingrate )
 //        return 1;
 
     dosio_init();
-    file_setcd("./");
+    file_setcd((char*)"./");
     LoadConfig();
 	
 	Config.SampleRate = (int)samplingrate;
@@ -747,19 +747,19 @@ BYTE* X68000_GetDiskImageBufferPointer( const long drive, const long size ){
 }
 void X68000_LoadFDD( const long drive, const char* filename )
 {
-    printf("X68000_LoadFDD( %d, \"%s\" )\n", drive, filename);
-    FDD_SetFD(drive, (char*)filename, 0);
+    printf("X68000_LoadFDD( %ld, \"%s\" )\n", drive, filename);
+    FDD_SetFD((int)drive, (char*)filename, 0);
 }
 
 void X68000_EjectFDD( const long drive )
 {
-    printf("X68000_EjectFDD( %d )\n", drive);
-    FDD_EjectFD(drive);
+    printf("X68000_EjectFDD( %ld )\n", drive);
+    FDD_EjectFD((int)drive);
 }
 
 const int X68000_IsFDDReady( const long drive )
 {
-    return FDD_IsReady(drive);
+    return FDD_IsReady((int)drive);
 }
 
 const char* X68000_GetFDDFilename( const long drive )
@@ -787,7 +787,7 @@ void X68000_LoadHDD( const char* filename )
 	FILE* fp = fopen(filename, "rb");
 	if (fp) {
 		fseek(fp, 0, SEEK_END);
-		DWORD size = ftell(fp);
+		DWORD size = (DWORD)ftell(fp);
 		fclose(fp);
 		
 		// Report size to SASI for multiple drive indices to ensure compatibility
