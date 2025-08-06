@@ -73,7 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     // Add "Create Empty HDD..." menu item
                     let createHDDItem = NSMenuItem(
-                        title: "空のHDDを作成...",
+                        title: "Create Empty HDD...",
                         action: #selector(createEmptyHDD(_:)),
                         keyEquivalent: ""
                     )
@@ -82,7 +82,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     // Add "Save HDD" menu item
                     let saveHDDItem = NSMenuItem(
-                        title: "HDDを保存",
+                        title: "Save HDD",
                         action: #selector(saveHDD(_:)),
                         keyEquivalent: "s"
                     )
@@ -107,7 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 submenu.addItem(separator)
                 
                 let createHDDItem = NSMenuItem(
-                    title: "空のHDDを作成...",
+                    title: "Create Empty HDD...",
                     action: #selector(createEmptyHDD(_:)),
                     keyEquivalent: ""
                 )
@@ -115,7 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 submenu.addItem(createHDDItem)
                 
                 let saveHDDItem = NSMenuItem(
-                    title: "HDDを保存",
+                    title: "Save HDD",
                     action: #selector(saveHDD(_:)),
                     keyEquivalent: "s"
                 )
