@@ -133,16 +133,23 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 Hard disk images provide faster access and larger storage capacity compared to floppy disks:
 
 1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf files
-2. **Boot Priority**: When both FDD and HDD are present, X68000 typically boots from HDD
+2. **Boot Priority**: When both FDD and HDD are present, X68000 boots from FDD first (if a bootable disk is inserted), then falls back to HDD
 3. **Performance**: HDDs offer significantly faster loading times for large applications
 4. **Capacity**: Support for larger disk images suitable for complex software suites
 5. **Persistence**: Changes to HDD images are automatically saved
 
+#### Boot Order Behavior
+The X68000 follows the authentic boot sequence:
+1. **FDD First**: Always checks Drive A for bootable disk
+2. **HDD Fallback**: If no bootable FDD is present, boots from HDD
+3. **System Disk Override**: Insert a system floppy to boot from FDD even with HDD installed
+
 #### Recommended Usage
-- **System Boot**: Install X68000 system on HDD for faster startup
+- **System Boot**: Install X68000 system on HDD for faster startup when no FDD is inserted
 - **Applications**: Store large software packages on HDD
 - **Development**: Use HDD for compilers and development tools
 - **Games**: Multi-disk games can be consolidated onto HDD
+- **Boot Override**: Use system floppies to boot specific programs or perform maintenance
 
 ### Screen Rotation (Tate Mode)
 

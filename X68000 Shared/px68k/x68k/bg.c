@@ -174,7 +174,7 @@ void FASTCALL BG_Write(DWORD adr, BYTE data)
 
 			WORD t0, t, *pw;
 
-			v = BG_VLINE - 16 - v;
+			v = (int)(BG_VLINE - 16 - v);
 			// get YPOS pointer (Sprite_Regs[] is little endian)
 			pw = (WORD *)(Sprite_Regs + (adr & 0x3f8) + 2);
 
@@ -555,8 +555,8 @@ void bg_drawline_loopx8(WORD BGTOP, DWORD BGScrollX, DWORD BGScrollY, long adjus
        WORD si;
        BYTE *esi;
 
-       ebp = ((BGScrollY + VLINEBG - BG_VLINE) & 7) << 3;
-       edx = BGTOP + (((BGScrollY + VLINEBG - BG_VLINE) & 0x1f8) << 4);
+       ebp = (DWORD)(((BGScrollY + VLINEBG - BG_VLINE) & 7) << 3);
+       edx = (DWORD)(BGTOP + (((BGScrollY + VLINEBG - BG_VLINE) & 0x1f8) << 4));
        edi = ((BGScrollX - adjust) & 7) ^ 15;
        ecx = ((BGScrollX - adjust) & 0x1f8) >> 2;
 
@@ -595,8 +595,8 @@ void bg_drawline_loopx16(WORD BGTOP, DWORD BGScrollX, DWORD BGScrollY, long adju
        WORD si;
        BYTE *esi;
 
-       ebp = ((BGScrollY + VLINEBG - BG_VLINE) & 15) << 4;
-       edx = BGTOP + (((BGScrollY + VLINEBG - BG_VLINE) & 0x3f0) << 3);
+       ebp = (DWORD)(((BGScrollY + VLINEBG - BG_VLINE) & 15) << 4);
+       edx = (DWORD)(BGTOP + (((BGScrollY + VLINEBG - BG_VLINE) & 0x3f0) << 3));
        edi = ((BGScrollX - adjust) & 15) ^ 15;
        ecx = ((BGScrollX - adjust) & 0x3f0) >> 3;
 

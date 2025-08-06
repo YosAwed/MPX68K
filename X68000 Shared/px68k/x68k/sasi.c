@@ -38,6 +38,11 @@ int SASI_IsReady(void)
 		return 0;
 }
 
+#undef File_Open
+#undef File_Close
+#undef File_Read
+#undef File_Seek
+#undef File_Write
 #define File_Open	Sasi_Open
 #define File_Close	Sasi_Close
 #define File_Read	Sasi_Read
@@ -48,10 +53,10 @@ extern BYTE* s_disk_image_buffer[5];
 static int s_Sasi_pos;
 static DWORD s_Sasi_image_size[5] = {0}; // Track HDD image sizes for capacity reporting
 static BYTE s_Sasi_dirty_flag[5] = {0}; // Track if HDD data has been modified
-int Sasi_Open(const char* filename) {
+FILEH Sasi_Open(const char* filename) {
 //	printf( "%s( \"%s\" )\n", __FUNCTION__, filename );
 	s_Sasi_pos = 0;
-	return (HANDLE)s_disk_image_buffer[4];
+	return (FILEH)s_disk_image_buffer[4];
 }
 
 int Sasi_Read( HANDLE fp, void* buf, int size ) {
@@ -183,7 +188,7 @@ void SASI_Init(void)
 		FILE* fp = fopen(Config.HDImage[0], "rb");
 		if (fp) {
 			fseek(fp, 0, SEEK_END);
-			DWORD size = ftell(fp);
+			DWORD size = (DWORD)ftell(fp);
 			fclose(fp);
 			
 			// Restore size for all drive indices

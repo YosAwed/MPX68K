@@ -227,7 +227,7 @@ void MIDI_Sendexclusive(BYTE *excv, int length)
 {
 	// エクスクルーシヴを送ります
 	CopyMemory(MIDI_EXCVBUF, excv, length);
-	hHdr.lpData = MIDI_EXCVBUF;
+	hHdr.lpData = (LPSTR)MIDI_EXCVBUF;
 	hHdr.dwFlags = 0;
 	hHdr.dwBufferLength = length;
 	midiOutPrepareHeader(hOut, &hHdr, sizeof(MIDIHDR));
@@ -672,14 +672,14 @@ static void AddDelayBuf(BYTE msg)
 }
 
 
-const long X68000_GetMIDIBufferSize()
+const long X68000_GetMIDIBufferSize(void)
 {
     return s_midibuffersize;
 }
-unsigned char* X68000_GetMIDIBuffer()
+unsigned char* X68000_GetMIDIBuffer(void)
 {
     s_midibuffersize = 0;
-    return &s_midibuffer;
+    return s_midibuffer;
 }
 
 void MIDI_DelayOut(unsigned int delay)

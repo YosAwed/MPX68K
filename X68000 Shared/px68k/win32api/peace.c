@@ -128,10 +128,13 @@ ReadFile(HANDLE h, PVOID buf, DWORD len, PDWORD lp, LPOVERLAPPED lpov)
 		return FALSE;
 
 	fp = LocalLock(h);
-	*lp = read(fp->fd, buf, len);
+	ssize_t result = read(fp->fd, buf, len);
 	LocalUnlock(h);
-	if (*lp <= 0)
+	if (result <= 0) {
+		*lp = 0;
 		return FALSE;
+	}
+	*lp = (DWORD)result;
 	return TRUE;
 }
 
@@ -146,10 +149,13 @@ WriteFile(HANDLE h, PCVOID buf, DWORD len, PDWORD lp, LPOVERLAPPED lpov)
 		return FALSE;
 
 	fp = LocalLock(h);
-	*lp = write(fp->fd, buf, len);
+	ssize_t result = write(fp->fd, buf, len);
 	LocalUnlock(h);
-	if (*lp <= 0)
+	if (result <= 0) {
+		*lp = 0;
 		return FALSE;
+	}
+	*lp = (DWORD)result;
 	return TRUE;
 }
 
@@ -211,7 +217,9 @@ SetFilePointer(HANDLE h, LONG pos, PLONG newposh, DWORD whence)
 	fd = fp->fd;
 	LocalUnlock(h);
 	newpos = lseek(fd, pos, whence);
-	return newpos;
+	if (newpos == (off_t)-1)
+		return 0xFFFFFFFF; // INVALID_SET_FILE_POINTER
+	return (DWORD)newpos;
 }
 
 BOOL WINAPI
@@ -398,7 +406,7 @@ GetPrivateProfileString(LPCSTR sect, LPCSTR key, LPCSTR defvalue,
 				*dst++ = *src++;
 			*dst = '\0';
 			fclose(fp);
-			return strlen(buf);
+			return (DWORD)strlen(buf);
 		}
 	}
 notfound:
@@ -407,7 +415,7 @@ notfound:
 nofile:
 	strncpy(buf, defvalue, len);
 	/* not include nul */
-	return strlen(buf);
+	return (DWORD)strlen(buf);
 }
 
 UINT WINAPI

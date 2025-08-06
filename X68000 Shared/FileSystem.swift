@@ -805,14 +805,11 @@ class FileSystem {
             }
             
             // Now load both files within the same security scope
-            var bSuccess = false
-            var aSuccess = false
             let group = DispatchGroup()
             
             // Load B disk
             group.enter()
             self.loadDiskFileWithData(bUrl) { success in
-                bSuccess = success
                 if success {
                     print("B disk loaded successfully")
                 } else {
@@ -824,7 +821,6 @@ class FileSystem {
             // Load A disk
             group.enter()
             self.loadDiskFileWithData(aUrl) { success in
-                aSuccess = success
                 if success {
                     print("A disk loaded successfully")
                 } else {
@@ -936,9 +932,9 @@ class FileSystem {
         }
         
         let url = urls[index]
-        let isLastDisk = (index == urls.count - 1)
+        let _ = (index == urls.count - 1)  // isLastDisk - potentially needed for future logic
         let filename = url.deletingPathExtension().lastPathComponent.lowercased()
-        let isADisk = filename.hasSuffix("a") || filename.hasSuffix(" a") || filename.hasSuffix("_a")
+        let _ = filename.hasSuffix("a") || filename.hasSuffix(" a") || filename.hasSuffix("_a")  // isADisk - potentially needed for future logic
         
         loadDiskImageWithCallback(url) { [weak self] success in
             if success {
