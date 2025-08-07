@@ -8,9 +8,16 @@
 
 import Cocoa
 import UniformTypeIdentifiers
+import os.log
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate {
+    
+    // Logger for menu updates
+    private let logger = Logger(subsystem: "NANKIN.X68000", category: "MenuUpdate")
+    
+    // Timer for updating menu items
+    private var menuUpdateTimer: Timer?
     
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
@@ -49,6 +56,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
         setupHDDMenu()
+        setupMenuUpdateTimer()
+        
+        // Test menu update once after app launch  
+        DispatchQueue.main.async { [weak self] in
+            self?.updateMenuItemTitles()
+        }
     }
     
     private func setupHDDMenu() {
@@ -130,11 +143,248 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         print("❌ Could not find suitable menu to add HDD creation item")
     }
+    
+    private func setupMenuUpdateTimer() {
+        // Update menu items every 2 seconds to show current mounted filenames
+        logger.debug("Setting up menu update timer")
+        menuUpdateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.logger.debug("Timer fired - updating menu titles")
+            self?.updateMenuItemTitles()
+        }
+    }
+    
+    private func updateMenuItemTitles() {
+        DispatchQueue.main.async { [weak self] in
+            self?.updateMenuTitles()
+        }
+    }
+    
+    private func updateMenuTitles() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { 
+            logger.debug("Could not get main menu")
+            return 
+        }
+        
+        logger.debug("Updating menu titles - found \(mainMenu.items.count) menu items")
+        
+        // Find FDD and HDD menus
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu {
+                logger.debug("Found submenu: '\(submenu.title)'")
+                if submenu.title == "FDD" {
+                    logger.debug("Updating FDD menu")
+                    self.updateFDDMenuTitles(submenu: submenu)
+                } else if submenu.title == "HDD" {
+                    logger.debug("Updating HDD menu")
+                    self.updateHDDMenuTitles(submenu: submenu)
+                }
+            } else {
+                logger.debug("Menu item '\(menuItem.title)' has no submenu")
+            }
+        }
+    }
+    
+    private func updateFDDMenuTitles(submenu: NSMenu) {
+        logger.debug("UpdateFDDMenuTitles - found \(submenu.items.count) items")
+        for item in submenu.items {
+            let itemId = item.identifier?.rawValue ?? ""
+            let itemTitle = item.title
+            logger.debug("FDD Menu item: '\(itemTitle)' with ID: '\(itemId)'")
+            
+            // Update FDD Drive A menu items (using title matching as fallback)
+            if itemId == "FDD-open-drive-A" || itemTitle.contains("Open Drive A") || itemTitle.contains("Drive A:") {
+                logger.debug("Updating Drive A open item")
+                if X68000_IsFDDReady(0) != 0 {
+                    logger.debug("Drive A is ready")
+                    if let filename = X68000_GetFDDFilename(0) {
+                        let name = String(cString: filename)
+                        logger.debug("Raw filename for Drive A: '\(name)'")
+                        
+                        // Check if we have a valid filename
+                        if !name.isEmpty && name != "/" && name.count > 1 {
+                            let displayName: String
+                            if name.hasPrefix("file://") {
+                                displayName = URL(string: name)?.lastPathComponent ?? name
+                            } else {
+                                displayName = URL(fileURLWithPath: name).lastPathComponent
+                            }
+                            if !displayName.isEmpty {
+                                item.title = "Drive A: \(displayName)"
+                                logger.debug("Set Drive A title to: Drive A: \(displayName)")
+                            } else {
+                                item.title = "Drive A: [Mounted]"
+                                logger.debug("Set Drive A title to: Drive A: [Mounted] (empty displayName)")
+                            }
+                        } else {
+                            item.title = "Drive A: [Mounted]"
+                            logger.debug("Set Drive A title to: Drive A: [Mounted] (invalid name: '\(name)')")
+                        }
+                    } else {
+                        item.title = "Drive A: [Mounted]"
+                        logger.debug("Set Drive A title to: Drive A: [Mounted] (nil filename)")
+                    }
+                } else {
+                    logger.debug("Drive A not ready")
+                    item.title = "Open Drive A..."
+                }
+            } else if itemId == "FDD-eject-drive-A" || itemTitle.contains("Eject Drive A") {
+                logger.debug("Updating Drive A eject item")
+                if X68000_IsFDDReady(0) != 0 {
+                    if let filename = X68000_GetFDDFilename(0) {
+                        let name = String(cString: filename)
+                        if !name.isEmpty && name != "/" && name.count > 1 {
+                            let displayName: String
+                            if name.hasPrefix("file://") {
+                                displayName = URL(string: name)?.lastPathComponent ?? name
+                            } else {
+                                displayName = URL(fileURLWithPath: name).lastPathComponent
+                            }
+                            if !displayName.isEmpty {
+                                item.title = "Eject Drive A (\(displayName))"
+                            } else {
+                                item.title = "Eject Drive A"
+                            }
+                        } else {
+                            item.title = "Eject Drive A"
+                        }
+                    } else {
+                        item.title = "Eject Drive A"
+                    }
+                    item.isEnabled = true
+                } else {
+                    item.title = "Eject Drive A"
+                    item.isEnabled = false
+                }
+            }
+            // Update FDD Drive B menu items
+            else if itemId == "FDD-open-drive-B" || itemTitle.contains("Open Drive B") || itemTitle.contains("Drive B:") {
+                logger.debug("Updating Drive B open item")
+                if X68000_IsFDDReady(1) != 0 {
+                    logger.debug("Drive B is ready")
+                    if let filename = X68000_GetFDDFilename(1) {
+                        let name = String(cString: filename)
+                        logger.debug("Raw filename for Drive B: '\(name)'")
+                        
+                        // Check if we have a valid filename
+                        if !name.isEmpty && name != "/" && name.count > 1 {
+                            let displayName: String
+                            if name.hasPrefix("file://") {
+                                displayName = URL(string: name)?.lastPathComponent ?? name
+                            } else {
+                                displayName = URL(fileURLWithPath: name).lastPathComponent
+                            }
+                            if !displayName.isEmpty {
+                                item.title = "Drive B: \(displayName)"
+                                logger.debug("Set Drive B title to: Drive B: \(displayName)")
+                            } else {
+                                item.title = "Drive B: [Mounted]"
+                                logger.debug("Set Drive B title to: Drive B: [Mounted] (empty displayName)")
+                            }
+                        } else {
+                            item.title = "Drive B: [Mounted]"
+                            logger.debug("Set Drive B title to: Drive B: [Mounted] (invalid name: '\(name)')")
+                        }
+                    } else {
+                        item.title = "Drive B: [Mounted]"
+                        logger.debug("Set Drive B title to: Drive B: [Mounted] (nil filename)")
+                    }
+                } else {
+                    logger.debug("Drive B not ready")
+                    item.title = "Open Drive B..."
+                }
+            } else if itemId == "FDD-eject-drive-B" || itemTitle.contains("Eject Drive B") {
+                logger.debug("Updating Drive B eject item")
+                if X68000_IsFDDReady(1) != 0 {
+                    if let filename = X68000_GetFDDFilename(1) {
+                        let name = String(cString: filename)
+                        if !name.isEmpty && name != "/" && name.count > 1 {
+                            let displayName: String
+                            if name.hasPrefix("file://") {
+                                displayName = URL(string: name)?.lastPathComponent ?? name
+                            } else {
+                                displayName = URL(fileURLWithPath: name).lastPathComponent
+                            }
+                            if !displayName.isEmpty {
+                                item.title = "Eject Drive B (\(displayName))"
+                            } else {
+                                item.title = "Eject Drive B"
+                            }
+                        } else {
+                            item.title = "Eject Drive B"
+                        }
+                    } else {
+                        item.title = "Eject Drive B"
+                    }
+                    item.isEnabled = true
+                } else {
+                    item.title = "Eject Drive B"
+                    item.isEnabled = false
+                }
+            }
+        }
+    }
+    
+    private func updateHDDMenuTitles(submenu: NSMenu) {
+        logger.debug("UpdateHDDMenuTitles - found \(submenu.items.count) items")
+        for item in submenu.items {
+            let itemId = item.identifier?.rawValue ?? ""
+            let itemTitle = item.title
+            logger.debug("HDD Menu item: '\(itemTitle)' with ID: '\(itemId)'")
+            
+            if itemId == "HDD-open" || itemTitle.contains("Open Hard Disk") || itemTitle.contains("HDD:") {
+                logger.debug("Updating HDD open item")
+                if X68000_IsHDDReady() != 0 {
+                    logger.debug("HDD is ready")
+                    if let filename = X68000_GetHDDFilename() {
+                        let name = String(cString: filename)
+                        let displayName: String
+                        if name.hasPrefix("file://") {
+                            displayName = URL(string: name)?.lastPathComponent ?? name
+                        } else {
+                            displayName = URL(fileURLWithPath: name).lastPathComponent
+                        }
+                        item.title = "HDD: \(displayName)"
+                        logger.debug("Set HDD title to: HDD: \(displayName)")
+                    } else {
+                        item.title = "HDD: [Mounted]"
+                        logger.debug("Set HDD title to: HDD: [Mounted]")
+                    }
+                } else {
+                    logger.debug("HDD not ready")
+                    item.title = "Open Hard Disk..."
+                }
+            } else if itemId == "HDD-eject" || itemTitle.contains("Eject Hard Disk") {
+                logger.debug("Updating HDD eject item")
+                if X68000_IsHDDReady() != 0 {
+                    if let filename = X68000_GetHDDFilename() {
+                        let name = String(cString: filename)
+                        let displayName: String
+                        if name.hasPrefix("file://") {
+                            displayName = URL(string: name)?.lastPathComponent ?? name
+                        } else {
+                            displayName = URL(fileURLWithPath: name).lastPathComponent
+                        }
+                        item.title = "Eject Hard Disk (\(displayName))"
+                    } else {
+                        item.title = "Eject Hard Disk"
+                    }
+                    item.isEnabled = true
+                } else {
+                    item.title = "Eject Hard Disk"
+                    item.isEnabled = false
+                }
+            }
+        }
+    }
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Save SRAM data before terminating
         print("🐛 AppDelegate.applicationWillTerminate - saving SRAM")
         gameViewController?.saveSRAM()
+        
+        // Stop the menu update timer
+        menuUpdateTimer?.invalidate()
+        menuUpdateTimer = nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
