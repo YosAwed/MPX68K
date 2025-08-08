@@ -236,6 +236,14 @@ Please refer to `CLAUDE.md` for detailed development guidelines and architectura
 
 This project is based on px68k emulator. Please refer to the original px68k license terms.
 
+# Third-Party Notices
+
+- **px68k** (hissorii/px68k) — upstream emulator core. See upstream license files.
+- **c68k** — MC68000 CPU emulator (via px68k). See upstream.
+- **fmgen** by cisc — FM/PSG implementation (via px68k). See upstream.
+
+No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
+
 ## Acknowledgments
 
 - **px68k**: Original X68000 emulator core
@@ -245,8 +253,8 @@ This project is based on px68k emulator. Please refer to the original px68k lice
 
 ## Links
 
-- [GitHub Repository](https://github.com/YosAwed/X68Mac)
-- [Issues & Bug Reports](https://github.com/YosAwed/X68Mac/issues)
+- [GitHub Repository](https://github.com/YosAwed/MPX68K)
+- [Issues & Bug Reports](https://github.com/YosAwed/MPX68K/issues)
 
 ---
 

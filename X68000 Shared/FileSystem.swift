@@ -19,6 +19,7 @@ class FileSystem {
     
     // Track currently loading disk pairs to prevent duplicate operations (static to work across instances)
     private static var currentlyLoadingPair: String?
+    private static let loadingPairLock = NSLock()
     
     init() {
 #if false
@@ -571,6 +572,10 @@ class FileSystem {
         // Generate pair identifier for duplicate prevention
         let pairIdentifier = directory.path + "/" + baseFilename.lowercased()
         
+        // Thread-safe check and set for loading pair
+        FileSystem.loadingPairLock.lock()
+        defer { FileSystem.loadingPairLock.unlock() }
+        
         // Check if we're already loading this pair
         if let currentPair = FileSystem.currentlyLoadingPair, currentPair == pairIdentifier {
             print("Already loading disk pair: \(pairIdentifier), skipping")
@@ -617,8 +622,10 @@ class FileSystem {
         // Load companion with fallback - don't block if it fails
         DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.loadCompanionDiskWithFallback(companionUrl: companionUrl) {
-                // Cleanup regardless of success/failure
+                // Cleanup regardless of success/failure (thread-safe)
+                FileSystem.loadingPairLock.lock()
                 FileSystem.currentlyLoadingPair = nil
+                FileSystem.loadingPairLock.unlock()
                 print("Debug: Cleared pair loading state for: \(pairIdentifier)")
             }
         }
@@ -696,7 +703,16 @@ class FileSystem {
         let pairIdentifier = directory.path + "/" + baseFilename.lowercased()
         
         print("Debug: Checking pair identifier: \(pairIdentifier)")
-        print("Debug: Currently loading: \(FileSystem.currentlyLoadingPair ?? "none")")
+        
+        // Thread-safe check and set for loading pair
+        FileSystem.loadingPairLock.lock()
+        let currentlyLoadingStatus = FileSystem.currentlyLoadingPair
+        FileSystem.loadingPairLock.unlock()
+        
+        print("Debug: Currently loading: \(currentlyLoadingStatus ?? "none")")
+        
+        FileSystem.loadingPairLock.lock()
+        defer { FileSystem.loadingPairLock.unlock() }
         
         // Check if we're already loading this pair - only check at the pair level
         if let currentPair = FileSystem.currentlyLoadingPair, currentPair == pairIdentifier {
@@ -714,7 +730,9 @@ class FileSystem {
         
         // Create completion handler that clears the pair loading state
         let completePairLoading = {
+            FileSystem.loadingPairLock.lock()
             FileSystem.currentlyLoadingPair = nil
+            FileSystem.loadingPairLock.unlock()
             print("Debug: Cleared pair loading state for: \(pairIdentifier)")
         }
         
