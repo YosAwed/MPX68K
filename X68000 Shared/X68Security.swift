@@ -215,7 +215,7 @@ class X68Security {
     /// - Throws: 検証エラーまたは読み込みエラー
     static func safeLoadFile(_ url: URL) throws -> Data {
         // ファイル検証
-        try validateDiskImage(url)
+        _ = try validateDiskImage(url)
         
         // セキュリティスコープ付きでファイル読み込み
         return try secureFileAccess(url) {

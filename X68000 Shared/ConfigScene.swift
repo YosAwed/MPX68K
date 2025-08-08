@@ -11,7 +11,7 @@ import SpriteKit
 
 class ConfigScene : SKScene {
     class func newScene() -> ConfigScene {
-        guard let scene = ConfigScene(fileNamed: "ConfigScene") as? ConfigScene else {
+        guard let scene = ConfigScene(fileNamed: "ConfigScene") else {
             print("Failed to load ConfigScene.sks")
             abort()
         }
