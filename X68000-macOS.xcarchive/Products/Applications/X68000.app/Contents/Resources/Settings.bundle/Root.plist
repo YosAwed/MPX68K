@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>StringsTable</key>
+	<string>Root</string>
+	<key>PreferenceSpecifiers</key>
+	<array>
+		<dict>
+			<key>Type</key>
+			<string>PSTextFieldSpecifier</string>
+			<key>Title</key>
+			<string>Name</string>
+			<key>Key</key>
+			<string>name_preference</string>
+			<key>DefaultValue</key>
+			<string>X68000</string>
+			<key>IsSecure</key>
+			<false/>
+			<key>KeyboardType</key>
+			<string>Alphabet</string>
+			<key>AutocapitalizationType</key>
+			<string>None</string>
+			<key>AutocorrectionType</key>
+			<string>No</string>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>バーチャルマウス</string>
+			<key>Key</key>
+			<string>virtual_mouse</string>
+			<key>DefaultValue</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>バーチャルゲームパッド</string>
+			<key>Key</key>
+			<string>virtual_pad</string>
+			<key>DefaultValue</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>V-SYNC シミュレーション (通常はON)</string>
+			<key>Key</key>
+			<string>vsync</string>
+			<key>DefaultValue</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>メインCPUクロック</string>
+			<key>Key</key>
+			<string>clock</string>
+			<key>DefaultValue</key>
+			<string>10</string>
+			<key>Titles</key>
+			<array>
+				<string>10MHz</string>
+				<string>16MHz</string>
+				<string>24MHz</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>10</string>
+				<string>16</string>
+				<string>24</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>音源サンプリングレート (次回起動時有効)</string>
+			<key>Key</key>
+			<string>samplingrate</string>
+			<key>DefaultValue</key>
+			<string>22050</string>
+			<key>Titles</key>
+			<array>
+				<string>22050Hz</string>
+				<string>44100Hz</string>
+				<string>48000Hz</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>22050</string>
+				<string>44100</string>
+				<string>48000</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>フレームレート (iPad Pro限定)</string>
+			<key>Key</key>
+			<string>fps</string>
+			<key>DefaultValue</key>
+			<string>60</string>
+			<key>New item</key>
+			<string></string>
+			<key>Titles</key>
+			<array>
+				<string>60 fps</string>
+				<string>120 fps</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>60</string>
+				<string>120</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

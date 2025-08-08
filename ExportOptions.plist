@@ -1,27 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>app-store-connect</string>
+    <string>app-store</string>
     <key>uploadBitcode</key>
     <false/>
     <key>uploadSymbols</key>
     <true/>
     <key>compileBitcode</key>
     <false/>
-    <key>destination</key>
-    <string>export</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>signingCertificate</key>
-    <string>Apple Distribution</string>
-    <key>teamID</key>
-    <string>DQR9HH7KUY</string>
-    <key>provisioningProfiles</key>
-    <dict>
-        <key>NANKIN.X68000</key>
-        <string>0beab635-ab13-4f98-b194-e9cf7fb3cd4d</string>
-    </dict>
 </dict>
 </plist>
+EOF < /dev/null

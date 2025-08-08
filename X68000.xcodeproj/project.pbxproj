@@ -80,6 +80,11 @@
 		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864DB242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
+		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
+		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
+		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
+		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
+		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -241,12 +246,17 @@
 		07F864B4242F97BE00CBB224 /* status.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = status.c; sourceTree = "<group>"; };
 		07F864B7242F97BE00CBB224 /* timer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = timer.c; sourceTree = "<group>"; };
 		3DD3E14A263EC71A001A75F0 /* X68000Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000Debug.entitlements; sourceTree = "<group>"; };
+		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
+		53A861182E4375CA0056E4DE /* X68Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Logger.swift; sourceTree = "<group>"; };
+		53A861192E4375CA0056E4DE /* X68Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Security.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		07F863B9242F93EA00CBB224 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */,
+				53A861212E4376CB0056E4DE /* Crypto in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -304,7 +314,10 @@
 				07A528BB24389F5300AFD00D /* X68MouseController.swift */,
 				07B71D7B243A350500953E25 /* MIDIController.swift */,
 				0760DC2924350DDC004CA0CF /* BenchMark.swift */,
+				53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */,
+				53A861182E4375CA0056E4DE /* X68Logger.swift */,
 				0771C5A02431B129002D40F0 /* JoyController.swift */,
+				53A861192E4375CA0056E4DE /* X68Security.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
 				07F863A5242F93EA00CBB224 /* Assets.xcassets */,
 			);
@@ -510,6 +523,10 @@
 			buildRules = (
 			);
 			name = "X68000 macOS";
+			packageProductDependencies = (
+				53A861202E4376CB0056E4DE /* Crypto */,
+				53A861222E4376CB0056E4DE /* _CryptoExtras */,
+			);
 			productName = "X68000 macOS";
 			productReference = 07F863BC242F93EA00CBB224 /* X68000.app */;
 			productType = "com.apple.product-type.application";
@@ -539,6 +556,9 @@
 				Base,
 			);
 			mainGroup = 07F8639C242F93E800CBB224;
+			packageReferences = (
+				53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */,
+			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 07F863AB242F93EA00CBB224 /* Products */;
 			projectDirPath = "";
@@ -608,6 +628,9 @@
 				07F4C72A2430667D002CF5CA /* irqh.c in Sources */,
 				07E6EF332430CCAE0034E485 /* CGROM_DAT.c in Sources */,
 				07F4C7522430667D002CF5CA /* rtc.c in Sources */,
+				53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */,
+				53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */,
+				53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */,
 				07F4C7482430667D002CF5CA /* sram.c in Sources */,
 				07869627243D9A91007FCCEA /* X68JoyCard.swift in Sources */,
 				07F864CF242F97BE00CBB224 /* prop.c in Sources */,
@@ -906,6 +929,30 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-crypto.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.14.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		53A861202E4376CB0056E4DE /* Crypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */;
+			productName = Crypto;
+		};
+		53A861222E4376CB0056E4DE /* _CryptoExtras */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */;
+			productName = _CryptoExtras;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 07F8639D242F93E800CBB224 /* Project object */;
 }
