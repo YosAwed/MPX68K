@@ -551,7 +551,7 @@ class GameScene: SKScene {
         self.joycontroller = JoyController()
         self.joycontroller?.setup(callback: controller_event(status:))
         
-        var sample = self.samplingRate
+        let sample = self.samplingRate
         if view?.preferredFramesPerSecond == 120 && self.vsync == false {
             // sample *= 2
         }
