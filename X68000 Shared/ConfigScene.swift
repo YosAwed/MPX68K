@@ -12,7 +12,7 @@ import SpriteKit
 class ConfigScene : SKScene {
     class func newScene() -> ConfigScene {
         guard let scene = ConfigScene(fileNamed: "ConfigScene") else {
-            print("Failed to load ConfigScene.sks")
+            criticalLog("Failed to load ConfigScene.sks", category: .ui)
             abort()
         }
         return scene

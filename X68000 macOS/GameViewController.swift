@@ -92,7 +92,7 @@ class GameViewController: NSViewController {
             // Reduced logging for performance
             // print("🔧 NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
             if response == .OK, let url = openPanel.url {
-                print("✅ NSOpenPanel selected file: \(url.path)")
+                infoLog("NSOpenPanel selected file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
                 // Reduced logging for performance
                 // print("🔧 Security-scoped resource access: \(accessible)")
@@ -104,7 +104,7 @@ class GameViewController: NSViewController {
                     }
                 }
             } else {
-                print("❌ NSOpenPanel cancelled or failed")
+                warningLog("NSOpenPanel cancelled or failed", category: .ui)
             }
         }
     }
@@ -115,7 +115,7 @@ class GameViewController: NSViewController {
     
     // MARK: - HDD Management
     @IBAction func openHDD(_ sender: Any) {
-        print("🔧 Opening HDD dialog")
+        debugLog("Opening HDD dialog", category: .ui)
         
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
@@ -125,9 +125,9 @@ class GameViewController: NSViewController {
         
         if let hdfType = UTType(filenameExtension: "hdf") {
             allowedTypes.append(hdfType)
-            print("🔧 Added HDF UTType successfully")
+            debugLog("Added HDF UTType successfully", category: .fileSystem)
         } else {
-            print("⚠️  Failed to create HDF UTType, using fallback")
+            warningLog("Failed to create HDF UTType, using fallback", category: .fileSystem)
             // Fallback for unknown extensions - use exported type or data type
             let exportedType = UTType(exportedAs: "NANKIN.X68000.1.HDD")
             allowedTypes.append(exportedType)
@@ -142,13 +142,13 @@ class GameViewController: NSViewController {
             openPanel.allowedContentTypes = allowedTypes
         } else {
             openPanel.allowedFileTypes = ["hdf"]
-            print("🔧 Using legacy allowedFileTypes for older macOS")
+            debugLog("Using legacy allowedFileTypes for older macOS", category: .ui)
         }
         
         // Allow all files as emergency fallback (user can still filter manually)
         openPanel.allowsOtherFileTypes = true
         
-        print("🔧 HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true")
+        debugLog("HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true", category: .ui)
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
@@ -183,14 +183,14 @@ class GameViewController: NSViewController {
             openPanel.directoryURL = defaultDir
         }
         
-        print("🔧 NSOpenPanel configured for HDD, showing dialog...")
+        debugLog("NSOpenPanel configured for HDD, showing dialog...", category: .ui)
         
         openPanel.begin { [weak self] response in
-            print("🔧 HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
+            debugLog("HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")", category: .ui)
             if response == .OK, let url = openPanel.url {
-                print("✅ NSOpenPanel selected HDD file: \(url.path)")
+                infoLog("NSOpenPanel selected HDD file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
-                print("🔧 HDD Security-scoped resource access: \(accessible)")
+                debugLog("HDD Security-scoped resource access: \(accessible)", category: .fileSystem)
                 
                 DispatchQueue.main.async {
                     self?.gameScene?.loadHDD(url: url)
@@ -199,7 +199,7 @@ class GameViewController: NSViewController {
                     }
                 }
             } else {
-                print("❌ HDD NSOpenPanel cancelled or failed")
+                warningLog("HDD NSOpenPanel cancelled or failed", category: .ui)
             }
         }
     }
@@ -209,7 +209,7 @@ class GameViewController: NSViewController {
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
-        print("🔧 Creating empty HDD dialog")
+        debugLog("Creating empty HDD dialog", category: .ui)
         
         // Step 1: Show size selection alert
         let alert = NSAlert()
@@ -228,7 +228,7 @@ class GameViewController: NSViewController {
         
         // Check for Cancel button (fifth button)
         if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 4 {
-            print("🔧 HDD creation cancelled")
+            debugLog("HDD creation cancelled", category: .ui)
             return
         }
         
@@ -250,11 +250,11 @@ class GameViewController: NSViewController {
             sizeInMB = 80
             sizeInBytes = 80 * 1024 * 1024
         default:
-            print("❌ Unexpected button response")
+            errorLog("Unexpected button response", category: .ui)
             return
         }
         
-        print("🔧 Selected HDD size: \(sizeInMB) MB (\(sizeInBytes) bytes)")
+        infoLog("Selected HDD size: \(sizeInMB) MB (\(sizeInBytes) bytes)", category: .fileSystem)
         
         // Step 2: Show save dialog
         let savePanel = NSSavePanel()
@@ -277,16 +277,16 @@ class GameViewController: NSViewController {
         
         if let defaultDir = defaultDirectory {
             savePanel.directoryURL = defaultDir
-            print("🔧 Set HDD creation default directory to: \(defaultDir.path)")
+            debugLog("Set HDD creation default directory to: \(defaultDir.path)", category: .fileSystem)
         }
         
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else {
-                print("❌ HDD creation save dialog cancelled")
+                warningLog("HDD creation save dialog cancelled", category: .ui)
                 return
             }
             
-            print("🔧 Creating HDD at: \(url.path)")
+            infoLog("Creating HDD at: \(url.path)", category: .fileSystem)
             
             // Step 3: Create the empty HDD file
             self.gameScene?.createEmptyHDD(at: url, sizeInBytes: sizeInBytes)
@@ -341,7 +341,7 @@ class GameViewController: NSViewController {
         
         // 静的参照を設定
         GameViewController.shared = self
-        print("🐛 GameViewController.shared set in viewDidLoad")
+        debugLog("GameViewController.shared set in viewDidLoad", category: .ui)
         
         gameScene = GameScene.newGameScene()
         
@@ -378,7 +378,7 @@ class GameViewController: NSViewController {
         DispatchQueue.main.async {
             if let window = self.view.window {
                 window.delegate = self
-                print("🐛 Window delegate set for close event handling")
+                debugLog("Window delegate set for close event handling", category: .ui)
             }
         }
     }
@@ -411,7 +411,7 @@ class GameViewController: NSViewController {
     @objc private func screenRotationChanged(_ notification: Notification) {
         guard let rotation = notification.object as? GameScene.ScreenRotation else { return }
         
-        print("🐛 Screen rotation changed to: \(rotation.displayName)")
+        debugLog("Screen rotation changed to: \(rotation.displayName)", category: .ui)
         
         // ウィンドウサイズを回転に応じて調整
         DispatchQueue.main.async {
@@ -424,12 +424,12 @@ class GameViewController: NSViewController {
         let isPortrait = userDefaults.bool(forKey: "ScreenRotation_Portrait")
         let savedRotation: GameScene.ScreenRotation = isPortrait ? .portrait : .landscape
         
-        print("🐛 Adjusting window size for saved rotation: \(savedRotation.displayName)")
+        debugLog("Adjusting window size for saved rotation: \(savedRotation.displayName)", category: .ui)
         adjustWindowSizeForRotation(savedRotation)
     }
     
     private func forceInitialLandscapeWindow() {
-        print("🐛 Forcing initial landscape window size")
+        debugLog("Forcing initial landscape window size", category: .ui)
         adjustWindowSizeForRotation(.landscape)
     }
     
@@ -477,11 +477,11 @@ class GameViewController: NSViewController {
         
         window.setFrame(newFrame, display: true, animate: true)
         
-        print("🐛 Window size adjusted for \(rotation.displayName): \(newContentSize)")
+        debugLog("Window size adjusted for \(rotation.displayName): \(newContentSize)", category: .ui)
     }
     
     deinit {
-        print("🐛 GameViewController.deinit - final save")
+        infoLog("GameViewController.deinit - final save", category: .ui)
         // Final save attempt
         gameScene?.saveHDD()
         gameScene?.fileSystem?.saveSRAM()
@@ -493,7 +493,7 @@ class GameViewController: NSViewController {
 extension GameViewController: NSWindowDelegate {
     
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        print("🐛 Window is about to close - saving all data")
+        infoLog("Window is about to close - saving all data", category: .ui)
         
         // Save HDD and SRAM before window closes
         gameScene?.saveHDD()
@@ -503,7 +503,7 @@ extension GameViewController: NSWindowDelegate {
     }
     
     func windowWillClose(_ notification: Notification) {
-        print("🐛 Window will close - final save attempt")
+        infoLog("Window will close - final save attempt", category: .ui)
         
         // Final save attempt
         gameScene?.saveHDD()
@@ -537,15 +537,15 @@ extension GameViewController: NSDraggingDestination {
     }
     
     func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        print("🐛 Drag and drop operation started")
+        debugLog("Drag and drop operation started", category: .ui)
         guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] else {
-            print("🐛 No URLs found in drag operation")
+            warningLog("No URLs found in drag operation", category: .ui)
             return false
         }
         
         var validUrls: [URL] = []
         for url in urls {
-            print("🐛 Dropped file: \(url.lastPathComponent)")
+            debugLog("Dropped file: \(url.lastPathComponent)", category: .fileSystem)
             let ext = url.pathExtension.lowercased()
             if ["dim", "xdf", "d88", "hdm", "hdf"].contains(ext) {
                 validUrls.append(url)
@@ -553,7 +553,7 @@ extension GameViewController: NSDraggingDestination {
         }
         
         if validUrls.isEmpty {
-            print("🐛 No valid disk image files found in drop")
+            warningLog("No valid disk image files found in drop", category: .fileSystem)
             return false
         }
         
@@ -565,11 +565,11 @@ extension GameViewController: NSDraggingDestination {
             // Load first two floppy disks to drives A and B
             gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
             gameScene?.loadFDDToDrive(url: floppyUrls[1], drive: 1)
-            print("🐛 Loaded \(floppyUrls[0].lastPathComponent) to Drive A and \(floppyUrls[1].lastPathComponent) to Drive B")
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive A and \(floppyUrls[1].lastPathComponent) to Drive B", category: .fileSystem)
         } else if floppyUrls.count == 1 {
             // Load single floppy to drive A
             gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
-            print("🐛 Loaded \(floppyUrls[0].lastPathComponent) to Drive A")
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive A", category: .fileSystem)
         }
         
         // Load HDD images using existing method
@@ -581,7 +581,7 @@ extension GameViewController: NSDraggingDestination {
     }
     
     func saveSRAM() {
-        print("🐛 GameViewController.saveSRAM() called")
+        debugLog("GameViewController.saveSRAM() called", category: .fileSystem)
         gameScene?.fileSystem?.saveSRAM()
         
         // Also save HDD changes
@@ -590,7 +590,7 @@ extension GameViewController: NSDraggingDestination {
     
     override func viewWillDisappear() {
         super.viewWillDisappear()
-        print("🐛 GameViewController.viewWillDisappear - saving data before disappearing")
+        debugLog("GameViewController.viewWillDisappear - saving data before disappearing", category: .ui)
         
         // Save HDD changes when view is about to disappear
         gameScene?.saveHDD()

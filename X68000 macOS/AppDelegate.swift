@@ -22,34 +22,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
         if let shared = GameViewController.shared {
-            print("🐛 Found GameViewController via shared reference")
+            debugLog("Found GameViewController via shared reference", category: .ui)
             return shared
         }
         
         // 方法2: mainWindow経由
         if let mainWindow = NSApplication.shared.mainWindow,
            let gameVC = mainWindow.contentViewController as? GameViewController {
-            print("🐛 Found GameViewController via mainWindow")
+            debugLog("Found GameViewController via mainWindow", category: .ui)
             return gameVC
         }
         
         // 方法3: keyWindow経由
         if let keyWindow = NSApplication.shared.keyWindow,
            let gameVC = keyWindow.contentViewController as? GameViewController {
-            print("🐛 Found GameViewController via keyWindow")
+            debugLog("Found GameViewController via keyWindow", category: .ui)
             return gameVC
         }
         
         // 方法4: 全windowsを検索
         for window in NSApplication.shared.windows {
             if let gameVC = window.contentViewController as? GameViewController {
-                print("🐛 Found GameViewController via windows search")
+                debugLog("Found GameViewController via windows search", category: .ui)
                 return gameVC
             }
         }
         
-        print("🐛 GameViewController not found - mainWindow: \(NSApplication.shared.mainWindow != nil)")
-        print("🐛 Total windows: \(NSApplication.shared.windows.count)")
+        warningLog("GameViewController not found - mainWindow: \(NSApplication.shared.mainWindow != nil)", category: .ui)
+        warningLog("Total windows: \(NSApplication.shared.windows.count)", category: .ui)
         return nil
     }
 
@@ -67,7 +67,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupHDDMenu() {
         // Find and modify the HDD menu programmatically
         guard let mainMenu = NSApplication.shared.mainMenu else {
-            print("❌ Could not find main menu")
+            errorLog("Could not find main menu", category: .ui)
             return
         }
         
@@ -78,7 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if submenu.title.contains("HDD") || 
                    submenu.items.contains(where: { $0.title.contains("Hard Disk") || $0.title.contains("ハードディスク") }) {
                     
-                    print("🔧 Found HDD menu: \(submenu.title)")
+                    debugLog("Found HDD menu: \(submenu.title)", category: .ui)
                     
                     // Add separator if not already present
                     let separator = NSMenuItem.separator()
@@ -103,7 +103,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     saveHDDItem.target = self
                     submenu.addItem(saveHDDItem)
                     
-                    print("✅ Added 'Create Empty HDD...' and 'Save HDD' menu items")
+                    infoLog("Added 'Create Empty HDD...' and 'Save HDD' menu items", category: .ui)
                     return
                 }
             }
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let submenu = menuItem.submenu,
                submenu.title.contains("File") || submenu.title.contains("ファイル") {
                 
-                print("🔧 Adding HDD creation to File menu as fallback")
+                debugLog("Adding HDD creation to File menu as fallback", category: .ui)
                 
                 let separator = NSMenuItem.separator()
                 submenu.addItem(separator)
@@ -136,12 +136,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 saveHDDItem.target = self
                 submenu.addItem(saveHDDItem)
                 
-                print("✅ Added 'Create Empty HDD...' and 'Save HDD' to File menu")
+                infoLog("Added 'Create Empty HDD...' and 'Save HDD' to File menu", category: .ui)
                 return
             }
         }
         
-        print("❌ Could not find suitable menu to add HDD creation item")
+        errorLog("Could not find suitable menu to add HDD creation item", category: .ui)
     }
     
     private func setupMenuUpdateTimer() {
@@ -379,7 +379,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Save SRAM data before terminating
-        print("🐛 AppDelegate.applicationWillTerminate - saving SRAM")
+        debugLog("AppDelegate.applicationWillTerminate - saving SRAM", category: .x68mac)
         gameViewController?.saveSRAM()
         
         // Stop the menu update timer
@@ -392,18 +392,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillHide(_ notification: Notification) {
-        print("🐛 AppDelegate.applicationWillHide - saving data")
+        debugLog("AppDelegate.applicationWillHide - saving data", category: .x68mac)
         gameViewController?.saveSRAM()
     }
     
     func applicationWillResignActive(_ notification: Notification) {
-        print("🐛 AppDelegate.applicationWillResignActive - saving data")
+        debugLog("AppDelegate.applicationWillResignActive - saving data", category: .x68mac)
         gameViewController?.saveSRAM()
     }
     
     // ファイルメニューからの「開く」アクション
     @IBAction func openDocument(_ sender: Any) {
-        print("🐛 AppDelegate.openDocument() called")
+        debugLog("AppDelegate.openDocument() called", category: .fileSystem)
         let openPanel = NSOpenPanel()
         if #available(macOS 11.0, *) {
             openPanel.allowedContentTypes = [
@@ -421,9 +421,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         openPanel.canChooseFiles = true
         
         openPanel.begin { response in
-            print("🐛 File dialog response: \(response == .OK ? "OK" : "Cancel")")
+            debugLog("File dialog response: \(response == .OK ? "OK" : "Cancel")", category: .fileSystem)
             if response == .OK, let url = openPanel.url {
-                print("🐛 Selected file: \(url.lastPathComponent)")
+                debugLog("Selected file: \(url.lastPathComponent)", category: .fileSystem)
                 self.gameViewController?.load(url)
             }
         }

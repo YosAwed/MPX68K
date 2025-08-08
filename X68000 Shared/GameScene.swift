@@ -95,12 +95,12 @@ class GameScene: SKScene {
         
         func buttonHandler() -> GCControllerButtonValueChangedHandler {
             return { (_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
-                print("A!")  // 
+                debugLog("A!", category: .input) 
             }
         }
         
         guard let scene = GameScene(fileNamed: "GameScene") else {
-            print("Failed to load GameScene.sks")
+            criticalLog("Failed to load GameScene.sks", category: .ui)
             abort()
         }
         
@@ -112,7 +112,7 @@ class GameScene: SKScene {
     var count = 0
     
     func controller_event(status: JoyController.Status) {
-        print(status)
+        debugLog("Controller status: \(status)", category: .input)
         var msg = ""
         if status == .Connected {
             msg = "Controller Connected"
@@ -128,12 +128,12 @@ class GameScene: SKScene {
     }
     
     func load(url: URL) {
-        print("🐛 GameScene.load() called with: \(url.lastPathComponent)")
+        debugLog("GameScene.load() called with: \(url.lastPathComponent)", category: .fileSystem)
         let urlPath = url.path
         
         // Check if we're already loading this exact file
         if GameScene.currentlyLoadingFiles.contains(urlPath) {
-            print("Already loading file: \(url.lastPathComponent), skipping")
+            warningLog("Already loading file: \(url.lastPathComponent), skipping", category: .fileSystem)
             return
         }
         
@@ -141,7 +141,7 @@ class GameScene: SKScene {
         GameScene.currentlyLoadingFiles.insert(urlPath)
         
         Benchmark.measure("load", block: {
-            print("🐛 Starting Benchmark.measure for file: \(url.lastPathComponent)")
+            debugLog("Starting Benchmark.measure for file: \(url.lastPathComponent)", category: .emulation)
             let imagefilename = url.deletingPathExtension().lastPathComponent.removingPercentEncoding
             
             let node = SKLabelNode()
@@ -158,11 +158,11 @@ class GameScene: SKScene {
             self.addChild(node)
             
             if self.fileSystem == nil {
-                print("🐛 Creating new FileSystem instance")
+                debugLog("Creating new FileSystem instance", category: .fileSystem)
                 self.fileSystem = FileSystem()
                 self.fileSystem?.gameScene = self  // Set reference for cleanup
             }
-            print("🐛 Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)")
+            debugLog("Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)", category: .fileSystem)
             self.fileSystem?.loadDiskImage(url)
         })
     }
@@ -174,10 +174,10 @@ class GameScene: SKScene {
     
     // MARK: - FDD Management
     func loadFDDToDrive(url: URL, drive: Int) {
-        print("🐛 GameScene.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)")
+        debugLog("GameScene.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         if fileSystem == nil {
-            print("🐛 Creating new FileSystem instance for FDD")
+            debugLog("Creating new FileSystem instance for FDD", category: .fileSystem)
             fileSystem = FileSystem()
             fileSystem?.gameScene = self
         }
@@ -186,31 +186,31 @@ class GameScene: SKScene {
     }
     
     func ejectFDDFromDrive(_ drive: Int) {
-        print("🐛 GameScene.ejectFDDFromDrive() called for drive \(drive)")
+        debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
         X68000_EjectFDD(drive)
     }
     
     // MARK: - HDD Management
     func loadHDD(url: URL) {
-        print("🐛 GameScene.loadHDD() called with: \(url.lastPathComponent)")
-        print("🐛 File extension: \(url.pathExtension)")
-        print("🐛 Full path: \(url.path)")
+        debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
+        debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
+        debugLog("Full path: \(url.path)", category: .fileSystem)
         
         // Direct HDD loading to avoid complex FileSystem routing that may fail in TestFlight
         let extname = url.pathExtension.lowercased()
         
         // Check if this is a valid HDD file
         if extname == "hdf" {
-            print("🔧 Loading HDD file directly: \(extname.uppercased())")
+            infoLog("Loading HDD file directly: \(extname.uppercased())", category: .fileSystem)
             
             do {
                 let imageData = try Data(contentsOf: url)
-                print("🔧 Successfully read HDD data: \(imageData.count) bytes")
+                infoLog("Successfully read HDD data: \(imageData.count) bytes", category: .fileSystem)
                 
                 // Security: Validate HDD file size (reasonable limit for hard disk images)
                 let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
                 guard imageData.count <= maxSize else {
-                    print("❌ HDD file too large: \(imageData.count) bytes")
+                    errorLog("HDD file too large: \(imageData.count) bytes", category: .fileSystem)
                     return
                 }
                 
@@ -218,29 +218,29 @@ class GameScene: SKScene {
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.path)  // Use url.path instead of url.absoluteString
-                        print("✅ HDD loaded successfully: \(url.lastPathComponent)")
+                        infoLog("HDD loaded successfully: \(url.lastPathComponent)", category: .fileSystem)
                         
                         // Save SRAM after HDD loading
                         self.fileSystem?.saveSRAM()
                     } else {
-                        print("❌ Failed to get HDD buffer pointer")
+                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                     }
                 }
             } catch {
-                print("❌ Error reading HDD file: \(error)")
+                errorLog("Error reading HDD file", error: error, category: .fileSystem)
             }
         } else {
-            print("❌ Invalid HDD file extension: \(extname)")
-            print("❌ Expected: hdf")
+            errorLog("Invalid HDD file extension: \(extname)", category: .fileSystem)
+            errorLog("Expected: hdf", category: .fileSystem)
         }
     }
     
     func ejectHDD() {
-        print("🐛 GameScene.ejectHDD() called")
+        debugLog("GameScene.ejectHDD() called", category: .fileSystem)
         
         // Save HDD changes before ejecting
         if X68000_IsHDDReady() != 0 {
-            print("🔧 Saving HDD changes before ejecting...")
+            infoLog("Saving HDD changes before ejecting...", category: .fileSystem)
             X68000_SaveHDD()
         }
         
@@ -248,34 +248,34 @@ class GameScene: SKScene {
     }
     
     func saveHDD() {
-        print("🔧 GameScene.saveHDD() called")
+        infoLog("GameScene.saveHDD() called", category: .fileSystem)
         if X68000_IsHDDReady() != 0 {
             X68000_SaveHDD()
         } else {
-            print("⚠️ No HDD loaded to save")
+            warningLog("No HDD loaded to save", category: .fileSystem)
         }
     }
     
     // Auto-save system removed - SASI writes directly to files
     
     func createEmptyHDD(at url: URL, sizeInBytes: Int) {
-        print("🔧 GameScene.createEmptyHDD() called")
-        print("🔧 Target file: \(url.path)")
-        print("🔧 Size: \(sizeInBytes) bytes (\(sizeInBytes / (1024 * 1024)) MB)")
+        infoLog("GameScene.createEmptyHDD() called", category: .fileSystem)
+        infoLog("Target file: \(url.path)", category: .fileSystem)
+        infoLog("Size: \(sizeInBytes) bytes (\(sizeInBytes / (1024 * 1024)) MB)", category: .fileSystem)
         
         // Validate size (must be reasonable for X68000 HDD)
         let maxSize = 80 * 1024 * 1024 // 80MB maximum
         let minSize = 1024 * 1024      // 1MB minimum
         
         guard sizeInBytes >= minSize && sizeInBytes <= maxSize else {
-            print("❌ Invalid HDD size: \(sizeInBytes) bytes")
+            errorLog("Invalid HDD size: \(sizeInBytes) bytes", category: .fileSystem)
             showAlert(title: "Error", message: "Invalid HDD size. Must be between 1MB and 80MB.")
             return
         }
         
         // Ensure size is multiple of 256 bytes (sector size)
         guard sizeInBytes % 256 == 0 else {
-            print("❌ HDD size must be multiple of 256 bytes (sector size)")
+            errorLog("HDD size must be multiple of 256 bytes (sector size)", category: .fileSystem)
             showAlert(title: "Error", message: "HDD size must be multiple of 256 bytes.")
             return
         }
@@ -287,12 +287,12 @@ class GameScene: SKScene {
             // Write to file
             try emptyData.write(to: url)
             
-            print("✅ Empty HDD created successfully: \(url.lastPathComponent)")
-            print("✅ Size: \(emptyData.count) bytes")
+            infoLog("Empty HDD created successfully: \(url.lastPathComponent)", category: .fileSystem)
+            infoLog("Size: \(emptyData.count) bytes", category: .fileSystem)
             
             // Automatically load the created HDD
             DispatchQueue.main.async {
-                print("🔧 Auto-loading created HDD...")
+                infoLog("Auto-loading created HDD...", category: .fileSystem)
                 self.loadHDD(url: url)
                 
                 // Show success message
@@ -301,7 +301,7 @@ class GameScene: SKScene {
             }
             
         } catch {
-            print("❌ Error creating HDD file: \(error)")
+            errorLog("Error creating HDD file", error: error, category: .fileSystem)
             showAlert(title: "Error", 
                      message: "Failed to create HDD file: \(error.localizedDescription)")
         }
@@ -322,12 +322,12 @@ class GameScene: SKScene {
     
     // MARK: - Clock Management
     func setCPUClock(_ mhz: Int) {
-        print("🐛 GameScene.setCPUClock() called with: \(mhz) MHz")
+        debugLog("GameScene.setCPUClock() called with: \(mhz) MHz", category: .emulation)
         
         // Clamp clock speed to safe range to prevent integer overflow in emulator core
         let safeMHz = max(1, min(mhz, 50))  // Limit to 50MHz maximum
         if safeMHz != mhz {
-            print("🐛 Clock speed clamped from \(mhz) MHz to \(safeMHz) MHz for stability")
+            warningLog("Clock speed clamped from \(mhz) MHz to \(safeMHz) MHz for stability", category: .emulation)
         }
         
         clockMHz = safeMHz
@@ -338,7 +338,7 @@ class GameScene: SKScene {
         // Show visual feedback
         showClockChangeNotification(safeMHz)
         
-        print("🐛 CPU Clock set to: \(clockMHz) MHz")
+        infoLog("CPU Clock set to: \(clockMHz) MHz", category: .emulation)
     }
     
     private func showClockChangeNotification(_ mhz: Int) {
@@ -366,14 +366,14 @@ class GameScene: SKScene {
     
     // MARK: - System Management
     func resetSystem() {
-        print("🐛 GameScene.resetSystem() called - performing manual reset")
+        infoLog("GameScene.resetSystem() called - performing manual reset", category: .emulation)
         X68000_Reset()
-        print("🐛 System reset completed")
+        infoLog("System reset completed", category: .emulation)
     }
     
     // MARK: - Screen Rotation Management
     func rotateScreen() {
-        print("🐛 GameScene.rotateScreen() called")
+        debugLog("GameScene.rotateScreen() called", category: .ui)
         // 次の回転状態に切り替え
         let allRotations = ScreenRotation.allCases
         if let currentIndex = allRotations.firstIndex(of: currentRotation) {
@@ -385,13 +385,13 @@ class GameScene: SKScene {
     }
     
     func setScreenRotation(_ rotation: ScreenRotation) {
-        print("🐛 GameScene.setScreenRotation() called with: \(rotation.displayName)")
+        debugLog("GameScene.setScreenRotation() called with: \(rotation.displayName)", category: .ui)
         currentRotation = rotation
         applyScreenRotation()
     }
     
     private func applyScreenRotation() {
-        print("🐛 Applying screen rotation: \(currentRotation.displayName)")
+        debugLog("Applying screen rotation: \(currentRotation.displayName)", category: .ui)
         
         // 回転とスケーリングを適用
         applyRotationToSprite()
@@ -446,7 +446,7 @@ class GameScene: SKScene {
         // 回転時の位置調整（中央に配置）
         spr.position = CGPoint(x: 0, y: 0)
         
-        print("🐛 Applied rotation: \(currentRotation.displayName), scale: \(scaleX)x\(scaleY), scene: \(sceneSize)")
+        infoLog("Applied rotation: \(currentRotation.displayName), scale: \(scaleX)x\(scaleY), scene: \(sceneSize)", category: .ui)
     }
     
     // Apply rotation and scaling silently (for update loop)
@@ -490,32 +490,32 @@ class GameScene: SKScene {
     private func settings() {
         if let clock = userDefaults.object(forKey: "clock") as? String {
             self.clockMHz = Int(clock)!
-            print("CPU Clock: \(self.clockMHz) MHz")
+            infoLog("CPU Clock: \(self.clockMHz) MHz", category: .emulation)
         }
         
         // 画面回転設定の読み込み - 起動時は常に横画面に強制
         currentRotation = .landscape
-        print("Screen rotation forced to Landscape on startup")
+        infoLog("Screen rotation forced to Landscape on startup", category: .ui)
         
         if let virtual_mouse = userDefaults.object(forKey: "virtual_mouse") as? Bool {
-            print("virtual_mouse: \(virtual_mouse)")
+            infoLog("virtual_mouse: \(virtual_mouse)", category: .input)
         }
         if let virtual_pad = userDefaults.object(forKey: "virtual_pad") as? Bool {
-            print("virtual_pad: \(virtual_pad)")
+            infoLog("virtual_pad: \(virtual_pad)", category: .input)
             virtualPad.isHidden = !virtual_pad
         }
         if let sample = userDefaults.object(forKey: "samplingrate") as? String {
             self.samplingRate = Int(sample)!
-            print("Sampling Rate: \(self.samplingRate) Hz")
+            infoLog("Sampling Rate: \(self.samplingRate) Hz", category: .audio)
         }
         if let fps = userDefaults.object(forKey: "fps") as? String {
             let fpsValue = Int(fps)!
             view?.preferredFramesPerSecond = fpsValue
-            print("FPS: \(fpsValue) Hz")
+            infoLog("FPS: \(fpsValue) Hz", category: .ui)
         }
         if let vsync = userDefaults.object(forKey: "vsync") as? Bool {
             self.vsync = vsync
-            print("V-Sync: \(vsync)")
+            infoLog("V-Sync: \(vsync)", category: .ui)
         }
     }
     
@@ -541,7 +541,7 @@ class GameScene: SKScene {
         // Mark emulator as initialized with a small delay to ensure stability
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.isEmulatorInitialized = true
-            print("Emulator initialization complete - using SpriteKit update")
+            infoLog("Emulator initialization complete - using SpriteKit update", category: .emulation)
             
             // Apply saved screen rotation after emulator is fully initialized
             self.applyScreenRotation()
@@ -620,17 +620,17 @@ class GameScene: SKScene {
     
     #if os(iOS)
     @objc func hovering(_ sender: UIHoverGestureRecognizer) {
-        print("hovering:\(sender.state.rawValue)")
+        debugLog("hovering: \(sender.state.rawValue)", category: .input)
         if #available(iOS 13.4, *) {
-            print(sender.buttonMask.rawValue)
+            debugLog("Button mask: \(sender.buttonMask.rawValue)", category: .input)
         } else {
             // Fallback on earlier versions
         }
         switch sender.state {
         case .began:
-            print("Hover")
+            debugLog("Hover", category: .input)
         case .changed:
-            print(sender.location(in: self.view))
+            debugLog("Location: \(sender.location(in: self.view))", category: .input)
             let pos = self.view?.convert(sender.location(in: self.view), to: self)
             mouseController?.SetPosition(pos!, scene!.size)
             break
@@ -642,16 +642,16 @@ class GameScene: SKScene {
     }
     
     @objc func tapped(_ sender: UITapGestureRecognizer) {
-        print(sender.state)
+        debugLog("Tap state: \(sender.state)", category: .input)
         if sender.state == .began {
-            print("began")
+            debugLog("began", category: .input)
         }
         if sender.state == .recognized {
-            print("recognized")
+            debugLog("recognized", category: .input)
             mouseController?.ClickOnce()
         }
         if sender.state == .ended {
-            print("ended")
+            debugLog("ended", category: .input)
         }
     }
     #endif
@@ -671,13 +671,13 @@ class GameScene: SKScene {
     }
     
     override func sceneDidLoad() {
-        print("sceneDidLoad")
+        debugLog("sceneDidLoad", category: .ui)
     }
     
     deinit {
         // Save HDD before cleanup
         if X68000_IsHDDReady() != 0 {
-            print("🔧 Final HDD save in deinit...")
+            infoLog("Final HDD save in deinit...", category: .fileSystem)
             X68000_SaveHDD()
         }
         
@@ -688,7 +688,7 @@ class GameScene: SKScene {
     }
     
     override func didChangeSize(_ oldSize: CGSize) {
-        print("didChangeSize \(oldSize)")
+        debugLog("didChangeSize \(oldSize)", category: .ui)
         screen_w = Float(oldSize.width)
         screen_h = Float(oldSize.height)
     }
@@ -696,7 +696,7 @@ class GameScene: SKScene {
     var virtualPad: SKNode = SKNode()
     
     override func didMove(to view: SKView) {
-        print("didMove")
+        debugLog("didMove", category: .ui)
         self.setUpScene()
         
         // Screen rotation will be applied after emulator initialization in setUpScene()
@@ -920,24 +920,24 @@ class GameScene: SKScene {
         
         // Only start SRAM save timer - main updates handled by SpriteKit update()
         DispatchQueue.main.async {
-            print("Using SpriteKit native update - Timer-based updates disabled for performance")
+            infoLog("Using SpriteKit native update - Timer-based updates disabled for performance", category: .emulation)
             
             // Start periodic SRAM save timer (every 30 seconds)
             self.sramSaveTimer = Timer.scheduledTimer(timeInterval: 30.0, target: self, selector: #selector(self.periodicSRAMSave), userInfo: nil, repeats: true)
-            print("Periodic SRAM save timer started")
+            infoLog("Periodic SRAM save timer started", category: .fileSystem)
         }
     }
     
     func ensureTimerRunning() {
         // Public method to restart timer if needed (for disk loading)
         if timer?.isValid != true && isEmulatorInitialized {
-            print("Timer not running, restarting...")
+            warningLog("Timer not running, restarting...", category: .emulation)
             startUpdateTimer()
         }
     }
     
     @objc func diskImageLoaded() {
-        print("Disk image loaded notification received - ensuring timer is running")
+        infoLog("Disk image loaded notification received - ensuring timer is running", category: .fileSystem)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.ensureTimerRunning()
         }
@@ -963,7 +963,7 @@ class GameScene: SKScene {
     @objc func periodicSRAMSave() {
         // Save SRAM periodically to prevent data loss
         sramSaveCounter += 1
-        print("Periodic SRAM save #\(sramSaveCounter)")
+        debugLog("Periodic SRAM save #\(sramSaveCounter)", category: .fileSystem)
         fileSystem?.saveSRAM()
     }
     
@@ -1046,20 +1046,20 @@ class GameScene: SKScene {
     }
     
     private func hideIOSLegacyUI() {
-        print("Hiding iOS legacy UI elements after startup...")
+        debugLog("Hiding iOS legacy UI elements after startup...", category: .ui)
         
         // Hide the iOS legacy Settings gear icon
         if let settingsNode = self.childNode(withName: "//Settings") as? SKSpriteNode {
             settingsNode.isHidden = true
             settingsNode.removeFromParent()
-            print("Settings gear icon removed")
+            debugLog("Settings gear icon removed", category: .ui)
         }
         
         // Mark title labels as non-interactive to prevent click activation
         // but don't remove them so they can still be controlled by existing fade animations
         if let titleLabel = self.label {
             titleLabel.isUserInteractionEnabled = false
-            print("Main title label interaction disabled")
+            debugLog("Main title label interaction disabled", category: .ui)
         }
         
         // Disable interaction for all title-related labels
@@ -1067,7 +1067,7 @@ class GameScene: SKScene {
         for nodeName in titleNodeNames {
             if let node = self.childNode(withName: nodeName) {
                 node.isUserInteractionEnabled = false
-                print("Disabled interaction for title node: \(nodeName)")
+                debugLog("Disabled interaction for title node: \(nodeName)", category: .ui)
             }
         }
         
@@ -1077,7 +1077,7 @@ class GameScene: SKScene {
                 if let text = labelNode.text {
                     if text.contains("POWER TO MAKE") || text.contains("for macOS") || text.contains("for iOS") {
                         labelNode.isUserInteractionEnabled = false
-                        print("Disabled interaction for title text node: \(node.name ?? "unknown")")
+                        debugLog("Disabled interaction for title text node: \(node.name ?? "unknown")", category: .ui)
                     }
                 }
             }
@@ -1086,7 +1086,7 @@ class GameScene: SKScene {
         // Reduce visibility of MIDI label for cleaner macOS experience
         labelMIDI?.alpha = 0.3
         labelMIDI?.fontSize = 12
-        print("MIDI label visibility reduced")
+        debugLog("MIDI label visibility reduced", category: .ui)
     }
     
     private func hideTitleLogo() {
@@ -1241,7 +1241,7 @@ extension GameScene {
             if let touch = touches.first as UITouch? {
                 let location = touch.location(in: self)
                 let t = self.atPoint(location)
-                print(t.name ?? "No name")
+                debugLog("Touch target: \(t.name ?? "No name")", category: .input)
                 if t.name == "LButton" {
                     if let shapeNode = t as? SKShapeNode {
                         shapeNode.fillColor = .yellow
@@ -1306,7 +1306,7 @@ extension GameScene {
         if let touch = touches.first as UITouch? {
             let location = touch.location(in: self)
             let t = self.atPoint(location)
-            print(t.name ?? "No name")
+            debugLog("Touch target: \(t.name ?? "No name")", category: .input)
             if t.name == "LButton" {
                 if let shapeNode = t as? SKShapeNode {
                     shapeNode.fillColor = .black
@@ -1327,7 +1327,7 @@ extension GameScene {
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        print("Cancelled")
+        debugLog("Cancelled", category: .input)
     }
 }
 #endif

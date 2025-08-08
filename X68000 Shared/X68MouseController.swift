@@ -38,7 +38,7 @@ class X68MouseController
             if ( click_flag == 0 ) {
                 button_state = 0
             }
-            print( "\(frame) \(click_flag)")
+            debugLog("Mouse click frame: \(frame) flag: \(click_flag)", category: .input)
             
         }
         X68000_Mouse_SetDirect( mx*x68k_width, x68k_height-my*x68k_height, button_state)
@@ -99,7 +99,7 @@ class X68MouseController
     }
     func ClickOnce()
     {
-        print("\(frame): ClickOnce")
+        debugLog("\(frame): ClickOnce", category: .input)
         click_flag = 2
     }
     

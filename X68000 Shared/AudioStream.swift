@@ -28,26 +28,26 @@ class AudioStream {
     private var sourceNode : AVAudioSourceNode?
 	func play(  )
     {
-        print("Play")
+        debugLog("Audio Play", category: .audio)
 
         // プレイヤーノードからオーディオフォーマットを取得
              let outputNode = audioEngine.outputNode
         let format = outputNode.inputFormat(forBus: 0)
-        print("\(format.sampleRate)")
-        print("\(format.commonFormat)")
+        debugLog("Audio sample rate: \(format.sampleRate)", category: .audio)
+        debugLog("Audio format: \(format.commonFormat)", category: .audio)
 		let audioFormat :AVAudioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(self.samplingrate), channels: 2, interleaved: true )!// player.outputFormat(forBus: 0)
         let sampleRate = Float(audioFormat.sampleRate)
-        print("sampleRate:\(sampleRate)")
+        debugLog("sampleRate: \(sampleRate)", category: .audio)
             
         
         sourceNode = AVAudioSourceNode(format: audioFormat , renderBlock: { (_, timeStamp, frameCount, audioBufferList) -> OSStatus in
 
                 let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
                 let buf: UnsafeMutableBufferPointer<Int16> = UnsafeMutableBufferPointer(ablPointer[0])
-                        print("mNumberBuffers: \(audioBufferList.pointee.mNumberBuffers)")
-                        print("mDataByteSize: \(audioBufferList.pointee.mBuffers.mDataByteSize)")
-                        print("mNumberChannels: \(audioBufferList.pointee.mBuffers.mNumberChannels)")
-        print(frameCount)
+                        debugLog("mNumberBuffers: \(audioBufferList.pointee.mNumberBuffers)", category: .audio)
+                        debugLog("mDataByteSize: \(audioBufferList.pointee.mBuffers.mDataByteSize)", category: .audio)
+                        debugLog("mNumberChannels: \(audioBufferList.pointee.mBuffers.mNumberChannels)", category: .audio)
+        debugLog("frameCount: \(frameCount)", category: .audio)
                 X68000_AudioCallBack(ablPointer[0].mData, UInt32(frameCount));
 
             return noErr
@@ -72,7 +72,7 @@ class AudioStream {
           // 再生
 //          player.play()
         } catch let error {
-          print(error)
+          errorLog("Audio error", error: error, category: .audio)
         }
 
 
@@ -80,17 +80,17 @@ class AudioStream {
     }
     func stop()
     {
-        print("Stop")
+        debugLog("Audio Stop", category: .audio)
 
     }
     func pause()
     {
-        print("Pause")
+        debugLog("Audio Pause", category: .audio)
 
     }
     func close()
     {
-        print("Close")
+        debugLog("Audio Close", category: .audio)
     }
 }
 
@@ -191,7 +191,7 @@ class AudioStream {
         let framesPerBuffer = UInt32(Float64(samplingrate) * bufferDurationSeconds)
         bufferByteSize = framesPerBuffer * dataFormat.mBytesPerFrame
         
-        print("Audio buffer: \(framesPerBuffer) frames, \(bufferByteSize) bytes")
+        debugLog("Audio buffer: \(framesPerBuffer) frames, \(bufferByteSize) bytes", category: .audio)
 //return;
         AudioQueueNewOutput(
             &dataFormat,
@@ -232,46 +232,46 @@ class AudioStream {
             AudioQueueFlush(queue)
             let primeResult = AudioQueuePrime(queue, 0, nil)
             if primeResult != noErr {
-                print("Error: Failed to prime audio queue: \(primeResult)")
+                errorLog("Failed to prime audio queue: \(primeResult)", category: .audio)
             }
         }
     }
 
     func play()
     {
-        print("Audio Play")
+        debugLog("Audio Play", category: .audio)
         if let queue = self.queue {
             let result = AudioQueueStart(queue, nil)
             if result != noErr {
-                print("Error: Failed to start audio queue: \(result)")
+                errorLog("Failed to start audio queue: \(result)", category: .audio)
             }
         }
     }
     
     func stop()
     {
-        print("Audio Stop")
+        debugLog("Audio Stop", category: .audio)
         if let queue = self.queue {
             let result = AudioQueueStop(queue, true)  // immediate stop
             if result != noErr {
-                print("Error: Failed to stop audio queue: \(result)")
+                errorLog("Failed to stop audio queue: \(result)", category: .audio)
             }
         }
     }
     
     func pause()
     {
-        print("Audio Pause")
+        debugLog("Audio Pause", category: .audio)
         if let queue = self.queue {
             let result = AudioQueuePause(queue)
             if result != noErr {
-                print("Error: Failed to pause audio queue: \(result)")
+                errorLog("Failed to pause audio queue: \(result)", category: .audio)
             }
         }
     }
     func close()
     {
-        print("Audio Close")
+        debugLog("Audio Close", category: .audio)
 
         if let queue = self.queue {
             // Stop audio queue first
@@ -290,7 +290,7 @@ class AudioStream {
             // Dispose of the queue
             let result = AudioQueueDispose(queue, true)
             if result != noErr {
-                print("Error: Failed to dispose audio queue: \(result)")
+                errorLog("Failed to dispose audio queue: \(result)", category: .audio)
             }
             
             self.queue = nil

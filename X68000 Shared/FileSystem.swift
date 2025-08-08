@@ -43,7 +43,7 @@ class FileSystem {
                 
                 try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
             } catch let error as NSError {
-                print(error)
+                errorLog("Error accessing iCloud container", error: error, category: .fileSystem)
             }
         }
     }
@@ -56,7 +56,7 @@ class FileSystem {
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
-            print(error)
+            errorLog("Error creating directory", error: error, category: .fileSystem)
         }
         
 #if true
@@ -68,7 +68,7 @@ class FileSystem {
                 try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
             }
             catch {
-                print("write error")
+                errorLog("Write error", category: .fileSystem)
             }
         }
 #endif
@@ -104,31 +104,31 @@ class FileSystem {
         if let userHome = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first {
             let userDocumentsX68000 = userHome.appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
             searchPaths.append(userDocumentsX68000)
-            print("Added user Documents search path: \(userDocumentsX68000.path)")
+            debugLog("Added user Documents search path: \(userDocumentsX68000.path)", category: .fileSystem)
         }
         
         // Also try direct access to common user Documents location
         let commonUserDocumentsPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
         searchPaths.append(commonUserDocumentsPath)
-        print("Added common Documents search path: \(commonUserDocumentsPath.path)")
+        debugLog("Added common Documents search path: \(commonUserDocumentsPath.path)", category: .fileSystem)
         
-        print("🔍 Searching for \(filename) in \(searchPaths.count) locations:")
+        infoLog("Searching for \(filename) in \(searchPaths.count) locations:", category: .fileSystem)
         for (index, path) in searchPaths.enumerated() {
             let exists = FileManager.default.fileExists(atPath: path.path)
             let accessible = FileManager.default.isReadableFile(atPath: path.path)
-            print("  \(index + 1). \(path.path) - exists: \(exists), accessible: \(accessible)")
+            debugLog("  \(index + 1). \(path.path) - exists: \(exists), accessible: \(accessible)", category: .fileSystem)
             
             if exists {
                 if accessible {
-                    print("✅ Found \(filename) at: \(path.path)")
+                    infoLog("Found \(filename) at: \(path.path)", category: .fileSystem)
                     return path
                 } else {
-                    print("⚠️  File exists but not accessible due to permissions: \(path.path)")
+                    warningLog("File exists but not accessible due to permissions: \(path.path)", category: .fileSystem)
                 }
             }
         }
         
-        print("❌ File \(filename) not found in any accessible location")
+        errorLog("File \(filename) not found in any accessible location", category: .fileSystem)
         return nil
     }
     
@@ -174,11 +174,11 @@ class FileSystem {
     
     // Security: Validate disk image files
     private func isValidDiskImageFile(_ url: URL) -> Bool {
-        print("Debug: Validating file: \(url.path)")
+        debugLog("Validating file: \(url.path)", category: .fileSystem)
         
         // Check if file exists and is within allowed directory
         guard FileManager.default.fileExists(atPath: url.path) else { 
-            print("Debug: File does not exist")
+            debugLog("File does not exist", category: .fileSystem)
             return false 
         }
         
@@ -186,32 +186,32 @@ class FileSystem {
         let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else { 
-            print("Debug: Invalid file extension: \(ext)")
+            debugLog("Invalid file extension: \(ext)", category: .fileSystem)
             return false 
         }
         
         // Prevent path traversal - ensure file is within allowed directories
         let standardizedURL = url.standardized
         let urlPath = standardizedURL.path
-        print("Debug: Standardized path: \(urlPath)")
+        debugLog("Standardized path: \(urlPath)", category: .fileSystem)
         
         // Priority check for Mobile Documents paths (common on actual devices)
         if urlPath.contains("/Mobile Documents/") {
-            print("Debug: Found Mobile Documents path")
+            debugLog("Found Mobile Documents path", category: .fileSystem)
             if urlPath.contains("/Downloads/") || urlPath.contains("/Documents/") || urlPath.contains("/Desktop/") {
-                print("Allowing Mobile Documents access: \(urlPath)")
+                infoLog("Allowing Mobile Documents access: \(urlPath)", category: .fileSystem)
                 return true
             }
         }
         
         // Check for iCloud Documents path patterns (both simulator and device paths)
         if urlPath.contains("com~apple~CloudDocs") {
-            print("Debug: Found com~apple~CloudDocs path")
+            debugLog("Found com~apple~CloudDocs path", category: .fileSystem)
             // Allow iCloud Drive access for Downloads, Documents, or other common folders
             let iCloudAllowedFolders = ["Downloads", "Documents", "Desktop"]
             for folder in iCloudAllowedFolders {
                 if urlPath.contains("/\(folder)/") || urlPath.hasSuffix("/\(folder)") {
-                    print("Allowing iCloud \(folder) folder access: \(urlPath)")
+                    infoLog("Allowing iCloud \(folder) folder access: \(urlPath)", category: .fileSystem)
                     return true
                 }
             }
@@ -219,14 +219,14 @@ class FileSystem {
         
         // Check for File Provider Storage paths (iOS document provider extension)
         if urlPath.contains("/File Provider Storage/") {
-            print("Debug: Found File Provider Storage path")
-            print("Allowing File Provider Storage access: \(urlPath)")
+            debugLog("Found File Provider Storage path", category: .fileSystem)
+            infoLog("Allowing File Provider Storage access: \(urlPath)", category: .fileSystem)
             return true
         }
         
         // Get app's Documents directory
         guard let documentsURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { 
-            print("Debug: Could not get documents directory")
+            errorLog("Could not get documents directory", category: .fileSystem)
             return false 
         }
         
@@ -239,7 +239,7 @@ class FileSystem {
         // Also allow Downloads folder (standard user Downloads directory)
         if let downloadsURL = try? FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false) {
             allowedPaths.append(downloadsURL)
-            print("Debug: Added Downloads directory: \(downloadsURL.path)")
+            debugLog("Added Downloads directory: \(downloadsURL.path)", category: .fileSystem)
         }
         
         // Also allow iCloud Drive Downloads folder (common for shared files)
@@ -248,41 +248,41 @@ class FileSystem {
         }
         
         // Check if the file URL is within any of the allowed directories
-        print("Debug: Checking allowed paths...")
+        debugLog("Checking allowed paths...", category: .fileSystem)
         for allowedPath in allowedPaths {
             let standardizedAllowedURL = allowedPath.standardized
-            print("Debug: Checking against: \(standardizedAllowedURL.path)")
+            debugLog("Checking against: \(standardizedAllowedURL.path)", category: .fileSystem)
             if standardizedURL.path.hasPrefix(standardizedAllowedURL.path) {
-                print("Debug: Path validation passed via allowedPaths")
+                debugLog("Path validation passed via allowedPaths", category: .fileSystem)
                 return true
             }
         }
         
-        print("Debug: Path validation failed - no matching allowed paths")
-        print("Debug: Full analysis - path contains Mobile Documents: \(urlPath.contains("/Mobile Documents/"))")
-        print("Debug: Full analysis - path contains Downloads: \(urlPath.contains("/Downloads/"))")
-        print("Debug: Full analysis - path contains Documents: \(urlPath.contains("/Documents/"))")
+        debugLog("Path validation failed - no matching allowed paths", category: .fileSystem)
+        debugLog("Full analysis - path contains Mobile Documents: \(urlPath.contains("/Mobile Documents/"))", category: .fileSystem)
+        debugLog("Full analysis - path contains Downloads: \(urlPath.contains("/Downloads/"))", category: .fileSystem)
+        debugLog("Full analysis - path contains Documents: \(urlPath.contains("/Documents/"))", category: .fileSystem)
         return false
     }
     
     func loadAsynchronously(_ url: URL?) -> Void {
         guard let url = url else { 
-            print("🐛 loadAsynchronously called with nil URL")
+            errorLog("loadAsynchronously called with nil URL", category: .fileSystem)
             return 
         }
         
-        print("🐛 loadAsynchronously called with: \(url.lastPathComponent)")
-        print("🐛 Loading file: \(url.path)")
+        debugLog("loadAsynchronously called with: \(url.lastPathComponent)", category: .fileSystem)
+        debugLog("Loading file: \(url.path)", category: .fileSystem)
         
         // Use a simple approach without complex queue nesting
         self.handleiCloudFileLoading(url: url)
     }
     
     private func handleiCloudFileLoading(url: URL) {
-        print("🐛 handleiCloudFileLoading called with: \(url.lastPathComponent)")
+        debugLog("handleiCloudFileLoading called with: \(url.lastPathComponent)", category: .fileSystem)
         // Start security-scoped access for iCloud files immediately
         guard url.startAccessingSecurityScopedResource() else {
-            print("🐛 Failed to start accessing security-scoped resource for iCloud file")
+            errorLog("Failed to start accessing security-scoped resource for iCloud file", category: .fileSystem)
             // Clean up loading state on failure
             if let gameScene = self.gameScene {
                 DispatchQueue.main.async {
@@ -291,7 +291,7 @@ class FileSystem {
             }
             return
         }
-        print("🐛 Security-scoped resource access started successfully")
+        debugLog("Security-scoped resource access started successfully", category: .fileSystem)
         
         defer {
             url.stopAccessingSecurityScopedResource()
@@ -305,16 +305,16 @@ class FileSystem {
         
         // Check if this is an iCloud file that needs downloading
         if url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") {
-            print("Detected iCloud file, attempting to download...")
+            infoLog("Detected iCloud file, attempting to download...", category: .fileSystem)
             
             do {
                 // First check if file is already available
                 if FileManager.default.fileExists(atPath: url.path) {
-                    print("iCloud file already exists locally")
+                    infoLog("iCloud file already exists locally", category: .fileSystem)
                 } else {
                     // Try to download the file from iCloud with security scope
                     try FileManager.default.startDownloadingUbiquitousItem(at: url)
-                    print("Download request sent to iCloud")
+                    infoLog("Download request sent to iCloud", category: .fileSystem)
                     
                     // Wait for download with timeout but don't keep requesting
                     let timeout = 30.0 // 30 seconds timeout
@@ -323,7 +323,7 @@ class FileSystem {
                     
                     while true {
                         if Date().timeIntervalSince(startTime) > timeout {
-                            print("Timeout waiting for iCloud download")
+                            warningLog("Timeout waiting for iCloud download", category: .fileSystem)
                             return
                         }
                         
@@ -332,29 +332,29 @@ class FileSystem {
                             let resourceValues = try url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
                             
                             if let status = resourceValues.ubiquitousItemDownloadingStatus {
-                                print("Download status: \(status.rawValue)")
+                                debugLog("Download status: \(status.rawValue)", category: .fileSystem)
                                 if status == .current {
-                                    print("iCloud file download completed")
+                                    infoLog("iCloud file download completed", category: .fileSystem)
                                     break
                                 } else if status == .notDownloaded && !downloadRequested {
-                                    print("File not downloaded, requesting download...")
+                                    infoLog("File not downloaded, requesting download...", category: .fileSystem)
                                     try FileManager.default.startDownloadingUbiquitousItem(at: url)
                                     downloadRequested = true
                                 } else if status == .notDownloaded && downloadRequested {
-                                    print("Download request sent, waiting...")
+                                    debugLog("Download request sent, waiting...", category: .fileSystem)
                                 }
                             } else {
                                 // If we can't get status, try to access the file directly
                                 if FileManager.default.fileExists(atPath: url.path) {
-                                    print("iCloud file exists locally")
+                                    infoLog("iCloud file exists locally", category: .fileSystem)
                                     break
                                 }
                             }
                         } catch {
-                            print("Error checking download status: \(error)")
+                            errorLog("Error checking download status", error: error, category: .fileSystem)
                             // Fallback: check if file exists locally
                             if FileManager.default.fileExists(atPath: url.path) {
-                                print("File exists locally (fallback check)")
+                                infoLog("File exists locally (fallback check)", category: .fileSystem)
                                 break
                             }
                         }
@@ -363,7 +363,7 @@ class FileSystem {
                     }
                 }
             } catch let error as NSError {
-                print("Error downloading iCloud file: \(error)")
+                errorLog("Error downloading iCloud file", error: error, category: .fileSystem)
                 // Try to proceed anyway if the file exists
                 if !FileManager.default.fileExists(atPath: url.path) {
                     return
@@ -376,22 +376,22 @@ class FileSystem {
         let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
-            print("Invalid file extension: \(ext)")
+            errorLog("Invalid file extension: \(ext)", category: .fileSystem)
             return
         }
         
         // For iCloud files, trust the system's security model
         if url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") {
-            print("Security: Allowing iCloud file access: \(url.path)")
+            infoLog("Security: Allowing iCloud file access: \(url.path)", category: .fileSystem)
         } else {
             // Use normal validation for non-iCloud files
             guard self.isValidDiskImageFile(url) else {
-                print("Security: Invalid or unsafe file path: \(url.path)")
+                errorLog("Security: Invalid or unsafe file path: \(url.path)", category: .fileSystem)
                 return
             }
         }
         
-        print("Security: File validation passed for: \(url.lastPathComponent)")
+        infoLog("Security: File validation passed for: \(url.lastPathComponent)", category: .fileSystem)
         
         // Continue with actual file loading - security scope already active
         // Call performFileLoad synchronously to maintain security scope
@@ -406,11 +406,11 @@ class FileSystem {
             // Security: Validate file size (max 80MB for disk images)
             let maxSize = 80 * 1024 * 1024 // 80MB
             guard imageData.count <= maxSize else {
-                print("Security: File too large: \(imageData.count) bytes")
+                errorLog("Security: File too large: \(imageData.count) bytes", category: .fileSystem)
                 return
             }
             
-            print("size:\(imageData.count)")
+            debugLog("size: \(imageData.count)", category: .fileSystem)
             
             // UI updates need to be on main thread
             DispatchQueue.main.async {
@@ -419,7 +419,7 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
-                        print("HDD loaded successfully - no automatic reset")
+                        infoLog("HDD loaded successfully - no automatic reset", category: .fileSystem)
                     }
                 } else {
                     var drive = 0
@@ -430,36 +430,36 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        print("FDD loaded successfully (drive \(drive)) - no automatic reset")
+                        infoLog("FDD loaded successfully (drive \(drive)) - no automatic reset", category: .fileSystem)
                     }
                 }
             }
         } catch let error as NSError {
-            print("Error loading file data: \(error)")
+            errorLog("Error loading file data", error: error, category: .fileSystem)
         }
     }
     func loadDiskImage( _ url : URL )
     {
-        print("🐛 FileSystem.loadDiskImage called with: \(url.lastPathComponent)")
-        print("🐛 Full path: \(url.path)")
-        print("🐛 File extension: \(url.pathExtension)")
+        debugLog("FileSystem.loadDiskImage called with: \(url.lastPathComponent)", category: .fileSystem)
+        debugLog("Full path: \(url.path)", category: .fileSystem)
+        debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
         saveSRAM()
         //        X68000_Reset()
         
         // Check for A/B disk pair functionality
         if shouldCheckForDiskPair(url) {
-            print("🐛 A/B disk pair detected for: \(url.lastPathComponent)")
+            infoLog("A/B disk pair detected for: \(url.lastPathComponent)", category: .fileSystem)
             // For File Provider Storage, we can only reliably access the file the user clicked
             // So we'll try to load as a pair, but fall back to single disk if companion fails
             if checkForCompanionDisk(url) {
-                print("🐛 Companion disk might exist, attempting A/B pair load with fallback")
+                infoLog("Companion disk might exist, attempting A/B pair load with fallback", category: .fileSystem)
                 loadDiskPairWithFallback(primaryUrl: url)
             } else {
-                print("🐛 No companion disk found, loading single disk")
+                infoLog("No companion disk found, loading single disk", category: .fileSystem)
                 loadAsynchronously( url )
             }
         } else {
-            print("🐛 Single disk load for: \(url.lastPathComponent)")
+            infoLog("Single disk load for: \(url.lastPathComponent)", category: .fileSystem)
             loadAsynchronously( url )
         }
     }
@@ -536,13 +536,13 @@ class FileSystem {
         if url.path.contains("/File Provider Storage/") || 
            url.path.contains("/Mobile Documents/") || 
            url.path.contains("com~apple~CloudDocs") {
-            print("Debug: Assuming companion exists for cloud storage: \(companionUrl.lastPathComponent)")
+            debugLog("Assuming companion exists for cloud storage: \(companionUrl.lastPathComponent)", category: .fileSystem)
             return true
         }
         
         // For local files, check if companion actually exists
         let companionExists = FileManager.default.fileExists(atPath: companionUrl.path)
-        print("Debug: Companion disk check - looking for: \(companionUrl.lastPathComponent), exists: \(companionExists)")
+        debugLog("Companion disk check - looking for: \(companionUrl.lastPathComponent), exists: \(companionExists)", category: .fileSystem)
         return companionExists
     }
     
@@ -578,7 +578,7 @@ class FileSystem {
         
         // Check if we're already loading this pair
         if let currentPair = FileSystem.currentlyLoadingPair, currentPair == pairIdentifier {
-            print("Already loading disk pair: \(pairIdentifier), skipping")
+            warningLog("Already loading disk pair: \(pairIdentifier), skipping", category: .fileSystem)
             if let gameScene = self.gameScene {
                 gameScene.clearLoadingFile(primaryUrl)
             }
@@ -587,7 +587,7 @@ class FileSystem {
         
         // Mark this pair as currently loading
         FileSystem.currentlyLoadingPair = pairIdentifier
-        print("Debug: Set currently loading pair to: \(pairIdentifier)")
+        debugLog("Set currently loading pair to: \(pairIdentifier)", category: .fileSystem)
         
         // Generate A and B filenames
         let aFilename: String
@@ -607,17 +607,17 @@ class FileSystem {
         let aUrl = directory.appendingPathComponent(aFilename).appendingPathExtension(fileExtension)
         let bUrl = directory.appendingPathComponent(bFilename).appendingPathExtension(fileExtension)
         
-        print("A/B disk pair attempt:")
-        print("A disk: \(aUrl.path)")
-        print("B disk: \(bUrl.path)")
-        print("Primary (clicked): \(primaryUrl.path)")
+        infoLog("A/B disk pair attempt:", category: .fileSystem)
+        infoLog("A disk: \(aUrl.path)", category: .fileSystem)
+        infoLog("B disk: \(bUrl.path)", category: .fileSystem)
+        infoLog("Primary (clicked): \(primaryUrl.path)", category: .fileSystem)
         
         // Try to load the primary disk first (the one user clicked)
         loadAsynchronously(primaryUrl)
         
         // Try to load the companion disk, but don't fail if it doesn't work
         let companionUrl = (primaryUrl.path == aUrl.path) ? bUrl : aUrl
-        print("Debug: Attempting to load companion disk: \(companionUrl.lastPathComponent)")
+        debugLog("Attempting to load companion disk: \(companionUrl.lastPathComponent)", category: .fileSystem)
         
         // Load companion with fallback - don't block if it fails
         DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -626,18 +626,18 @@ class FileSystem {
                 FileSystem.loadingPairLock.lock()
                 FileSystem.currentlyLoadingPair = nil
                 FileSystem.loadingPairLock.unlock()
-                print("Debug: Cleared pair loading state for: \(pairIdentifier)")
+                debugLog("Cleared pair loading state for: \(pairIdentifier)", category: .fileSystem)
             }
         }
     }
     
     // Try to load companion disk, but don't fail if access is denied
     private func loadCompanionDiskWithFallback(companionUrl: URL, completion: @escaping () -> Void) {
-        print("Debug: Attempting companion disk load: \(companionUrl.lastPathComponent)")
+        debugLog("Attempting companion disk load: \(companionUrl.lastPathComponent)", category: .fileSystem)
         
         // Try to start security scope for companion
         guard companionUrl.startAccessingSecurityScopedResource() else {
-            print("Info: Cannot access companion disk \(companionUrl.lastPathComponent) - user did not grant permission")
+            infoLog("Cannot access companion disk \(companionUrl.lastPathComponent) - user did not grant permission", category: .fileSystem)
             completion()
             return
         }
@@ -649,7 +649,7 @@ class FileSystem {
         // Try to load companion disk
         do {
             let imageData = try Data(contentsOf: companionUrl)
-            print("Debug: Successfully read companion disk: \(companionUrl.lastPathComponent)")
+            debugLog("Successfully read companion disk: \(companionUrl.lastPathComponent)", category: .fileSystem)
             
             // Determine drive based on filename
             var drive = 0
@@ -662,14 +662,14 @@ class FileSystem {
                 if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                     imageData.copyBytes(to: p, count: imageData.count)
                     X68000_LoadFDD(drive, companionUrl.path)
-                    print("Success: Companion disk loaded: \(companionUrl.lastPathComponent) (drive \(drive))")
+                    infoLog("Success: Companion disk loaded: \(companionUrl.lastPathComponent) (drive \(drive))", category: .fileSystem)
                 } else {
-                    print("Error: Failed to get buffer for companion disk")
+                    errorLog("Failed to get buffer for companion disk", category: .fileSystem)
                 }
                 completion()
             }
         } catch {
-            print("Info: Could not load companion disk \(companionUrl.lastPathComponent): \(error)")
+            infoLog("Could not load companion disk \(companionUrl.lastPathComponent): \(error)", category: .fileSystem)
             completion()
         }
     }
@@ -702,21 +702,21 @@ class FileSystem {
         // Generate a unique identifier for this disk pair to prevent duplicates
         let pairIdentifier = directory.path + "/" + baseFilename.lowercased()
         
-        print("Debug: Checking pair identifier: \(pairIdentifier)")
+        debugLog("Checking pair identifier: \(pairIdentifier)", category: .fileSystem)
         
         // Thread-safe check and set for loading pair
         FileSystem.loadingPairLock.lock()
         let currentlyLoadingStatus = FileSystem.currentlyLoadingPair
         FileSystem.loadingPairLock.unlock()
         
-        print("Debug: Currently loading: \(currentlyLoadingStatus ?? "none")")
+        debugLog("Currently loading: \(currentlyLoadingStatus ?? "none")", category: .fileSystem)
         
         FileSystem.loadingPairLock.lock()
         defer { FileSystem.loadingPairLock.unlock() }
         
         // Check if we're already loading this pair - only check at the pair level
         if let currentPair = FileSystem.currentlyLoadingPair, currentPair == pairIdentifier {
-            print("Already loading disk pair: \(pairIdentifier), skipping")
+            warningLog("Already loading disk pair: \(pairIdentifier), skipping", category: .fileSystem)
             // Clean up the individual file tracking for this file since we're skipping the pair
             if let gameScene = self.gameScene {
                 gameScene.clearLoadingFile(primaryUrl)
@@ -726,7 +726,7 @@ class FileSystem {
         
         // Mark this pair as currently loading
         FileSystem.currentlyLoadingPair = pairIdentifier
-        print("Debug: Set currently loading pair to: \(pairIdentifier)")
+        debugLog("Set currently loading pair to: \(pairIdentifier)", category: .fileSystem)
         
         // Create completion handler that clears the pair loading state
         let completePairLoading = {
@@ -753,9 +753,9 @@ class FileSystem {
         let aUrl = directory.appendingPathComponent(aFilename).appendingPathExtension(fileExtension)
         let bUrl = directory.appendingPathComponent(bFilename).appendingPathExtension(fileExtension)
         
-        print("A/B disk pair detected:")
-        print("A disk: \(aUrl.path)")
-        print("B disk: \(bUrl.path)")
+        infoLog("A/B disk pair detected:", category: .fileSystem)
+        infoLog("A disk: \(aUrl.path)", category: .fileSystem)
+        infoLog("B disk: \(bUrl.path)", category: .fileSystem)
         
         // Check which files exist
         var existingUrls: [URL] = []
@@ -778,7 +778,7 @@ class FileSystem {
             }
             
             if existingUrls.isEmpty {
-                print("Neither A nor B disk found, loading single disk")
+                warningLog("Neither A nor B disk found, loading single disk", category: .fileSystem)
                 loadAsynchronously(primaryUrl)
                 completePairLoading()
             } else {
@@ -789,10 +789,10 @@ class FileSystem {
     
     // Handle A/B disk pair loading with security scope (iCloud and File Provider Storage)
     private func loadDiskPairWithSecurityScope(aUrl: URL, bUrl: URL, originalUrl: URL, completion: @escaping () -> Void) {
-        print("Debug: loadDiskPairWithSecurityScope called")
-        print("Debug: A URL: \(aUrl.path)")
-        print("Debug: B URL: \(bUrl.path)")
-        print("Debug: Original URL (with security scope): \(originalUrl.path)")
+        debugLog("loadDiskPairWithSecurityScope called", category: .fileSystem)
+        debugLog("A URL: \(aUrl.path)", category: .fileSystem)
+        debugLog("B URL: \(bUrl.path)", category: .fileSystem)
+        debugLog("Original URL (with security scope): \(originalUrl.path)", category: .fileSystem)
         
         // Load both files with the same security scope session
         // We'll use a single security scope session to load both files
@@ -801,8 +801,8 @@ class FileSystem {
     
     // Load A/B disk pair with shared security scope
     private func loadDiskPairWithSharedSecurityScope(aUrl: URL, bUrl: URL, originalUrl: URL, completion: @escaping () -> Void) {
-        print("Debug: loadDiskPairWithSharedSecurityScope called")
-        print("Debug: Using original URL for security scope: \(originalUrl.lastPathComponent)")
+        debugLog("loadDiskPairWithSharedSecurityScope called", category: .fileSystem)
+        debugLog("Using original URL for security scope: \(originalUrl.lastPathComponent)", category: .fileSystem)
         
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self = self else {
@@ -812,14 +812,14 @@ class FileSystem {
             
             // Start security scope with the original URL (the one user clicked)
             guard originalUrl.startAccessingSecurityScopedResource() else {
-                print("Error: Failed to start security scope with original URL: \(originalUrl.lastPathComponent)")
+                errorLog("Failed to start security scope with original URL: \(originalUrl.lastPathComponent)", category: .fileSystem)
                 DispatchQueue.main.async { completion() }
                 return
             }
             
             defer {
                 originalUrl.stopAccessingSecurityScopedResource()
-                print("Debug: Released security scope for: \(originalUrl.lastPathComponent)")
+                debugLog("Released security scope for: \(originalUrl.lastPathComponent)", category: .fileSystem)
             }
             
             // Now load both files within the same security scope
@@ -829,9 +829,9 @@ class FileSystem {
             group.enter()
             self.loadDiskFileWithData(bUrl) { success in
                 if success {
-                    print("B disk loaded successfully")
+                    infoLog("B disk loaded successfully", category: .fileSystem)
                 } else {
-                    print("B disk failed to load")
+                    warningLog("B disk failed to load", category: .fileSystem)
                 }
                 group.leave()
             }
@@ -840,15 +840,15 @@ class FileSystem {
             group.enter()
             self.loadDiskFileWithData(aUrl) { success in
                 if success {
-                    print("A disk loaded successfully")
+                    infoLog("A disk loaded successfully", category: .fileSystem)
                 } else {
-                    print("A disk failed to load")
+                    warningLog("A disk failed to load", category: .fileSystem)
                 }
                 group.leave()
             }
             
             group.notify(queue: .main) {
-                print("A/B disk pair loading completed - no automatic reset")
+                infoLog("A/B disk pair loading completed - no automatic reset", category: .fileSystem)
                 completion()
             }
         }
@@ -856,21 +856,21 @@ class FileSystem {
     
     // Load disk file with data (assumes security scope is already active)
     private func loadDiskFileWithData(_ url: URL, completion: @escaping (Bool) -> Void) {
-        print("Debug: loadDiskFileWithData called for: \(url.lastPathComponent)")
+        debugLog("loadDiskFileWithData called for: \(url.lastPathComponent)", category: .fileSystem)
         
         // Validate file extension
         let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
-            print("Error: Invalid file extension: \(ext)")
+            errorLog("Invalid file extension: \(ext)", category: .fileSystem)
             completion(false)
             return
         }
         
         do {
-            print("Debug: Reading data from: \(url.path)")
+            debugLog("Reading data from: \(url.path)", category: .fileSystem)
             let imageData = try Data(contentsOf: url)
-            print("Debug: Successfully read \(imageData.count) bytes from \(url.lastPathComponent)")
+            debugLog("Successfully read \(imageData.count) bytes from \(url.lastPathComponent)", category: .fileSystem)
             
             // Determine drive based on filename
             var drive = 0
@@ -879,36 +879,36 @@ class FileSystem {
                url.path.contains(" B.") || url.path.contains("_B.") {
                 drive = 1
             }
-            print("Debug: Determined drive: \(drive) for \(url.lastPathComponent)")
+            debugLog("Determined drive: \(drive) for \(url.lastPathComponent)", category: .fileSystem)
             
             DispatchQueue.main.async {
                 let extname = url.pathExtension.lowercased()
                 if extname == "hdf" {
-                    print("Debug: Loading as HDD image")
+                    debugLog("Loading as HDD image", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
-                        print("Success: HDD loaded: \(url.lastPathComponent)")
+                        infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
                         completion(true)
                     } else {
-                        print("Error: Failed to get HDD buffer pointer")
+                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                         completion(false)
                     }
                 } else {
-                    print("Debug: Loading as FDD image to drive \(drive)")
+                    debugLog("Loading as FDD image to drive \(drive)", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        print("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))")
+                        infoLog("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))", category: .fileSystem)
                         completion(true)
                     } else {
-                        print("Error: Failed to get FDD buffer pointer for drive \(drive)")
+                        errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
                         completion(false)
                     }
                 }
             }
         } catch {
-            print("Error: Failed to read data from \(url.lastPathComponent): \(error)")
+            errorLog("Failed to read data from \(url.lastPathComponent)", error: error, category: .fileSystem)
             completion(false)
         }
     }
@@ -956,9 +956,9 @@ class FileSystem {
         
         loadDiskImageWithCallback(url) { [weak self] success in
             if success {
-                print("Disk \(url.lastPathComponent) loaded successfully")
+                infoLog("Disk \(url.lastPathComponent) loaded successfully", category: .fileSystem)
                 
-                print("Disk sequence loaded - no automatic reset")
+                infoLog("Disk sequence loaded - no automatic reset", category: .fileSystem)
             }
             
             // Load next disk or complete
@@ -972,11 +972,11 @@ class FileSystem {
     
     // Load disk image with completion callback
     private func loadDiskImageWithCallback(_ url: URL, completion: @escaping (Bool) -> Void) {
-        print("Debug: loadDiskImageWithCallback called for: \(url.lastPathComponent)")
+        debugLog("loadDiskImageWithCallback called for: \(url.lastPathComponent)", category: .fileSystem)
         DispatchQueue.global(qos: .background).async { [weak self] in
-            print("Debug: Background queue started for: \(url.lastPathComponent)")
+            debugLog("Background queue started for: \(url.lastPathComponent)", category: .fileSystem)
             guard let self = self else {
-                print("Debug: Self is nil, completing with false")
+                debugLog("Self is nil, completing with false", category: .fileSystem)
                 DispatchQueue.main.async { completion(false) }
                 return
             }
@@ -987,14 +987,14 @@ class FileSystem {
                url.path.contains("com~apple~CloudDocs") ||
                url.path.contains("/File Provider Storage/") {
                 needsSecurityScope = true
-                print("Debug: Starting security-scoped access for: \(url.path)")
+                debugLog("Starting security-scoped access for: \(url.path)", category: .fileSystem)
                 guard url.startAccessingSecurityScopedResource() else {
-                    print("Error: Failed to start accessing security-scoped resource for: \(url.lastPathComponent)")
-                    print("Error: Full path: \(url.path)")
+                    errorLog("Failed to start accessing security-scoped resource for: \(url.lastPathComponent)", category: .fileSystem)
+                    errorLog("Full path: \(url.path)", category: .fileSystem)
                     DispatchQueue.main.async { completion(false) }
                     return
                 }
-                print("Debug: Security-scoped access started successfully for: \(url.lastPathComponent)")
+                debugLog("Security-scoped access started successfully for: \(url.lastPathComponent)", category: .fileSystem)
             }
             
             defer {
@@ -1026,13 +1026,13 @@ class FileSystem {
     
     // Handle iCloud download
     private func handleiCloudDownload(url: URL, completion: @escaping (Bool) -> Void) {
-        print("Debug: handleiCloudDownload called for: \(url.lastPathComponent)")
+        debugLog("handleiCloudDownload called for: \(url.lastPathComponent)", category: .fileSystem)
         do {
             let fileExists = FileManager.default.fileExists(atPath: url.path)
-            print("Debug: File exists check: \(fileExists) for \(url.path)")
+            debugLog("File exists check: \(fileExists) for \(url.path)", category: .fileSystem)
             
             if !fileExists {
-                print("Debug: File doesn't exist, attempting to download from iCloud")
+                debugLog("File doesn't exist, attempting to download from iCloud", category: .fileSystem)
                 try FileManager.default.startDownloadingUbiquitousItem(at: url)
                 
                 let timeout = 30.0
@@ -1040,41 +1040,41 @@ class FileSystem {
                 
                 while !FileManager.default.fileExists(atPath: url.path) {
                     if Date().timeIntervalSince(startTime) > timeout {
-                        print("Error: Timeout downloading: \(url.lastPathComponent)")
+                        errorLog("Timeout downloading: \(url.lastPathComponent)", category: .fileSystem)
                         completion(false)
                         return
                     }
                     Thread.sleep(forTimeInterval: 0.5)
                 }
-                print("Debug: Download completed for: \(url.lastPathComponent)")
+                debugLog("Download completed for: \(url.lastPathComponent)", category: .fileSystem)
             } else {
-                print("Debug: File already exists locally: \(url.lastPathComponent)")
+                debugLog("File already exists locally: \(url.lastPathComponent)", category: .fileSystem)
             }
             completion(true)
         } catch {
-            print("Error downloading: \(url.lastPathComponent) - \(error)")
+            errorLog("Error downloading: \(url.lastPathComponent)", error: error, category: .fileSystem)
             completion(false)
         }
     }
     
     // Perform actual file loading
     private func performActualFileLoad(url: URL, completion: @escaping (Bool) -> Void) {
-        print("Debug: performActualFileLoad called for: \(url.lastPathComponent)")
+        debugLog("performActualFileLoad called for: \(url.lastPathComponent)", category: .fileSystem)
         
         // Validate file
         let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
-            print("Error: Invalid file extension: \(ext)")
+            errorLog("Invalid file extension: \(ext)", category: .fileSystem)
             DispatchQueue.main.async { completion(false) }
             return
         }
-        print("Debug: File extension validation passed: \(ext)")
+        debugLog("File extension validation passed: \(ext)", category: .fileSystem)
         
         do {
-            print("Debug: Attempting to read data from: \(url.path)")
+            debugLog("Attempting to read data from: \(url.path)", category: .fileSystem)
             let imageData = try Data(contentsOf: url)
-            print("Debug: Successfully read \(imageData.count) bytes from \(url.lastPathComponent)")
+            debugLog("Successfully read \(imageData.count) bytes from \(url.lastPathComponent)", category: .fileSystem)
             
             // Determine drive based on filename
             var drive = 0
@@ -1083,30 +1083,30 @@ class FileSystem {
                url.path.contains(" B.") || url.path.contains("_B.") {
                 drive = 1
             }
-            print("Debug: Determined drive: \(drive) for \(url.lastPathComponent)")
+            debugLog("Determined drive: \(drive) for \(url.lastPathComponent)", category: .fileSystem)
             
             DispatchQueue.main.async {
                 let extname = url.pathExtension.lowercased()
                 if extname == "hdf" {
-                    print("Debug: Loading as HDD image")
+                    debugLog("Loading as HDD image", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
-                        print("Success: HDD loaded: \(url.lastPathComponent)")
+                        infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
                         completion(true)
                     } else {
-                        print("Error: Failed to get HDD buffer pointer")
+                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                         completion(false)
                     }
                 } else {
-                    print("Debug: Loading as FDD image to drive \(drive)")
+                    debugLog("Loading as FDD image to drive \(drive)", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        print("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))")
+                        infoLog("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))", category: .fileSystem)
                         completion(true)
                     } else {
-                        print("Error: Failed to get FDD buffer pointer for drive \(drive)")
+                        errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
                         completion(false)
                     }
                 }
@@ -1118,31 +1118,31 @@ class FileSystem {
     }
     func saveSRAM()
     {
-        print("==== Save SRAM ====")
+        infoLog("==== Save SRAM ====", category: .fileSystem)
         guard let sramPointer = X68000_GetSRAMPointer() else {
-            print("Failed to get SRAM pointer")
+            errorLog("Failed to get SRAM pointer", category: .fileSystem)
             return
         }
         
         let data = Data(bytes: sramPointer, count: 0x4000)
         guard let url = getDocumentsPath("SRAM.DAT") else {
-            print("Failed to get SRAM file path")
+            errorLog("Failed to get SRAM file path", category: .fileSystem)
             return
         }
         
         do {
             try data.write(to: url)
-            print("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)")
+            infoLog("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)", category: .fileSystem)
         } catch let error as NSError {
-            print("Failed to save SRAM.DAT: \(error)")
+            errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
         }
     }
     
     func loadSRAM()
     {
-        print("==== Load SRAM ====")
+        infoLog("==== Load SRAM ====", category: .fileSystem)
         guard let url = findFileInDocuments("SRAM.DAT") else {
-            print("SRAM.DAT not found - starting with blank SRAM")
+            infoLog("SRAM.DAT not found - starting with blank SRAM", category: .fileSystem)
             return
         }
         
@@ -1150,25 +1150,25 @@ class FileSystem {
             let data: Data = try Data(contentsOf: url)
             // Security: Validate SRAM file size (should be exactly 0x4000 bytes)
             guard data.count == 0x4000 else {
-                print("Security: Invalid SRAM file size: \(data.count), expected 0x4000")
+                errorLog("Security: Invalid SRAM file size: \(data.count), expected 0x4000", category: .fileSystem)
                 return
             }
             if let p = X68000_GetSRAMPointer() {
                 data.copyBytes(to: p, count: data.count)
-                print("SRAM.DAT loaded successfully (\(data.count) bytes)")
+                infoLog("SRAM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
             } else {
-                print("Failed to get SRAM pointer")
+                errorLog("Failed to get SRAM pointer", category: .fileSystem)
             }
         } catch let error as NSError {
-            print("Error loading SRAM.DAT: \(error)")
+            errorLog("Error loading SRAM.DAT", error: error, category: .fileSystem)
         }
     }
     // Added by Awed 2023/10/7
     func loadCGROM()
     {
-        print("==== Load CGROM ====")
+        infoLog("==== Load CGROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("CGROM.DAT") else {
-            print("CGROM.DAT not found - will use embedded ROM")
+            infoLog("CGROM.DAT not found - will use embedded ROM", category: .fileSystem)
             return
         }
         
@@ -1176,25 +1176,25 @@ class FileSystem {
             let data: Data = try Data(contentsOf: url)
             // Security: Validate CGROM file size (typical size is 0xc0000 bytes)
             guard data.count > 0 && data.count <= 0xc0000 else {
-                print("Security: CGROM file invalid size: \(data.count)")
+                errorLog("Security: CGROM file invalid size: \(data.count)", category: .fileSystem)
                 return
             }
             if let p = X68000_GetCGROMPointer() {
                 data.copyBytes(to: p, count: data.count)
-                print("CGROM.DAT loaded successfully (\(data.count) bytes)")
+                infoLog("CGROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
             } else {
-                print("Failed to get CGROM pointer")
+                errorLog("Failed to get CGROM pointer", category: .fileSystem)
             }
         } catch let error as NSError {
-            print("Error loading CGROM.DAT: \(error)")
+            errorLog("Error loading CGROM.DAT", error: error, category: .fileSystem)
         }
     }
     
     func loadIPLROM()
     {
-        print("==== Load IPLROM ====")
+        infoLog("==== Load IPLROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("IPLROM.DAT") else {
-            print("IPLROM.DAT not found - will use embedded ROM")
+            infoLog("IPLROM.DAT not found - will use embedded ROM", category: .fileSystem)
             return
         }
         
@@ -1202,44 +1202,44 @@ class FileSystem {
             let data: Data = try Data(contentsOf: url)
             // Security: Validate IPLROM file size (typical size is 0x40000 bytes)
             guard data.count > 0 && data.count <= 0x40000 else {
-                print("Security: IPLROM file invalid size: \(data.count)")
+                errorLog("Security: IPLROM file invalid size: \(data.count)", category: .fileSystem)
                 return
             }
             if let p = X68000_GetIPLROMPointer() {
                 data.copyBytes(to: p, count: data.count)
-                print("IPLROM.DAT loaded successfully (\(data.count) bytes)")
+                infoLog("IPLROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
             } else {
-                print("Failed to get IPLROM pointer")
+                errorLog("Failed to get IPLROM pointer", category: .fileSystem)
             }
         } catch let error as NSError {
-            print("Error loading IPLROM.DAT: \(error)")
+            errorLog("Error loading IPLROM.DAT", error: error, category: .fileSystem)
         }
     }
     
     // MARK: - Explicit FDD Drive Loading
     func loadFDDToDrive(_ url: URL, drive: Int) {
-        print("🐛 FileSystem.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)")
+        debugLog("FileSystem.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         do {
             let data = try Data(contentsOf: url)
             
             // Security: Validate file size for disk images
             guard data.count > 0 && data.count <= 2 * 1024 * 1024 else { // Max 2MB for floppy disk
-                print("Security: Disk image file invalid size: \(data.count)")
+                errorLog("Security: Disk image file invalid size: \(data.count)", category: .fileSystem)
                 return
             }
             
             if let p = X68000_GetDiskImageBufferPointer(drive, data.count) {
                 data.copyBytes(to: p, count: data.count)
                 X68000_LoadFDD(drive, url.path)
-                print("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)")
+                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
                 
-                print("FDD loaded to drive \(drive) - no automatic reset")
+                infoLog("FDD loaded to drive \(drive) - no automatic reset", category: .fileSystem)
             } else {
-                print("Error: Failed to get FDD buffer pointer for drive \(drive)")
+                errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
             }
         } catch let error as NSError {
-            print("Error loading FDD image: \(error)")
+            errorLog("Error loading FDD image", error: error, category: .fileSystem)
         }
     }
     

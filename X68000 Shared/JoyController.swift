@@ -27,9 +27,9 @@ class JoyController {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
         { (success, error) in
             if success {
-                print("許可")
+                debugLog("Notification permission granted", category: .input)
             } else {
-                print("拒否")
+                warningLog("Notification permission denied", category: .input)
             }
         }
     }
@@ -68,7 +68,7 @@ class JoyController {
     @objc
     func handleControllerDidConnect(_ notification: Notification){
         self.event?(.Connected)
-        print("ゲームコントローラーの接続が通知されました")
+        debugLog("Game controller connection notified", category: .input)
 
         guard let gameController = notification.object as? GCController else {
             return
@@ -81,7 +81,7 @@ class JoyController {
     @objc
     func handleControllerDidDisconnect(_ notification: Notification){
         self.event?(.Disconnected)
-        print("ゲームコントローラーの切断が通知されました")
+        debugLog("Game controller disconnection notified", category: .input)
         
         guard let gameController = notification.object as? GCController else {
             return
@@ -115,9 +115,9 @@ class JoyController {
         // ④ 通知の追加
         center.add(request)
 #endif
-        print("ゲームコントローラーが接続されました")
-        print("Name: \(gameController.vendorName!)")
-        print("Category: \(gameController.productCategory)")
+        infoLog("Game controller connected", category: .input)
+        infoLog("Name: \(gameController.vendorName!)", category: .input)
+        infoLog("Category: \(gameController.productCategory)", category: .input)
 //        print("PlayerIndex: \(gameController.playerIndex)")
         
         var leftThumbstick:  GCControllerDirectionPad?
@@ -224,7 +224,7 @@ class JoyController {
     
     // Disconnection
     func unregisterGameController() {
-        print("ゲームコントローラーが切断されました")
+        infoLog("Game controller disconnected", category: .input)
     }
     func JoySet(_ port:UInt8,_ type:UInt8,_ pressed: Bool )
     {
@@ -303,14 +303,14 @@ class JoyController {
     // Closure: Put Box
     func buttonPutBox() -> GCControllerButtonValueChangedHandler {
         return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
-            print("C")
+            debugLog("Button C pressed", category: .input)
         }
     }
     
     // Closure: Reset Scene
     func buttonResetScene() -> GCControllerButtonValueChangedHandler {
         return {(_ button: GCControllerButtonInput, _ value: Float, _ pressed: Bool) -> Void in
-            print("D")
+            debugLog("Button D pressed", category: .input)
         }
     }
 }

@@ -97,7 +97,7 @@ class MIDIController {
             case 3: str = String(format: "%02X %02X %02X", packet.data.0, packet.data.1, packet.data.2)
             default: str = "length: \(packet.length)"
             }
-            print(str)
+            debugLog("MIDI: \(str)", category: .network)
             packet = MIDIPacketNext( &packet ).pointee
         }
     }
@@ -107,26 +107,26 @@ class MIDIController {
         
         status = MIDIClientCreateWithBlock( "X68000" as CFString, &clientRef, MIDINotifyBlock )
         if status != noErr {
-            print( "cannot create MIDI client!" )
+            errorLog("Cannot create MIDI client!", category: .network)
             return
         }
         #if false
         status = MIDIInputPortCreateWithBlock( clientRef, "X68000 MIDI In" as CFString, &inPortRef, MyMIDIReadBlock )
         if status != noErr {
-            print( "cannot create MIDI In!" )
+            errorLog("Cannot create MIDI In!", category: .network)
             return
         }
         #endif
         status = MIDIOutputPortCreate( clientRef, "X68000 MIDI Out" as CFString, &outPortRef )
         
         if status != noErr {
-            print( "cannot create MIDI Out!" )
+            errorLog("Cannot create MIDI Out!", category: .network)
             return
         }
         status = MIDIOutputPortCreate( clientRef, "X68000 MIDI Out" as CFString, &outPortRef2 )
         
         if status != noErr {
-            print( "cannot create MIDI Out 2!" )
+            errorLog("Cannot create MIDI Out 2!", category: .network)
             return
         }
 
@@ -200,25 +200,25 @@ MIDISend(outPortRef2, midiDst1, &packets)
     }
     
     func MIDINotifyBlock(midiNotification: UnsafePointer<MIDINotification>) {
-        print( "\(#function) \(midiNotification.pointee.messageID.rawValue)")
+        debugLog("\(#function) \(midiNotification.pointee.messageID.rawValue)", category: .network)
         switch midiNotification.pointee.messageID {
         case .msgPropertyChanged:
-            print("msgPropertyChanged")
+            debugLog("msgPropertyChanged", category: .network)
             GetDest()
             GetSource()
         case .msgSetupChanged:
-            print("msgSetupChanged")
+            debugLog("msgSetupChanged", category: .network)
             GetDest()
             GetSource()
         case .msgObjectAdded:   // 接続を検知
             midiDst1 = 0
-            print("msgObjectAdded")
+            debugLog("msgObjectAdded", category: .network)
             GetDest()
             GetSource()
         case .msgObjectRemoved: // 解除を検知
-            print("msgObjectRemoved")
+            debugLog("msgObjectRemoved", category: .network)
         case .msgIOError:       // エラーを検知
-            print("msgIOError")
+            errorLog("msgIOError", category: .network)
         default:
             break
         }
@@ -239,7 +239,7 @@ MIDISend(outPortRef2, midiDst1, &packets)
                 text += "MIDI:SRC [\(i)]: "
                 text += str!.takeUnretainedValue() as String
                 str!.release()
-                print(text)
+                debugLog("MIDI device: \(text)", category: .network)
                 MIDIPortConnectSource(inPortRef,endPointRef,nil)
                 
                 
@@ -266,16 +266,16 @@ MIDISend(outPortRef2, midiDst1, &packets)
                 var text = "MIDI:DST [\(i)]: "
                 text += str!.takeUnretainedValue() as String
                 str!.release()
-                print(text)
+                debugLog("MIDI device: \(text)", category: .network)
                 if ( i == 0 ) {
-                    print("Set! 0 ")
+                    debugLog("Set! 0", category: .network)
                     midiDst0 = endPointRef
                     //                    var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
                     //                    MIDISend(outPortRef, midiDst0, &packets)
                     
                 }
                 if ( i > 0 ) {
-                    print("Set! 1 ")
+                    debugLog("Set! 1", category: .network)
                     midiDst1 = endPointRef
                    var packets = MIDIPacketList(midiEvents: [[0x98, 0x6f, 0x78]])
                     MIDISend(outPortRef2, endPointRef, &packets)

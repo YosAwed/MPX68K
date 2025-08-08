@@ -16,7 +16,7 @@ class Benchmark {
   func finish() {
     let elapsed = NSDate().timeIntervalSince(self.startTime as Date) as Double
     let formatedElapsed = String(format: "%2.5f", elapsed*1000)
-    print("[\(key)]: \(formatedElapsed)ms")
+    debugLog("[\(key)]: \(formatedElapsed)ms", category: .emulation)
   }
 
   // 処理をブロックで受け取る
