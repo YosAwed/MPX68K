@@ -1376,7 +1376,7 @@ extension GameScene {
         let location = event.location(in: self)
         let modeButtonX = -size.width/2 + 150
         let modeButtonY = size.height/2 - 30
-        let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
+        let _ = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
         
         // Spinny animation disabled for cleaner macOS experience
         // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
