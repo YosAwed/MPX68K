@@ -729,7 +729,7 @@ class GameScene: SKScene {
         // Update virtual pad visibility based on input mode
         updateVirtualPadVisibility()
         
-        moveJoystick.on(.begin) { [weak self] _ in
+        moveJoystick.on(.begin) { _ in
             // Empty handler for begin event
         }
         
