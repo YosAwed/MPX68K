@@ -11,13 +11,16 @@ import UniformTypeIdentifiers
 import os.log
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // Logger for menu updates
     private let logger = Logger(subsystem: "NANKIN.X68000", category: "MenuUpdate")
     
     // Timer for updating menu items
     private var menuUpdateTimer: Timer?
+    
+    // Mouse mode state tracking
+    private var isMouseCaptureEnabled = false
     
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
@@ -177,6 +180,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else if submenu.title == "HDD" {
                     logger.debug("Updating HDD menu")
                     self.updateHDDMenuTitles(submenu: submenu)
+                } else if submenu.title == "Display" {
+                    logger.debug("Updating Display menu")
+                    self.updateMouseMenuCheckmark()
                 }
             } else {
                 logger.debug("Menu item '\(menuItem.title)' has no submenu")
@@ -513,6 +519,72 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @IBAction func resetSystem(_ sender: Any) {
         print("🐛 AppDelegate.resetSystem called")
         gameViewController?.resetSystem(sender)
+    }
+    
+    // MARK: - Mouse Mode Actions
+    @IBAction func toggleMouseMode(_ sender: Any) {
+        debugLog("AppDelegate.toggleMouseMode called", category: .input)
+        isMouseCaptureEnabled.toggle()
+        
+        if isMouseCaptureEnabled {
+            // Enable X68000 mouse mode
+            gameViewController?.enableMouseCapture()
+            infoLog("X68000 mouse mode enabled", category: .input)
+        } else {
+            // Disable X68000 mouse mode
+            gameViewController?.disableMouseCapture()
+            infoLog("X68000 mouse mode disabled", category: .input)
+        }
+        
+        // Update menu checkmark immediately
+        updateMouseMenuCheckmark()
+    }
+    
+    // MARK: - Mouse Mode Direct Control (for F12 key)
+    func disableMouseCapture() {
+        if isMouseCaptureEnabled {
+            debugLog("AppDelegate.disableMouseCapture called via F12 key", category: .input)
+            isMouseCaptureEnabled = false
+            
+            // Disable X68000 mouse mode
+            gameViewController?.disableMouseCapture()
+            infoLog("X68000 mouse mode disabled via F12", category: .input)
+            
+            // Update menu checkmark immediately
+            updateMouseMenuCheckmark()
+        }
+    }
+    
+    private func updateMouseMenuCheckmark() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        
+        // Find Display menu and update mouse menu item
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu, submenu.title == "Display" {
+                for item in submenu.items {
+                    if item.identifier?.rawValue == "Display-mouse-mode" || item.title.contains("Use X68000 Mouse") {
+                        item.state = isMouseCaptureEnabled ? .on : .off
+                        debugLog("Updated mouse menu checkmark: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+                        break
+                    }
+                }
+                break
+            }
+        }
+    }
+    
+    // MARK: - Menu Validation
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        // Enable all menu items by default
+        if menuItem.identifier?.rawValue == "Display-mouse-mode" || menuItem.title.contains("Use X68000 Mouse") {
+            // Always enable the mouse toggle menu item
+            menuItem.state = isMouseCaptureEnabled ? .on : .off
+            debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+            return true
+        }
+        
+        // Default validation for other menu items
+        return true
     }
 
 }

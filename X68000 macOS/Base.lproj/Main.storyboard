@@ -181,6 +181,12 @@
                                                 <action selector="setPortraitMode:" target="Ady-hI-5gd" id="Display-portrait-action"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="Display-mouse-separator"/>
+                                        <menuItem title="Use X68000 Mouse" id="Display-mouse-mode">
+                                            <connections>
+                                                <action selector="toggleMouseMode:" target="Ady-hI-5gd" id="Display-mouse-action"/>
+                                            </connections>
+                                        </menuItem>
                                     </items>
                                 </menu>
                             </menuItem>
@@ -246,7 +252,7 @@
         <scene sceneID="hIz-AP-VOD">
             <objects>
                 <viewController id="XfG-lQ-9wD" customClass="GameViewController" customModule="X68000" customModuleProvider="target" sceneMemberID="viewController">
-                    <view key="view" id="m2S-Jp-Qdl" customClass="SKView">
+                    <view key="view" id="m2S-Jp-Qdl" customClass="MouseCaptureSKView" customModule="X68000" customModuleProvider="target">
                         <rect key="frame" x="0.0" y="0.0" width="800" height="600"/>
                         <autoresizingMask key="autoresizingMask"/>
                     </view>

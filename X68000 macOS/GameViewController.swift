@@ -11,10 +11,53 @@ import SpriteKit
 import GameplayKit
 import UniformTypeIdentifiers
 
+// MARK: - Custom SKView for Mouse Event Forwarding
+
+class MouseCaptureSKView: SKView {
+    
+    weak var gameViewController: GameViewController?
+    
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.mouseDown - forwarding to GameViewController", category: .input)
+        gameViewController?.mouseDown(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.mouseUp - forwarding to GameViewController", category: .input)
+        gameViewController?.mouseUp(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.rightMouseDown - forwarding to GameViewController", category: .input)
+        gameViewController?.rightMouseDown(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func rightMouseUp(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.rightMouseUp - forwarding to GameViewController", category: .input)
+        gameViewController?.rightMouseUp(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func mouseMoved(with event: NSEvent) {
+        gameViewController?.mouseMoved(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+}
+
 class GameViewController: NSViewController {
     
     static weak var shared: GameViewController?
     var gameScene: GameScene?
+    
+    // Mouse tracking for mouse capture mode
+    private var mouseTrackingArea: NSTrackingArea?
     
     func load(_ url: URL) {
         // Reduced logging for performance
@@ -346,7 +389,8 @@ class GameViewController: NSViewController {
         gameScene = GameScene.newGameScene()
         
         // Present the scene
-        let skView = self.view as! SKView
+        let skView = self.view as! MouseCaptureSKView
+        skView.gameViewController = self  // Set reference for event forwarding
         skView.presentScene(gameScene)
         
         skView.ignoresSiblingOrder = true
@@ -355,8 +399,11 @@ class GameViewController: NSViewController {
         skView.showsNodeCount = true
         skView.showsDrawCount = true
         
-        // Enable keyboard input for the SKView
+        // Enable keyboard and mouse input for the SKView
         view.window?.makeFirstResponder(self.view)
+        
+        // Ensure the view accepts mouse events
+        view.wantsLayer = true
         
         // ドラッグ&ドロップを有効にする
         setupDragAndDrop()
@@ -394,8 +441,9 @@ class GameViewController: NSViewController {
     
     override func viewDidAppear() {
         super.viewDidAppear()
-        // Ensure the view becomes first responder to receive keyboard events
+        // Ensure the view becomes first responder to receive keyboard and mouse events
         view.window?.makeFirstResponder(self)
+        infoLog("GameViewController became first responder", category: .input)
     }
     
     override func keyDown(with event: NSEvent) {
@@ -595,6 +643,163 @@ extension GameViewController: NSDraggingDestination {
         // Save HDD changes when view is about to disappear
         gameScene?.saveHDD()
         gameScene?.fileSystem?.saveSRAM()
+    }
+    
+    // MARK: - Mouse Capture Management
+    
+    func enableMouseCapture() {
+        debugLog("Enabling X68000 mouse capture", category: .input)
+        
+        // Ensure we are the first responder for mouse events
+        view.window?.makeFirstResponder(self)
+        infoLog("GameViewController made first responder for mouse capture", category: .input)
+        
+        // Hide the macOS cursor
+        NSCursor.hide()
+        
+        // Enable mouse capture mode in the game scene
+        gameScene?.enableMouseCapture()
+        
+        // Add mouse tracking area to the view
+        setupMouseTracking()
+        
+        // Store the initial cursor position for delta tracking
+        if let window = view.window {
+            let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
+            CGWarpMouseCursorPosition(windowCenter)
+            debugLog("Mouse cursor centered at window center", category: .input)
+        }
+        
+        infoLog("X68000 mouse capture enabled - Mac cursor hidden", category: .input)
+    }
+    
+    func disableMouseCapture() {
+        debugLog("Disabling X68000 mouse capture", category: .input)
+        
+        // Remove mouse tracking area
+        removeMouseTracking()
+        
+        // Show the macOS cursor
+        NSCursor.unhide()
+        
+        // Disable mouse capture mode in the game scene
+        gameScene?.disableMouseCapture()
+        
+        infoLog("X68000 mouse capture disabled - Mac cursor visible", category: .input)
+    }
+    
+    private func setupMouseTracking() {
+        removeMouseTracking() // Remove existing tracking area if any
+        
+        let trackingArea = NSTrackingArea(
+            rect: view.bounds,
+            options: [.activeInKeyWindow, .mouseMoved, .enabledDuringMouseDrag, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        
+        view.addTrackingArea(trackingArea)
+        mouseTrackingArea = trackingArea
+        debugLog("Mouse tracking area added: \(view.bounds)", category: .input)
+    }
+    
+    private func removeMouseTracking() {
+        if let trackingArea = mouseTrackingArea {
+            view.removeTrackingArea(trackingArea)
+            mouseTrackingArea = nil
+            debugLog("Mouse tracking area removed", category: .input)
+        }
+    }
+    
+    // MARK: - Mouse Event Handling
+    override func mouseMoved(with event: NSEvent) {
+        // Forward to GameScene if mouse capture is active
+        if let gameScene = gameScene, 
+           let mouseController = gameScene.mouseController,
+           mouseController.isCaptureMode {
+            
+            // Use delta movement for better mouse capture
+            let deltaX = event.deltaX
+            let deltaY = event.deltaY
+            
+            debugLog("Mouse delta movement: dx=\(deltaX), dy=\(deltaY)", category: .input)
+            
+            // Convert deltas to scene coordinates and forward to mouse controller
+            if let window = view.window {
+                let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
+                
+                // Re-center cursor to prevent it from moving outside window
+                CGWarpMouseCursorPosition(windowCenter)
+                
+                // Send delta movement to the mouse controller
+                // Note: We need to create a relative position based on current position + delta
+                let currentLocation = mouseController.mx * Float(gameScene.size.width)
+                let currentY = mouseController.my * Float(gameScene.size.height)
+                
+                let newX = max(0, min(Float(gameScene.size.width), currentLocation + Float(deltaX) * 2.0))
+                let newY = max(0, min(Float(gameScene.size.height), currentY + Float(-deltaY) * 2.0)) // Invert Y for screen coordinates
+                
+                // Pass absolute screen coordinates to the emulator core instead of normalized values
+                mouseController.SetPosition(CGPoint(x: CGFloat(newX), y: CGFloat(newY)), gameScene.size)
+                debugLog("Delta mouse update: screen(\(newX), \(newY)) size(\(gameScene.size.width), \(gameScene.size.height))", category: .input)
+            }
+        }
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        infoLog("🖱️ mouseDown event received in GameViewController", category: .input)
+        
+        if let gameScene = gameScene,
+           let mouseController = gameScene.mouseController {
+            
+            infoLog("🖱️ gameScene and mouseController available", category: .input)
+            infoLog("🖱️ isCaptureMode: \(mouseController.isCaptureMode)", category: .input)
+            
+            if mouseController.isCaptureMode {
+                infoLog("🖱️ Left mouse button pressed - calling Click(0, true)", category: .input)
+                mouseController.Click(0, true) // Left button (type 0), pressed
+            } else {
+                infoLog("🖱️ Mouse capture mode not active - ignoring click", category: .input)
+            }
+        } else {
+            infoLog("🖱️ gameScene or mouseController not available", category: .input)
+        }
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        infoLog("🖱️ mouseUp event received in GameViewController", category: .input)
+        
+        if let gameScene = gameScene,
+           let mouseController = gameScene.mouseController,
+           mouseController.isCaptureMode {
+            
+            infoLog("🖱️ Left mouse button released - calling Click(0, false)", category: .input)
+            mouseController.Click(0, false) // Left button (type 0), released
+        }
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        infoLog("🖱️ rightMouseDown event received in GameViewController", category: .input)
+        
+        if let gameScene = gameScene,
+           let mouseController = gameScene.mouseController,
+           mouseController.isCaptureMode {
+            
+            infoLog("🖱️ Right mouse button pressed - calling Click(1, true)", category: .input)
+            mouseController.Click(1, true) // Right button (type 1), pressed
+        }
+    }
+    
+    override func rightMouseUp(with event: NSEvent) {
+        infoLog("🖱️ rightMouseUp event received in GameViewController", category: .input)
+        
+        if let gameScene = gameScene,
+           let mouseController = gameScene.mouseController,
+           mouseController.isCaptureMode {
+            
+            infoLog("🖱️ Right mouse button released - calling Click(1, false)", category: .input)
+            mouseController.Click(1, false) // Right button (type 1), released
+        }
     }
 }
 

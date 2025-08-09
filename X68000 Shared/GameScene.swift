@@ -76,7 +76,7 @@ class GameScene: SKScene {
     private var lastScreenHeight: Int = 0
     
     private var audioStream: AudioStream?
-    private var mouseController: X68MouseController?
+    var mouseController: X68MouseController?
     
     // HDD auto-save removed - direct writes implemented
     private var midiController: MIDIController = MIDIController()
@@ -986,20 +986,14 @@ class GameScene: SKScene {
         }
         // Skip unnecessary device updates to improve performance
         
+        // Update screen dimensions first, then configure mouse controller
+        w = Int(X68000_GetScreenWidth())
+        h = Int(X68000_GetScreenHeight())
+        
         mouseController?.SetScreenSize(width: Float(w), height: Float(h))
         mouseController?.Update()
         
         X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
-        let midi_count = X68000_GetMIDIBufferSize()
-        
-        // Security: Validate MIDI buffer pointer before use
-        if let midi_buffer = X68000_GetMIDIBuffer() {
-            labelMIDI?.text = "MIDI OUT:\(midi_count)"
-            midiController.Send(midi_buffer, midi_count)
-        }
-        
-        w = Int(X68000_GetScreenWidth())
-        h = Int(X68000_GetScreenHeight())
         
         // Security: Validate screen dimensions
         guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
@@ -1403,6 +1397,39 @@ extension GameScene {
         // }
     }
     
+    override func mouseMoved(with event: NSEvent) {
+        // Only handle mouse movement when in capture mode
+        guard let mouseController = mouseController, mouseController.isCaptureMode else { 
+            debugLog("Mouse moved but not in capture mode", category: .input)
+            return 
+        }
+        
+        let location = event.location(in: self)
+        debugLog("Mouse moved in capture mode: (\(location.x), \(location.y))", category: .input)
+        
+        // Convert mouse position to X68000 mouse coordinates
+        mouseController.SetPosition(location, size)
+        
+        // Debug: Show what coordinates are being sent
+        let normalizedX = Float(location.x) / Float(size.width)
+        let normalizedY = Float(location.y) / Float(size.height)
+        debugLog("Sending normalized coords: (\(normalizedX), \(normalizedY))", category: .input)
+    }
+    
+    // MARK: - Mouse Capture Management
+    
+    func enableMouseCapture() {
+        debugLog("GameScene: Enabling mouse capture mode", category: .input)
+        mouseController?.enableCaptureMode()
+        infoLog("Mouse capture mode enabled in GameScene", category: .input)
+    }
+    
+    func disableMouseCapture() {
+        debugLog("GameScene: Disabling mouse capture mode", category: .input)
+        mouseController?.disableCaptureMode()
+        infoLog("Mouse capture mode disabled in GameScene", category: .input)
+    }
+    
     
     override func keyDown(with event: NSEvent) {
         // print("key press: \(event) keyCode: \(event.keyCode)")
@@ -1410,6 +1437,19 @@ extension GameScene {
         // Check for mode toggle key (F1 key instead of Tab)
         if event.keyCode == 122 { // F1 key
             toggleInputMode()
+            return
+        }
+        
+        // Check for mouse capture mode exit (F12 key)
+        if event.keyCode == 111 { // F12 key
+            // Check if mouse capture is currently enabled
+            if let mouseController = mouseController, mouseController.isCaptureMode {
+                debugLog("F12 pressed - disabling mouse capture mode", category: .input)
+                // Call AppDelegate to disable mouse capture
+                if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                    appDelegate.disableMouseCapture()
+                }
+            }
             return
         }
         

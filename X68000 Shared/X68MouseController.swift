@@ -12,6 +12,9 @@ class X68MouseController
 {
     var mode = 0
     
+    // Mouse capture mode state
+    var isCaptureMode = false
+    
     var mx : Float = 0.0
     var my : Float = 0.0
     var dx : Float = 0.0
@@ -31,25 +34,26 @@ class X68MouseController
     func Update()
     {
         frame += 1
+        
+        // Handle ClickOnce temporary click flag (for legacy compatibility)
+        var current_button_state = button_state
         if click_flag > 0 {
-            button_state = 1
+            current_button_state |= 1  // Add left button for ClickOnce
             click_flag -= 1
-
-            if ( click_flag == 0 ) {
-                button_state = 0
-            }
-            debugLog("Mouse click frame: \(frame) flag: \(click_flag)", category: .input)
-            
+            debugLog("Mouse ClickOnce frame: \(frame) flag: \(click_flag)", category: .input)
         }
-        X68000_Mouse_SetDirect( mx*x68k_width, x68k_height-my*x68k_height, button_state)
-        //        X68000_Mouse_Set( dx*x68k_width, x68k_height-dy*x68k_height, button_state)
+        
+        debugLog("Mouse Update: position(\(mx*x68k_width), \(x68k_height-my*x68k_height)) buttons: \(current_button_state)", category: .input)
+        X68000_Mouse_SetDirect( mx*x68k_width, x68k_height-my*x68k_height, current_button_state)
+        //        X68000_Mouse_Set( dx*x68k_width, x68k_height-dy*x68k_height, current_button_state)
         dx = 0.0
         dy = 0.0
     }
     
     fileprivate func Normalize(_ a :CGFloat, _ b :CGFloat ) -> Float
     {
-        return Float(a) / Float(b) + 0.5
+        // Fixed: Remove +0.5 offset that was causing coordinate issues
+        return Float(a) / Float(b)
     }
     
     func SetPosition(_ location :CGPoint, _ size: CGSize ){
@@ -91,16 +95,30 @@ class X68MouseController
         old_y = y
     }
     func Click(_ type: Int,_ pressed:Bool) {
+        infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
         if pressed {
             button_state |= (1<<type)
         } else {
             button_state &= ~(1<<type)
         }
+        infoLog("🖱️ X68MouseController.Click: button_state after=\(button_state)", category: .input)
     }
     func ClickOnce()
     {
         debugLog("\(frame): ClickOnce", category: .input)
         click_flag = 2
+    }
+    
+    // MARK: - Mouse Capture Mode Management
+    
+    func enableCaptureMode() {
+        isCaptureMode = true
+        debugLog("Mouse controller capture mode enabled", category: .input)
+    }
+    
+    func disableCaptureMode() {
+        isCaptureMode = false
+        debugLog("Mouse controller capture mode disabled", category: .input)
     }
     
 }
