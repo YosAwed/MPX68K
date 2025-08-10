@@ -21,6 +21,12 @@ class FileSystem {
     private static var currentlyLoadingPair: String?
     private static let loadingPairLock = NSLock()
     
+    // File search cache for performance optimization
+    private static var fileSearchCache: [String: URL] = [:]
+    private static var cacheTimestamp: Date = Date.distantPast
+    private static let cacheValidityDuration: TimeInterval = 300 // 5 minutes
+    private static let cacheAccessLock = NSLock()
+    
     init() {
 #if false
         let documentsPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
@@ -84,52 +90,165 @@ class FileSystem {
         return url
     }
     
-    // Search for file in multiple locations (Documents and Inbox)
+    // Optimized file search with caching and enumeration
     func findFileInDocuments(_ filename: String) -> URL? {
+        // Check cache first
+        if let cachedResult = getCachedFileLocation(filename) {
+            return cachedResult
+        }
+        
+        // Perform enumeration-based search
+        return searchFileWithEnumeration(filename)
+    }
+    
+    /// Check if file location is cached and still valid
+    private func getCachedFileLocation(_ filename: String) -> URL? {
+        return FileSystem.cacheAccessLock.withLock {
+            let now = Date()
+            let cacheAge = now.timeIntervalSince(FileSystem.cacheTimestamp)
+            
+            // Check if cache is still valid
+            if cacheAge < FileSystem.cacheValidityDuration,
+               let cachedURL = FileSystem.fileSearchCache[filename] {
+                
+                // Verify cached file still exists and is accessible
+                if FileManager.default.isReadableFile(atPath: cachedURL.path) {
+                    debugLog("Cache hit for \(filename): \(cachedURL.path)", category: .fileSystem)
+                    return cachedURL
+                } else {
+                    // Remove stale entry
+                    FileSystem.fileSearchCache.removeValue(forKey: filename)
+                }
+            }
+            
+            return nil
+        }
+    }
+    
+    /// Perform optimized file search using directory enumeration
+    private func searchFileWithEnumeration(_ filename: String) -> URL? {
         guard let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { 
             return nil 
         }
         
-        // Search locations in priority order
-        var searchPaths = [
-            containerURL.appendingPathComponent("X68000").appendingPathComponent(filename),
-            containerURL.appendingPathComponent("Documents").appendingPathComponent(filename), // Legacy path for backward compatibility
-            containerURL.appendingPathComponent("Inbox").appendingPathComponent(filename),
-            containerURL.appendingPathComponent(filename), // Direct in documents root
-            // Also check the actual sandboxed container directory path
-            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
-        ]
+        // Get search directories in priority order
+        let searchDirectories = getSearchDirectories(containerURL: containerURL)
         
-        // Add actual user Documents directory paths (requires user-selected file access entitlement)
-        if let userHome = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first {
-            let userDocumentsX68000 = userHome.appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
-            searchPaths.append(userDocumentsX68000)
-            debugLog("Added user Documents search path: \(userDocumentsX68000.path)", category: .fileSystem)
-        }
-        
-        // Also try direct access to common user Documents location
-        let commonUserDocumentsPath = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents").appendingPathComponent("X68000").appendingPathComponent(filename)
-        searchPaths.append(commonUserDocumentsPath)
-        debugLog("Added common Documents search path: \(commonUserDocumentsPath.path)", category: .fileSystem)
-        
-        infoLog("Searching for \(filename) in \(searchPaths.count) locations:", category: .fileSystem)
-        for (index, path) in searchPaths.enumerated() {
-            let exists = FileManager.default.fileExists(atPath: path.path)
-            let accessible = FileManager.default.isReadableFile(atPath: path.path)
-            debugLog("  \(index + 1). \(path.path) - exists: \(exists), accessible: \(accessible)", category: .fileSystem)
-            
-            if exists {
-                if accessible {
-                    infoLog("Found \(filename) at: \(path.path)", category: .fileSystem)
-                    return path
-                } else {
-                    warningLog("File exists but not accessible due to permissions: \(path.path)", category: .fileSystem)
-                }
+        for searchDir in searchDirectories {
+            if let foundURL = searchInDirectory(searchDir, filename: filename) {
+                // Cache successful result
+                cacheFileLocation(filename, url: foundURL)
+                infoLog("Found \(filename) at: \(foundURL.path)", category: .fileSystem)
+                return foundURL
             }
         }
         
-        errorLog("File \(filename) not found in any accessible location", category: .fileSystem)
+        debugLog("File \(filename) not found in any search directory", category: .fileSystem)
         return nil
+    }
+    
+    /// Get prioritized list of search directories
+    private func getSearchDirectories(containerURL: URL) -> [URL] {
+        var directories: [URL] = []
+        
+        // Priority search directories
+        let priorityDirs = [
+            containerURL.appendingPathComponent("X68000"),
+            containerURL.appendingPathComponent("Documents"), // Legacy compatibility
+            containerURL.appendingPathComponent("Inbox"),
+            containerURL, // Direct in documents root
+            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent("X68000")
+        ]
+        
+        // Add existing directories only
+        for dir in priorityDirs {
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDirectory) && isDirectory.boolValue {
+                directories.append(dir)
+            }
+        }
+        
+        // Add user Documents directory if accessible
+        if let userHome = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first {
+            let userDocsX68000 = userHome.appendingPathComponent("Documents").appendingPathComponent("X68000")
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: userDocsX68000.path, isDirectory: &isDirectory) && isDirectory.boolValue {
+                directories.append(userDocsX68000)
+            }
+        }
+        
+        // Add common user Documents location
+        let commonUserDocs = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents").appendingPathComponent("X68000")
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: commonUserDocs.path, isDirectory: &isDirectory) && isDirectory.boolValue {
+            directories.append(commonUserDocs)
+        }
+        
+        return directories
+    }
+    
+    /// Search for file in specific directory using enumeration
+    private func searchInDirectory(_ directory: URL, filename: String) -> URL? {
+        let targetURL = directory.appendingPathComponent(filename)
+        
+        // Direct file check first (most common case)
+        if FileManager.default.isReadableFile(atPath: targetURL.path) {
+            return targetURL
+        }
+        
+        // Case-insensitive search using enumeration for more thorough search
+        let resourceKeys: [URLResourceKey] = [.nameKey, .isRegularFileKey]
+        
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants], // Single level only for performance
+            errorHandler: { _, _ in true } // Continue on errors
+        ) else {
+            return nil
+        }
+        
+        let lowercaseTarget = filename.lowercased()
+        
+        for case let fileURL as URL in enumerator {
+            do {
+                let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+                
+                // Only check regular files
+                guard resourceValues.isRegularFile == true,
+                      let fileName = resourceValues.name else { continue }
+                
+                // Case-insensitive comparison for flexibility
+                if fileName.lowercased() == lowercaseTarget {
+                    if FileManager.default.isReadableFile(atPath: fileURL.path) {
+                        debugLog("Found \(filename) via enumeration: \(fileURL.path)", category: .fileSystem)
+                        return fileURL
+                    }
+                }
+            } catch {
+                continue // Skip files with errors
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Cache successful file location
+    private func cacheFileLocation(_ filename: String, url: URL) {
+        FileSystem.cacheAccessLock.withLock {
+            FileSystem.fileSearchCache[filename] = url
+            FileSystem.cacheTimestamp = Date()
+            debugLog("Cached location for \(filename): \(url.path)", category: .fileSystem)
+        }
+    }
+    
+    /// Clear file search cache (useful for testing or when file system changes are detected)
+    static func clearFileSearchCache() {
+        cacheAccessLock.withLock {
+            fileSearchCache.removeAll()
+            cacheTimestamp = Date.distantPast
+            debugLog("File search cache cleared", category: .fileSystem)
+        }
     }
     
     func boot()
@@ -140,34 +259,68 @@ class FileSystem {
         
         // コンテナに追加するフォルダのパス
         if let documentsURL = containerURL?.appendingPathComponent("X68000") {
-            let dir = getDir( documentsURL )
-            
-            for n in dir {
-                if let filename = n {
-                    // Only process disk image files during boot, skip ROM and system files
-                    let ext = filename.pathExtension.lowercased()
-                    let validDiskExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
-                    if validDiskExtensions.contains(ext) {
-                        // Security: Validate file paths and types
-                        if isValidDiskImageFile(filename) {
-                            loadDiskImage( filename )
-                        }
-                    }
-                }
-            }
-            
+            scanDiskImagesEfficiently(in: documentsURL)
         }
     }
-    func getDir(_ path : URL ) -> [URL?]
-    {
-        guard let fileNames = try? FileManager.default.contentsOfDirectory(at: path, includingPropertiesForKeys: nil) else {
-            return [nil]
-        }
-        //        for i in 0..<fileNames.count {
-        //            print("\(i): \(fileNames[i])")
-        //        }
+    
+    /// Efficiently scan directory for disk images using FileManager enumerator and URLResourceValues
+    private func scanDiskImagesEfficiently(in directory: URL) {
+        debugLog("Starting efficient disk image scan in: \(directory.path)", category: .fileSystem)
         
-        return fileNames
+        // Define valid disk extensions as Set for O(1) lookup performance
+        let validDiskExtensions: Set<String> = ["dim", "xdf", "d88", "hdm", "hdf"]
+        
+        // Request only the resource values we need to minimize I/O
+        let resourceKeys: [URLResourceKey] = [.nameKey, .isRegularFileKey, .fileResourceTypeKey]
+        
+        // Use DirectoryEnumerator for stream processing instead of loading entire directory
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { url, error in
+                warningLog("Error accessing file during scan: \(url.path) - \(error.localizedDescription)", category: .fileSystem)
+                return true // Continue enumeration
+            }
+        ) else {
+            warningLog("Failed to create directory enumerator for: \(directory.path)", category: .fileSystem)
+            return
+        }
+        
+        var scannedCount = 0
+        var foundCount = 0
+        
+        // Stream process files using the enumerator
+        for case let fileURL as URL in enumerator {
+            scannedCount += 1
+            
+            do {
+                // Efficiently get resource values in a single call
+                let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+                
+                // Skip non-regular files (directories, symlinks, etc.)
+                guard resourceValues.isRegularFile == true else { continue }
+                
+                // Check file extension efficiently using file URL
+                let pathExtension = fileURL.pathExtension.lowercased()
+                
+                if validDiskExtensions.contains(pathExtension) {
+                    foundCount += 1
+                    debugLog("Found disk image: \(fileURL.lastPathComponent)", category: .fileSystem)
+                    
+                    // Security: Validate file paths and types
+                    if isValidDiskImageFile(fileURL) {
+                        loadDiskImage(fileURL)
+                    }
+                }
+            } catch {
+                // Handle individual file access errors without stopping the scan
+                warningLog("Failed to get resource values for file: \(fileURL.path) - \(error.localizedDescription)", category: .fileSystem)
+                continue
+            }
+        }
+        
+        infoLog("Disk scan completed: \(foundCount) disk images found out of \(scannedCount) files scanned", category: .fileSystem)
     }
     
     
