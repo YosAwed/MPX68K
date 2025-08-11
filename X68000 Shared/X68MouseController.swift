@@ -43,7 +43,7 @@ class X68MouseController
             debugLog("Mouse ClickOnce frame: \(frame) flag: \(click_flag)", category: .input)
         }
         
-        debugLog("Mouse Update: position(\(mx*x68k_width), \(x68k_height-my*x68k_height)) buttons: \(current_button_state)", category: .input)
+        // Removed verbose mouse update logging for performance
         X68000_Mouse_SetDirect( mx*x68k_width, x68k_height-my*x68k_height, current_button_state)
         //        X68000_Mouse_Set( dx*x68k_width, x68k_height-dy*x68k_height, current_button_state)
         dx = 0.0

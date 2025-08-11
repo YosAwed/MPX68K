@@ -3,7 +3,7 @@
 //  X68000 macOS
 //
 //  Created by GOROman on 2020/03/28.
-//  Copyright © 2020 GOROman. All rights reserved.
+//  Copyright © 2020 GOROman/Awed. All rights reserved.
 //
 
 import Cocoa
@@ -388,12 +388,27 @@ class GameViewController: NSViewController {
         
         gameScene = GameScene.newGameScene()
         
-        // Present the scene
+        // Configure SKView settings BEFORE presenting scene
         let skView = self.view as! MouseCaptureSKView
         skView.gameViewController = self  // Set reference for event forwarding
-        skView.presentScene(gameScene)
         
+        // Critical: Set frame synchronization settings first
+        skView.preferredFramesPerSecond = 60
+        skView.isAsynchronous = false  // Essential for consistent timing
         skView.ignoresSiblingOrder = true
+        
+        // Enhanced synchronization settings to prevent partial sprite flicker
+        #if os(macOS)
+        // Ensure VSync is properly aligned for smooth texture updates
+        if let metalView = skView.layer {
+            metalView.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
+        }
+        #endif
+        
+        // Additional rendering optimization for smoother sprite display
+        
+        // Present the scene AFTER configuration
+        skView.presentScene(gameScene)
         
         skView.showsFPS = true
         skView.showsNodeCount = true

@@ -3,7 +3,7 @@
 //  X68000 macOS
 //
 //  Created by GOROman on 2020/03/28.
-//  Copyright © 2020 GOROman. All rights reserved.
+//  Copyright © 2020 GOROman/Awed. All rights reserved.
 //
 
 import Cocoa
@@ -59,11 +59,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
         setupHDDMenu()
-        setupMenuUpdateTimer()
         
-        // Test menu update once after app launch  
+        // Initial menu update once after app launch  
         DispatchQueue.main.async { [weak self] in
-            self?.updateMenuItemTitles()
+            self?.updateMenuTitles()
         }
     }
     
@@ -147,18 +146,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         errorLog("Could not find suitable menu to add HDD creation item", category: .ui)
     }
     
-    private func setupMenuUpdateTimer() {
-        // Update menu items every 2 seconds to show current mounted filenames
-        logger.debug("Setting up menu update timer")
-        menuUpdateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.logger.debug("Timer fired - updating menu titles")
-            self?.updateMenuItemTitles()
+    // Manual menu update when files are opened/closed
+    func updateMenuOnFileOperation() {
+        DispatchQueue.main.async { [weak self] in
+            self?.updateMenuTitles()
         }
     }
     
-    private func updateMenuItemTitles() {
-        DispatchQueue.main.async { [weak self] in
-            self?.updateMenuTitles()
+    private func clearMenuTitles() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        
+        // Clear FDD and HDD menu titles using existing loop pattern
+        for menuItem in mainMenu.items {
+            guard let submenu = menuItem.submenu else { continue }
+            
+            if menuItem.title == "FDD" {
+                // Clear FDD menu titles
+                for i in 0..<2 {
+                    if let fddItem = submenu.item(withTag: i) {
+                        fddItem.title = "FDD\(i): (None)"
+                    }
+                }
+            } else if menuItem.title == "HDD" {
+                // Clear HDD menu titles
+                for i in 0..<2 {
+                    if let hddItem = submenu.item(withTag: i) {
+                        hddItem.title = "HDD\(i): (None)"
+                    }
+                }
+            }
         }
     }
     
@@ -391,6 +407,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Stop the menu update timer
         menuUpdateTimer?.invalidate()
         menuUpdateTimer = nil
+        
+        // Clear menu titles on app termination
+        clearMenuTitles()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

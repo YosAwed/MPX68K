@@ -1,3 +1,11 @@
+//
+//  Benchmark.swift
+//  X68000 Shared
+//
+//  Created by Improvement Phase 1
+//  Copyright 2025 Awed. All rights reserved.
+//
+
 import Foundation
 import QuartzCore
 

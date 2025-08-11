@@ -2,13 +2,18 @@
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>app-store</string>
+    <string>app-store-connect</string>
     <key>uploadBitcode</key>
     <false/>
     <key>uploadSymbols</key>
     <true/>
     <key>compileBitcode</key>
     <false/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>teamID</key>
+    <string>DQR9HH7KUY</string>
+    <key>destination</key>
+    <string>export</string>
 </dict>
 </plist>
-EOF < /dev/null

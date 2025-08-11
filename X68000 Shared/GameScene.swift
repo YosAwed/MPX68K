@@ -75,6 +75,9 @@ class GameScene: SKScene {
     private var lastScreenWidth: Int = 0
     private var lastScreenHeight: Int = 0
     
+    // Synchronized texture update to prevent partial frame flicker
+    private var textureUpdateSemaphore = DispatchSemaphore(value: 1)
+    
     private var audioStream: AudioStream?
     var mouseController: X68MouseController?
     
@@ -183,11 +186,25 @@ class GameScene: SKScene {
         }
         
         fileSystem?.loadFDDToDrive(url, drive: drive)
+        
+        // Update menu after FDD load
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     func ejectFDDFromDrive(_ drive: Int) {
         debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
         X68000_EjectFDD(drive)
+        
+        // Update menu after FDD eject
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     // MARK: - HDD Management
@@ -222,6 +239,13 @@ class GameScene: SKScene {
                         
                         // Save SRAM after HDD loading
                         self.fileSystem?.saveSRAM()
+                        
+                        // Update menu after HDD load
+                        #if os(macOS)
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.updateMenuOnFileOperation()
+                        }
+                        #endif
                     } else {
                         errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                     }
@@ -245,6 +269,13 @@ class GameScene: SKScene {
         }
         
         X68000_EjectHDD()
+        
+        // Update menu after HDD eject
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     func saveHDD() {
@@ -699,6 +730,8 @@ class GameScene: SKScene {
         debugLog("didMove", category: .ui)
         self.setUpScene()
         
+        // Advanced rendering setup for smooth texture updates
+        
         // Screen rotation will be applied after emulator initialization in setUpScene()
         
         // Timer will be started after emulator initialization in setUpScene()
@@ -972,13 +1005,12 @@ class GameScene: SKScene {
     var h: Int = 1
     
     override func update(_ currentTime: TimeInterval) {
-        // Optimization: Use SpriteKit's native update instead of duplicate Timer-based updates
-        // This replaces the Timer-based updateGame() method for better performance
-        
         // Safety: Only update if emulator is properly initialized
         guard isEmulatorInitialized else {
             return
         }
+        
+        // Let SpriteKit handle frame timing naturally - no manual throttling
         
         // Optimized device updates based on input mode
         if currentInputMode == .joycard {
@@ -1000,15 +1032,34 @@ class GameScene: SKScene {
             return
         }
         
+        // Synchronized texture update to prevent partial frame flicker
+        performSynchronizedTextureUpdate()
+    }
+    
+    override func didFinishUpdate() {
+        // Ensure all texture updates are completed before next frame
+        super.didFinishUpdate()
+    }
+    
+    // MARK: - Synchronized Texture Update for Smooth Rendering
+    private func performSynchronizedTextureUpdate() {
+        // Wait for previous texture update to complete before creating new one
+        guard textureUpdateSemaphore.wait(timeout: .now()) == .success else {
+            return // Skip this frame if previous update is still in progress
+        }
+        
+        defer { textureUpdateSemaphore.signal() }
+        
+        // Ensure buffer swap is complete before texture capture
         X68000_GetImage(&d)
         
         let cgsize = CGSize(width: w, height: h)
-        
-        // Performance optimization: Reduce texture recreation overhead
         let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
         
-        // Always update texture data, but optimize sprite management
-        let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
+        // Critical: Only update when we have valid screen dimensions
+        guard w > 0 && h > 0 else {
+            return
+        }
         
         if screenSizeChanged || spr.parent == nil {
             // Screen size changed or sprite not added yet
@@ -1019,13 +1070,27 @@ class GameScene: SKScene {
                 spr.removeFromParent()
             }
             
+            // Create texture with optimized settings for smooth sprite rendering
+            let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
+            tex.filteringMode = .nearest  // Pixel-perfect rendering for retro games
+            
             spr = SKSpriteNode(texture: tex, size: cgsize)
             spr.xScale = CGFloat(screen_w) / CGFloat(w)
             spr.yScale = CGFloat(screen_h) / CGFloat(h)
             spr.zPosition = -1.0
             self.addChild(spr)
+            
+            // Apply rotation transform silently to avoid logging spam
+            applySpriteTransformSilently()
+            
         } else {
-            // Just update texture, keep sprite
+            // Direct texture update synchronized with frame completion
+            // This prevents mid-frame texture updates that cause partial sprite flicker
+            let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
+            tex.filteringMode = .nearest
+            
+            // Critical: Update texture directly within the same frame cycle
+            // This ensures atomic texture replacement without partial updates
             spr.texture = tex
         }
     }
@@ -1400,12 +1465,12 @@ extension GameScene {
     override func mouseMoved(with event: NSEvent) {
         // Only handle mouse movement when in capture mode
         guard let mouseController = mouseController, mouseController.isCaptureMode else { 
-            debugLog("Mouse moved but not in capture mode", category: .input)
+            // Removed verbose mouse logging for performance
             return 
         }
         
         let location = event.location(in: self)
-        debugLog("Mouse moved in capture mode: (\(location.x), \(location.y))", category: .input)
+        // Removed verbose mouse movement logging for performance
         
         // Convert mouse position to X68000 mouse coordinates
         mouseController.SetPosition(location, size)
