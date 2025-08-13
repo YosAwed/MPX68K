@@ -15,6 +15,9 @@ class X68MouseController
     // Mouse capture mode state
     var isCaptureMode = false
     
+    // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
+    var mouseSensitivity: Float = 0.8
+    
     var mx : Float = 0.0
     var my : Float = 0.0
     var dx : Float = 0.0
@@ -25,6 +28,11 @@ class X68MouseController
     var button_state: Int = 0x00
     
     var click_flag : Int = 0
+    
+    // Click debouncing to prevent multiple clicks
+    private var lastClickTime: [Int: TimeInterval] = [:]
+    private let clickDebounceInterval: TimeInterval = 0.3 // 300ms debounce
+    private var lastClickState: [Int: Bool] = [:] // Track last state for each button
     
     var x68k_width: Float = 0.0
     var x68k_height: Float = 0.0
@@ -43,11 +51,18 @@ class X68MouseController
             // debugLog("Mouse ClickOnce frame: \(frame) flag: \(click_flag)", category: .input)
         }
         
-        // Removed verbose mouse update logging for performance
-        X68000_Mouse_SetDirect( mx*x68k_width, x68k_height-my*x68k_height, current_button_state)
-        //        X68000_Mouse_Set( dx*x68k_width, x68k_height-dy*x68k_height, current_button_state)
-        dx = 0.0
-        dy = 0.0
+        // Only process mouse updates when in capture mode
+        guard isCaptureMode else { return }
+        
+        // Use delta movement (dx, dy) instead of absolute position to prevent drift
+        if dx != 0.0 || dy != 0.0 {
+            X68000_Mouse_Set( dx*x68k_width, dy*x68k_height, current_button_state)
+            dx = 0.0
+            dy = 0.0
+        } else {
+            // No movement, just update button state - treat X and Y coordinates the same way
+            X68000_Mouse_SetDirect( mx*x68k_width, my*x68k_height, current_button_state)
+        }
     }
     
     fileprivate func Normalize(_ a :CGFloat, _ b :CGFloat ) -> Float
@@ -67,8 +82,9 @@ class X68MouseController
         mx = x
         my = y
         
-        dx += x - old_x
-        dy += y - old_y
+        // Simple direct sensitivity adjustment without accumulation
+        dx += (x - old_x) * mouseSensitivity
+        dy += (y - old_y) * mouseSensitivity
         
         old_x = x
         old_y = y
@@ -95,6 +111,30 @@ class X68MouseController
         old_y = y
     }
     func Click(_ type: Int,_ pressed:Bool) {
+        // Check if this is actually a state change
+        let lastState = lastClickState[type] ?? false
+        if lastState == pressed {
+            // No state change, ignore duplicate call
+            return
+        }
+        
+        let currentTime = CFAbsoluteTimeGetCurrent()
+        
+        // Additional time-based debouncing
+        if pressed {
+            if let lastTime = lastClickTime[type] {
+                let timeSinceLastClick = currentTime - lastTime
+                if timeSinceLastClick < clickDebounceInterval {
+                    // Too soon since last click, ignore this one
+                    return
+                }
+            }
+            lastClickTime[type] = currentTime
+        }
+        
+        // Update state tracking
+        lastClickState[type] = pressed
+        
         infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
         if pressed {
             button_state |= (1<<type)
@@ -113,11 +153,55 @@ class X68MouseController
     
     func enableCaptureMode() {
         isCaptureMode = true
+        
+        // Initialize mouse position to prevent jumping
+        dx = 0.0
+        dy = 0.0
+        
+        // Reset to center position to ensure consistent starting point
+        ResetPosition(0.5, 0.5)
+        
         // debugLog("Mouse controller capture mode enabled", category: .input)
     }
     
     func disableCaptureMode() {
         isCaptureMode = false
+        
+        // Clear all movement data to prevent drift after disabling
+        dx = 0.0
+        dy = 0.0
+        
+        // Reset internal coordinates to prevent any residual movement
+        mx = 0.5
+        my = 0.5
+        old_x = 0.5 
+        old_y = 0.5
+        
+        // Clear click state tracking
+        lastClickTime.removeAll()
+        lastClickState.removeAll()
+        
+        // Send multiple stop commands to ensure X68000 mouse system stops completely
+        if x68k_width > 0 && x68k_height > 0 {
+            // First try to counteract any ongoing movement with large opposite deltas
+            X68000_Mouse_Set(-1000, -1000, 0) // Large negative deltas to counteract right-down drift
+            X68000_Mouse_Set(-500, -500, 0)   // Medium negative deltas
+            X68000_Mouse_Set(-100, -100, 0)   // Small negative deltas
+            
+            // Send zero deltas multiple times to ensure complete stop
+            for _ in 0..<10 {
+                X68000_Mouse_Set(0, 0, 0)
+            }
+            
+            // Set stable center position
+            X68000_Mouse_SetDirect(x68k_width/2, x68k_height/2, 0)
+            
+            // Send more zeros to be absolutely sure
+            for _ in 0..<5 {
+                X68000_Mouse_Set(0, 0, 0)
+            }
+        }
+        
         // debugLog("Mouse controller capture mode disabled", category: .input)
     }
     

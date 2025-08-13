@@ -668,11 +668,15 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
         
+        // Mouse controller will be initialized automatically in enableCaptureMode
+        // No need for manual initialization here
+        
         // Store the initial cursor position for delta tracking
         if let window = view.window {
+            // Position cursor at window center to ensure it stays within bounds
             let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
             CGWarpMouseCursorPosition(windowCenter)
-            // debugLog("Mouse cursor centered at window center", category: .input)
+            // debugLog("Mouse cursor positioned at window center", category: .input)
         }
         
         infoLog("X68000 mouse capture enabled - Mac cursor hidden", category: .input)
@@ -727,10 +731,17 @@ extension GameViewController: NSDraggingDestination {
             let deltaX = event.deltaX
             let deltaY = event.deltaY
             
+            // Apply smaller deadzone to maintain responsiveness while filtering noise
+            let deadzone: Double = 0.1 // Much smaller threshold for better responsiveness
+            if abs(deltaX) < deadzone && abs(deltaY) < deadzone {
+                return // Ignore tiny movements that cause drift
+            }
+            
             // debugLog("Mouse delta movement: dx=\(deltaX), dy=\(deltaY)", category: .input)
             
             // Convert deltas to scene coordinates and forward to mouse controller
             if let window = view.window {
+                // Position cursor at window center to keep it within bounds
                 let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
                 
                 // Re-center cursor to prevent it from moving outside window
@@ -741,8 +752,10 @@ extension GameViewController: NSDraggingDestination {
                 let currentLocation = mouseController.mx * Float(gameScene.size.width)
                 let currentY = mouseController.my * Float(gameScene.size.height)
                 
-                let newX = max(0, min(Float(gameScene.size.width), currentLocation + Float(deltaX) * 2.0))
-                let newY = max(0, min(Float(gameScene.size.height), currentY + Float(-deltaY) * 2.0)) // Invert Y for screen coordinates
+                // Reduce mouse sensitivity for smoother movement (was * 2.0, now * 0.5)
+                let mouseSensitivity: Float = 0.5
+                let newX = max(0, min(Float(gameScene.size.width), currentLocation + Float(deltaX) * mouseSensitivity))
+                let newY = max(0, min(Float(gameScene.size.height), currentY + Float(deltaY) * mouseSensitivity)) // Remove Y inversion to fix reverse direction
                 
                 // Pass absolute screen coordinates to the emulator core instead of normalized values
                 mouseController.SetPosition(CGPoint(x: CGFloat(newX), y: CGFloat(newY)), gameScene.size)
