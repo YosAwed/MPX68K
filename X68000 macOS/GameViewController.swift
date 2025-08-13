@@ -3,7 +3,7 @@
 //  X68000 macOS
 //
 //  Created by GOROman on 2020/03/28.
-//  Copyright © 2020 GOROman. All rights reserved.
+//  Copyright © 2020 GOROman/Awed. All rights reserved.
 //
 
 import Cocoa
@@ -388,12 +388,17 @@ class GameViewController: NSViewController {
         
         gameScene = GameScene.newGameScene()
         
-        // Present the scene
+        // Configure SKView settings BEFORE presenting scene
         let skView = self.view as! MouseCaptureSKView
         skView.gameViewController = self  // Set reference for event forwarding
-        skView.presentScene(gameScene)
         
+        // Critical: Set frame synchronization settings first
+        skView.preferredFramesPerSecond = 60
+        skView.isAsynchronous = false  // Essential for consistent timing
         skView.ignoresSiblingOrder = true
+        
+        // Present the scene AFTER configuration
+        skView.presentScene(gameScene)
         
         skView.showsFPS = true
         skView.showsNodeCount = true
@@ -648,7 +653,7 @@ extension GameViewController: NSDraggingDestination {
     // MARK: - Mouse Capture Management
     
     func enableMouseCapture() {
-        debugLog("Enabling X68000 mouse capture", category: .input)
+        // debugLog("Enabling X68000 mouse capture", category: .input)
         
         // Ensure we are the first responder for mouse events
         view.window?.makeFirstResponder(self)
@@ -667,14 +672,14 @@ extension GameViewController: NSDraggingDestination {
         if let window = view.window {
             let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
             CGWarpMouseCursorPosition(windowCenter)
-            debugLog("Mouse cursor centered at window center", category: .input)
+            // debugLog("Mouse cursor centered at window center", category: .input)
         }
         
         infoLog("X68000 mouse capture enabled - Mac cursor hidden", category: .input)
     }
     
     func disableMouseCapture() {
-        debugLog("Disabling X68000 mouse capture", category: .input)
+        // debugLog("Disabling X68000 mouse capture", category: .input)
         
         // Remove mouse tracking area
         removeMouseTracking()
@@ -700,14 +705,14 @@ extension GameViewController: NSDraggingDestination {
         
         view.addTrackingArea(trackingArea)
         mouseTrackingArea = trackingArea
-        debugLog("Mouse tracking area added: \(view.bounds)", category: .input)
+        // debugLog("Mouse tracking area added: \(view.bounds)", category: .input)
     }
     
     private func removeMouseTracking() {
         if let trackingArea = mouseTrackingArea {
             view.removeTrackingArea(trackingArea)
             mouseTrackingArea = nil
-            debugLog("Mouse tracking area removed", category: .input)
+            // debugLog("Mouse tracking area removed", category: .input)
         }
     }
     
@@ -722,7 +727,7 @@ extension GameViewController: NSDraggingDestination {
             let deltaX = event.deltaX
             let deltaY = event.deltaY
             
-            debugLog("Mouse delta movement: dx=\(deltaX), dy=\(deltaY)", category: .input)
+            // debugLog("Mouse delta movement: dx=\(deltaX), dy=\(deltaY)", category: .input)
             
             // Convert deltas to scene coordinates and forward to mouse controller
             if let window = view.window {
@@ -741,7 +746,7 @@ extension GameViewController: NSDraggingDestination {
                 
                 // Pass absolute screen coordinates to the emulator core instead of normalized values
                 mouseController.SetPosition(CGPoint(x: CGFloat(newX), y: CGFloat(newY)), gameScene.size)
-                debugLog("Delta mouse update: screen(\(newX), \(newY)) size(\(gameScene.size.width), \(gameScene.size.height))", category: .input)
+                // debugLog("Delta mouse update: screen(\(newX), \(newY)) size(\(gameScene.size.width), \(gameScene.size.height))", category: .input)
             }
         }
     }

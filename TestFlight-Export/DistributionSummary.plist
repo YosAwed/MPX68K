@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>X68000.pkg</key>
+	<array>
+		<dict>
+			<key>architectures</key>
+			<array>
+				<string>arm64</string>
+			</array>
+			<key>buildNumber</key>
+			<string>912</string>
+			<key>certificate</key>
+			<dict>
+				<key>SHA1</key>
+				<string>E11BAD3FD1ECE1608EDBE4D5CDCB80E046A9ABB5</string>
+				<key>dateExpires</key>
+				<string>2026/07/15</string>
+				<key>type</key>
+				<string>Apple Distribution</string>
+			</dict>
+			<key>entitlements</key>
+			<dict>
+				<key>com.apple.application-identifier</key>
+				<string>DQR9HH7KUY.NANKIN.X68000</string>
+				<key>com.apple.developer.icloud-container-identifiers</key>
+				<array/>
+				<key>com.apple.developer.icloud-services</key>
+				<array>
+					<string>CloudDocuments</string>
+				</array>
+				<key>com.apple.developer.team-identifier</key>
+				<string>DQR9HH7KUY</string>
+				<key>com.apple.developer.ubiquity-container-identifiers</key>
+				<array/>
+				<key>com.apple.security.app-sandbox</key>
+				<true/>
+				<key>com.apple.security.files.bookmarks.app-scope</key>
+				<true/>
+				<key>com.apple.security.files.downloads.read-write</key>
+				<true/>
+				<key>com.apple.security.files.user-selected.read-write</key>
+				<true/>
+			</dict>
+			<key>name</key>
+			<string>X68000.app</string>
+			<key>profile</key>
+			<dict>
+				<key>UUID</key>
+				<string>65ec4ab3-ac4a-402e-bbd9-1a751e579f1a</string>
+				<key>dateExpires</key>
+				<string>2026/07/15</string>
+				<key>name</key>
+				<string>Mac Team Store Provisioning Profile: NANKIN.X68000</string>
+			</dict>
+			<key>symbols</key>
+			<true/>
+			<key>team</key>
+			<dict>
+				<key>id</key>
+				<string>DQR9HH7KUY</string>
+				<key>name</key>
+				<string></string>
+			</dict>
+			<key>versionNumber</key>
+			<string>4.1.0</string>
+		</dict>
+	</array>
+</dict>
+</plist>

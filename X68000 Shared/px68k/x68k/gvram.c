@@ -16,6 +16,18 @@
 	WORD	Grp_LineBuf[1024];
 	WORD	Grp_LineBufSP[1024];		// 特殊プライオリティ／半透明用バッファ
 	WORD	Grp_LineBufSP2[1024];		// 半透明ベースプレーン用バッファ（非半透明ビット格納）
+
+// ダブルバッファリング用変数
+WORD	Grp_LineBuf_Back[1024];		// バックバッファ（描画用）
+WORD	Grp_LineBufSP_Back[1024];
+WORD	Grp_LineBufSP2_Back[1024];
+WORD	*Grp_LineBuf_Active = Grp_LineBuf;		// 表示用アクティブバッファ（初期は元のバッファ）
+WORD	*Grp_LineBuf_Draw = Grp_LineBuf_Back;		// 描画用バックバッファ
+WORD	*Grp_LineBufSP_Active = Grp_LineBufSP;
+WORD	*Grp_LineBufSP_Draw = Grp_LineBufSP_Back;
+WORD	*Grp_LineBufSP2_Active = Grp_LineBufSP2;
+WORD	*Grp_LineBufSP2_Draw = Grp_LineBufSP2_Back;
+int		Grp_DoubleBuffer = 0;	// ダブルバッファリング有効フラグ
 	WORD	Grp_LineBufSP_Tr[1024];
 	WORD	Pal16Adr[256];			// 16bit color パレットアドレス計算用
 
@@ -36,6 +48,39 @@ void GVRAM_Init(void)
 		Pal16Adr[i*2] = i*4;
 		Pal16Adr[i*2+1] = i*4+1;
 	}
+}
+
+// -----------------------------------------------------------------------
+//   ダブルバッファのスワップ
+// -----------------------------------------------------------------------
+void FASTCALL Grp_SwapBuffers(void)
+{
+	if (!Grp_DoubleBuffer) return;
+	
+	WORD *temp_line = Grp_LineBuf_Active;
+	WORD *temp_linesp = Grp_LineBufSP_Active;
+	WORD *temp_linesp2 = Grp_LineBufSP2_Active;
+	
+	Grp_LineBuf_Active = Grp_LineBuf_Draw;
+	Grp_LineBufSP_Active = Grp_LineBufSP_Draw;
+	Grp_LineBufSP2_Active = Grp_LineBufSP2_Draw;
+	
+	Grp_LineBuf_Draw = temp_line;
+	Grp_LineBufSP_Draw = temp_linesp;
+	Grp_LineBufSP2_Draw = temp_linesp2;
+	
+	// 次フレーム用描画バッファをクリア
+	memset(Grp_LineBuf_Draw, 0, 1024 * sizeof(WORD));
+	memset(Grp_LineBufSP_Draw, 0, 1024 * sizeof(WORD));
+	memset(Grp_LineBufSP2_Draw, 0, 1024 * sizeof(WORD));
+}
+
+// -----------------------------------------------------------------------
+//   ダブルバッファリングの有効・無効設定
+// -----------------------------------------------------------------------
+void FASTCALL Grp_SetDoubleBuffer(int enable)
+{
+	Grp_DoubleBuffer = enable;
 }
 
 
@@ -237,7 +282,7 @@ LABEL void Grp_DrawLine16(void)
 
 	x = GrphScrollX[0] & 0x1ff;
 	srcp = (WORD *)(GVRAM + y + x * 2);
-	destp = (WORD *)Grp_LineBuf;
+	destp = (WORD *)(Grp_DoubleBuffer ? Grp_LineBuf_Draw : Grp_LineBuf);
 
 	x = (x ^ 0x1ff) + 1;
 
@@ -299,7 +344,7 @@ LABEL void FASTCALL Grp_DrawLine8(int page, int opaq)
 
 	off = y0 + x0 * 2;
 	srcp = (WORD *)(GVRAM + y + x * 2);
-	destp = (WORD *)Grp_LineBuf;
+	destp = (WORD *)(Grp_DoubleBuffer ? Grp_LineBuf_Draw : Grp_LineBuf);
 
 	x = (x ^ 0x1ff) + 1;
 
@@ -385,7 +430,7 @@ LABEL void FASTCALL Grp_DrawLine4(DWORD page, int opaq)
 	x ^= 0x1ff;
 
 	srcp = (WORD *)(GVRAM + off + (page >> 1));
-	destp = (WORD *)Grp_LineBuf;
+	destp = (WORD *)(Grp_DoubleBuffer ? Grp_LineBuf_Draw : Grp_LineBuf);
 
 	v = 0;
 	i = 0;
@@ -493,7 +538,7 @@ void FASTCALL Grp_DrawLine4h(void)
 
 	x = GrphScrollX[0] & 0x1ff;
 	srcp = (WORD *)(GVRAM + y + x * 2);
-	destp = (WORD *)Grp_LineBuf;
+	destp = (WORD *)(Grp_DoubleBuffer ? Grp_LineBuf_Draw : Grp_LineBuf);
 
 	x = ((x & 0x1ff) ^ 0x1ff) + 1;
 
@@ -532,12 +577,22 @@ void FASTCALL Grp_DrawLine16SP(void)
 	for (i = 0; i < TextDotX; ++i) {
 		v = (Pal_Regs[GVRAM[off+1]*2] << 8) | Pal_Regs[GVRAM[off]*2+1];
 		if ((GVRAM[off] & 1) == 0) {
+		if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = 0;
+			Grp_LineBufSP2_Draw[i] = Pal16[v & 0xfffe];
+		} else {
 			Grp_LineBufSP[i] = 0;
 			Grp_LineBufSP2[i] = Pal16[v & 0xfffe];
+		}
+	} else {
+		if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = Pal16[v & 0xfffe];
+			Grp_LineBufSP2_Draw[i] = 0;
 		} else {
 			Grp_LineBufSP[i] = Pal16[v & 0xfffe];
 			Grp_LineBufSP2[i] = 0;
 		}
+	}
 
 		off += 2;
 		if (--x == 0)
@@ -585,14 +640,24 @@ void FASTCALL Grp_DrawLine8SP(int page)
 					Grp_LineBufSP_Tr[i] = 0x1234;
 			}
 
+			if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = 0;
+			Grp_LineBufSP2_Draw[i] = v;
+		} else {
 			Grp_LineBufSP[i] = 0;
 			Grp_LineBufSP2[i] = v;
+		}
 		} else {
 			v &= 0xfe;
 			if (v != 0x00)
 				v = GrphPal[v] | Ibit;
+			if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = v;
+			Grp_LineBufSP2_Draw[i] = 0;
+		} else {
 			Grp_LineBufSP[i] = v;
 			Grp_LineBufSP2[i] = 0;
+		}
 		}
 
 		off += 2;
@@ -638,14 +703,24 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 		for (i = 0; i < TextDotX; ++i) {
 			v = GVRAM[off] >> 4;
 			if ((v & 1) == 0) {
-				v &= 0x0e;
+			v &= 0x0e;
+			if (Grp_DoubleBuffer) {
+				Grp_LineBufSP_Draw[i] = 0;
+				Grp_LineBufSP2_Draw[i] = GrphPal[v];
+			} else {
 				Grp_LineBufSP[i] = 0;
 				Grp_LineBufSP2[i] = GrphPal[v];
+			}
+		} else {
+			v &= 0x0e;
+			if (Grp_DoubleBuffer) {
+				Grp_LineBufSP_Draw[i] = GrphPal[v];
+				Grp_LineBufSP2_Draw[i] = 0;
 			} else {
-				v &= 0x0e;
 				Grp_LineBufSP[i] = GrphPal[v];
 				Grp_LineBufSP2[i] = 0;
 			}
+		}
 
 			off += 2;
 			if (--x == 0)
@@ -666,14 +741,24 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 		for (i = 0; i < TextDotX; ++i) {
 			v = GVRAM[off];
 			if ((v & 1) == 0) {
-				v &= 0x0e;
+			v &= 0x0e;
+			if (Grp_DoubleBuffer) {
+				Grp_LineBufSP_Draw[i] = 0;
+				Grp_LineBufSP2_Draw[i] = GrphPal[v];
+			} else {
 				Grp_LineBufSP[i] = 0;
 				Grp_LineBufSP2[i] = GrphPal[v];
+			}
+		} else {
+			v &= 0x0e;
+			if (Grp_DoubleBuffer) {
+				Grp_LineBufSP_Draw[i] = GrphPal[v];
+				Grp_LineBufSP2_Draw[i] = 0;
 			} else {
-				v &= 0x0e;
 				Grp_LineBufSP[i] = GrphPal[v];
 				Grp_LineBufSP2[i] = 0;
 			}
+		}
 
 			off += 2;
 			if (--x == 0)
@@ -711,12 +796,22 @@ void FASTCALL Grp_DrawLine4hSP(void)
 	for (i = 0; i < TextDotX; ++i) {
 		v = *srcp++ >> bits;
 		if ((v & 1) == 0) {
+		if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = 0;
+			Grp_LineBufSP2_Draw[i] = GrphPal[v & 0x0e];
+		} else {
 			Grp_LineBufSP[i] = 0;
 			Grp_LineBufSP2[i] = GrphPal[v & 0x0e];
+		}
+	} else {
+		if (Grp_DoubleBuffer) {
+			Grp_LineBufSP_Draw[i] = GrphPal[v & 0x0e];
+			Grp_LineBufSP2_Draw[i] = 0;
 		} else {
 			Grp_LineBufSP[i] = GrphPal[v & 0x0e];
 			Grp_LineBufSP2[i] = 0;
 		}
+	}
 
 		if (--x == 0)
 			srcp -= 0x400;
@@ -753,7 +848,7 @@ Grp_DrawLine8TR(int page, int opaq)
 		x = GrphScrollX[page * 2] & 0x1ff;
 
 		for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
-			v0 = Grp_LineBufSP[i];
+			v0 = Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i];
 			v = GVRAM[y + x * 2];
 
 			if (v0 != 0) {
@@ -770,7 +865,11 @@ Grp_DrawLine8TR(int page, int opaq)
 				}
 			} else
 				v = GrphPal[v];
-			Grp_LineBuf[i] = (WORD)v;
+			if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = (WORD)v;
+			} else {
+				Grp_LineBuf[i] = (WORD)v;
+			}
 		}
 	}
 }
@@ -792,7 +891,11 @@ Grp_DrawLine8TR_GT(int page, int opaq)
 		x = GrphScrollX[page * 2] & 0x1ff;
 
 		for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
-			Grp_LineBuf[i] = (Grp_LineBufSP[i] || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
+			if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = ((Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]) || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
+			} else {
+				Grp_LineBuf[i] = ((Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]) || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
+			}
 			Grp_LineBufSP_Tr[i] = 0;
 		}
 	}
@@ -819,7 +922,7 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 
 		if (opaq) {
 			for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
-				v0 = Grp_LineBufSP[i];
+				v0 = Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i];
 				v = GVRAM[y + x * 2] >> 4;
 
 				if (v0 != 0) {
@@ -836,16 +939,25 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 					}
 				} else
 					v = GrphPal[v];
+				if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = (WORD)v;
+			} else {
 				Grp_LineBuf[i] = (WORD)v;
+			}
 			}
 		} else {
 			for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
-				v0 = Grp_LineBufSP[i];
+				v0 = Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i];
 
 				if (v0 == 0) {
 					v = GVRAM[y + x * 2] >> 4;
-					if (v != 0)
-						Grp_LineBuf[i] = GrphPal[v];
+					if (v != 0) {
+						if (Grp_DoubleBuffer) {
+							Grp_LineBuf_Draw[i] = GrphPal[v];
+						} else {
+							Grp_LineBuf[i] = GrphPal[v];
+						}
+					}
 				} else {
 					v = GVRAM[y + x * 2] >> 4;
 					if (v != 0) {
@@ -857,10 +969,18 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 							v &= Pal_HalfMask;
 							v += v0;
 							v = GrphPal[v >> 1];
-							Grp_LineBuf[i]=(WORD)v;
+							if (Grp_DoubleBuffer) {
+								Grp_LineBuf_Draw[i] = (WORD)v;
+							} else {
+								Grp_LineBuf[i] = (WORD)v;
+							}
 						}
 					} else
-						Grp_LineBuf[i] = (WORD)v;
+						if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = (WORD)v;
+			} else {
+				Grp_LineBuf[i] = (WORD)v;
+			}
 				}
 			}
 		}
@@ -871,7 +991,7 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 		if (opaq) {
 			for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
 				v = GVRAM[y + x * 2] & 0x0f;
-				v0 = Grp_LineBufSP[i];
+				v0 = Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i];
 
 				if (v0 != 0) {
 					if (v != 0) {
@@ -887,12 +1007,16 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 					}
 				} else
 					v = GrphPal[v];
+				if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = (WORD)v;
+			} else {
 				Grp_LineBuf[i] = (WORD)v;
+			}
 			}
 		} else {
 			for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
 				v = GVRAM[y + x * 2] & 0x0f;
-				v0 = Grp_LineBufSP[i];
+				v0 = Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i];
 
 				if (v0 != 0) {
 					if (v != 0) {
@@ -904,12 +1028,25 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 							v &= Pal_HalfMask;
 							v += v0;
 							v >>= 1;
-							Grp_LineBuf[i]=(WORD)v;
+							if (Grp_DoubleBuffer) {
+								Grp_LineBuf_Draw[i] = (WORD)v;
+							} else {
+								Grp_LineBuf[i] = (WORD)v;
+							}
 						}
 					} else
-						Grp_LineBuf[i] = (WORD)v;
-				} else if (v != 0)
-					Grp_LineBuf[i] = GrphPal[v];
+						if (Grp_DoubleBuffer) {
+				Grp_LineBuf_Draw[i] = (WORD)v;
+			} else {
+				Grp_LineBuf[i] = (WORD)v;
+			}
+				} else if (v != 0) {
+					if (Grp_DoubleBuffer) {
+							Grp_LineBuf_Draw[i] = GrphPal[v];
+						} else {
+							Grp_LineBuf[i] = GrphPal[v];
+						}
+				}
 			}
 		}
 	}

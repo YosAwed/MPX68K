@@ -3,7 +3,7 @@
 //  X68000 macOS
 //
 //  Created by GOROman on 2020/03/28.
-//  Copyright © 2020 GOROman. All rights reserved.
+//  Copyright © 2020 GOROman/Awed. All rights reserved.
 //
 
 import Cocoa
@@ -59,11 +59,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
         setupHDDMenu()
-        setupMenuUpdateTimer()
+        setupSettingsMenu()
         
-        // Test menu update once after app launch  
+        // Initial menu update once after app launch  
         DispatchQueue.main.async { [weak self] in
-            self?.updateMenuItemTitles()
+            self?.updateMenuTitles()
         }
     }
     
@@ -147,18 +147,88 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         errorLog("Could not find suitable menu to add HDD creation item", category: .ui)
     }
     
-    private func setupMenuUpdateTimer() {
-        // Update menu items every 2 seconds to show current mounted filenames
-        logger.debug("Setting up menu update timer")
-        menuUpdateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.logger.debug("Timer fired - updating menu titles")
-            self?.updateMenuItemTitles()
+    private func setupSettingsMenu() {
+        guard let mainMenu = NSApplication.shared.mainMenu else {
+            errorLog("Could not find main menu for settings", category: .ui)
+            return
+        }
+        
+        // Look for Settings or Options menu, or add to main menu if not found
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu {
+                // Check for Settings, Preferences, Options, or X68000 menu
+                if submenu.title.contains("Settings") || 
+                   submenu.title.contains("Preferences") ||
+                   submenu.title.contains("Options") ||
+                   submenu.title.contains("X68000") {
+                    
+                    debugLog("Found settings menu: \(submenu.title)", category: .ui)
+                    addAutoMountMenuItem(to: submenu)
+                    return
+                }
+            }
+        }
+        
+        // If no settings menu found, add to the app menu (first menu)
+        if let firstMenuItem = mainMenu.items.first,
+           let firstSubmenu = firstMenuItem.submenu {
+            debugLog("Adding auto-mount setting to app menu as fallback", category: .ui)
+            addAutoMountMenuItem(to: firstSubmenu)
         }
     }
     
-    private func updateMenuItemTitles() {
+    private func addAutoMountMenuItem(to menu: NSMenu) {
+        // Add separator before our settings
+        let separator = NSMenuItem.separator()
+        menu.addItem(separator)
+        
+        // Create auto-mount toggle menu item
+        let autoMountItem = NSMenuItem(
+            title: "Auto-Mount Disk Images on Startup",
+            action: #selector(toggleAutoMount(_:)),
+            keyEquivalent: ""
+        )
+        autoMountItem.target = self
+        autoMountItem.identifier = NSUserInterfaceItemIdentifier("Settings-auto-mount")
+        
+        // Set initial state based on user defaults
+        let isAutoMountEnabled = !UserDefaults.standard.bool(forKey: "DisableAutoMount")
+        autoMountItem.state = isAutoMountEnabled ? .on : .off
+        
+        menu.addItem(autoMountItem)
+        
+        infoLog("Added 'Auto-Mount Disk Images' menu item", category: .ui)
+    }
+    
+    // Manual menu update when files are opened/closed
+    func updateMenuOnFileOperation() {
         DispatchQueue.main.async { [weak self] in
             self?.updateMenuTitles()
+        }
+    }
+    
+    private func clearMenuTitles() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        
+        // Clear FDD and HDD menu titles using existing loop pattern
+        for menuItem in mainMenu.items {
+            guard let submenu = menuItem.submenu else { continue }
+            
+            if menuItem.title == "FDD" {
+                // Clear FDD menu titles
+                for i in 0..<2 {
+                    if let fddItem = submenu.item(withTag: i) {
+                        fddItem.title = "FDD\(i): (None)"
+                    }
+                }
+            } else if menuItem.title == "HDD" {
+                // Clear HDD menu titles
+                for i in 0..<2 {
+                    if let hddItem = submenu.item(withTag: i) {
+                        hddItem.title = "HDD\(i): (None)"
+                    }
+                }
+            }
         }
     }
     
@@ -391,6 +461,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Stop the menu update timer
         menuUpdateTimer?.invalidate()
         menuUpdateTimer = nil
+        
+        // Clear menu titles on app termination
+        clearMenuTitles()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -499,6 +572,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         gameViewController?.gameScene?.saveHDD()
     }
     
+    // MARK: - Settings Menu Actions
+    @IBAction func toggleAutoMount(_ sender: Any) {
+        let userDefaults = UserDefaults.standard
+        let currentDisabled = userDefaults.bool(forKey: "DisableAutoMount")
+        
+        // Toggle the setting
+        userDefaults.set(!currentDisabled, forKey: "DisableAutoMount")
+        
+        // Update menu checkmark
+        if let menuItem = sender as? NSMenuItem {
+            menuItem.state = currentDisabled ? .on : .off
+        }
+        
+        let newState = currentDisabled ? "enabled" : "disabled"
+        infoLog("Auto-mount disk images: \(newState)", category: .ui)
+        
+        // Show user feedback
+        let alert = NSAlert()
+        alert.messageText = "Auto-Mount Setting Changed"
+        alert.informativeText = "Auto-mounting of disk images on startup has been \(newState). This will take effect on the next app launch."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+    
     // MARK: - Screen Rotation Menu Actions
     @IBAction func rotateScreen(_ sender: Any) {
         print("🐛 AppDelegate.rotateScreen called")
@@ -580,6 +678,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // Always enable the mouse toggle menu item
             menuItem.state = isMouseCaptureEnabled ? .on : .off
             debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+            return true
+        } else if menuItem.identifier?.rawValue == "Settings-auto-mount" || menuItem.title.contains("Auto-Mount Disk Images") {
+            // Update auto-mount menu item state
+            let isAutoMountEnabled = !UserDefaults.standard.bool(forKey: "DisableAutoMount")
+            menuItem.state = isAutoMountEnabled ? .on : .off
             return true
         }
         

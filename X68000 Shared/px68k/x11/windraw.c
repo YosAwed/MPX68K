@@ -130,7 +130,7 @@ void WinDraw_ChangeSize(void)
 			WindowY = TextDotY;
 		dif = WindowX - WindowY;
 		if ((dif > -32) && (dif < 32)) {
-			// �������˶ᤤ���̤ʤ顢�Ȥ��Ƥ�����
+			// ÀµÊý·Á¤Ë¶á¤¤²èÌÌ¤Ê¤é¡¢¤È¤·¤Æ¤ª¤³¤¦
 			WindowX = (int)(WindowX * 1.25);
 		}
 		break;
@@ -266,14 +266,18 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
 INLINE void WinDraw_DrawGrpLine(int opaq)
 {
-#define _DGL_SUB(SUFFIX) WD_SUB(SUFFIX, Grp_LineBuf[i])
+#define _DGL_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBuf_Active[i] : Grp_LineBuf[i]))
 
 	DWORD adr = VLINE*FULLSCREEN_WIDTH;
 	WORD w;
 	int i;
 
 	if (opaq) {
-		WD_MEMCPY(Grp_LineBuf);
+		if (Grp_DoubleBuffer) {
+			WD_MEMCPY(Grp_LineBuf_Active);
+		} else {
+			WD_MEMCPY(Grp_LineBuf);
+		}
 	} else {
 		WD_LOOP(0,  TextDotX, _DGL_SUB);
 	}
@@ -281,14 +285,18 @@ INLINE void WinDraw_DrawGrpLine(int opaq)
 
 INLINE void WinDraw_DrawGrpLineNonSP(int opaq)
 {
-#define _DGL_NSP_SUB(SUFFIX) WD_SUB(SUFFIX, Grp_LineBufSP2[i])
+#define _DGL_NSP_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBufSP2_Active[i] : Grp_LineBufSP2[i]))
 
 	DWORD adr = VLINE*FULLSCREEN_WIDTH;
 	WORD w;
 	int i;
 
 	if (opaq) {
-		WD_MEMCPY(Grp_LineBufSP2);
+		if (Grp_DoubleBuffer) {
+			WD_MEMCPY(Grp_LineBufSP2_Active);
+		} else {
+			WD_MEMCPY(Grp_LineBufSP2);
+		}
 	} else {
 		WD_LOOP(0,  TextDotX, _DGL_NSP_SUB);
 	}
@@ -296,7 +304,7 @@ INLINE void WinDraw_DrawGrpLineNonSP(int opaq)
 
 INLINE void WinDraw_DrawTextLine(int opaq, int td)
 {
-#define _DTL_SUB2(SUFFIX) WD_SUB(SUFFIX, BG_LineBuf[i])
+#define _DTL_SUB2(SUFFIX) WD_SUB(SUFFIX, (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]))
 #define _DTL_SUB(SUFFIX)		\
 {					\
 	if (Text_TrFlag[i] & 1) {	\
@@ -309,7 +317,11 @@ INLINE void WinDraw_DrawTextLine(int opaq, int td)
 	int i;
 
 	if (opaq) {
-		WD_MEMCPY(&BG_LineBuf[16]);
+		if (BG_DoubleBuffer) {
+			WD_MEMCPY(&BG_LineBuf_Active[16]);
+		} else {
+			WD_MEMCPY(&BG_LineBuf[16]);
+		}
 	} else {
 		if (td) {
 			WD_LOOP(16, TextDotX + 16, _DTL_SUB);
@@ -323,10 +335,10 @@ INLINE void WinDraw_DrawTextLineTR(int opaq)
 {
 #define _DTL_TR_SUB(SUFFIX)			   \
 {						   \
-	w = Grp_LineBufSP[i - 16];		   \
+	w = (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i - 16] : Grp_LineBufSP[i - 16]);		   \
 	if (w != 0) {				   \
 		w &= Pal_HalfMask;		   \
-		v = BG_LineBuf[i];		   \
+		v = (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]);		   \
 		if (v & Ibit)			   \
 			w += Pal_Ix2;		   \
 		v &= Pal_HalfMask;		   \
@@ -334,7 +346,7 @@ INLINE void WinDraw_DrawTextLineTR(int opaq)
 		v >>= 1;			   \
 	} else {				   \
 		if (Text_TrFlag[i] & 1)		   \
-			v = BG_LineBuf[i];	   \
+			v = (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]);	   \
 		else				   \
 			v = 0;			   \
 	}					   \
@@ -344,8 +356,8 @@ INLINE void WinDraw_DrawTextLineTR(int opaq)
 #define _DTL_TR_SUB2(SUFFIX)			   \
 {						   \
 	if (Text_TrFlag[i] & 1) {		   \
-		w = Grp_LineBufSP[i - 16];	   \
-		v = BG_LineBuf[i];		   \
+		w = (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i - 16] : Grp_LineBufSP[i - 16]);	   \
+		v = (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]);		   \
 						   \
 		if (v != 0) {			   \
 			if (w != 0) {			\
@@ -375,7 +387,7 @@ INLINE void WinDraw_DrawTextLineTR(int opaq)
 
 INLINE void WinDraw_DrawBGLine(int opaq, int td)
 {
-#define _DBL_SUB2(SUFFIX) WD_SUB(SUFFIX, BG_LineBuf[i])
+#define _DBL_SUB2(SUFFIX) WD_SUB(SUFFIX, (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]))
 #define _DBL_SUB(SUFFIX)			 \
 {						 \
 	if (Text_TrFlag[i] & 2) {		 \
@@ -399,7 +411,11 @@ INLINE void WinDraw_DrawBGLine(int opaq, int td)
 #endif
 
 	if (opaq) {
-		WD_MEMCPY(&BG_LineBuf[16]);
+		if (BG_DoubleBuffer) {
+			WD_MEMCPY(&BG_LineBuf_Active[16]);
+		} else {
+			WD_MEMCPY(&BG_LineBuf[16]);
+		}
 	} else {
 		if (td) {
 			WD_LOOP(16, TextDotX + 16, _DBL_SUB);
@@ -426,8 +442,8 @@ INLINE void WinDraw_DrawBGLineTR(int opaq)
 
 #define _DBL_TR_SUB(SUFFIX) \
 {					\
-	w = Grp_LineBufSP[i - 16];	\
-	v = BG_LineBuf[i];		\
+	w = (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i - 16] : Grp_LineBufSP[i - 16]);	\
+	v = (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]);		\
 					\
 	_DBL_TR_SUB3()			\
 	ScrBuf##SUFFIX[adr] = (WORD)v;	\
@@ -436,8 +452,8 @@ INLINE void WinDraw_DrawBGLineTR(int opaq)
 #define _DBL_TR_SUB2(SUFFIX) \
 {							\
 	if (Text_TrFlag[i] & 2) {  			\
-		w = Grp_LineBufSP[i - 16];		\
-		v = BG_LineBuf[i];			\
+		w = (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i - 16] : Grp_LineBufSP[i - 16]);		\
+		v = (BG_DoubleBuffer ? BG_LineBuf_Active[i] : BG_LineBuf[i]);			\
 							\
 		if (v != 0) {				\
 			_DBL_TR_SUB3()			\
@@ -461,7 +477,7 @@ INLINE void WinDraw_DrawBGLineTR(int opaq)
 
 INLINE void WinDraw_DrawPriLine(void)
 {
-#define _DPL_SUB(SUFFIX) WD_SUB(SUFFIX, Grp_LineBufSP[i])
+#define _DPL_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]))
 
 	DWORD adr = VLINE*FULLSCREEN_WIDTH;
 	WORD w;
@@ -506,7 +522,7 @@ void WinDraw_DrawLine(void)
 		{
 			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
 			{
-				Grp_DrawLine4SP((VCReg1[1]   )&3/*, 1*/);			// ȾƩ���β�����
+				Grp_DrawLine4SP((VCReg1[1]   )&3/*, 1*/);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				pron = tron = 1;
 			}
 			opaq = 1;
@@ -550,11 +566,11 @@ void WinDraw_DrawLine(void)
 	case 1:	
 	case 2:	
 		opaq = 1;		// 256 colors
-		if ( (VCReg1[1]&3) <= ((VCReg1[1]>>4)&3) )	// Ʊ���ͤλ��ϡ�GRP0��ͥ��ʥɥ饹�ԡ�
+		if ( (VCReg1[1]&3) <= ((VCReg1[1]>>4)&3) )	// Æ±¤¸ÃÍ¤Î»þ¤Ï¡¢GRP0¤¬Í¥Àè¡Ê¥É¥é¥¹¥Ô¡Ë
 		{
 			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
 			{
-				Grp_DrawLine8SP(0);			// ȾƩ���β�����
+				Grp_DrawLine8SP(0);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				tron = pron = 1;
 			}
 			if (VCReg2[1]&4)
@@ -579,7 +595,7 @@ void WinDraw_DrawLine(void)
 		{
 			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
 			{
-				Grp_DrawLine8SP(1);			// ȾƩ���β�����
+				Grp_DrawLine8SP(1);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				tron = pron = 1;
 			}
 			if (VCReg2[1]&4)
@@ -621,13 +637,13 @@ void WinDraw_DrawLine(void)
 
 
 //	if ( ( ((VCReg1[0]&0x30)>>4) < (VCReg1[0]&0x03) ) && (gon) )
-//		gdrawed = 1;				// Grp���BG��������
+//		gdrawed = 1;				// Grp¤è¤êBG¤ÎÊý¤¬¾å
 
 	if ( ((VCReg1[0]&0x30)>>2) < (VCReg1[0]&0x0c) )
-	{						// BG��������
+	{						// BG¤ÎÊý¤¬¾å
 		if ((VCReg2[1]&0x20)&&(Debug_Text))
 		{
-			Text_DrawLine(1);
+			Text_DrawLine_C(1);
 			ton = 1;
 		}
 		else
@@ -643,11 +659,13 @@ void WinDraw_DrawLine(void)
 			VLINEBG >>= s2;
 			if ( !(BG_Regs[0x11]&16) ) VLINEBG -= ((BG_Regs[0x0f]>>s1)-(CRTC_Regs[0x0d]>>s2));
 			BG_DrawLine(!ton, 0);
+			BG_SwapBuffers(); // フレーム描画完了後にバッファスワップ
+			Grp_SwapBuffers(); // グラフィックプレーン用バッファスワップ
 			bgon = 1;
 		}
 	}
 	else
-	{						// Text��������
+	{						// Text¤ÎÊý¤¬¾å
 		if ((VCReg2[1]&0x40)&&(BG_Regs[8]&2)&&(!(BG_Regs[0x11]&2))&&(Debug_Sp))
 		{
 			int s1, s2;
@@ -659,6 +677,8 @@ void WinDraw_DrawLine(void)
 			if ( !(BG_Regs[0x11]&16) ) VLINEBG -= ((BG_Regs[0x0f]>>s1)-(CRTC_Regs[0x0d]>>s2));
 			ZeroMemory(Text_TrFlag, TextDotX+16);
 			BG_DrawLine(1, 1);
+			BG_SwapBuffers(); // フレーム描画完了後にバッファスワップ
+			Grp_SwapBuffers(); // グラフィックプレーン用バッファスワップ
 			bgon = 1;
 		}
 		else
@@ -666,10 +686,19 @@ void WinDraw_DrawLine(void)
 			if ((VCReg2[1]&0x20)&&(Debug_Text))
 			{
 				int i;
-				for (i = 16; i < TextDotX + 16; ++i)
-					BG_LineBuf[i] = TextPal[0];
-			} else {		// 20010120 �����ῧ��
-				bzero(&BG_LineBuf[16], TextDotX * 2);
+				for (i = 16; i < TextDotX + 16; ++i) {
+					if (BG_DoubleBuffer) {
+						BG_LineBuf_Draw[i] = TextPal[0];  // 次フレーム用描画バッファをクリア
+					} else {
+						BG_LineBuf[i] = TextPal[0];
+					}
+				}
+			} else {		// 20010120 ¡Êàèàá¿§¡Ë
+				if (BG_DoubleBuffer) {
+					memset(&BG_LineBuf_Draw[16], 0, TextDotX * 2);  // 次フレーム用描画バッファをクリア
+				} else {
+					bzero(&BG_LineBuf[16], TextDotX * 2);
+				}
 			}
 			ZeroMemory(Text_TrFlag, TextDotX+16);
 			bgon = 1;
@@ -677,7 +706,7 @@ void WinDraw_DrawLine(void)
 
 		if ((VCReg2[1]&0x20)&&(Debug_Text))
 		{
-			Text_DrawLine(!bgon);
+			Text_DrawLine_C(!bgon);
 			ton = 1;
 		}
 	}
@@ -687,7 +716,7 @@ void WinDraw_DrawLine(void)
 
 
 #if 0
-					// Pri = 3�ʰ�ȿ�ˤ����ꤵ��Ƥ�����̤�ɽ��
+					// Pri = 3¡Ê°ãÈ¿¡Ë¤ËÀßÄê¤µ¤ì¤Æ¤¤¤ë²èÌÌ¤òÉ½¼¨
 		if ( ((VCReg1[0]&0x30)==0x30)&&(bgon) )
 		{
 			if ( ((VCReg2[0]&0x5d)==0x1d)&&((VCReg1[0]&0x03)!=0x03)&&(tron) )
@@ -716,13 +745,13 @@ void WinDraw_DrawLine(void)
 			tdrawed = 1;
 		}
 #endif
-					// Pri = 2 or 3�ʺǲ��̡ˤ����ꤵ��Ƥ�����̤�ɽ��
-					// �ץ饤����ƥ���Ʊ�����ϡ�GRP<SP<TEXT���ʥɥ饹�ԡ�������YsIII����
+					// Pri = 2 or 3¡ÊºÇ²¼°Ì¡Ë¤ËÀßÄê¤µ¤ì¤Æ¤¤¤ë²èÌÌ¤òÉ½¼¨
+					// ¥×¥é¥¤¥ª¥ê¥Æ¥£¤¬Æ±¤¸¾ì¹ç¤Ï¡¢GRP<SP<TEXT¡©¡Ê¥É¥é¥¹¥Ô¡¢ÅíÅÁ¡¢YsIIIÅù¡Ë
 
-					// Grp���Text����ˤ������Text�Ȥ�ȾƩ����Ԥ��ȡ�SP�Υץ饤����ƥ���
-					// Text�˰��������롩�ʤĤޤꡢGrp��겼�ˤ��äƤ�SP��ɽ������롩��
+					// Grp¤è¤êText¤¬¾å¤Ë¤¢¤ë¾ì¹ç¤ËText¤È¤ÎÈ¾Æ©ÌÀ¤ò¹Ô¤¦¤È¡¢SP¤Î¥×¥é¥¤¥ª¥ê¥Æ¥£¤â
+					// Text¤Ë°ú¤­¤º¤é¤ì¤ë¡©¡Ê¤Ä¤Þ¤ê¡¢Grp¤è¤ê²¼¤Ë¤¢¤Ã¤Æ¤âSP¤¬É½¼¨¤µ¤ì¤ë¡©¡Ë
 
-					// KnightArms�Ȥ��򸫤�ȡ�ȾƩ���Υ١����ץ졼��ϰ��־�ˤʤ�ߤ����ġ�
+					// KnightArms¤È¤«¤ò¸«¤ë¤È¡¢È¾Æ©ÌÀ¤Î¥Ù¡¼¥¹¥×¥ì¡¼¥ó¤Ï°ìÈÖ¾å¤Ë¤Ê¤ë¤ß¤¿¤¤¡Ä¡£
 
 		if ( (VCReg1[0]&0x02) )
 		{
@@ -765,7 +794,7 @@ void WinDraw_DrawLine(void)
 			tdrawed = 1;
 		}
 
-					// Pri = 1��2���ܡˤ����ꤵ��Ƥ�����̤�ɽ��
+					// Pri = 1¡Ê2ÈÖÌÜ¡Ë¤ËÀßÄê¤µ¤ì¤Æ¤¤¤ë²èÌÌ¤òÉ½¼¨
 		if ( ((VCReg1[0]&0x03)==0x01)&&(gon) )
 		{
 			WinDraw_DrawGrpLine(opaq);
@@ -814,7 +843,7 @@ void WinDraw_DrawLine(void)
 			tdrawed = 1;
 		}
 
-					// Pri = 0�ʺ�ͥ��ˤ����ꤵ��Ƥ�����̤�ɽ��
+					// Pri = 0¡ÊºÇÍ¥Àè¡Ë¤ËÀßÄê¤µ¤ì¤Æ¤¤¤ë²èÌÌ¤òÉ½¼¨
 		if ( (!(VCReg1[0]&0x03))&&(gon) )
 		{
 			WinDraw_DrawGrpLine(opaq);
@@ -848,17 +877,17 @@ void WinDraw_DrawLine(void)
 			opaq = 0;
 		}
 
-					// �ü�ץ饤����ƥ����Υ���ե��å�
-		if ( ((VCReg2[0]&0x5c)==0x14)&&(pron) )	// �ü�Pri���ϡ��оݥץ졼��ӥåȤϰ�̣��̵���餷���ʤĤ���ӡ���
+					// ÆÃ¼ì¥×¥é¥¤¥ª¥ê¥Æ¥£»þ¤Î¥°¥é¥Õ¥£¥Ã¥¯
+		if ( ((VCReg2[0]&0x5c)==0x14)&&(pron) )	// ÆÃ¼ìPri»þ¤Ï¡¢ÂÐ¾Ý¥×¥ì¡¼¥ó¥Ó¥Ã¥È¤Ï°ÕÌ£¤¬Ìµ¤¤¤é¤·¤¤¡Ê¤Ä¤¤¤ó¤Ó¡¼¡Ë
 		{
 			WinDraw_DrawPriLine();
 		}
-		else if ( ((VCReg2[0]&0x5d)==0x1c)&&(tron) )	// ȾƩ���������Ƥ�Ʃ���ʥɥåȤ�ϡ��ե��顼������
-		{						// ��AQUALES��
+		else if ( ((VCReg2[0]&0x5d)==0x1c)&&(tron) )	// È¾Æ©ÌÀ»þ¤ËÁ´¤Æ¤¬Æ©ÌÀ¤Ê¥É¥Ã¥È¤ò¥Ï¡¼¥Õ¥«¥é¡¼¤ÇËä¤á¤ë
+		{						// ¡ÊAQUALES¡Ë
 
 #define _DL_SUB(SUFFIX) \
 {								\
-	w = Grp_LineBufSP[i];					\
+	w = (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]);					\
 	if (w != 0 && (ScrBuf##SUFFIX[adr] & 0xffff) == 0)	\
 		ScrBuf##SUFFIX[adr] = (w & Pal_HalfMask) >> 1;	\
 }

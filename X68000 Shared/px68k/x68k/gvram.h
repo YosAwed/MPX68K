@@ -8,6 +8,15 @@ extern	WORD	Grp_LineBuf[1024];
 extern	WORD	Grp_LineBufSP[1024];
 extern	WORD	Grp_LineBufSP2[1024];
 
+// ダブルバッファリング用の変数とアクセサ
+extern	WORD	*Grp_LineBuf_Active;	// 表示用アクティブバッファ
+extern	WORD	*Grp_LineBuf_Draw;		// 描画用バックバッファ
+extern	WORD	*Grp_LineBufSP_Active;	// SP用表示用アクティブバッファ
+extern	WORD	*Grp_LineBufSP_Draw;	// SP用描画用バックバッファ
+extern	WORD	*Grp_LineBufSP2_Active;	// SP2用表示用アクティブバッファ  
+extern	WORD	*Grp_LineBufSP2_Draw;	// SP2用描画用バックバッファ
+extern	int		Grp_DoubleBuffer;		// ダブルバッファリング有効フラグ
+
 void GVRAM_Init(void);
 
 void FASTCALL GVRAM_FastClear(void);
@@ -26,5 +35,10 @@ void FASTCALL Grp_DrawLine4hSP(void);
 void FASTCALL Grp_DrawLine8TR(int page, int opaq);
 void FASTCALL Grp_DrawLine8TR_GT(int page, int opaq);
 void FASTCALL Grp_DrawLine4TR(DWORD page, int opaq);
+
+// ダブルバッファリング管理関数
+void FASTCALL Grp_SwapBuffers(void);
+void FASTCALL Grp_SetDoubleBuffer(int enable);
+
 #endif
 

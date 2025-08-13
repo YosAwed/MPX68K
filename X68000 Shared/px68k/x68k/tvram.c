@@ -543,11 +543,19 @@ void FASTCALL Text_DrawLine(int opaq)
 		for (i = 0; (i < TextDotX) && (x > 0); i++, x--, off++) {
 			t = TextDrawWork[addr++] & 0xf;
 			Text_TrFlag[off] = t ? 1 : 0;
-			BG_LineBuf[off] = TextPal[t];
+			if (BG_DoubleBuffer) {
+				BG_LineBuf_Draw[off] = TextPal[t];
+			} else {
+				BG_LineBuf[off] = TextPal[t];
+			}
 		}
 		if (i++ != TextDotX) {
 			for (; i < TextDotX; i++, off++) {
-				BG_LineBuf[off] = TextPal[0];
+				if (BG_DoubleBuffer) {
+					BG_LineBuf_Draw[off] = TextPal[0];
+				} else {
+					BG_LineBuf[off] = TextPal[0];
+				}
 				Text_TrFlag[off] = 0;
 			}
 		}
@@ -556,9 +564,69 @@ void FASTCALL Text_DrawLine(int opaq)
 			t = TextDrawWork[addr++] & 0xf;
 			if (t) {
 				Text_TrFlag[off] |= 1;
-				BG_LineBuf[off] = TextPal[t];
+				if (BG_DoubleBuffer) {
+					BG_LineBuf_Draw[off] = TextPal[t];
+				} else {
+					BG_LineBuf[off] = TextPal[t];
+				}
 			}
 		}
 	}
 #endif	/* USE_ASM */
+}
+
+// -----------------------------------------------------------------------
+//   1ライン描画（C言語版・ダブルバッファ対応）
+// -----------------------------------------------------------------------
+void FASTCALL Text_DrawLine_C(int opaq)
+{
+	WORD *target_buf;
+	BYTE *tr_flag;
+	DWORD line, scroll_x, scroll_y;
+	int i, x, y;
+	WORD color;
+	BYTE pattern;
+	
+	// ダブルバッファ対応：適切なバッファを選択
+	if (BG_DoubleBuffer) {
+		target_buf = BG_LineBuf_Draw;  // 描画用バッファに書き込み
+	} else {
+		target_buf = BG_LineBuf;       // 元のバッファに書き込み
+	}
+	
+	tr_flag = Text_TrFlag;
+	line = VLINE;
+	
+	// インターレース処理
+	if ((CRTC_Regs[0x29] & 0x1c) == 0x1c) {
+		line <<= 1;
+	}
+	
+	scroll_y = (line + TextScrollY) & 1023;
+	scroll_x = TextScrollX & 1023;
+	
+	y = scroll_y << 10;
+	x = scroll_x;
+	
+	if (opaq) {
+		// 不透明描画：全ピクセルを描画
+		for (i = 0; i < TextDotX; i++) {
+			pattern = TextDrawWork[y + ((x + i) & 1023)];
+			tr_flag[i + 16] = (pattern & 15) ? 1 : 0;
+			color = TextPal[pattern & 15];
+			target_buf[i + 16] = color;
+		}
+	} else {
+		// 透明描画：透明でないピクセルのみ描画
+		for (i = 0; i < TextDotX; i++) {
+			pattern = TextDrawWork[y + ((x + i) & 1023)];
+			if (pattern & 15) {
+				tr_flag[i + 16] = 1;
+				color = TextPal[pattern & 15];
+				target_buf[i + 16] = color;
+			} else {
+				tr_flag[i + 16] = 0;
+			}
+		}
+	}
 }

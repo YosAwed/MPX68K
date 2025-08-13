@@ -8,6 +8,7 @@
 
 import SpriteKit
 import GameController
+import Metal
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -74,6 +75,14 @@ class GameScene: SKScene {
     private var preAllocatedTexture: SKTexture?
     private var lastScreenWidth: Int = 0
     private var lastScreenHeight: Int = 0
+    
+    // Fixed-step frame pacing for smooth emulation
+    private var fixedStepAccumulator: Double = 0.0
+    private var lastUpdateTime: TimeInterval = 0.0
+    private let emulatorHz: Double = 55.45
+    private let targetFrameTime: Double = 1.0 / 55.45
+    
+    // Remove manual frame rate control - let SpriteKit handle timing
     
     private var audioStream: AudioStream?
     var mouseController: X68MouseController?
@@ -183,11 +192,25 @@ class GameScene: SKScene {
         }
         
         fileSystem?.loadFDDToDrive(url, drive: drive)
+        
+        // Update menu after FDD load
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     func ejectFDDFromDrive(_ drive: Int) {
         debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
         X68000_EjectFDD(drive)
+        
+        // Update menu after FDD eject
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     // MARK: - HDD Management
@@ -222,6 +245,13 @@ class GameScene: SKScene {
                         
                         // Save SRAM after HDD loading
                         self.fileSystem?.saveSRAM()
+                        
+                        // Update menu after HDD load
+                        #if os(macOS)
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.updateMenuOnFileOperation()
+                        }
+                        #endif
                     } else {
                         errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                     }
@@ -245,6 +275,13 @@ class GameScene: SKScene {
         }
         
         X68000_EjectHDD()
+        
+        // Update menu after HDD eject
+        #if os(macOS)
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.updateMenuOnFileOperation()
+        }
+        #endif
     }
     
     func saveHDD() {
@@ -346,7 +383,7 @@ class GameScene: SKScene {
         notification.fontName = "Helvetica-Bold"
         notification.fontSize = 48
         notification.fontColor = .yellow
-        notification.zPosition = 15
+        notification.zPosition = 1000  // High zPosition for overlays
         notification.position = CGPoint(x: 0, y: 0)
         notification.alpha = 0
         
@@ -530,7 +567,16 @@ class GameScene: SKScene {
         X68000_Init(samplingRate)
         
         self.fileSystem?.loadSRAM()
-        self.fileSystem?.boot()
+        
+        // Clear any previously mounted disk images before auto-mounting
+        self.fileSystem?.clearAllDiskImages()
+        
+        // Check user preference for auto-mounting
+        if !userDefaults.bool(forKey: "DisableAutoMount") {
+            self.fileSystem?.boot()
+        } else {
+            infoLog("Auto-mounting disabled - starting with clean disk drives", category: .emulation)
+        }
         joycard = X68JoyCard(id: 0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)!)
         devices.append(joycard!)
         
@@ -568,6 +614,9 @@ class GameScene: SKScene {
         
         // Setup input mode toggle button
         setupInputModeButton()
+        
+        // Set unique zPosition values for all UI layers
+        setupLayerZPositions()
         
         // Hide iOS legacy UI elements after startup sequence completes
         // Title animations take ~4.5 seconds (titleSprite + label), so wait 6 seconds to be safe
@@ -697,6 +746,11 @@ class GameScene: SKScene {
     
     override func didMove(to view: SKView) {
         debugLog("didMove", category: .ui)
+        
+        // Fix layer ordering: Enable zPosition-based rendering for consistent drawing order
+        view.ignoresSiblingOrder = true
+        view.preferredFramesPerSecond = 60  // Fixed frame rate for emulator pacing
+        
         self.setUpScene()
         
         // Screen rotation will be applied after emulator initialization in setUpScene()
@@ -972,62 +1026,98 @@ class GameScene: SKScene {
     var h: Int = 1
     
     override func update(_ currentTime: TimeInterval) {
-        // Optimization: Use SpriteKit's native update instead of duplicate Timer-based updates
-        // This replaces the Timer-based updateGame() method for better performance
-        
         // Safety: Only update if emulator is properly initialized
         guard isEmulatorInitialized else {
             return
         }
         
-        // Optimized device updates based on input mode
-        if currentInputMode == .joycard {
-            joycard?.Update(currentTime)
-        }
-        // Skip unnecessary device updates to improve performance
-        
-        // Update screen dimensions first, then configure mouse controller
-        w = Int(X68000_GetScreenWidth())
-        h = Int(X68000_GetScreenHeight())
-        
-        mouseController?.SetScreenSize(width: Float(w), height: Float(h))
-        mouseController?.Update()
-        
-        X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
-        
-        // Security: Validate screen dimensions
-        guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
-            return
+        // Fixed-step frame pacing for 55.45Hz emulator on 60Hz display
+        if lastUpdateTime == 0.0 {
+            lastUpdateTime = currentTime
         }
         
-        X68000_GetImage(&d)
+        let deltaTime = min(0.05, currentTime - lastUpdateTime)  // Cap to prevent large jumps
+        lastUpdateTime = currentTime
+        fixedStepAccumulator += deltaTime
         
+        var newFrameReady = false
+        
+        // Update emulator in fixed steps
+        while fixedStepAccumulator >= targetFrameTime {
+            // Optimized device updates based on input mode
+            if currentInputMode == .joycard {
+                joycard?.Update(currentTime)
+            }
+            
+            // Update screen dimensions first, then configure mouse controller
+            w = Int(X68000_GetScreenWidth())
+            h = Int(X68000_GetScreenHeight())
+            
+            // Only update mouse controller when in capture mode
+            if let mouseController = mouseController, mouseController.isCaptureMode {
+                mouseController.SetScreenSize(width: Float(w), height: Float(h))
+                mouseController.Update()
+            }
+            
+            // Step emulator forward one frame
+            X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
+            
+            fixedStepAccumulator -= targetFrameTime
+            newFrameReady = true
+        }
+        
+        // Only update display when new emulator frame is ready
+        if newFrameReady {
+            // Security: Validate screen dimensions
+            guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
+                return
+            }
+            
+            X68000_GetImage(&d)
+            updateScreenTexture()
+        }
+    }
+    
+    private func updateScreenTexture() {
         let cgsize = CGSize(width: w, height: h)
-        
-        // Performance optimization: Reduce texture recreation overhead
         let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
         
-        // Always update texture data, but optimize sprite management
+        // Fall back to standard texture creation (SpriteKit doesn't expose Metal device directly)
+        fallbackTextureUpdate(cgsize)
+    }
+    
+    private func fallbackTextureUpdate(_ cgsize: CGSize) {
+        // Fallback to old method if Metal fails
         let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
+        tex.filteringMode = .nearest  // Pixel art filtering
+        updateSpriteWithTexture(tex, size: cgsize)
+    }
+    
+    private func updateSpriteWithTexture(_ texture: SKTexture, size: CGSize) {
+        let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
         
         if screenSizeChanged || spr.parent == nil {
-            // Screen size changed or sprite not added yet
-            lastScreenWidth = w
-            lastScreenHeight = h
-            
+            // Recreate sprite only when necessary
             if spr.parent != nil {
                 spr.removeFromParent()
             }
             
-            spr = SKSpriteNode(texture: tex, size: cgsize)
-            spr.xScale = CGFloat(screen_w) / CGFloat(w)
-            spr.yScale = CGFloat(screen_h) / CGFloat(h)
-            spr.zPosition = -1.0
+            spr = SKSpriteNode(texture: texture, size: size)
+            spr.zPosition = 0  // Use consistent zPosition from setupLayerZPositions
+            applySpriteTransformSilently()
             self.addChild(spr)
+            
+            lastScreenWidth = w
+            lastScreenHeight = h
         } else {
-            // Just update texture, keep sprite
-            spr.texture = tex
+            // Just update texture - keep existing sprite node
+            spr.texture = texture
         }
+    }
+    
+    override func didFinishUpdate() {
+        // Ensure all texture updates are completed before next frame
+        super.didFinishUpdate()
     }
     
     // MARK: - UI Layout Management
@@ -1125,6 +1215,27 @@ class GameScene: SKScene {
         }
     }
     
+    // MARK: - Layer Z-Position Management
+    private func setupLayerZPositions() {
+        // Set unique zPosition values for all layers to ensure consistent draw order
+        spr.zPosition = 0                    // Emulator screen (bottom layer)
+        virtualPad.zPosition = 100           // Virtual pad controls
+        
+        // UI elements
+        labelStatus?.zPosition = 200
+        labelMIDI?.zPosition = 200
+        inputModeButton?.zPosition = 200
+        
+        // Title elements (temporary, fade out)
+        titleSprite?.zPosition = 300
+        label?.zPosition = 300
+        
+        // Notifications and temporary overlays
+        // (Dynamic elements will use zPosition 1000+)
+        
+        infoLog("Layer zPositions configured for consistent draw order", category: .ui)
+    }
+    
     // MARK: - Input Mode Management
     private func setupInputModeButton() {
         inputModeButton = SKLabelNode(text: getInputModeText())
@@ -1195,7 +1306,7 @@ class GameScene: SKScene {
         notification.fontName = "Helvetica-Bold"
         notification.fontSize = 36
         notification.fontColor = .yellow
-        notification.zPosition = 15
+        notification.zPosition = 1000  // High zPosition for overlays
         notification.position = CGPoint(x: 0, y: 0)
         notification.alpha = 0
         
@@ -1400,12 +1511,12 @@ extension GameScene {
     override func mouseMoved(with event: NSEvent) {
         // Only handle mouse movement when in capture mode
         guard let mouseController = mouseController, mouseController.isCaptureMode else { 
-            debugLog("Mouse moved but not in capture mode", category: .input)
+            // Removed verbose mouse logging for performance
             return 
         }
         
         let location = event.location(in: self)
-        debugLog("Mouse moved in capture mode: (\(location.x), \(location.y))", category: .input)
+        // Removed verbose mouse movement logging for performance
         
         // Convert mouse position to X68000 mouse coordinates
         mouseController.SetPosition(location, size)
@@ -1419,13 +1530,13 @@ extension GameScene {
     // MARK: - Mouse Capture Management
     
     func enableMouseCapture() {
-        debugLog("GameScene: Enabling mouse capture mode", category: .input)
+        // debugLog("GameScene: Enabling mouse capture mode", category: .input)
         mouseController?.enableCaptureMode()
         infoLog("Mouse capture mode enabled in GameScene", category: .input)
     }
     
     func disableMouseCapture() {
-        debugLog("GameScene: Disabling mouse capture mode", category: .input)
+        // debugLog("GameScene: Disabling mouse capture mode", category: .input)
         mouseController?.disableCaptureMode()
         infoLog("Mouse capture mode disabled in GameScene", category: .input)
     }
@@ -1444,7 +1555,7 @@ extension GameScene {
         if event.keyCode == 111 { // F12 key
             // Check if mouse capture is currently enabled
             if let mouseController = mouseController, mouseController.isCaptureMode {
-                debugLog("F12 pressed - disabling mouse capture mode", category: .input)
+                // debugLog("F12 pressed - disabling mouse capture mode", category: .input)
                 // Call AppDelegate to disable mouse capture
                 if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
                     appDelegate.disableMouseCapture()

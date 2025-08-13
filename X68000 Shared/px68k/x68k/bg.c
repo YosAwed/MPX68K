@@ -38,6 +38,18 @@
 	WORD	BG_LineBuf[1600];
 	WORD	BG_PriBuf[1600];
 
+	// ダブルバッファリング用バッファ
+	WORD	BG_LineBuf_Back[1600];	// バックバッファ（描画用）
+	WORD	BG_PriBuf_Back[1600];	// バックバッファ（優先度用）
+	
+	// 現在のアクティブバッファを示すポインタ
+	WORD	*BG_LineBuf_Active = BG_LineBuf_Back;	// 表示用アクティブバッファ（初期は同一バッファ）
+	WORD	*BG_PriBuf_Active = BG_PriBuf_Back;
+	WORD	*BG_LineBuf_Draw = BG_LineBuf_Back;		// 描画用バックバッファ（初期は同一バッファ）
+	WORD	*BG_PriBuf_Draw = BG_PriBuf_Back;
+	
+	int		BG_DoubleBuffer = 1;	// ダブルバッファリング有効フラグ
+
 	DWORD	VLINEBG = 0;
 
 
@@ -52,6 +64,12 @@ void BG_Init(void)
 	ZeroMemory(BGCHR8, 8*8*256);
 	ZeroMemory(BGCHR16, 16*16*256);
 	ZeroMemory(BG_LineBuf, 1600*2);
+	
+	// ダブルバッファリング用バッファも初期化
+	ZeroMemory(BG_LineBuf_Back, 1600*2);
+	memset(BG_PriBuf, 0xff, 1600*2);  // 優先度バッファは最低値で初期化
+	memset(BG_PriBuf_Back, 0xff, 1600*2);
+	
 	for (i=0; i<0x12; i++)
 		BG_Write(0xeb0800+i, 0);
 	BG_CHREND = 0x8000;
@@ -505,13 +523,26 @@ Sprite_DrawLineMcr(int pri)
 				}
 
 				for (i = 0; i < 16; i++, t++, p += d) {
+					// 配列境界チェック
+					if (t >= 1600) break;
+					
 					pal = *p & 0xf;
 					if (pal) {
 						pal |= (sctp->sprite_ctrl >> 4) & 0xf0;
-						if (BG_PriBuf[t] >= n * 8) {
-							BG_LineBuf[t] = TextPal[pal];
-							Text_TrFlag[t] |= 2;
-							BG_PriBuf[t] = n * 8;
+						// ダブルバッファリング: 描画用バッファに書き込み
+						if (BG_DoubleBuffer) {
+							if (BG_PriBuf_Draw[t] >= n * 8) {
+								BG_LineBuf_Draw[t] = TextPal[pal];
+								Text_TrFlag[t] |= 2;
+								BG_PriBuf_Draw[t] = n * 8;
+							}
+						} else {
+							// シングルバッファモード（従来の動作）
+							if (BG_PriBuf[t] >= n * 8) {
+								BG_LineBuf[t] = TextPal[pal];
+								Text_TrFlag[t] |= 2;
+								BG_PriBuf[t] = n * 8;
+							}
 						}
 					}
 				}
@@ -528,7 +559,11 @@ Sprite_DrawLineMcr(int pri)
 		if (dat == 0)						\
 			continue;					\
 		if ((dat & 0xf) || !(Text_TrFlag[edi + 1] & 2)) {	\
-			BG_LineBuf[1 + edi] = TextPal[dat];		\
+			if (BG_DoubleBuffer) { \
+				BG_LineBuf_Draw[1 + edi] = TextPal[dat]; \
+			} else { \
+				BG_LineBuf[1 + edi] = TextPal[dat]; \
+			} \
 			Text_TrFlag[edi + 1] |= 2;			\
 		}							\
 	}								\
@@ -541,7 +576,11 @@ Sprite_DrawLineMcr(int pri)
                 dat = *esi & 0xf;			    \
 		if (dat) {				    \
 			dat |= bl;			    \
-                        BG_LineBuf[1 + edi] = TextPal[dat]; \
+			if (BG_DoubleBuffer) { \
+				BG_LineBuf_Draw[1 + edi] = TextPal[dat]; \
+			} else { \
+				BG_LineBuf[1 + edi] = TextPal[dat]; \
+			} \
 			Text_TrFlag[edi + 1] |= 2;	    \
                 }					    \
         }						    \
@@ -657,14 +696,29 @@ BG_DrawLine(int opaq, int gd)
 	int i;
 	void (*func8)(WORD, DWORD, DWORD), (*func16)(WORD, DWORD, DWORD);
 
-	if (opaq) {
-		for (i = 16; i < TextDotX + 16; ++i) {
-			BG_LineBuf[i] = TextPal[0];
-			BG_PriBuf[i] = 0xffff;
+	// ダブルバッファリング: 描画用バッファに書き込み
+	if (BG_DoubleBuffer) {
+		if (opaq) {
+			for (i = 16; i < TextDotX + 16; ++i) {
+				BG_LineBuf_Draw[i] = TextPal[0];
+				BG_PriBuf_Draw[i] = 0xffff;
+			}
+		} else {
+			for (i = 16; i < TextDotX + 16; ++i) {
+				BG_PriBuf_Draw[i] = 0xffff;
+			}
 		}
 	} else {
-		for (i = 16; i < TextDotX + 16; ++i) {
-			BG_PriBuf[i] = 0xffff;
+		// シングルバッファモード（従来の動作）
+		if (opaq) {
+			for (i = 16; i < TextDotX + 16; ++i) {
+				BG_LineBuf[i] = TextPal[0];
+				BG_PriBuf[i] = 0xffff;
+			}
+		} else {
+			for (i = 16; i < TextDotX + 16; ++i) {
+				BG_PriBuf[i] = 0xffff;
+			}
 		}
 	}
 
@@ -685,4 +739,72 @@ BG_DrawLine(int opaq, int gd)
 	}
 	Sprite_DrawLineMcr(3);
 }
+
+// -----------------------------------------------------------------------
+//   ダブルバッファリング管理関数
+// -----------------------------------------------------------------------
+
+// フレーム描画完了時にバックバッファをフロントバッファに一括転送
+void FASTCALL BG_SwapBuffers(void)
+{
+	if (!BG_DoubleBuffer) return;
+	
+	// ポインタスワップによる高速バッファ切り替え
+	WORD *temp_line = BG_LineBuf_Active;
+	WORD *temp_pri = BG_PriBuf_Active;
+	
+	BG_LineBuf_Active = BG_LineBuf_Draw;
+	BG_PriBuf_Active = BG_PriBuf_Draw;
+	
+	BG_LineBuf_Draw = temp_line;
+	BG_PriBuf_Draw = temp_pri;
+	
+	// 新しい描画用バッファは次のフレーム開始時（BG_DrawLine）でクリアされるため、ここではクリアしない
+	// これによりスプライト描画結果が保持される
+}
+
+// バックバッファクリア（フレーム開始時）
+void FASTCALL BG_ClearBackBuffer(void)
+{
+	if (!BG_DoubleBuffer) return;
+	
+	// ゼロクリアより高速な部分クリア
+	int i;
+	for (i = 16; i < TextDotX + 16; ++i) {
+		BG_LineBuf_Draw[i] = 0;
+		BG_PriBuf_Draw[i] = 0xffff;
+	}
+}
+
+// ダブルバッファリングのON/OFF制御
+void FASTCALL BG_SetDoubleBuffer(int enable)
+{
+	BG_DoubleBuffer = enable;
+	
+	if (enable) {
+		// ダブルバッファモード: 異なるバッファを指すように設定
+		BG_LineBuf_Active = BG_LineBuf;      // 元のバッファを表示用に
+		BG_PriBuf_Active = BG_PriBuf;        // 元のバッファを表示用に
+		BG_LineBuf_Draw = BG_LineBuf_Back;   // バックバッファを描画用に
+		BG_PriBuf_Draw = BG_PriBuf_Back;     // バックバッファを描画用に
+	} else {
+		// シングルバッファモード: 直接アクセス用に元のバッファを使用
+		BG_LineBuf_Active = BG_LineBuf;
+		BG_PriBuf_Active = BG_PriBuf;
+		BG_LineBuf_Draw = BG_LineBuf;
+		BG_PriBuf_Draw = BG_PriBuf;
+	}
+}
+
+// 表示用バッファへのアクセサ (外部システムから使用)
+WORD* FASTCALL BG_GetActiveLineBuf(void)
+{
+	return BG_LineBuf_Active;
+}
+
+WORD* FASTCALL BG_GetActivePriBuf(void)
+{
+	return BG_PriBuf_Active;
+}
+
 #endif /* USE_ASM */

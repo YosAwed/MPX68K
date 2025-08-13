@@ -253,6 +253,15 @@ class FileSystem {
     
     func boot()
     {
+        // Check if automatic disk mounting should be disabled
+        let userDefaults = UserDefaults.standard
+        let disableAutoMount = userDefaults.bool(forKey: "DisableAutoMount")
+        
+        if disableAutoMount {
+            infoLog("Automatic disk mounting disabled via settings", category: .fileSystem)
+            return
+        }
+        
         // for iCloud
         //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -261,6 +270,24 @@ class FileSystem {
         if let documentsURL = containerURL?.appendingPathComponent("X68000") {
             scanDiskImagesEfficiently(in: documentsURL)
         }
+    }
+    
+    func clearAllDiskImages() {
+        infoLog("==== Clear All Disk Images ====", category: .fileSystem)
+        
+        // Eject all FDD drives (typically 0 and 1)
+        for drive in 0...1 {
+            X68000_EjectFDD(drive)
+            debugLog("Ejected FDD drive \(drive)", category: .fileSystem)
+        }
+        
+        // Eject HDD if mounted
+        if X68000_IsHDDReady() != 0 {
+            infoLog("HDD mounted, ejecting...", category: .fileSystem)
+            X68000_EjectHDD()
+        }
+        
+        infoLog("All disk images cleared successfully", category: .fileSystem)
     }
     
     /// Efficiently scan directory for disk images using FileManager enumerator and URLResourceValues

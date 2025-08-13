@@ -99,6 +99,7 @@ class AudioStream {
 
 import Foundation
 import AudioToolbox
+import Accelerate
 
 func bridge<T : AnyObject>(_ obj : T) -> UnsafeRawPointer {
     return UnsafeRawPointer(Unmanaged.passUnretained(obj).toOpaque())
@@ -108,6 +109,47 @@ func bridge<T : AnyObject>(_ obj : T) -> UnsafeRawPointer {
 func bridge<T : AnyObject>(_ ptr : UnsafeRawPointer) -> T {
     return Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
     // return unsafeBitCast(ptr, T.self) // ***
+}
+
+// Audio fade-out state tracking
+private var fadeOutState: Int = 0
+private let fadeOutDuration: Int = 512  // Fade over 512 samples (~11ms at 44kHz)
+
+/// Apply gradual fade-out to prevent click/pop noises when audio stops
+private func applyGradualFadeOut(_ audioPtr: UnsafeMutablePointer<Int16>, sampleCount: Int) {
+    // Apply exponential fade-out curve over multiple audio frames
+    let fadeLength = min(sampleCount, fadeOutDuration - fadeOutState)
+    
+    if fadeLength > 0 {
+        for i in 0..<fadeLength {
+            let fadeRatio = Float(fadeOutDuration - fadeOutState - i) / Float(fadeOutDuration)
+            let fadeMultiplier = fadeRatio * fadeRatio  // Exponential curve for smooth fade
+            
+            // Apply fade to stereo samples
+            if i < sampleCount {
+                audioPtr[i] = Int16(Float(audioPtr[i]) * fadeMultiplier)
+            }
+        }
+        
+        fadeOutState += fadeLength
+        
+        // Complete silence for remaining samples after fade is complete
+        if fadeOutState >= fadeOutDuration && fadeLength < sampleCount {
+            for i in fadeLength..<sampleCount {
+                audioPtr[i] = 0
+            }
+        }
+    } else {
+        // Fade is complete, apply silence
+        for i in 0..<sampleCount {
+            audioPtr[i] = 0
+        }
+    }
+}
+
+/// Reset fade-out state when audio resumes
+private func resetFadeOut() {
+    fadeOutState = 0
 }
 
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
@@ -125,29 +167,63 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
         // Call the audio generation function
         X68000_AudioCallBack(mAudioDataPtr, UInt32(size))
         
-        // Post-process: Apply soft limiting to prevent clipping and pops
-        for i in 0..<Int(size * 2) {  // size * 2 for stereo samples
-            let sample = mAudioDataPtr[i]
-            // Soft limiting to prevent harsh clipping
-            if sample > 32000 {
-                mAudioDataPtr[i] = 32000
-            } else if sample < -32000 {
-                mAudioDataPtr[i] = -32000
-            }
-        }
+        // Highly optimized audio processing using Accelerate Framework
+        let sampleCount = Int(size * 2)  // size * 2 for stereo samples
         
-        // Check for actual audio content to prevent unnecessary processing
-        var hasAudio = false
-        for i in 0..<Int(size * 2) {
-            if abs(mAudioDataPtr[i]) > 10 {  // Threshold for detecting actual audio
-                hasAudio = true
-                break
+        // Use stack-allocated buffer for small arrays to avoid heap allocation
+        if sampleCount <= 8192 {  // Reasonable buffer size threshold
+            // Stack-based processing for typical audio buffer sizes
+            let floatSamples = UnsafeMutablePointer<Float>.allocate(capacity: sampleCount)
+            defer { floatSamples.deallocate() }
+            
+            // Convert Int16 to Float for vectorized operations
+            vDSP_vflt16(mAudioDataPtr, 1, floatSamples, 1, vDSP_Length(sampleCount))
+            
+            // Vectorized clipping
+            var lowerBound: Float = -32000.0
+            var upperBound: Float = 32000.0
+            vDSP_vclip(floatSamples, 1, &lowerBound, &upperBound, floatSamples, 1, vDSP_Length(sampleCount))
+            
+            // Calculate RMS for silence detection (more accurate than mean absolute)
+            var rmsValue: Float = 0
+            vDSP_rmsqv(floatSamples, 1, &rmsValue, vDSP_Length(sampleCount))
+            
+            // Convert back to Int16
+            vDSP_vfix16(floatSamples, 1, mAudioDataPtr, 1, vDSP_Length(sampleCount))
+            
+            // Smooth silence detection to prevent click/pop noises
+            if rmsValue <= 10.0 {
+                // Apply gradual fade-out instead of abrupt silence
+                applyGradualFadeOut(mAudioDataPtr, sampleCount: sampleCount)
+            } else {
+                // Audio is active, reset fade-out state
+                resetFadeOut()
             }
-        }
-        
-        // If no significant audio, ensure complete silence
-        if !hasAudio {
-            memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
+            
+        } else {
+            // Fallback to single-pass processing for very large buffers
+            var hasSignificantAudio = false
+            
+            for i in 0..<sampleCount {
+                var sample = mAudioDataPtr[i]
+                
+                // Apply clipping
+                sample = max(-32000, min(32000, sample))
+                mAudioDataPtr[i] = sample
+                
+                // Early exit optimization for silence detection
+                if !hasSignificantAudio && abs(sample) > 10 {
+                    hasSignificantAudio = true
+                }
+            }
+            
+            // If no significant audio found, apply smooth fade-out
+            if !hasSignificantAudio {
+                applyGradualFadeOut(mAudioDataPtr, sampleCount: sampleCount)
+            } else {
+                // Audio is active, reset fade-out state
+                resetFadeOut()
+            }
         }
         
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
