@@ -88,7 +88,7 @@ class GameViewController: NSViewController {
         // print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
         
         let openPanel = NSOpenPanel()
-        openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "A" : "B")"
+        openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "0" : "1")"
         openPanel.allowedContentTypes = [
             UTType(filenameExtension: "dim")!,
             UTType(filenameExtension: "xdf")!,
@@ -618,11 +618,11 @@ extension GameViewController: NSDraggingDestination {
             // Load first two floppy disks to drives A and B
             gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
             gameScene?.loadFDDToDrive(url: floppyUrls[1], drive: 1)
-            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive A and \(floppyUrls[1].lastPathComponent) to Drive B", category: .fileSystem)
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive 0 and \(floppyUrls[1].lastPathComponent) to Drive 1", category: .fileSystem)
         } else if floppyUrls.count == 1 {
             // Load single floppy to drive A
             gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
-            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive A", category: .fileSystem)
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive 0", category: .fileSystem)
         }
         
         // Load HDD images using existing method

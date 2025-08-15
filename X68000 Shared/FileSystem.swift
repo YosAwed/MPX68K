@@ -14,6 +14,402 @@ extension Notification.Name {
     static let diskImageLoaded = Notification.Name("diskImageLoaded")
 }
 
+// MARK: - Disk Mount State Data Structures
+
+public struct DiskMountState: Codable {
+    let timestamp: Date
+    let fddStates: [FDDState]
+    let hddState: HDDState?
+    let sessionId: UUID
+    
+    public struct FDDState: Codable {
+        let drive: Int  // 0 = Drive 0, 1 = Drive 1
+        let filePath: String
+        let fileName: String
+        let isReadOnly: Bool
+        let fileSize: Int64
+        let lastModified: Date
+        let bookmarkData: Data?  // Security-scoped bookmark
+    }
+    
+    public struct HDDState: Codable {
+        let filePath: String
+        let fileName: String
+        let fileSize: Int64
+        let lastModified: Date
+        let bookmarkData: Data?  // Security-scoped bookmark
+        let isDirty: Bool
+        let isReadOnly: Bool
+    }
+}
+
+public enum AutoMountMode: String, CaseIterable, Codable {
+    case disabled = "disabled"              // 自動マウント無効
+    case lastSession = "restore_last"       // 前回状態復元  
+    case smartLoad = "hybrid"               // 復元 + 新規ファイルスキャン
+    case manual = "manual"                  // 手動選択
+    
+    public var displayName: String {
+        switch self {
+        case .disabled: return "Disabled"
+        case .lastSession: return "Restore Last Session"
+        case .smartLoad: return "Smart Load"
+        case .manual: return "Manual Selection"
+        }
+    }
+}
+
+// MARK: - Disk State Manager
+
+public class DiskStateManager {
+    public static let shared = DiskStateManager()
+    private init() {}
+    
+    private let userDefaults = UserDefaults.standard
+    private let stateKey = "DiskMountState_v1"  // バージョン管理のため
+    private let autoMountModeKey = "AutoMountMode_v1"
+    
+    // Swift側でマウント情報を記録（C関数からファイル名が取得できない場合の代替）
+    private var mountedFDDFiles: [Int: URL] = [:]  // drive -> URL
+    private var mountedHDDFile: URL? = nil
+    
+    // Public autoMountMode property
+    public var autoMountMode: AutoMountMode {
+        get {
+            if let modeString = userDefaults.string(forKey: autoMountModeKey),
+               let mode = AutoMountMode(rawValue: modeString) {
+                return mode
+            }
+            return .smartLoad // Default mode
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: autoMountModeKey)
+        }
+    }
+    
+    // 現在の状態をUserDefaultsに永続保存
+    func saveCurrentState() {
+        // 内部で現在の状態をキャプチャして保存
+        // このメソッドは内部使用のため、GameSceneが不要
+        infoLog("saveCurrentState called - needs GameScene context", category: .fileSystem)
+    }
+    
+    // 指定された状態をUserDefaultsに保存
+    public func saveState(_ state: DiskMountState) {
+        do {
+            let data = try JSONEncoder().encode(state)
+            userDefaults.set(data, forKey: stateKey)
+            // UserDefaultsは自動的に永続化される
+            debugLog("saveState: Saving state with \(state.fddStates.count) FDD states, HDD: \(state.hddState != nil)", category: .fileSystem)
+            debugLog("saveState: Data size = \(data.count) bytes", category: .fileSystem)
+            infoLog("Disk mount state saved to UserDefaults", category: .fileSystem)
+        } catch {
+            errorLog("Failed to save disk mount state: \(error)", category: .fileSystem)
+        }
+    }
+    
+    // UserDefaultsから保存された状態を復元
+    func restoreLastState() -> Bool {
+        guard let state = loadSavedState() else {
+            infoLog("No saved disk mount state found", category: .fileSystem)
+            return false
+        }
+        
+        return restoreState(state)
+    }
+    
+    // UserDefaultsからデータを読み込み
+    public func loadSavedState() -> DiskMountState? {
+        debugLog("loadSavedState: Checking for saved data with key '\(stateKey)'", category: .fileSystem)
+        guard let data = userDefaults.data(forKey: stateKey) else {
+            debugLog("loadSavedState: No data found in UserDefaults", category: .fileSystem)
+            return nil
+        }
+        
+        debugLog("loadSavedState: Found data, size = \(data.count) bytes", category: .fileSystem)
+        do {
+            let state = try JSONDecoder().decode(DiskMountState.self, from: data)
+            debugLog("loadSavedState: Successfully decoded state with \(state.fddStates.count) FDD states", category: .fileSystem)
+            return state
+        } catch {
+            errorLog("Failed to decode saved state, clearing corrupted data: \(error)", category: .fileSystem)
+            userDefaults.removeObject(forKey: stateKey)
+            return nil
+        }
+    }
+    
+    // 保存された状態をクリア
+    public func clearAllStates() {
+        userDefaults.removeObject(forKey: stateKey)
+        infoLog("Saved disk mount state cleared", category: .fileSystem)
+    }
+    
+    public func loadLastState() -> DiskMountState? {
+        return loadSavedState()
+    }
+    
+    // Swift側でのマウント情報記録
+    public func recordFDDMount(_ url: URL, drive: Int) {
+        mountedFDDFiles[drive] = url
+        debugLog("Recorded FDD mount: drive \(drive) -> \(url.lastPathComponent)", category: .fileSystem)
+    }
+    
+    public func recordHDDMount(_ url: URL) {
+        mountedHDDFile = url
+        debugLog("Recorded HDD mount: \(url.lastPathComponent)", category: .fileSystem)
+    }
+    
+    public func recordFDDEject(_ drive: Int) {
+        mountedFDDFiles.removeValue(forKey: drive)
+        debugLog("Recorded FDD eject: drive \(drive)", category: .fileSystem)
+    }
+    
+    public func recordHDDEject() {
+        mountedHDDFile = nil
+        debugLog("Recorded HDD eject", category: .fileSystem)
+    }
+    
+    // 現在のマウント状態をキャプチャ
+    public func createCurrentState() -> DiskMountState {
+        var fddStates: [DiskMountState.FDDState] = []
+        
+        // FDD状態の取得
+        for drive in 0..<2 {
+            let isReady = X68000_IsFDDReady(drive)
+            debugLog("createCurrentState: Drive \(drive) ready = \(isReady)", category: .fileSystem)
+            
+            if isReady != 0 {
+                var url: URL?
+                
+                // まずC関数からファイル名を取得を試す
+                if let filename = X68000_GetFDDFilename(drive) {
+                    let path = String(cString: filename)
+                    debugLog("createCurrentState: Drive \(drive) C path = '\(path)'", category: .fileSystem)
+                    if !path.isEmpty && path != "/" && path.count > 1 {
+                        url = URL(fileURLWithPath: path)
+                    }
+                }
+                
+                // C関数から取得できない場合はSwift側の記録を使用
+                if url == nil, let swiftUrl = mountedFDDFiles[drive] {
+                    url = swiftUrl
+                    debugLog("createCurrentState: Drive \(drive) using Swift record = '\(swiftUrl.path)'", category: .fileSystem)
+                }
+                
+                guard let finalUrl = url else {
+                    debugLog("createCurrentState: Drive \(drive) - no valid path found", category: .fileSystem)
+                    continue
+                }
+                
+                if let attributes = try? FileManager.default.attributesOfItem(atPath: finalUrl.path),
+                   let fileSize = attributes[.size] as? Int64,
+                   let modDate = attributes[.modificationDate] as? Date {
+                    
+                    let bookmarkData = try? finalUrl.bookmarkData(
+                        options: .withSecurityScope,
+                        includingResourceValuesForKeys: nil,
+                        relativeTo: nil
+                    )
+                    
+                    let fddState = DiskMountState.FDDState(
+                        drive: drive,
+                        filePath: finalUrl.path,
+                        fileName: finalUrl.lastPathComponent,
+                        isReadOnly: false, // TODO: 読み取り専用状態の取得
+                        fileSize: fileSize,
+                        lastModified: modDate,
+                        bookmarkData: bookmarkData
+                    )
+                    fddStates.append(fddState)
+                    debugLog("createCurrentState: Added FDD state for drive \(drive): \(finalUrl.lastPathComponent)", category: .fileSystem)
+                }
+            }
+        }
+        
+        // HDD状態の取得
+        var hddState: DiskMountState.HDDState?
+        if X68000_IsHDDReady() != 0,
+           let filename = X68000_GetHDDFilename() {
+            let path = String(cString: filename)
+            let url = URL(fileURLWithPath: path)
+            
+            if let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+               let fileSize = attributes[.size] as? Int64,
+               let modDate = attributes[.modificationDate] as? Date {
+                
+                let bookmarkData = try? url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                
+                hddState = DiskMountState.HDDState(
+                    filePath: path,
+                    fileName: url.lastPathComponent,
+                    fileSize: fileSize,
+                    lastModified: modDate,
+                    bookmarkData: bookmarkData,
+                    isDirty: false, // TODO: HDDのdirty状態取得
+                    isReadOnly: false // TODO: HDDの読み取り専用状態取得
+                )
+            }
+        }
+        
+        return DiskMountState(
+            timestamp: Date(),
+            fddStates: fddStates,
+            hddState: hddState,
+            sessionId: UUID()
+        )
+    }
+    
+    // 状態復元の実装
+    private func restoreState(_ state: DiskMountState) -> Bool {
+        var successCount = 0
+        var totalCount = 0
+        
+        infoLog("Restoring disk mount state from \(state.timestamp)", category: .fileSystem)
+        
+        // FDD状態の復元
+        for fddState in state.fddStates {
+            totalCount += 1
+            if restoreFDDState(fddState) {
+                successCount += 1
+            }
+        }
+        
+        // HDD状態の復元
+        if let hddState = state.hddState {
+            totalCount += 1
+            if restoreHDDState(hddState) {
+                successCount += 1
+            }
+        }
+        
+        let success = successCount > 0
+        infoLog("State restore completed: \(successCount)/\(totalCount) drives restored", category: .fileSystem)
+        
+        if successCount < totalCount {
+            showRestoreWarning(successCount: successCount, totalCount: totalCount)
+        }
+        
+        return success
+    }
+    
+    // FDD状態の復元
+    private func restoreFDDState(_ fddState: DiskMountState.FDDState) -> Bool {
+        let url = URL(fileURLWithPath: fddState.filePath)
+        
+        // ファイル整合性検証
+        guard validateFileIntegrity(url: url, expectedSize: fddState.fileSize, expectedModDate: fddState.lastModified) else {
+            warningLog("FDD file validation failed for drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
+            return false
+        }
+        
+        // セキュリティスコープブックマークの復元
+        var needsSecurityScope = false
+        if let bookmarkData = fddState.bookmarkData {
+            do {
+                var isStale = false
+                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+                
+                if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
+                    needsSecurityScope = true
+                    infoLog("Security-scoped access restored for FDD drive \(fddState.drive)", category: .fileSystem)
+                }
+            } catch {
+                warningLog("Failed to resolve security bookmark for FDD drive \(fddState.drive): \(error)", category: .fileSystem)
+            }
+        }
+        
+        defer {
+            if needsSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        // ディスクイメージをロード
+        X68000_LoadFDD(fddState.drive, fddState.filePath)
+        infoLog("Restored FDD drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
+        return true
+    }
+    
+    // HDD状態の復元
+    private func restoreHDDState(_ hddState: DiskMountState.HDDState) -> Bool {
+        let url = URL(fileURLWithPath: hddState.filePath)
+        
+        // ファイル整合性検証
+        guard validateFileIntegrity(url: url, expectedSize: hddState.fileSize, expectedModDate: hddState.lastModified) else {
+            warningLog("HDD file validation failed: \(hddState.fileName)", category: .fileSystem)
+            return false
+        }
+        
+        // セキュリティスコープブックマークの復元
+        var needsSecurityScope = false
+        if let bookmarkData = hddState.bookmarkData {
+            do {
+                var isStale = false
+                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+                
+                if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
+                    needsSecurityScope = true
+                    infoLog("Security-scoped access restored for HDD", category: .fileSystem)
+                }
+            } catch {
+                warningLog("Failed to resolve security bookmark for HDD: \(error)", category: .fileSystem)
+            }
+        }
+        
+        defer {
+            if needsSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        // ハードディスクイメージをロード
+        X68000_LoadHDD(hddState.filePath)
+        infoLog("Restored HDD: \(hddState.fileName)", category: .fileSystem)
+        return true
+    }
+    
+    // ファイル整合性検証
+    private func validateFileIntegrity(url: URL, expectedSize: Int64, expectedModDate: Date) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            warningLog("File not found: \(url.path)", category: .fileSystem)
+            return false
+        }
+        
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            
+            if let currentSize = attributes[.size] as? Int64,
+               currentSize != expectedSize {
+                warningLog("File size mismatch for \(url.lastPathComponent): expected \(expectedSize), got \(currentSize)", category: .fileSystem)
+                return false
+            }
+            
+            if let currentModDate = attributes[.modificationDate] as? Date,
+               abs(currentModDate.timeIntervalSince(expectedModDate)) > 1.0 {
+                warningLog("File modification date mismatch for \(url.lastPathComponent)", category: .fileSystem)
+                return false
+            }
+            
+            return true
+        } catch {
+            errorLog("Failed to get file attributes for \(url.path): \(error)", category: .fileSystem)
+            return false
+        }
+    }
+    
+    // 復元警告の表示
+    private func showRestoreWarning(successCount: Int, totalCount: Int) {
+        DispatchQueue.main.async {
+            // Alert表示の実装は後でAppDelegateで実装
+            warningLog("Partial state restore: \(successCount)/\(totalCount) drives restored", category: .fileSystem)
+        }
+    }
+}
+
 class FileSystem {
     weak var gameScene: GameScene?
     
@@ -26,6 +422,142 @@ class FileSystem {
     private static var cacheTimestamp: Date = Date.distantPast
     private static let cacheValidityDuration: TimeInterval = 300 // 5 minutes
     private static let cacheAccessLock = NSLock()
+    
+    // MARK: - State Management Integration
+    
+    /// Save current disk mount state when disks are loaded/ejected
+    func saveCurrentDiskState() {
+        DiskStateManager.shared.saveCurrentState()
+    }
+    
+    /// Boot with state restore based on current auto-mount mode
+    func bootWithStateRestore() {
+        let autoMountMode = getAutoMountMode()
+        debugLog("bootWithStateRestore: Current mode = \(autoMountMode)", category: .fileSystem)
+        
+        switch autoMountMode {
+        case .disabled:
+            infoLog("Auto-mount disabled", category: .fileSystem)
+            return
+            
+        case .manual:
+            // 手動選択のため何もしない
+            infoLog("Manual mode - no auto-mounting", category: .fileSystem)
+            
+        case .lastSession:
+            if !DiskStateManager.shared.restoreLastState() {
+                infoLog("State restore failed, falling back to directory scan", category: .fileSystem)
+                scanForNewFiles()
+            }
+            
+        case .smartLoad:
+            // 状態復元後、新規ファイルをスキャン
+            let restored = DiskStateManager.shared.restoreLastState()
+            scanForNewFiles()
+            if !restored {
+                infoLog("No previous state found for smart load mode", category: .fileSystem)
+            }
+        }
+    }
+    
+    /// Get current auto-mount mode from UserDefaults
+    private func getAutoMountMode() -> AutoMountMode {
+        let modeString = UserDefaults.standard.string(forKey: "AutoMountMode") ?? AutoMountMode.smartLoad.rawValue
+        return AutoMountMode(rawValue: modeString) ?? .smartLoad
+    }
+    
+    /// Scan for new files not currently mounted (for hybrid mode)
+    private func scanForNewFiles() {
+        guard let documentsURL = getDocumentsPath("") else { return }
+        
+        let currentlyMounted = getCurrentlyMountedFiles()
+        scanDiskImagesEfficientlyFiltered(in: documentsURL, currentlyMounted: currentlyMounted)
+    }
+    
+    /// Scan disk images with filter for already mounted files
+    private func scanDiskImagesEfficientlyFiltered(in directory: URL, currentlyMounted: Set<String>) {
+        debugLog("Starting filtered disk image scan in: \(directory.path)", category: .fileSystem)
+        
+        // Define valid disk extensions as Set for O(1) lookup performance
+        let validDiskExtensions: Set<String> = ["dim", "xdf", "d88", "hdm", "hdf"]
+        
+        // Request only the resource values we need to minimize I/O
+        let resourceKeys: [URLResourceKey] = [.nameKey, .isRegularFileKey, .fileResourceTypeKey]
+        
+        // Use DirectoryEnumerator for stream processing instead of loading entire directory
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { url, error in
+                warningLog("Error accessing file during filtered scan: \(url.path) - \(error.localizedDescription)", category: .fileSystem)
+                return true // Continue enumeration
+            }
+        ) else {
+            warningLog("Failed to create directory enumerator for: \(directory.path)", category: .fileSystem)
+            return
+        }
+        
+        var scannedCount = 0
+        var foundCount = 0
+        
+        // Stream process files using the enumerator
+        for case let fileURL as URL in enumerator {
+            scannedCount += 1
+            
+            // Skip if already mounted
+            if currentlyMounted.contains(fileURL.path) {
+                debugLog("Skipping already mounted file: \(fileURL.lastPathComponent)", category: .fileSystem)
+                continue
+            }
+            
+            do {
+                // Efficiently get resource values in a single call
+                let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+                
+                // Skip non-regular files (directories, symlinks, etc.)
+                guard resourceValues.isRegularFile == true else { continue }
+                
+                // Check file extension efficiently using file URL
+                let pathExtension = fileURL.pathExtension.lowercased()
+                
+                if validDiskExtensions.contains(pathExtension) {
+                    foundCount += 1
+                    debugLog("Found new disk image: \(fileURL.lastPathComponent)", category: .fileSystem)
+                    
+                    // In smart load mode, only log found files without auto-loading
+                    // Files will be loaded when user explicitly selects them
+                }
+            } catch {
+                // Handle individual file access errors without stopping the scan
+                warningLog("Failed to get resource values for file: \(fileURL.path) - \(error.localizedDescription)", category: .fileSystem)
+                continue
+            }
+        }
+        
+        infoLog("Filtered disk scan completed: \(foundCount) new disk images found out of \(scannedCount) files scanned", category: .fileSystem)
+    }
+    
+    /// Get set of currently mounted file paths
+    private func getCurrentlyMountedFiles() -> Set<String> {
+        var mountedFiles = Set<String>()
+        
+        // FDD
+        for drive in 0..<2 {
+            if X68000_IsFDDReady(drive) != 0,
+               let filename = X68000_GetFDDFilename(drive) {
+                mountedFiles.insert(String(cString: filename))
+            }
+        }
+        
+        // HDD
+        if X68000_IsHDDReady() != 0,
+           let filename = X68000_GetHDDFilename() {
+            mountedFiles.insert(String(cString: filename))
+        }
+        
+        return mountedFiles
+    }
     
     init() {
 #if false
@@ -251,26 +783,6 @@ class FileSystem {
         }
     }
     
-    func boot()
-    {
-        // Check if automatic disk mounting should be disabled
-        let userDefaults = UserDefaults.standard
-        let disableAutoMount = userDefaults.bool(forKey: "DisableAutoMount")
-        
-        if disableAutoMount {
-            infoLog("Automatic disk mounting disabled via settings", category: .fileSystem)
-            return
-        }
-        
-        // for iCloud
-        //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        
-        // コンテナに追加するフォルダのパス
-        if let documentsURL = containerURL?.appendingPathComponent("X68000") {
-            scanDiskImagesEfficiently(in: documentsURL)
-        }
-    }
     
     func clearAllDiskImages() {
         infoLog("==== Clear All Disk Images ====", category: .fileSystem)
@@ -278,6 +790,7 @@ class FileSystem {
         // Eject all FDD drives (typically 0 and 1)
         for drive in 0...1 {
             X68000_EjectFDD(drive)
+            DiskStateManager.shared.recordFDDEject(drive)
             debugLog("Ejected FDD drive \(drive)", category: .fileSystem)
         }
         
@@ -285,7 +798,11 @@ class FileSystem {
         if X68000_IsHDDReady() != 0 {
             infoLog("HDD mounted, ejecting...", category: .fileSystem)
             X68000_EjectHDD()
+            DiskStateManager.shared.recordHDDEject()
         }
+        
+        // Save current state after clearing all disks
+        saveCurrentDiskState()
         
         infoLog("All disk images cleared successfully", category: .fileSystem)
     }
@@ -1069,6 +1586,9 @@ class FileSystem {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
                         infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
+                        
+                        // Save current disk state after successful HDD load
+                        self.saveCurrentDiskState()
                         completion(true)
                     } else {
                         errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
@@ -1079,7 +1599,10 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        infoLog("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))", category: .fileSystem)
+                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+                
+                // Save current disk state after successful load
+                self.saveCurrentDiskState()
                         completion(true)
                     } else {
                         errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
@@ -1273,6 +1796,9 @@ class FileSystem {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.absoluteString)
                         infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
+                        
+                        // Save current disk state after successful HDD load
+                        self.saveCurrentDiskState()
                         completion(true)
                     } else {
                         errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
@@ -1283,7 +1809,10 @@ class FileSystem {
                     if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadFDD(drive, url.path)
-                        infoLog("Success: FDD loaded: \(url.lastPathComponent) (drive \(drive))", category: .fileSystem)
+                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+                
+                // Save current disk state after successful load
+                self.saveCurrentDiskState()
                         completion(true)
                     } else {
                         errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
@@ -1344,12 +1873,12 @@ class FileSystem {
         }
     }
     // Added by Awed 2023/10/7
-    func loadCGROM()
+    func loadCGROM() -> Bool
     {
         infoLog("==== Load CGROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("CGROM.DAT") else {
-            infoLog("CGROM.DAT not found - will use embedded ROM", category: .fileSystem)
-            return
+            errorLog("CRITICAL: CGROM.DAT not found - emulator cannot start", category: .fileSystem)
+            return false
         }
         
         do {
@@ -1357,25 +1886,28 @@ class FileSystem {
             // Security: Validate CGROM file size (typical size is 0xc0000 bytes)
             guard data.count > 0 && data.count <= 0xc0000 else {
                 errorLog("Security: CGROM file invalid size: \(data.count)", category: .fileSystem)
-                return
+                return false
             }
             if let p = X68000_GetCGROMPointer() {
                 data.copyBytes(to: p, count: data.count)
                 infoLog("CGROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
+                return true
             } else {
                 errorLog("Failed to get CGROM pointer", category: .fileSystem)
+                return false
             }
         } catch let error as NSError {
             errorLog("Error loading CGROM.DAT", error: error, category: .fileSystem)
+            return false
         }
     }
     
-    func loadIPLROM()
+    func loadIPLROM() -> Bool
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("IPLROM.DAT") else {
-            infoLog("IPLROM.DAT not found - will use embedded ROM", category: .fileSystem)
-            return
+            errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
+            return false
         }
         
         do {
@@ -1383,16 +1915,19 @@ class FileSystem {
             // Security: Validate IPLROM file size (typical size is 0x40000 bytes)
             guard data.count > 0 && data.count <= 0x40000 else {
                 errorLog("Security: IPLROM file invalid size: \(data.count)", category: .fileSystem)
-                return
+                return false
             }
             if let p = X68000_GetIPLROMPointer() {
                 data.copyBytes(to: p, count: data.count)
                 infoLog("IPLROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
+                return true
             } else {
                 errorLog("Failed to get IPLROM pointer", category: .fileSystem)
+                return false
             }
         } catch let error as NSError {
             errorLog("Error loading IPLROM.DAT", error: error, category: .fileSystem)
+            return false
         }
     }
     
@@ -1412,7 +1947,14 @@ class FileSystem {
             if let p = X68000_GetDiskImageBufferPointer(drive, data.count) {
                 data.copyBytes(to: p, count: data.count)
                 X68000_LoadFDD(drive, url.path)
+                
+                // Record mount in Swift side for state management
+                DiskStateManager.shared.recordFDDMount(url, drive: drive)
+                
                 infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+                
+                // Save current disk state after successful load
+                self.saveCurrentDiskState()
                 
                 infoLog("FDD loaded to drive \(drive) - no automatic reset", category: .fileSystem)
             } else {

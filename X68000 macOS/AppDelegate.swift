@@ -182,28 +182,125 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let separator = NSMenuItem.separator()
         menu.addItem(separator)
         
-        // Create auto-mount toggle menu item
-        let autoMountItem = NSMenuItem(
-            title: "Auto-Mount Disk Images on Startup",
-            action: #selector(toggleAutoMount(_:)),
+        // Create Disk State Management submenu
+        let diskStateSubmenu = NSMenu(title: "Disk State Management")
+        let diskStateMenuItem = NSMenuItem(
+            title: "Disk State Management",
+            action: nil,
             keyEquivalent: ""
         )
-        autoMountItem.target = self
-        autoMountItem.identifier = NSUserInterfaceItemIdentifier("Settings-auto-mount")
+        diskStateMenuItem.submenu = diskStateSubmenu
         
-        // Set initial state based on user defaults
-        let isAutoMountEnabled = !UserDefaults.standard.bool(forKey: "DisableAutoMount")
-        autoMountItem.state = isAutoMountEnabled ? .on : .off
+        // Auto-Mount Mode submenu
+        let autoMountSubmenu = NSMenu(title: "Auto-Mount Mode")
+        let autoMountMenuItem = NSMenuItem(
+            title: "Auto-Mount Mode",
+            action: nil,
+            keyEquivalent: ""
+        )
+        autoMountMenuItem.submenu = autoMountSubmenu
         
-        menu.addItem(autoMountItem)
+        // Auto-Mount Mode options
+        let disabledItem = NSMenuItem(
+            title: "Disabled",
+            action: #selector(setAutoMountDisabled(_:)),
+            keyEquivalent: ""
+        )
+        disabledItem.target = self
+        disabledItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-disabled")
         
-        infoLog("Added 'Auto-Mount Disk Images' menu item", category: .ui)
+        let lastSessionItem = NSMenuItem(
+            title: "Restore Last Session",
+            action: #selector(setAutoMountLastSession(_:)),
+            keyEquivalent: ""
+        )
+        lastSessionItem.target = self
+        lastSessionItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-lastSession")
+        
+        let smartLoadItem = NSMenuItem(
+            title: "Smart Load",
+            action: #selector(setAutoMountSmartLoad(_:)),
+            keyEquivalent: ""
+        )
+        smartLoadItem.target = self
+        smartLoadItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-smartLoad")
+        
+        let manualItem = NSMenuItem(
+            title: "Manual Selection",
+            action: #selector(setAutoMountManual(_:)),
+            keyEquivalent: ""
+        )
+        manualItem.target = self
+        manualItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-manual")
+        
+        // Add mode items to submenu
+        autoMountSubmenu.addItem(disabledItem)
+        autoMountSubmenu.addItem(lastSessionItem)
+        autoMountSubmenu.addItem(smartLoadItem)
+        autoMountSubmenu.addItem(manualItem)
+        
+        // State management actions
+        let separator1 = NSMenuItem.separator()
+        let saveStateItem = NSMenuItem(
+            title: "Save Current State",
+            action: #selector(saveDiskState(_:)),
+            keyEquivalent: ""
+        )
+        saveStateItem.target = self
+        saveStateItem.keyEquivalent = "s"
+        saveStateItem.keyEquivalentModifierMask = [.command, .option]
+        
+        let clearStateItem = NSMenuItem(
+            title: "Clear Saved State",
+            action: #selector(clearDiskState(_:)),
+            keyEquivalent: ""
+        )
+        clearStateItem.target = self
+        
+        let showStateItem = NSMenuItem(
+            title: "Show State Information",
+            action: #selector(showDiskStateInfo(_:)),
+            keyEquivalent: ""
+        )
+        showStateItem.target = self
+        
+        // Add items to disk state submenu
+        diskStateSubmenu.addItem(autoMountMenuItem)
+        diskStateSubmenu.addItem(separator1)
+        diskStateSubmenu.addItem(saveStateItem)
+        diskStateSubmenu.addItem(clearStateItem)
+        diskStateSubmenu.addItem(showStateItem)
+        
+        // Add main submenu to menu
+        menu.addItem(diskStateMenuItem)
+        
+        infoLog("Added 'Disk State Management' menu with AutoMountMode options", category: .ui)
     }
     
     // Manual menu update when files are opened/closed
     func updateMenuOnFileOperation() {
-        DispatchQueue.main.async { [weak self] in
+        // Add small delay to allow C functions to complete disk operations
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.updateMenuTitles()
+        }
+    }
+    
+    // Auto-save disk state after disk operations (mount/eject)
+    func autoSaveDiskStateIfNeeded() {
+        let stateManager = DiskStateManager.shared
+        
+        // Only auto-save if mode supports it
+        switch stateManager.autoMountMode {
+        case .lastSession, .smartLoad:
+            // Add delay to ensure disk operation completes before saving state
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let currentState = stateManager.createCurrentState()
+                stateManager.saveState(currentState)
+                debugLog("Auto-saved disk state after operation", category: .fileSystem)
+            }
+        case .disabled, .manual:
+            // No auto-save for these modes
+            break
         }
     }
     
@@ -267,14 +364,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             let itemTitle = item.title
             logger.debug("FDD Menu item: '\(itemTitle)' with ID: '\(itemId)'")
             
-            // Update FDD Drive A menu items (using title matching as fallback)
-            if itemId == "FDD-open-drive-A" || itemTitle.contains("Open Drive A") || itemTitle.contains("Drive A:") {
-                logger.debug("Updating Drive A open item")
+            // Update FDD Drive 0 menu items (using title matching as fallback)
+            if itemId == "FDD-open-drive-A" || itemTitle.contains("Open Drive 0") || itemTitle.contains("Drive 0:") {
+                logger.debug("Updating Drive 0 open item")
                 if X68000_IsFDDReady(0) != 0 {
-                    logger.debug("Drive A is ready")
+                    logger.debug("Drive 0 is ready")
                     if let filename = X68000_GetFDDFilename(0) {
                         let name = String(cString: filename)
-                        logger.debug("Raw filename for Drive A: '\(name)'")
+                        logger.debug("Raw filename for Drive 0: '\(name)'")
                         
                         // Check if we have a valid filename
                         if !name.isEmpty && name != "/" && name.count > 1 {
@@ -285,26 +382,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                 displayName = URL(fileURLWithPath: name).lastPathComponent
                             }
                             if !displayName.isEmpty {
-                                item.title = "Drive A: \(displayName)"
-                                logger.debug("Set Drive A title to: Drive A: \(displayName)")
+                                item.title = "Drive 0: \(displayName)"
+                                logger.debug("Set Drive 0 title to: Drive 0: \(displayName)")
                             } else {
-                                item.title = "Drive A: [Mounted]"
-                                logger.debug("Set Drive A title to: Drive A: [Mounted] (empty displayName)")
+                                item.title = "Drive 0: [Mounted]"
+                                logger.debug("Set Drive 0 title to: Drive 0: [Mounted] (empty displayName)")
                             }
                         } else {
-                            item.title = "Drive A: [Mounted]"
-                            logger.debug("Set Drive A title to: Drive A: [Mounted] (invalid name: '\(name)')")
+                            item.title = "Drive 0: [Mounted]"
+                            logger.debug("Set Drive 0 title to: Drive 0: [Mounted] (invalid name: '\(name)')")
                         }
                     } else {
-                        item.title = "Drive A: [Mounted]"
-                        logger.debug("Set Drive A title to: Drive A: [Mounted] (nil filename)")
+                        item.title = "Drive 0: [Mounted]"
+                        logger.debug("Set Drive 0 title to: Drive 0: [Mounted] (nil filename)")
                     }
                 } else {
-                    logger.debug("Drive A not ready")
-                    item.title = "Open Drive A..."
+                    logger.debug("Drive 0 not ready")
+                    item.title = "Open Drive 0..."
                 }
-            } else if itemId == "FDD-eject-drive-A" || itemTitle.contains("Eject Drive A") {
-                logger.debug("Updating Drive A eject item")
+            } else if itemId == "FDD-eject-drive-A" || itemTitle.contains("Eject Drive 0") {
+                logger.debug("Updating Drive 0 eject item")
                 if X68000_IsFDDReady(0) != 0 {
                     if let filename = X68000_GetFDDFilename(0) {
                         let name = String(cString: filename)
@@ -316,30 +413,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                 displayName = URL(fileURLWithPath: name).lastPathComponent
                             }
                             if !displayName.isEmpty {
-                                item.title = "Eject Drive A (\(displayName))"
+                                item.title = "Eject Drive 0 (\(displayName))"
                             } else {
-                                item.title = "Eject Drive A"
+                                item.title = "Eject Drive 0"
                             }
                         } else {
-                            item.title = "Eject Drive A"
+                            item.title = "Eject Drive 0"
                         }
                     } else {
-                        item.title = "Eject Drive A"
+                        item.title = "Eject Drive 0"
                     }
                     item.isEnabled = true
                 } else {
-                    item.title = "Eject Drive A"
+                    item.title = "Eject Drive 0"
                     item.isEnabled = false
                 }
             }
-            // Update FDD Drive B menu items
-            else if itemId == "FDD-open-drive-B" || itemTitle.contains("Open Drive B") || itemTitle.contains("Drive B:") {
-                logger.debug("Updating Drive B open item")
+            // Update FDD Drive 1 menu items
+            else if itemId == "FDD-open-drive-B" || itemTitle.contains("Open Drive 1") || itemTitle.contains("Drive 1:") {
+                logger.debug("Updating Drive 1 open item")
                 if X68000_IsFDDReady(1) != 0 {
-                    logger.debug("Drive B is ready")
+                    logger.debug("Drive 1 is ready")
                     if let filename = X68000_GetFDDFilename(1) {
                         let name = String(cString: filename)
-                        logger.debug("Raw filename for Drive B: '\(name)'")
+                        logger.debug("Raw filename for Drive 1: '\(name)')")
                         
                         // Check if we have a valid filename
                         if !name.isEmpty && name != "/" && name.count > 1 {
@@ -350,26 +447,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                 displayName = URL(fileURLWithPath: name).lastPathComponent
                             }
                             if !displayName.isEmpty {
-                                item.title = "Drive B: \(displayName)"
-                                logger.debug("Set Drive B title to: Drive B: \(displayName)")
+                                item.title = "Drive 1: \(displayName)"
+                                logger.debug("Set Drive 1 title to: Drive 1: \(displayName)")
                             } else {
-                                item.title = "Drive B: [Mounted]"
-                                logger.debug("Set Drive B title to: Drive B: [Mounted] (empty displayName)")
+                                item.title = "Drive 1: [Mounted]"
+                                logger.debug("Set Drive 1 title to: Drive 1: [Mounted] (empty displayName)")
                             }
                         } else {
-                            item.title = "Drive B: [Mounted]"
-                            logger.debug("Set Drive B title to: Drive B: [Mounted] (invalid name: '\(name)')")
+                            item.title = "Drive 1: [Mounted]"
+                            logger.debug("Set Drive 1 title to: Drive 1: [Mounted] (invalid name: '\(name)')")
                         }
                     } else {
-                        item.title = "Drive B: [Mounted]"
-                        logger.debug("Set Drive B title to: Drive B: [Mounted] (nil filename)")
+                        item.title = "Drive 1: [Mounted]"
+                        logger.debug("Set Drive 1 title to: Drive 1: [Mounted] (nil filename)")
                     }
                 } else {
-                    logger.debug("Drive B not ready")
-                    item.title = "Open Drive B..."
+                    logger.debug("Drive 1 not ready")
+                    item.title = "Open Drive 1..."
                 }
-            } else if itemId == "FDD-eject-drive-B" || itemTitle.contains("Eject Drive B") {
-                logger.debug("Updating Drive B eject item")
+            } else if itemId == "FDD-eject-drive-B" || itemTitle.contains("Eject Drive 1") {
+                logger.debug("Updating Drive 1 eject item")
                 if X68000_IsFDDReady(1) != 0 {
                     if let filename = X68000_GetFDDFilename(1) {
                         let name = String(cString: filename)
@@ -381,19 +478,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                 displayName = URL(fileURLWithPath: name).lastPathComponent
                             }
                             if !displayName.isEmpty {
-                                item.title = "Eject Drive B (\(displayName))"
+                                item.title = "Eject Drive 1 (\(displayName))"
                             } else {
-                                item.title = "Eject Drive B"
+                                item.title = "Eject Drive 1"
                             }
                         } else {
-                            item.title = "Eject Drive B"
+                            item.title = "Eject Drive 1"
                         }
                     } else {
-                        item.title = "Eject Drive B"
+                        item.title = "Eject Drive 1"
                     }
                     item.isEnabled = true
                 } else {
-                    item.title = "Eject Drive B"
+                    item.title = "Eject Drive 1"
                     item.isEnabled = false
                 }
             }
@@ -504,6 +601,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if response == .OK, let url = openPanel.url {
                 debugLog("Selected file: \(url.lastPathComponent)", category: .fileSystem)
                 self.gameViewController?.load(url)
+                self.updateMenuOnFileOperation()  // Immediate menu update
+                self.autoSaveDiskStateIfNeeded()
             }
         }
     }
@@ -512,6 +611,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         let url = URL(fileURLWithPath: filename)
         gameViewController?.load(url)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
         return true
     }
     
@@ -520,6 +621,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         for url in urls {
             gameViewController?.load(url)
         }
+        if !urls.isEmpty {
+            updateMenuOnFileOperation()  // Immediate menu update
+            autoSaveDiskStateIfNeeded()
+        }
     }
     
     // MARK: - FDD Menu Actions
@@ -527,24 +632,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Reduced logging for performance
         // print("🐛 AppDelegate.openFDDDriveA called")
         gameViewController?.openFDDDriveA(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func openFDDDriveB(_ sender: Any) {
         // Reduced logging for performance
         // print("🐛 AppDelegate.openFDDDriveB called")
         gameViewController?.openFDDDriveB(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveA(_ sender: Any) {
         // Reduced logging for performance
         // print("🐛 AppDelegate.ejectFDDDriveA called")
         gameViewController?.ejectFDDDriveA(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveB(_ sender: Any) {
         // Reduced logging for performance
         // print("🐛 AppDelegate.ejectFDDDriveB called")
         gameViewController?.ejectFDDDriveB(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     // MARK: - HDD Menu Actions
@@ -552,12 +665,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Reduced logging for performance
         // print("🐛 AppDelegate.openHDD called")
         gameViewController?.openHDD(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectHDD(_ sender: Any) {
         // Reduced logging for performance
         // print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
+        updateMenuOnFileOperation()  // Immediate menu update
+        autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
@@ -574,6 +691,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // MARK: - Settings Menu Actions
     @IBAction func toggleAutoMount(_ sender: Any) {
+        // Legacy method - replaced by AutoMountMode system
+        // Keep for backward compatibility if needed
         let userDefaults = UserDefaults.standard
         let currentDisabled = userDefaults.bool(forKey: "DisableAutoMount")
         
@@ -584,17 +703,98 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if let menuItem = sender as? NSMenuItem {
             menuItem.state = currentDisabled ? .on : .off
         }
-        
-        let newState = currentDisabled ? "enabled" : "disabled"
-        infoLog("Auto-mount disk images: \(newState)", category: .ui)
-        
-        // Show user feedback
+    }
+    
+    // MARK: - Auto-Mount Mode Menu Actions
+    
+    @IBAction func setAutoMountDisabled(_ sender: Any) {
+        DiskStateManager.shared.autoMountMode = .disabled
+        infoLog("Auto-mount mode set to: Disabled", category: .fileSystem)
+    }
+    
+    @IBAction func setAutoMountLastSession(_ sender: Any) {
+        DiskStateManager.shared.autoMountMode = .lastSession
+        infoLog("Auto-mount mode set to: Last Session", category: .fileSystem)
+    }
+    
+    @IBAction func setAutoMountSmartLoad(_ sender: Any) {
+        DiskStateManager.shared.autoMountMode = .smartLoad
+        infoLog("Auto-mount mode set to: Smart Load", category: .fileSystem)
+    }
+    
+    @IBAction func setAutoMountManual(_ sender: Any) {
+        DiskStateManager.shared.autoMountMode = .manual
+        infoLog("Auto-mount mode set to: Manual Selection", category: .fileSystem)
+    }
+    
+    @IBAction func clearDiskState(_ sender: Any) {
         let alert = NSAlert()
-        alert.messageText = "Auto-Mount Setting Changed"
-        alert.informativeText = "Auto-mounting of disk images on startup has been \(newState). This will take effect on the next app launch."
+        alert.messageText = "Clear Disk State History"
+        alert.informativeText = "This will clear all saved disk mount states. Are you sure?"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Clear")
+        alert.addButton(withTitle: "Cancel")
+        
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            DiskStateManager.shared.clearAllStates()
+            infoLog("All disk states cleared by user", category: .fileSystem)
+        }
+    }
+    
+    @IBAction func saveDiskState(_ sender: Any) {
+        debugLog("Manual save disk state requested", category: .fileSystem)
+        let currentState = DiskStateManager.shared.createCurrentState()
+        debugLog("Manual save: FDD states count = \(currentState.fddStates.count)", category: .fileSystem)
+        debugLog("Manual save: HDD state = \(currentState.hddState != nil ? "present" : "nil")", category: .fileSystem)
+        DiskStateManager.shared.saveState(currentState)
+        
+        let alert = NSAlert()
+        alert.messageText = "Disk State Saved"
+        alert.informativeText = "Current disk mount state has been saved successfully."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         alert.runModal()
+        
+        infoLog("Current disk state saved by user", category: .fileSystem)
+    }
+    
+    @IBAction func showDiskStateInfo(_ sender: Any) {
+        let stateManager = DiskStateManager.shared
+        let alert = NSAlert()
+        alert.messageText = "Disk State Information"
+        
+        var infoText = "Auto-Mount Mode: \(stateManager.autoMountMode.displayName)\n\n"
+        
+        debugLog("showDiskStateInfo: Loading last state...", category: .fileSystem)
+        if let lastState = stateManager.loadLastState() {
+            debugLog("showDiskStateInfo: Found saved state with \(lastState.fddStates.count) FDD states", category: .fileSystem)
+            infoText += "Last Saved State:\n"
+            infoText += "• Timestamp: \(DateFormatter.localizedString(from: lastState.timestamp, dateStyle: .medium, timeStyle: .short))\n"
+            infoText += "• Session ID: \(lastState.sessionId.uuidString.prefix(8))...\n\n"
+            
+            infoText += "Floppy Drives:\n"
+            for fddState in lastState.fddStates {
+                let driveName = fddState.drive == 0 ? "Drive 0" : "Drive 1"
+                infoText += "• \(driveName): \(fddState.fileName) (\(fddState.isReadOnly ? "Read-Only" : "Read-Write"))\n"
+            }
+            
+            if let hddState = lastState.hddState {
+                infoText += "\nHard Drive:\n"
+                infoText += "• HDD: \(hddState.fileName) (\(hddState.isReadOnly ? "Read-Only" : "Read-Write"))\n"
+            } else {
+                infoText += "\nHard Drive: Not mounted\n"
+            }
+        } else {
+            infoText += "No saved state available."
+        }
+        
+        alert.informativeText = infoText
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        
+        debugLog("Displayed disk state information to user", category: .fileSystem)
     }
     
     // MARK: - Screen Rotation Menu Actions
@@ -680,10 +880,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
             return true
         } else if menuItem.identifier?.rawValue == "Settings-auto-mount" || menuItem.title.contains("Auto-Mount Disk Images") {
-            // Update auto-mount menu item state
+            // Legacy auto-mount menu item - keep for compatibility
             let isAutoMountEnabled = !UserDefaults.standard.bool(forKey: "DisableAutoMount")
             menuItem.state = isAutoMountEnabled ? .on : .off
             return true
+        } else if let identifier = menuItem.identifier?.rawValue {
+            // Handle AutoMountMode menu items
+            let currentMode = DiskStateManager.shared.autoMountMode
+            switch identifier {
+            case "AutoMount-disabled":
+                menuItem.state = (currentMode == .disabled) ? .on : .off
+            case "AutoMount-lastSession":
+                menuItem.state = (currentMode == .lastSession) ? .on : .off
+            case "AutoMount-smartLoad":
+                menuItem.state = (currentMode == .smartLoad) ? .on : .off
+            case "AutoMount-manual":
+                menuItem.state = (currentMode == .manual) ? .on : .off
+            default:
+                break
+            }
         }
         
         // Default validation for other menu items

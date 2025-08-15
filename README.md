@@ -18,7 +18,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **Professional Logging**: Comprehensive logging system with categorized output
 
 ### macOS Enhancements
-- **Dual FDD Support**: Menu-driven management for Drive A and Drive B
+- **Dual FDD Support**: Menu-driven management for Drive 0 and Drive 1
 - **Hard Disk Support**: Complete HDD management with dedicated menu
 - **Screen Rotation**: 90-degree rotation support for vertical games (tate mode)
 - **Enhanced Joycard**: Keyboard, mouse, and GameController input
@@ -106,10 +106,10 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 ### macOS Controls
 
 #### FDD Management
-- **FDD → Open Drive A...** (⌘1): Insert disk into Drive A
-- **FDD → Open Drive B...** (⌘2): Insert disk into Drive B
-- **FDD → Eject Drive A** (⇧⌘1): Eject disk from Drive A
-- **FDD → Eject Drive B** (⇧⌘2): Eject disk from Drive B
+- **FDD → Open Drive 0...** (⌘1): Insert disk into Drive 0
+- **FDD → Open Drive 1...** (⌘2): Insert disk into Drive 1
+- **FDD → Eject Drive 0** (⇧⌘1): Eject disk from Drive 0
+- **FDD → Eject Drive 1** (⇧⌘2): Eject disk from Drive 1
 
 #### HDD Management
 - **HDD → Open Hard Disk...** (⌘H): Insert hard disk image
@@ -148,7 +148,7 @@ Hard disk images provide faster access and larger storage capacity compared to f
 
 #### Boot Order Behavior
 The X68000 follows the authentic boot sequence:
-1. **FDD First**: Always checks Drive A for bootable disk
+1. **FDD First**: Always checks Drive 0 for bootable disk
 2. **HDD Fallback**: If no bootable FDD is present, boots from HDD
 3. **System Disk Override**: Insert a system floppy to boot from FDD even with HDD installed
 
@@ -206,7 +206,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 ### Version 4.1.0 (Build 908) - December 2024
 
 #### ✅ New Features
-- **Dual FDD Drive Support**: Independent Drive A/B management
+- **Dual FDD Drive Support**: Independent Drive 0/1 management
 - **Hard Disk Drive Support**: Complete HDD management with menu integration  
 - **Screen Rotation Support**: 90-degree rotation for vertical games (tate mode)
 - **Enhanced macOS Joycard**: Keyboard and mouse input support

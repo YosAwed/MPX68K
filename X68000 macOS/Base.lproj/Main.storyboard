@@ -59,24 +59,24 @@
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <menu key="submenu" title="FDD" id="FDD-submenu">
                                     <items>
-                                        <menuItem title="Open Drive A..." keyEquivalent="1" id="FDD-open-drive-A">
+                                        <menuItem title="Open Drive 0..." keyEquivalent="1" id="FDD-open-drive-A">
                                             <connections>
                                                 <action selector="openFDDDriveA:" target="Ady-hI-5gd" id="FDD-open-A-action"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Open Drive B..." keyEquivalent="2" id="FDD-open-drive-B">
+                                        <menuItem title="Open Drive 1..." keyEquivalent="2" id="FDD-open-drive-B">
                                             <connections>
                                                 <action selector="openFDDDriveB:" target="Ady-hI-5gd" id="FDD-open-B-action"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="FDD-separator"/>
-                                        <menuItem title="Eject Drive A" keyEquivalent="1" id="FDD-eject-drive-A">
+                                        <menuItem title="Eject Drive 0" keyEquivalent="1" id="FDD-eject-drive-A">
                                             <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
                                             <connections>
                                                 <action selector="ejectFDDDriveA:" target="Ady-hI-5gd" id="FDD-eject-A-action"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Eject Drive B" keyEquivalent="2" id="FDD-eject-drive-B">
+                                        <menuItem title="Eject Drive 1" keyEquivalent="2" id="FDD-eject-drive-B">
                                             <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
                                             <connections>
                                                 <action selector="ejectFDDDriveB:" target="Ady-hI-5gd" id="FDD-eject-B-action"/>
