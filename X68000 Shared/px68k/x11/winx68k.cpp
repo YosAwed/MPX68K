@@ -369,9 +369,10 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
         clkdiv = 10;
     }
 #else
-    clkdiv = (DWORD)clockMHz;
-    clk_total = (clk_total*clkdiv)/10;
-
+    // The C68K core measures cycles in 1/5 MHz units, so scale
+    // the requested clock to match actual X68000 MHz settings.
+    clkdiv = (DWORD)(clockMHz * 5);
+    clk_total = (clk_total * clkdiv) / 10;
 #endif
     ICount += clk_total;
     clk_next = (clk_total/VLINE_TOTAL);

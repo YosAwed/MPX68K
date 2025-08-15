@@ -205,6 +205,9 @@ class GameScene: SKScene {
         debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
         X68000_EjectFDD(drive)
         
+        // Save current disk state after eject
+        fileSystem?.saveCurrentDiskState()
+        
         // Update menu after FDD eject
         #if os(macOS)
         if let appDelegate = NSApp.delegate as? AppDelegate {
@@ -275,6 +278,9 @@ class GameScene: SKScene {
         }
         
         X68000_EjectHDD()
+        
+        // Save current disk state after eject
+        fileSystem?.saveCurrentDiskState()
         
         // Update menu after HDD eject
         #if os(macOS)
@@ -561,22 +567,24 @@ class GameScene: SKScene {
         
         self.fileSystem = FileSystem()
         self.fileSystem?.gameScene = self  // Set reference for timer management
-        self.fileSystem?.loadIPLROM()
-        self.fileSystem?.loadCGROM()
+        // Load ROM files FIRST, before any emulator initialization
+        guard let fileSystem = self.fileSystem else {
+            fatalError("FileSystem not available")
+        }
         
+        guard fileSystem.loadIPLROM() && fileSystem.loadCGROM() else {
+            errorLog("CRITICAL: Required ROM files not found - stopping emulator initialization", category: .emulation)
+            return
+        }
+        
+        // Initialize emulator AFTER ROM files are loaded
         X68000_Init(samplingRate)
         
         self.fileSystem?.loadSRAM()
         
-        // Clear any previously mounted disk images before auto-mounting
-        self.fileSystem?.clearAllDiskImages()
-        
-        // Check user preference for auto-mounting
-        if !userDefaults.bool(forKey: "DisableAutoMount") {
-            self.fileSystem?.boot()
-        } else {
-            infoLog("Auto-mounting disabled - starting with clean disk drives", category: .emulation)
-        }
+        // Use new state restore system for auto-mounting
+        debugLog("GameScene: Calling bootWithStateRestore()", category: .fileSystem)
+        self.fileSystem?.bootWithStateRestore()
         joycard = X68JoyCard(id: 0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)!)
         devices.append(joycard!)
         
@@ -1080,7 +1088,7 @@ class GameScene: SKScene {
     
     private func updateScreenTexture() {
         let cgsize = CGSize(width: w, height: h)
-        let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
+        _ = (w != lastScreenWidth || h != lastScreenHeight)
         
         // Fall back to standard texture creation (SpriteKit doesn't expose Metal device directly)
         fallbackTextureUpdate(cgsize)
