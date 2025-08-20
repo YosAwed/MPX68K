@@ -45,6 +45,7 @@ extern "C" {
 
 #include "dswin.h"
 #include "fmg_wrap.h"
+#include "../debug_log.h"
 
 #ifdef RFMDRV
 int rfd_sock;
@@ -195,7 +196,7 @@ WinX68k_LoadROMs(void)
         fp = File_OpenCurDir((char *)FONTFILETMP);
         if (fp == 0) {
             // �ե�������� XXX
-            printf("�ե����ROM���᡼�������Ĥ���ޤ���\n");
+            ERROR_PRINTF("�ե����ROM���᡼�������Ĥ���ޤ���\n");
             return FALSE;
         }
     }
@@ -246,10 +247,44 @@ WinX68k_Reset(void)
     C68k_Set_Reg(&C68K, C68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
     C68k_Set_Reg(&C68K, C68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
 */
-    C68k_Set_AReg(&C68K, 7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
-    C68k_Set_PC(&C68K, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+    // Safety check: Ensure IPL ROM is loaded before setting CPU registers
+    if (IPL != NULL) {
+        // Extract reset vectors from IPL ROM
+        DWORD stack_pointer = (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002];
+        DWORD program_counter = (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006];
+        
+        // Debug output to verify reset vectors
+        printf("IPL Reset Vectors - SP: 0x%08X, PC: 0x%08X\n", stack_pointer, program_counter);
+        
+        // Validate reset vectors are reasonable for X68000 architecture
+        // Stack pointer should be in RAM (0x000000-0x00BFFFFF) or high memory (0x00ED0000+)
+        // Program counter should be in ROM area (0x00FE0000-0x00FFFFFF)
+        bool valid_stack = (stack_pointer >= 0x00000000 && stack_pointer <= 0x00BFFFFF) || 
+                          (stack_pointer >= 0x00ED0000 && stack_pointer <= 0x01000000);
+        bool valid_pc = (program_counter >= 0x00FE0000 && program_counter <= 0x01000000);
+        
+        if (valid_stack && valid_pc) {
+            C68k_Set_AReg(&C68K, 7, stack_pointer);
+            C68k_Set_PC(&C68K, program_counter);
+            printf("Using IPL reset vectors - SP: 0x%08X, PC: 0x%08X\n", stack_pointer, program_counter);
+        } else {
+            // IPL vectors seem invalid - use safe defaults
+            printf("WARNING: IPL vectors invalid (SP: 0x%08X, PC: 0x%08X) - using safe defaults\n", 
+                   stack_pointer, program_counter);
+            C68k_Set_AReg(&C68K, 7, 0x00ED0000);  // Safe stack pointer
+            C68k_Set_PC(&C68K, 0x00FE0000);       // Safe program counter
+        }
+    } else {
+        // IPL ROM not loaded - set safe default values to prevent bus error
+        printf("WARNING: IPL ROM not loaded during reset - using safe defaults\n");
+        C68k_Set_AReg(&C68K, 7, 0x00ED0000);  // Safe stack pointer
+        C68k_Set_PC(&C68K, 0x00FE0000);       // Safe program counter
+    }
 #endif /* HAVE_C68K */
 
+    // Clear CPU state completely before hardware initialization
+    printf("Initializing hardware subsystems...\n");
+    
     Memory_Init();
     CRTC_Init();
     DMA_Init();
@@ -261,6 +296,21 @@ WinX68k_Reset(void)
     IOC_Init();
     SCC_Init();
     PIA_Init();
+    
+    // Additional CPU state clearing after hardware init
+#if defined (HAVE_C68K)
+    // Clear all CPU registers to safe values
+    for (int i = 0; i < 8; i++) {
+        C68k_Set_DReg(&C68K, i, 0);
+        C68k_Set_AReg(&C68K, i, 0);
+    }
+    // Re-set stack pointer to safe value after clearing
+    C68k_Set_AReg(&C68K, 7, (IPL != NULL && 
+                              (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002] >= 0x00ED0000) 
+                              ? (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002] 
+                              : 0x00ED0000);
+    printf("CPU registers cleared and reset\n");
+#endif
     RTC_Init();
     TVRAM_Init();
     GVRAM_Init();
@@ -426,9 +476,9 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 if (/*fdctrace&&*/(oldpc != C68k_Get_Reg(&C68K, C68K_PC)))
                 {
 //                    //tracing--;
-                  printf( "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx �Ȥꤢ����0 C68K.ccr */);
-                  printf( "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
-                    printf( "<%04X> (%08X ->) %08X : \n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC));
+                  TRACE_PRINTF( "D0:%08X D1:%08X D2:%08X D3:%08X D4:%08X D5:%08X D6:%08X D7:%08X CR:%04X\n", C68K.D[0], C68K.D[1], C68K.D[2], C68K.D[3], C68K.D[4], C68K.D[5], C68K.D[6], C68K.D[7], 0/* xxx �Ȥꤢ����0 C68K.ccr */);
+                  TRACE_PRINTF( "A0:%08X A1:%08X A2:%08X A3:%08X A4:%08X A5:%08X A6:%08X A7:%08X SR:%04X\n", C68K.A[0], C68K.A[1], C68K.A[2], C68K.A[3], C68K.A[4], C68K.A[5], C68K.A[6], C68K.A[7], C68k_Get_Reg(&C68K, C68K_SR) >> 8/* regs.sr_high*/);
+                    TRACE_PRINTF( "<%04X> (%08X ->) %08X : \n", Memory_ReadW(C68k_Get_Reg(&C68K, C68K_PC)), oldpc, C68k_Get_Reg(&C68K, C68K_PC));
                 }
                 oldpc = C68k_Get_Reg(&C68K, C68K_PC);
                 C68K.ICount = 1;
@@ -534,7 +584,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             FrameSkipQueue = 100;
     }
     if ( FrameSkipQueue != 0 ) {
-        printf("FrameSkipQueue:%d\n", FrameSkipQueue);
+        DEBUG_PRINTF("FrameSkipQueue:%d\n", FrameSkipQueue);
     }
 }
 
@@ -640,7 +690,7 @@ int original_main(int argc, const char *argv[], const long samplingrate )
         break;
     }
 
-    printf("FD:%s\n",Config.FDDImage[0] );
+    DEBUG_PRINTF("FD:%s\n",Config.FDDImage[0] );
 
     FDD_SetFD(0, Config.FDDImage[0], 0);
     FDD_SetFD(1, Config.FDDImage[1], 0);
@@ -726,7 +776,7 @@ void X68000_GetImage( unsigned char* data ) {
     if ( !DispFrame ) {
         WinDraw_Draw(data);
     } else {
-        printf("DispFrame\n");
+        DEBUG_PRINTF("DispFrame\n");
     }
 }
 
@@ -748,13 +798,13 @@ BYTE* X68000_GetDiskImageBufferPointer( const long drive, const long size ){
 }
 void X68000_LoadFDD( const long drive, const char* filename )
 {
-    printf("X68000_LoadFDD( %ld, \"%s\" )\n", drive, filename);
+    DEBUG_PRINTF("X68000_LoadFDD( %ld, \"%s\" )\n", drive, filename);
     FDD_SetFD((int)drive, (char*)filename, 0);
 }
 
 void X68000_EjectFDD( const long drive )
 {
-    printf("X68000_EjectFDD( %ld )\n", drive);
+    DEBUG_PRINTF("X68000_EjectFDD( %ld )\n", drive);
     FDD_EjectFD((int)drive);
 }
 
@@ -781,7 +831,7 @@ BYTE* X68000_GetHDDImageBufferPointer( const long size ){
 */
 void X68000_LoadHDD( const char* filename )
 {
-	printf("X68000_LoadHDD( \"%s\" )\n", filename);
+	DEBUG_PRINTF("X68000_LoadHDD( \"%s\" )\n", filename);
 	strncpy( Config.HDImage[0], filename , MAX_PATH);
 	
 	// Get HDD image file size and report it to SASI for capacity reporting
@@ -801,15 +851,15 @@ void X68000_LoadHDD( const char* filename )
 			SASI_SetImageSize(i, size);
 		}
 		
-		printf("HDD image size: %d bytes (%d MB) - set for all drive indices\n", size, size / (1024*1024));
+		DEBUG_PRINTF("HDD image size: %d bytes (%d MB) - set for all drive indices\n", size, size / (1024*1024));
 	} else {
-		printf("Warning: Could not determine HDD image size for: %s\n", filename);
+		ERROR_PRINTF("Warning: Could not determine HDD image size for: %s\n", filename);
 	}
 }
 
 void X68000_EjectHDD()
 {
-	printf("X68000_EjectHDD()\n");
+	DEBUG_PRINTF("X68000_EjectHDD()\n");
 	Config.HDImage[0][0] = '\0';
 }
 
@@ -827,8 +877,8 @@ void X68000_SaveHDD()
 {
 	// Direct file writes implemented - this function is now legacy
 	// SASI_Flush() writes sectors directly to files as they are modified
-	printf("X68000_SaveHDD: Direct file writes enabled - no bulk save needed\n");
-	printf("X68000_SaveHDD: Data is written to disk immediately via SASI_Flush()\n");
+	DEBUG_PRINTF("X68000_SaveHDD: Direct file writes enabled - no bulk save needed\n");
+	DEBUG_PRINTF("X68000_SaveHDD: Data is written to disk immediately via SASI_Flush()\n");
 }
 
 const int X68000_IsHDDDirty()
@@ -897,7 +947,7 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 	if ( abs(dy) < 2 ) dy = 0;
 
 	const int max = 15;
-//	printf("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
+//	DEBUG_PRINTF("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
 
 	if ( dx == 0 ){
 	} else if ( dx < -max ) {
@@ -912,7 +962,7 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 	} else if ( dy > +max ) {
 		dy = +max;
 	}
-//    printf(" nx:%3d ny:%3d tx:%3d ty:%3d dx:%3d dy:%3d\n", nx, ny, tx, ty, dx, dy );
+//    DEBUG_PRINTF(" nx:%3d ny:%3d tx:%3d ty:%3d dx:%3d dy:%3d\n", nx, ny, tx, ty, dx, dy );
 
 
     MouseX = dx;
@@ -956,7 +1006,7 @@ void X68000_Mouse_Set( float x, float y, const long button )
     *mouse++ = ((BYTE*) &yy)[1];
     
     
-    printf("%3d %3d\n", xx, yy );
+    DEBUG_PRINTF("%3d %3d\n", xx, yy );
 */
 }
 

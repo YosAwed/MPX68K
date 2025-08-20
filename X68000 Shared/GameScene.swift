@@ -32,6 +32,10 @@ class GameScene: SKScene {
         case joycard
     }
     private var currentInputMode: InputMode = .keyboard
+    
+    // State management to prevent double State Restore during reset
+    private var isPerformingReset: Bool = false
+    internal var hasPerformedStateRestore: Bool = false
     private var inputModeButton: SKLabelNode?
     
     // Screen rotation management
@@ -409,9 +413,177 @@ class GameScene: SKScene {
     
     // MARK: - System Management
     func resetSystem() {
-        infoLog("GameScene.resetSystem() called - performing manual reset", category: .emulation)
-        X68000_Reset()
-        infoLog("System reset completed", category: .emulation)
+        infoLog("GameScene.resetSystem() called - performing safe reset", category: .emulation)
+        
+        // Set reset flag to prevent double State Restore
+        isPerformingReset = true
+        infoLog("Reset flag set - proceeding with reset checks", category: .emulation)
+        
+        // Ensure FileSystem is available and ROM files are loaded before reset
+        guard let fileSystem = self.fileSystem else {
+            errorLog("FileSystem not available - cannot perform safe reset", category: .emulation)
+            isPerformingReset = false
+            return
+        }
+        
+        // Verify ROM files are loaded before attempting reset
+        if !fileSystem.loadIPLROM() || !fileSystem.loadCGROM() {
+            errorLog("CRITICAL: ROM files not available - reset cancelled to prevent bus error", category: .emulation)
+            isPerformingReset = false
+            
+            // Show user alert about missing ROM files
+            #if os(macOS)
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Reset Failed"
+                alert.informativeText = "Cannot reset system: Required ROM files (IPLROM.DAT or CGROM.DAT) are not loaded properly. Please check that ROM files exist in the Documents folder."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+            #endif
+            return
+        }
+        
+        // Perform reset only after ROM files are confirmed loaded
+        infoLog("ROM files verified - performing system reset", category: .emulation)
+        
+        // Additional safety: Clear any problematic disk state before reset
+        debugLog("Clearing disk state before reset to prevent memory conflicts", category: .emulation)
+        
+        // Add option for full reset if bus errors persist
+        let userDefaults = UserDefaults.standard
+        let forceFullReset = userDefaults.bool(forKey: "ForceFullReset_Debug")
+        
+        if forceFullReset {
+            infoLog("Full reset mode enabled - performing complete re-initialization", category: .emulation)
+            return performFullReset()
+        }
+        
+        // Eject any mounted disks temporarily to prevent state conflicts during reset
+        let fdd0WasReady = (X68000_IsFDDReady(0) != 0)
+        let fdd1WasReady = (X68000_IsFDDReady(1) != 0) 
+        let hddWasReady = (X68000_IsHDDReady() != 0)
+        
+        if fdd0WasReady {
+            debugLog("Temporarily ejecting FDD0 before reset", category: .emulation)
+            X68000_EjectFDD(0)
+        }
+        if fdd1WasReady {
+            debugLog("Temporarily ejecting FDD1 before reset", category: .emulation)
+            X68000_EjectFDD(1)
+        }
+        if hddWasReady {
+            debugLog("Temporarily ejecting HDD before reset", category: .emulation)
+            X68000_EjectHDD()
+        }
+        
+        // Small delay to ensure eject operations complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            infoLog("About to call X68000_Reset()", category: .emulation)
+            X68000_Reset()
+            infoLog("X68000_Reset() completed - system reset finished", category: .emulation)
+            
+            // Re-mount disks after reset if they were previously mounted
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                if fdd0WasReady || fdd1WasReady || hddWasReady {
+                    infoLog("Re-mounting disks after safe reset", category: .emulation)
+                    
+                    // Prevent double State Restore if we've already performed it recently
+                    if !self.hasPerformedStateRestore {
+                        // Restore disk state after reset
+                        self.fileSystem?.bootWithStateRestore()
+                        self.hasPerformedStateRestore = true
+                    } else {
+                        infoLog("Skipping duplicate State Restore - already performed recently", category: .emulation)
+                    }
+                }
+                
+                // Clear reset flag and reset State Restore flag after delay
+                self.isPerformingReset = false
+                // Reset the State Restore flag after 30 seconds to allow future restores
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
+                    self.hasPerformedStateRestore = false
+                }
+            }
+        }
+    }
+    
+    // MARK: - Input Mode Management
+    func switchToKeyboardMode() {
+        infoLog("GameScene.switchToKeyboardMode() called", category: .input)
+        if currentInputMode != .keyboard {
+            currentInputMode = .keyboard
+            inputModeButton?.text = getInputModeText()
+            updateVirtualPadVisibility()
+            showModeChangeNotification()
+        }
+    }
+    
+    func switchToJoystickMode() {
+        infoLog("GameScene.switchToJoystickMode() called", category: .input)
+        if currentInputMode != .joycard {
+            currentInputMode = .joycard
+            inputModeButton?.text = getInputModeText()
+            updateVirtualPadVisibility() 
+            showModeChangeNotification()
+        }
+    }
+    
+    func getCurrentInputMode() -> InputMode {
+        return currentInputMode
+    }
+    
+    func toggleInputModeFromMenu() {
+        infoLog("GameScene.toggleInputModeFromMenu() called", category: .input)
+        toggleInputMode()
+    }
+    
+    /// Perform a complete reset with full re-initialization (for debugging bus errors)
+    private func performFullReset() {
+        infoLog("Performing full reset with complete re-initialization", category: .emulation)
+        
+        // Stop emulator
+        isEmulatorInitialized = false
+        stopUpdateTimer()
+        
+        // Eject all disks
+        X68000_EjectFDD(0)
+        X68000_EjectFDD(1) 
+        X68000_EjectHDD()
+        
+        // Re-initialize from scratch after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            
+            // Re-load ROM files
+            guard let fileSystem = self.fileSystem else {
+                errorLog("FileSystem not available for full reset", category: .emulation)
+                return
+            }
+            
+            if fileSystem.loadIPLROM() && fileSystem.loadCGROM() {
+                // Re-initialize emulator
+                X68000_Init(self.samplingRate)
+                
+                // Re-initialize devices
+                for device in self.devices {
+                    device.Reset()
+                }
+                
+                // Mark as initialized
+                self.isEmulatorInitialized = true
+                
+                // Restart timer
+                self.startUpdateTimer()
+                
+                infoLog("Full reset completed successfully", category: .emulation)
+            } else {
+                errorLog("Full reset failed - ROM files not available", category: .emulation)
+            }
+        }
     }
     
     // MARK: - Screen Rotation Management
@@ -1553,11 +1725,8 @@ extension GameScene {
     override func keyDown(with event: NSEvent) {
         // print("key press: \(event) keyCode: \(event.keyCode)")
         
-        // Check for mode toggle key (F1 key instead of Tab)
-        if event.keyCode == 122 { // F1 key
-            toggleInputMode()
-            return
-        }
+        // F1 key is now handled by X68000 system - no longer intercept for mode toggle
+        // Input mode switching moved to menu system
         
         // Check for mouse capture mode exit (F12 key)
         if event.keyCode == 111 { // F12 key

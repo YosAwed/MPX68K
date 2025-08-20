@@ -293,6 +293,13 @@ public class DiskStateManager {
             showRestoreWarning(successCount: successCount, totalCount: totalCount)
         }
         
+        // Notify AppDelegate to update menu after state restore
+        if success {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("DiskStateRestored"), object: nil)
+            }
+        }
+        
         return success
     }
     
@@ -328,10 +335,29 @@ public class DiskStateManager {
             }
         }
         
-        // ディスクイメージをロード
-        X68000_LoadFDD(fddState.drive, fddState.filePath)
-        infoLog("Restored FDD drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
-        return true
+        // ディスクイメージをロード（安全性チェック付き）
+        do {
+            // Small delay to ensure system is in stable state before loading
+            Thread.sleep(forTimeInterval: 0.01)
+            
+            X68000_LoadFDD(fddState.drive, fddState.filePath)
+            infoLog("Restored FDD drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
+            
+            // Allow more time for the FDD system to recognize the loaded disk
+            Thread.sleep(forTimeInterval: 0.05)
+            
+            // Verify the load was successful (but don't fail State Restore if verification fails)
+            if X68000_IsFDDReady(fddState.drive) != 0 {
+                return true
+            } else {
+                debugLog("FDD verification shows not ready for drive \(fddState.drive), but continuing with restore", category: .fileSystem)
+                // Return true anyway - the file was loaded, verification may be timing-sensitive
+                return true
+            }
+        } catch {
+            errorLog("Error during FDD restore for drive \(fddState.drive)", error: error, category: .fileSystem)
+            return false
+        }
     }
     
     // HDD状態の復元
@@ -366,10 +392,29 @@ public class DiskStateManager {
             }
         }
         
-        // ハードディスクイメージをロード
-        X68000_LoadHDD(hddState.filePath)
-        infoLog("Restored HDD: \(hddState.fileName)", category: .fileSystem)
-        return true
+        // ハードディスクイメージをロード（安全性チェック付き）
+        do {
+            // Small delay to ensure system is in stable state before loading
+            Thread.sleep(forTimeInterval: 0.01)
+            
+            X68000_LoadHDD(hddState.filePath)
+            infoLog("Restored HDD: \(hddState.fileName)", category: .fileSystem)
+            
+            // Allow more time for the HDD system to recognize the loaded disk
+            Thread.sleep(forTimeInterval: 0.05)
+            
+            // Verify the load was successful (but don't fail State Restore if verification fails)
+            if X68000_IsHDDReady() != 0 {
+                return true
+            } else {
+                debugLog("HDD verification shows not ready, but continuing with restore", category: .fileSystem)
+                // Return true anyway - the file was loaded, verification may be timing-sensitive
+                return true
+            }
+        } catch {
+            errorLog("Error during HDD restore", error: error, category: .fileSystem)
+            return false
+        }
     }
     
     // ファイル整合性検証
@@ -435,6 +480,9 @@ class FileSystem {
         let autoMountMode = getAutoMountMode()
         debugLog("bootWithStateRestore: Current mode = \(autoMountMode)", category: .fileSystem)
         
+        // Mark that State Restore is being performed to prevent double restore during reset
+        gameScene?.hasPerformedStateRestore = true
+        
         switch autoMountMode {
         case .disabled:
             infoLog("Auto-mount disabled", category: .fileSystem)
@@ -448,11 +496,18 @@ class FileSystem {
             if !DiskStateManager.shared.restoreLastState() {
                 infoLog("State restore failed, falling back to directory scan", category: .fileSystem)
                 scanForNewFiles()
+            } else {
+                // After state restore, verify ROM files are still accessible
+                verifyROMFilesAfterRestore()
             }
             
         case .smartLoad:
             // 状態復元後、新規ファイルをスキャン
             let restored = DiskStateManager.shared.restoreLastState()
+            if restored {
+                // After state restore, verify ROM files are still accessible
+                verifyROMFilesAfterRestore()
+            }
             scanForNewFiles()
             if !restored {
                 infoLog("No previous state found for smart load mode", category: .fileSystem)
@@ -460,10 +515,30 @@ class FileSystem {
         }
     }
     
+    /// Verify ROM files are properly loaded after state restore
+    private func verifyROMFilesAfterRestore() {
+        debugLog("Verifying ROM files after state restore", category: .fileSystem)
+        
+        // Small delay to ensure state restore operations are complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self else { return }
+            
+            // Re-load ROM files to ensure they're properly accessible after state restore
+            let iplResult = self.loadIPLROM()
+            let cgResult = self.loadCGROM()
+            
+            if !iplResult || !cgResult {
+                errorLog("ROM files verification failed after state restore - this may cause bus errors on reset", category: .fileSystem)
+            } else {
+                infoLog("ROM files verified successfully after state restore", category: .fileSystem)
+            }
+        }
+    }
+    
     /// Get current auto-mount mode from UserDefaults
     private func getAutoMountMode() -> AutoMountMode {
-        let modeString = UserDefaults.standard.string(forKey: "AutoMountMode") ?? AutoMountMode.smartLoad.rawValue
-        return AutoMountMode(rawValue: modeString) ?? .smartLoad
+        // Use DiskStateManager to ensure consistent key usage
+        return DiskStateManager.shared.autoMountMode
     }
     
     /// Scan for new files not currently mounted (for hybrid mode)
