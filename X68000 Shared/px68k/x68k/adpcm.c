@@ -11,6 +11,13 @@
 #include "pia.h"
 #include "adpcm.h"
 #include "dmac.h"
+#include "adpcm_optimized.h"
+
+// Forward declarations for optimized functions
+#if ADPCM_ENABLE_OPTIMIZATIONS
+static void ADPCM_InitTable_Optimized(void);
+static void ADPCM_WriteOne_Optimized(int val);
+#endif
 
 #define ADPCM_BufSize      96000
 #define ADPCMMAX           2047
@@ -54,6 +61,11 @@ static int OutsIp[4];
 static int OutsIpR[4];
 static int OutsIpL[4];
 
+// DC blocking filter state (1st order high-pass)
+static double dc_filter_x1 = 0.0;  // Previous input
+static double dc_filter_y1 = 0.0;  // Previous output
+static const double DC_FILTER_ALPHA = 0.995;  // High-pass cutoff ~3.5Hz at 22kHz
+
 int ADPCM_IsReady(void)
 {
 	return 1;
@@ -65,6 +77,10 @@ int ADPCM_IsReady(void)
 // -----------------------------------------------------------------------
 static void ADPCM_InitTable(void)
 {
+#if ADPCM_ENABLE_OPTIMIZATIONS && ADPCM_OPTIMIZATION_LEVEL >= 1
+	ADPCM_InitTable_Optimized();
+#endif
+
 	int step, n;
 	double val;
 	static int bit[16][4] =
@@ -228,8 +244,17 @@ void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *p
 // -----------------------------------------------------------------------
 INLINE void ADPCM_WriteOne(int val)
 {
+#if ADPCM_ENABLE_OPTIMIZATIONS && ADPCM_OPTIMIZATION_LEVEL >= 1
+	ADPCM_WriteOne_Optimized(val);
+	return;
+#endif
+
 	ADPCM_Out += dif_table[ADPCM_Step+val];
 	if ( ADPCM_Out>ADPCMMAX ) ADPCM_Out = ADPCMMAX; else if ( ADPCM_Out<ADPCMMIN ) ADPCM_Out = ADPCMMIN;
+	
+	// MSM6258V predictor drift suppression (weak leak towards zero)
+	ADPCM_Out = (int)(ADPCM_Out * 0.99999);  // Very weak leak to prevent DC drift
+	
 	ADPCM_Step += index_shift[val];
 	if ( ADPCM_Step>(48*16) ) ADPCM_Step = (48*16); else if ( ADPCM_Step<0 ) ADPCM_Step = 0;
 
@@ -250,6 +275,13 @@ INLINE void ADPCM_WriteOne(int val)
 			int ratio = (((ADPCM_Count/100)*FM_IPSCALE)/(ADPCM_SampleRate/100));
 			int tmp = INTERPOLATE(OutsIp, ratio);
 			if ( tmp>ADPCMMAX ) tmp = ADPCMMAX; else if ( tmp<ADPCMMIN ) tmp = ADPCMMIN;
+			
+			// Apply 1st order DC blocking filter (high-pass) to remove DC bias
+			// y[n] = α * (y[n-1] + x[n] - x[n-1]), where α = 0.995
+			double filtered = DC_FILTER_ALPHA * (dc_filter_y1 + tmp - dc_filter_x1);
+			dc_filter_x1 = tmp;
+			dc_filter_y1 = filtered;
+			tmp = (int)filtered;
 			if ( !(ADPCM_Pan&1) )
 				ADPCM_BufR[ADPCM_WrPtr] = (short)tmp;
 			else
@@ -274,8 +306,15 @@ void FASTCALL ADPCM_Write(DWORD adr, BYTE data)
 	if ( adr==0xe92001 ) {
 		if ( data&1 ) {
 			ADPCM_Playing = 0;
-			// Fix: Clear old values when stopping to prevent residual noise
-			OldL = OldR = 0;
+			// MSM6258V complete state reset on stop to prevent DC offset noise
+			ADPCM_Out = 0;           // Reset predictor value
+			ADPCM_Step = 0;          // Reset step index  
+			OldL = OldR = 0;         // Clear output buffer
+			// Reset DC blocking filter state
+			dc_filter_x1 = 0.0;
+			dc_filter_y1 = 0.0;
+			// Clear interpolation buffers
+			OutsIp[0] = OutsIp[1] = OutsIp[2] = OutsIp[3] = -1;
 		} else if ( data&2 ) {
 			if ( !ADPCM_Playing ) {
 				ADPCM_Step = 0;
@@ -366,7 +405,16 @@ void ADPCM_Init(DWORD samplerate)
 	OutsIpR[0] = OutsIpR[1] = OutsIpR[2] = OutsIpR[3] = 0;
 	OutsIpL[0] = OutsIpL[1] = OutsIpL[2] = OutsIpL[3] = 0;
 	OldL = OldR = 0;
+	
+	// Initialize DC blocking filter state for MSM6258V compatibility
+	dc_filter_x1 = 0.0;
+	dc_filter_y1 = 0.0;
 
 	ADPCM_SetPan(0x0b);
 	ADPCM_InitTable();
 }
+
+// Include optimized implementations
+#if ADPCM_ENABLE_OPTIMIZATIONS
+#include "adpcm_optimized_safe.c"
+#endif
