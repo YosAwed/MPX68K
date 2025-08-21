@@ -462,7 +462,7 @@ class FileSystem {
     
     /// Get current auto-mount mode from UserDefaults
     private func getAutoMountMode() -> AutoMountMode {
-        let modeString = UserDefaults.standard.string(forKey: "AutoMountMode") ?? AutoMountMode.smartLoad.rawValue
+        let modeString = UserDefaults.standard.string(forKey: "AutoMountMode_v1") ?? AutoMountMode.smartLoad.rawValue
         return AutoMountMode(rawValue: modeString) ?? .smartLoad
     }
     
