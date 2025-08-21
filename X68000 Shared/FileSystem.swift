@@ -8,6 +8,9 @@
 
 import Foundation
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 // Notification for disk image loading
 extension Notification.Name {
@@ -293,6 +296,11 @@ public class DiskStateManager {
             showRestoreWarning(successCount: successCount, totalCount: totalCount)
         }
         
+        // Notify that disk images have been loaded/restored
+        if success {
+            NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+        }
+        
         return success
     }
     
@@ -458,6 +466,15 @@ class FileSystem {
                 infoLog("No previous state found for smart load mode", category: .fileSystem)
             }
         }
+        
+        // Notify AppDelegate to update menus after state restoration
+        #if os(macOS)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.updateMenusAfterStateRestore()
+            }
+        }
+        #endif
     }
     
     /// Get current auto-mount mode from UserDefaults

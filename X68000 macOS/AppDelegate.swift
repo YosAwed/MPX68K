@@ -65,6 +65,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         DispatchQueue.main.async { [weak self] in
             self?.updateMenuTitles()
         }
+        
+        // Listen for disk image loading notifications to update menus
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(diskImageLoadedNotification),
+            name: .diskImageLoaded,
+            object: nil
+        )
     }
     
     private func setupHDDMenu() {
@@ -368,6 +376,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 logger.debug("Menu item '\(menuItem.title)' has no submenu")
             }
         }
+    }
+    
+    func updateMenusAfterStateRestore() {
+        infoLog("Updating menus after state restoration", category: .ui)
+        updateMenuTitles()
+    }
+    
+    @objc private func diskImageLoadedNotification() {
+        infoLog("Disk image loaded notification received - updating menus", category: .ui)
+        updateMenuTitles()
     }
     
     private func updateFDDMenuTitles(submenu: NSMenu) {
