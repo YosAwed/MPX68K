@@ -136,7 +136,7 @@ class GameScene: SKScene {
     }
     
     func load(url: URL) {
-        debugLog("GameScene.load() called with: \(url.lastPathComponent)", category: .fileSystem)
+        // debugLog("GameScene.load() called with: \(url.lastPathComponent)", category: .fileSystem)
         let urlPath = url.path
         
         // Check if we're already loading this exact file
@@ -149,7 +149,7 @@ class GameScene: SKScene {
         GameScene.currentlyLoadingFiles.insert(urlPath)
         
         Benchmark.measure("load", block: {
-            debugLog("Starting Benchmark.measure for file: \(url.lastPathComponent)", category: .emulation)
+            // debugLog("Starting Benchmark.measure for file: \(url.lastPathComponent)", category: .emulation)
             let imagefilename = url.deletingPathExtension().lastPathComponent.removingPercentEncoding
             
             let node = SKLabelNode()
@@ -163,11 +163,11 @@ class GameScene: SKScene {
             // self.addChild(node)
             
             if self.fileSystem == nil {
-                debugLog("Creating new FileSystem instance", category: .fileSystem)
+                // debugLog("Creating new FileSystem instance", category: .fileSystem)
                 self.fileSystem = FileSystem()
                 self.fileSystem?.gameScene = self  // Set reference for cleanup
             }
-            debugLog("Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)", category: .fileSystem)
+            // debugLog("Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)", category: .fileSystem)
             self.fileSystem?.loadDiskImage(url)
         })
     }
@@ -179,10 +179,10 @@ class GameScene: SKScene {
     
     // MARK: - FDD Management
     func loadFDDToDrive(url: URL, drive: Int) {
-        debugLog("GameScene.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+        // debugLog("GameScene.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         if fileSystem == nil {
-            debugLog("Creating new FileSystem instance for FDD", category: .fileSystem)
+            // debugLog("Creating new FileSystem instance for FDD", category: .fileSystem)
             fileSystem = FileSystem()
             fileSystem?.gameScene = self
         }
@@ -198,7 +198,7 @@ class GameScene: SKScene {
     }
     
     func ejectFDDFromDrive(_ drive: Int) {
-        debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
+        // debugLog("GameScene.ejectFDDFromDrive() called for drive \(drive)", category: .fileSystem)
         X68000_EjectFDD(drive)
         
         // Save current disk state after eject
@@ -214,9 +214,9 @@ class GameScene: SKScene {
     
     // MARK: - HDD Management
     func loadHDD(url: URL) {
-        debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
-        debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
-        debugLog("Full path: \(url.path)", category: .fileSystem)
+        // debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
+        // debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
+        // debugLog("Full path: \(url.path)", category: .fileSystem)
         
         // Direct HDD loading to avoid complex FileSystem routing that may fail in TestFlight
         let extname = url.pathExtension.lowercased()
@@ -265,7 +265,7 @@ class GameScene: SKScene {
     }
     
     func ejectHDD() {
-        debugLog("GameScene.ejectHDD() called", category: .fileSystem)
+        // debugLog("GameScene.ejectHDD() called", category: .fileSystem)
         
         // Save HDD changes before ejecting
         if X68000_IsHDDReady() != 0 {
@@ -361,7 +361,7 @@ class GameScene: SKScene {
     
     // MARK: - Clock Management
     func setCPUClock(_ mhz: Int) {
-        debugLog("GameScene.setCPUClock() called with: \(mhz) MHz", category: .emulation)
+        // debugLog("GameScene.setCPUClock() called with: \(mhz) MHz", category: .emulation)
         
         // Clamp clock speed to safe range to prevent integer overflow in emulator core
         let safeMHz = max(1, min(mhz, 50))  // Limit to 50MHz maximum
@@ -1344,7 +1344,7 @@ class GameScene: SKScene {
         }
     }
     
-    private func toggleInputMode() {
+    func toggleInputMode() {
         // Save current clock setting before mode change
         let savedClockMHz = self.clockMHz
         
@@ -1620,11 +1620,7 @@ extension GameScene {
     override func keyDown(with event: NSEvent) {
         // print("key press: \(event) keyCode: \(event.keyCode)")
         
-        // Check for mode toggle key (F1 key instead of Tab)
-        if event.keyCode == 122 { // F1 key
-            toggleInputMode()
-            return
-        }
+        // F1 key mode switching disabled - F1 now available for X68000 use
         
         // Check for mouse capture mode exit (F12 key)
         if event.keyCode == 111 { // F12 key

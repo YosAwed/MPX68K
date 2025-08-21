@@ -61,7 +61,7 @@ int DIM_SetFD(int drv, char* filename)
 	unsigned int i, len;
 	unsigned char* p;
 
-    printf("DIM_SetFD(%d,\"%s\")\n",drv, filename);
+    // printf("DIM_SetFD(%d,\"%s\")\n",drv, filename);
     
 	strncpy(DIMFile[drv], filename, MAX_PATH);
 	DIMFile[drv][MAX_PATH-1] = 0;
@@ -143,7 +143,7 @@ int DIM_Eject(int drv)
 	p = DIMImg[drv]+sizeof(DIM_HEADER);
 	// Only save if disk has been modified and direct writes failed
 	if ( !FDD_IsReadOnly(drv) && DIMDirty[drv] ) {
-		printf("DIM: Saving dirty disk to file (Drive:%d)\n", drv);
+		// printf("DIM: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(DIMFile[drv]);
 		if ( !fp ) goto dim_eject_error;
 		File_Seek(fp, 0, FSEEK_SET);
@@ -155,9 +155,9 @@ int DIM_Eject(int drv)
 			p += len;
 		}
 		File_Close(fp);
-		printf("DIM: Disk saved successfully (Drive:%d)\n", drv);
+		// printf("DIM: Disk saved successfully (Drive:%d)\n", drv);
 	} else if ( DIMDirty[drv] ) {
-		printf("DIM: Disk is dirty but read-only - changes discarded (Drive:%d)\n", drv);
+		// printf("DIM: Disk is dirty but read-only - changes discarded (Drive:%d)\n", drv);
 	}
 	free(DIMImg[drv]);
 	DIMImg[drv] = 0;

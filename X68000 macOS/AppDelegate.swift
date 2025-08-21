@@ -25,28 +25,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
         if let shared = GameViewController.shared {
-            debugLog("Found GameViewController via shared reference", category: .ui)
+            // debugLog("Found GameViewController via shared reference", category: .ui)
             return shared
         }
         
         // 方法2: mainWindow経由
         if let mainWindow = NSApplication.shared.mainWindow,
            let gameVC = mainWindow.contentViewController as? GameViewController {
-            debugLog("Found GameViewController via mainWindow", category: .ui)
+            // debugLog("Found GameViewController via mainWindow", category: .ui)
             return gameVC
         }
         
         // 方法3: keyWindow経由
         if let keyWindow = NSApplication.shared.keyWindow,
            let gameVC = keyWindow.contentViewController as? GameViewController {
-            debugLog("Found GameViewController via keyWindow", category: .ui)
+            // debugLog("Found GameViewController via keyWindow", category: .ui)
             return gameVC
         }
         
         // 方法4: 全windowsを検索
         for window in NSApplication.shared.windows {
             if let gameVC = window.contentViewController as? GameViewController {
-                debugLog("Found GameViewController via windows search", category: .ui)
+                // debugLog("Found GameViewController via windows search", category: .ui)
                 return gameVC
             }
         }
@@ -81,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 if submenu.title.contains("HDD") || 
                    submenu.items.contains(where: { $0.title.contains("Hard Disk") || $0.title.contains("ハードディスク") }) {
                     
-                    debugLog("Found HDD menu: \(submenu.title)", category: .ui)
+                    // debugLog("Found HDD menu: \(submenu.title)", category: .ui)
                     
                     // Add separator if not already present
                     let separator = NSMenuItem.separator()
@@ -117,7 +117,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             if let submenu = menuItem.submenu,
                submenu.title.contains("File") || submenu.title.contains("ファイル") {
                 
-                debugLog("Adding HDD creation to File menu as fallback", category: .ui)
+                // debugLog("Adding HDD creation to File menu as fallback", category: .ui)
                 
                 let separator = NSMenuItem.separator()
                 submenu.addItem(separator)
@@ -162,7 +162,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                    submenu.title.contains("Options") ||
                    submenu.title.contains("X68000") {
                     
-                    debugLog("Found settings menu: \(submenu.title)", category: .ui)
+                    // debugLog("Found settings menu: \(submenu.title)", category: .ui)
                     addAutoMountMenuItem(to: submenu)
                     return
                 }
@@ -172,7 +172,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // If no settings menu found, add to the app menu (first menu)
         if let firstMenuItem = mainMenu.items.first,
            let firstSubmenu = firstMenuItem.submenu {
-            debugLog("Adding auto-mount setting to app menu as fallback", category: .ui)
+            // debugLog("Adding auto-mount setting to app menu as fallback", category: .ui)
             addAutoMountMenuItem(to: firstSubmenu)
         }
     }
@@ -309,7 +309,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 let currentState = stateManager.createCurrentState()
                 stateManager.saveState(currentState)
-                debugLog("Auto-saved disk state after operation", category: .fileSystem)
+                // debugLog("Auto-saved disk state after operation", category: .fileSystem)
             }
         case .disabled, .manual:
             // No auto-save for these modes
@@ -565,7 +565,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationWillTerminate(_ aNotification: Notification) {
         // Save SRAM data before terminating
-        debugLog("AppDelegate.applicationWillTerminate - saving SRAM", category: .x68mac)
+        // debugLog("AppDelegate.applicationWillTerminate - saving SRAM", category: .x68mac)
         gameViewController?.saveSRAM()
         
         // Stop the menu update timer
@@ -581,18 +581,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     func applicationWillHide(_ notification: Notification) {
-        debugLog("AppDelegate.applicationWillHide - saving data", category: .x68mac)
+        // debugLog("AppDelegate.applicationWillHide - saving data", category: .x68mac)
         gameViewController?.saveSRAM()
     }
     
     func applicationWillResignActive(_ notification: Notification) {
-        debugLog("AppDelegate.applicationWillResignActive - saving data", category: .x68mac)
+        // debugLog("AppDelegate.applicationWillResignActive - saving data", category: .x68mac)
         gameViewController?.saveSRAM()
     }
     
     // ファイルメニューからの「開く」アクション
     @IBAction func openDocument(_ sender: Any) {
-        debugLog("AppDelegate.openDocument() called", category: .fileSystem)
+        // debugLog("AppDelegate.openDocument() called", category: .fileSystem)
         let openPanel = NSOpenPanel()
         if #available(macOS 11.0, *) {
             openPanel.allowedContentTypes = [
@@ -610,9 +610,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         openPanel.canChooseFiles = true
         
         openPanel.begin { response in
-            debugLog("File dialog response: \(response == .OK ? "OK" : "Cancel")", category: .fileSystem)
+            // debugLog("File dialog response: \(response == .OK ? "OK" : "Cancel")", category: .fileSystem)
             if response == .OK, let url = openPanel.url {
-                debugLog("Selected file: \(url.lastPathComponent)", category: .fileSystem)
+                // debugLog("Selected file: \(url.lastPathComponent)", category: .fileSystem)
                 self.gameViewController?.load(url)
                 self.updateMenuOnFileOperation()  // Immediate menu update
                 self.autoSaveDiskStateIfNeeded()
@@ -849,6 +849,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         
         // Update menu checkmark immediately
         updateMouseMenuCheckmark()
+    }
+    
+    @IBAction func toggleInputMode(_ sender: Any) {
+        gameViewController?.gameScene?.toggleInputMode()
     }
     
     // MARK: - Mouse Mode Direct Control (for F12 key)

@@ -534,7 +534,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             FrameSkipQueue = 100;
     }
     if ( FrameSkipQueue != 0 ) {
-        printf("FrameSkipQueue:%d\n", FrameSkipQueue);
+        // printf("FrameSkipQueue:%d\n", FrameSkipQueue);
     }
 }
 
@@ -640,7 +640,7 @@ int original_main(int argc, const char *argv[], const long samplingrate )
         break;
     }
 
-    printf("FD:%s\n",Config.FDDImage[0] );
+    // printf("FD:%s\n",Config.FDDImage[0] );
 
     FDD_SetFD(0, Config.FDDImage[0], 0);
     FDD_SetFD(1, Config.FDDImage[1], 0);
@@ -726,7 +726,7 @@ void X68000_GetImage( unsigned char* data ) {
     if ( !DispFrame ) {
         WinDraw_Draw(data);
     } else {
-        printf("DispFrame\n");
+        // printf("DispFrame\n");
     }
 }
 
@@ -749,12 +749,26 @@ BYTE* X68000_GetDiskImageBufferPointer( const long drive, const long size ){
 void X68000_LoadFDD( const long drive, const char* filename )
 {
     printf("X68000_LoadFDD( %ld, \"%s\" )\n", drive, filename);
+    
+    // Update Config.FDDImage to track the loaded filename
+    if (drive >= 0 && drive < 2) {
+        strncpy(Config.FDDImage[drive], filename, MAX_PATH - 1);
+        Config.FDDImage[drive][MAX_PATH - 1] = '\0';  // Ensure null termination
+        printf("Config.FDDImage[%ld] updated to: '%s'\n", drive, Config.FDDImage[drive]);
+    }
+    
     FDD_SetFD((int)drive, (char*)filename, 0);
 }
 
 void X68000_EjectFDD( const long drive )
 {
     printf("X68000_EjectFDD( %ld )\n", drive);
+    
+    // Clear Config.FDDImage when disk is ejected
+    if (drive >= 0 && drive < 2) {
+        Config.FDDImage[drive][0] = '\0';
+    }
+    
     FDD_EjectFD((int)drive);
 }
 
@@ -765,8 +779,11 @@ const int X68000_IsFDDReady( const long drive )
 
 const char* X68000_GetFDDFilename( const long drive )
 {
-    // Simple implementation - return empty string for now
-    // Could be enhanced to track loaded filenames if needed
+    if (drive >= 0 && drive < 2) {
+        printf("X68000_GetFDDFilename(%ld) returning: '%s'\n", drive, Config.FDDImage[drive]);
+        return Config.FDDImage[drive];
+    }
+    printf("X68000_GetFDDFilename(%ld) - invalid drive, returning empty string\n", drive);
     return "";
 }
 /*

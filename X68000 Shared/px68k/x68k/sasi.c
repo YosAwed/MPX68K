@@ -97,10 +97,10 @@ int Sasi_Close( HANDLE fp ) {
 void SASI_SetImageSize(int drive, DWORD size_bytes) {
 	if (drive >= 0 && drive < 5) {
 		s_Sasi_image_size[drive] = size_bytes;
-		printf("SASI_SetImageSize: Set drive %d size to %d bytes (%d MB)\n", 
-		       drive, size_bytes, size_bytes / (1024*1024));
+		// printf("SASI_SetImageSize: Set drive %d size to %d bytes (%d MB)\n", 
+		       // drive, size_bytes, size_bytes / (1024*1024));
 	} else {
-		printf("SASI_SetImageSize: Invalid drive index %d\n", drive);
+		// printf("SASI_SetImageSize: Invalid drive index %d\n", drive);
 	}
 }
 
@@ -180,7 +180,7 @@ void SASI_Init(void)
 		s_Sasi_image_size[i] = 0;
 		s_Sasi_dirty_flag[i] = 0;
 	}
-	printf("SASI_Init: Initialized image size and dirty flag arrays\n");
+	// printf("SASI_Init: Initialized image size and dirty flag arrays\n");
 	
 	// Restore HDD size if already loaded (after reset)
 	if (Config.HDImage[0][0] != '\0') {
@@ -265,7 +265,7 @@ short SASI_Flush(void)
 	fclose(fp);
 	
 	// Data successfully written to file - no longer needs dirty flag tracking
-	printf("SASI: Sector %d written directly to file (Device:%d Unit:%d)\n", SASI_Sector, SASI_Device, SASI_Unit);
+	// printf("SASI: Sector %d written directly to file (Device:%d Unit:%d)\n", SASI_Sector, SASI_Device, SASI_Unit);
 
 if (hddtrace) {
 FILE *fp;

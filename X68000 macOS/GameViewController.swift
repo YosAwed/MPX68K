@@ -158,7 +158,7 @@ class GameViewController: NSViewController {
     
     // MARK: - HDD Management
     @IBAction func openHDD(_ sender: Any) {
-        debugLog("Opening HDD dialog", category: .ui)
+        // debugLog("Opening HDD dialog", category: .ui)
         
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
@@ -168,7 +168,7 @@ class GameViewController: NSViewController {
         
         if let hdfType = UTType(filenameExtension: "hdf") {
             allowedTypes.append(hdfType)
-            debugLog("Added HDF UTType successfully", category: .fileSystem)
+            // debugLog("Added HDF UTType successfully", category: .fileSystem)
         } else {
             warningLog("Failed to create HDF UTType, using fallback", category: .fileSystem)
             // Fallback for unknown extensions - use exported type or data type
@@ -185,13 +185,13 @@ class GameViewController: NSViewController {
             openPanel.allowedContentTypes = allowedTypes
         } else {
             openPanel.allowedFileTypes = ["hdf"]
-            debugLog("Using legacy allowedFileTypes for older macOS", category: .ui)
+            // debugLog("Using legacy allowedFileTypes for older macOS", category: .ui)
         }
         
         // Allow all files as emergency fallback (user can still filter manually)
         openPanel.allowsOtherFileTypes = true
         
-        debugLog("HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true", category: .ui)
+        // debugLog("HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true", category: .ui)
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
@@ -226,14 +226,14 @@ class GameViewController: NSViewController {
             openPanel.directoryURL = defaultDir
         }
         
-        debugLog("NSOpenPanel configured for HDD, showing dialog...", category: .ui)
+        // debugLog("NSOpenPanel configured for HDD, showing dialog...", category: .ui)
         
         openPanel.begin { [weak self] response in
-            debugLog("HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")", category: .ui)
+            // debugLog("HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")", category: .ui)
             if response == .OK, let url = openPanel.url {
                 infoLog("NSOpenPanel selected HDD file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
-                debugLog("HDD Security-scoped resource access: \(accessible)", category: .fileSystem)
+                // debugLog("HDD Security-scoped resource access: \(accessible)", category: .fileSystem)
                 
                 DispatchQueue.main.async {
                     self?.gameScene?.loadHDD(url: url)
@@ -252,7 +252,7 @@ class GameViewController: NSViewController {
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
-        debugLog("Creating empty HDD dialog", category: .ui)
+        // debugLog("Creating empty HDD dialog", category: .ui)
         
         // Step 1: Show size selection alert
         let alert = NSAlert()
@@ -271,7 +271,7 @@ class GameViewController: NSViewController {
         
         // Check for Cancel button (fifth button)
         if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 4 {
-            debugLog("HDD creation cancelled", category: .ui)
+            // debugLog("HDD creation cancelled", category: .ui)
             return
         }
         
@@ -320,7 +320,7 @@ class GameViewController: NSViewController {
         
         if let defaultDir = defaultDirectory {
             savePanel.directoryURL = defaultDir
-            debugLog("Set HDD creation default directory to: \(defaultDir.path)", category: .fileSystem)
+            // debugLog("Set HDD creation default directory to: \(defaultDir.path)", category: .fileSystem)
         }
         
         savePanel.begin { response in
@@ -384,7 +384,7 @@ class GameViewController: NSViewController {
         
         // 静的参照を設定
         GameViewController.shared = self
-        debugLog("GameViewController.shared set in viewDidLoad", category: .ui)
+        // debugLog("GameViewController.shared set in viewDidLoad", category: .ui)
         
         gameScene = GameScene.newGameScene()
         
@@ -430,7 +430,7 @@ class GameViewController: NSViewController {
         DispatchQueue.main.async {
             if let window = self.view.window {
                 window.delegate = self
-                debugLog("Window delegate set for close event handling", category: .ui)
+                // debugLog("Window delegate set for close event handling", category: .ui)
             }
         }
     }
@@ -464,7 +464,7 @@ class GameViewController: NSViewController {
     @objc private func screenRotationChanged(_ notification: Notification) {
         guard let rotation = notification.object as? GameScene.ScreenRotation else { return }
         
-        debugLog("Screen rotation changed to: \(rotation.displayName)", category: .ui)
+        // debugLog("Screen rotation changed to: \(rotation.displayName)", category: .ui)
         
         // ウィンドウサイズを回転に応じて調整
         DispatchQueue.main.async {
@@ -477,12 +477,12 @@ class GameViewController: NSViewController {
         let isPortrait = userDefaults.bool(forKey: "ScreenRotation_Portrait")
         let savedRotation: GameScene.ScreenRotation = isPortrait ? .portrait : .landscape
         
-        debugLog("Adjusting window size for saved rotation: \(savedRotation.displayName)", category: .ui)
+        // debugLog("Adjusting window size for saved rotation: \(savedRotation.displayName)", category: .ui)
         adjustWindowSizeForRotation(savedRotation)
     }
     
     private func forceInitialLandscapeWindow() {
-        debugLog("Forcing initial landscape window size", category: .ui)
+        // debugLog("Forcing initial landscape window size", category: .ui)
         adjustWindowSizeForRotation(.landscape)
     }
     

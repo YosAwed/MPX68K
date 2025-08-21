@@ -181,6 +181,12 @@
                                                 <action selector="setPortraitMode:" target="Ady-hI-5gd" id="Display-portrait-action"/>
                                             </connections>
                                         </menuItem>
+                                        <menuItem isSeparatorItem="YES" id="Display-input-separator"/>
+                                        <menuItem title="Switch to Joycard Mode" id="Display-input-mode">
+                                            <connections>
+                                                <action selector="toggleInputMode:" target="Ady-hI-5gd" id="Display-input-action"/>
+                                            </connections>
+                                        </menuItem>
                                         <menuItem isSeparatorItem="YES" id="Display-mouse-separator"/>
                                         <menuItem title="Use X68000 Mouse" id="Display-mouse-mode">
                                             <connections>
