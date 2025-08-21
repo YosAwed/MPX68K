@@ -178,9 +178,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func addAutoMountMenuItem(to menu: NSMenu) {
-        // Add separator before our settings
-        let separator = NSMenuItem.separator()
-        menu.addItem(separator)
+        // Separator will be added automatically before Quit menu
         
         // Create Disk State Management submenu
         let diskStateSubmenu = NSMenu(title: "Disk State Management")
@@ -271,8 +269,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         diskStateSubmenu.addItem(clearStateItem)
         diskStateSubmenu.addItem(showStateItem)
         
-        // Add main submenu to menu
-        menu.addItem(diskStateMenuItem)
+        // Insert before Quit menu item (find Quit and insert before it)  
+        var insertIndex = menu.items.count
+        for (index, item) in menu.items.enumerated() {
+            if item.keyEquivalent == "q" && item.action == #selector(NSApplication.terminate(_:)) {
+                insertIndex = index
+                break
+            }
+        }
+        
+        // Add separator before Disk State Management if not already present
+        if insertIndex > 0 && !menu.items[insertIndex - 1].isSeparatorItem {
+            let separator = NSMenuItem.separator()
+            menu.insertItem(separator, at: insertIndex)
+            insertIndex += 1  // Adjust for the separator we just added
+        }
+        
+        menu.insertItem(diskStateMenuItem, at: insertIndex)
         
         infoLog("Added 'Disk State Management' menu with AutoMountMode options", category: .ui)
     }

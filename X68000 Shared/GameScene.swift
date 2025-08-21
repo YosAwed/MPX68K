@@ -130,9 +130,8 @@ class GameScene: SKScene {
         }
         if let t = self.labelStatus {
             t.text = msg
-            if let notifyAction = SKAction(named: "Notify") {
-                t.run(notifyAction, withKey: "fadeInOut")
-            }
+            // Animation disabled - just show text without fade animation
+            t.alpha = 1.0
         }
     }
     
@@ -159,12 +158,9 @@ class GameScene: SKScene {
             node.text = imagefilename
             
             node.zPosition = 4.0
-            node.alpha = 0
-            node.run(SKAction.sequence([SKAction.fadeIn(withDuration: 0.2),
-                                        SKAction.wait(forDuration: 0.5),
-                                        SKAction.fadeOut(withDuration: 0.5),
-                                        SKAction.removeFromParent()]))
-            self.addChild(node)
+            // Animation disabled - skip node creation entirely
+            // node.alpha = 0
+            // self.addChild(node)
             
             if self.fileSystem == nil {
                 debugLog("Creating new FileSystem instance", category: .fileSystem)
@@ -393,14 +389,11 @@ class GameScene: SKScene {
         notification.position = CGPoint(x: 0, y: 0)
         notification.alpha = 0
         
-        let fadeSequence = SKAction.sequence([
-            SKAction.fadeIn(withDuration: 0.3),
-            SKAction.wait(forDuration: 1.2),
-            SKAction.fadeOut(withDuration: 0.5),
-            SKAction.removeFromParent()
-        ])
-        
-        notification.run(fadeSequence)
+        // Animation disabled - immediately show and hide notification
+        notification.alpha = 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            notification.removeFromParent()
+        }
         addChild(notification)
         
         // Hide title logo when clock is changed
@@ -626,21 +619,18 @@ class GameScene: SKScene {
         // Set unique zPosition values for all UI layers
         setupLayerZPositions()
         
-        // Hide iOS legacy UI elements after startup sequence completes
-        // Title animations take ~4.5 seconds (titleSprite + label), so wait 6 seconds to be safe
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
-            self.hideIOSLegacyUI()
-        }
-        
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
             label.zPosition = 3.0
             label.blendMode = .add
-            label.run(SKAction.sequence([SKAction.wait(forDuration: 1.0),
-                                         SKAction.fadeIn(withDuration: 2.0),
-                                         SKAction.wait(forDuration: 0.5),
-                                         SKAction.fadeAlpha(to: 0.0, duration: 1.0)]))
+            
+            // Fade in the label
+            let fadeInAction = SKAction.fadeIn(withDuration: 2.0)
+            let waitAction = SKAction.wait(forDuration: 4.0)
+            let fadeOutAction = SKAction.fadeOut(withDuration: 2.0)
+            let sequence = SKAction.sequence([fadeInAction, waitAction, fadeOutAction])
+            label.run(sequence)
         }
         
         self.titleSprite = SKSpriteNode(imageNamed: "X68000LogoW.png")
@@ -648,19 +638,42 @@ class GameScene: SKScene {
         self.titleSprite?.alpha = 0.0
         self.titleSprite?.blendMode = .add
         self.titleSprite?.setScale(1.0)
-        self.titleSprite?.run(SKAction.sequence([SKAction.fadeIn(withDuration: 2.0),
-                                                 SKAction.wait(forDuration: 1.5),
-                                                 SKAction.fadeAlpha(to: 0.0, duration: 1.0)]))
         self.addChild(titleSprite!)
+        
+        // Title sprite animation
+        if let titleSprite = self.titleSprite {
+            let fadeInAction = SKAction.fadeIn(withDuration: 2.0)
+            let waitAction = SKAction.wait(forDuration: 4.0)
+            let fadeOutAction = SKAction.fadeOut(withDuration: 2.0)
+            let removeAction = SKAction.run {
+                self.hideIOSLegacyUI()
+            }
+            let sequence = SKAction.sequence([fadeInAction, waitAction, fadeOutAction, removeAction])
+            titleSprite.run(sequence)
+        }
         
         let w = (self.size.width + self.size.height) * 0.05
         self.spinnyNode = SKShapeNode(rectOf: CGSize(width: w, height: w), cornerRadius: w * 0.3)
         
         if let spinnyNode = self.spinnyNode {
             spinnyNode.lineWidth = 20.0
-            spinnyNode.run(SKAction.sequence([SKAction.wait(forDuration: 0.5),
-                                              SKAction.fadeOut(withDuration: 0.5),
-                                              SKAction.removeFromParent()]))
+            
+            // Spinner animation
+            let rotateAction = SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)
+            let repeatAction = SKAction.repeatForever(rotateAction)
+            spinnyNode.run(repeatAction)
+            
+            spinnyNode.fillColor = SKColor.green
+            spinnyNode.strokeColor = SKColor.green
+            spinnyNode.position = CGPoint(x: 0, y: 0)
+            self.addChild(spinnyNode)
+            
+            // Remove spinner after a delay
+            let removeAction = SKAction.run {
+                spinnyNode.removeFromParent()
+            }
+            let waitAndRemove = SKAction.sequence([SKAction.wait(forDuration: 8.0), removeAction])
+            spinnyNode.run(waitAndRemove)
         }
         
         #if os(iOS)
@@ -1223,6 +1236,63 @@ class GameScene: SKScene {
         }
     }
     
+    // MARK: - Animation Disabling
+    private func disableAllAnimationsCompletely() {
+        // Remove all actions from the scene itself
+        self.removeAllActions()
+        
+        // Find and disable any UI elements that might have animations from the SKS file
+        let potentialAnimatedNodes = [
+            "//helloLabel", "//helloLabel2", "//labelTitle", "//labelTitle2",
+            "//titleText", "//subtitleText", "//X68000LogoW", "//logo",
+            "//spinner", "//spinny", "//Settings"
+        ]
+        
+        for nodeName in potentialAnimatedNodes {
+            if let node = self.childNode(withName: nodeName) {
+                // Immediately remove all actions and hide the node
+                node.removeAllActions()
+                node.alpha = 0.0
+                node.isHidden = true
+                node.removeFromParent()
+                debugLog("Removed animated node: \(nodeName)", category: .ui)
+            }
+        }
+        
+        // Enumerate all child nodes and disable any potential animations
+        self.enumerateChildNodes(withName: "//*") { node, _ in
+            node.removeAllActions()
+            
+            // Hide any nodes that might contain title text or be animated
+            if let labelNode = node as? SKLabelNode {
+                if let text = labelNode.text {
+                    if text.contains("POWER TO MAKE") || text.contains("for macOS") || 
+                       text.contains("for iOS") || text.contains("X68000") ||
+                       text.contains("Hello") || text.isEmpty {
+                        labelNode.removeAllActions()
+                        labelNode.alpha = 0.0
+                        labelNode.isHidden = true
+                        debugLog("Disabled animated label: '\(text)'", category: .ui)
+                    }
+                }
+            }
+            
+            // Hide any sprite nodes that might be logos or animated elements
+            if let spriteNode = node as? SKSpriteNode {
+                if let textureName = spriteNode.texture?.description {
+                    if textureName.contains("Logo") || textureName.contains("X68000") {
+                        spriteNode.removeAllActions()
+                        spriteNode.alpha = 0.0
+                        spriteNode.isHidden = true
+                        debugLog("Disabled animated sprite: \(textureName)", category: .ui)
+                    }
+                }
+            }
+        }
+        
+        infoLog("All startup animations completely disabled", category: .ui)
+    }
+    
     // MARK: - Layer Z-Position Management
     private func setupLayerZPositions() {
         // Set unique zPosition values for all layers to ensure consistent draw order
@@ -1318,14 +1388,11 @@ class GameScene: SKScene {
         notification.position = CGPoint(x: 0, y: 0)
         notification.alpha = 0
         
-        let fadeSequence = SKAction.sequence([
-            SKAction.fadeIn(withDuration: 0.2),
-            SKAction.wait(forDuration: 1.0),
-            SKAction.fadeOut(withDuration: 0.5),
-            SKAction.removeFromParent()
-        ])
-        
-        notification.run(fadeSequence)
+        // Animation disabled - immediately show and hide notification  
+        notification.alpha = 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            notification.removeFromParent()
+        }
         addChild(notification)
     }
 }

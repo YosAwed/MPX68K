@@ -528,7 +528,7 @@ class GameViewController: NSViewController {
             height: newContentSize.height
         ))
         
-        window.setFrame(newFrame, display: true, animate: true)
+        window.setFrame(newFrame, display: true, animate: false)
         
         debugLog("Window size adjusted for \(rotation.displayName): \(newContentSize)", category: .ui)
     }
