@@ -1650,32 +1650,7 @@ extension GameScene {
     }
     
     private func handleX68KeyboardInput(_ event: NSEvent, isKeyDown: Bool) {
-        // シフトキーの状態をチェックして、状態変化があれば送信
-        let isShiftPressed = event.modifierFlags.contains(.shift)
-        // print("🐛 Shift key pressed: \(isShiftPressed)")
-        
-        if isKeyDown {
-            if isShiftPressed && !isShiftKeyPressed {
-                // シフトキーが押された
-                // print("🐛 Sending SHIFT DOWN")
-                X68000_Key_Down(0x1e1) // KeyTable拡張領域のシフトキー
-                isShiftKeyPressed = true
-            } else if !isShiftPressed && isShiftKeyPressed {
-                // シフトキーが離された
-                // print("🐛 Sending SHIFT UP")
-                X68000_Key_Up(0x1e1)
-                isShiftKeyPressed = false
-            }
-        } else {
-            if !isShiftPressed && isShiftKeyPressed {
-                // シフトキーが離された
-                // print("🐛 Sending SHIFT UP")
-                X68000_Key_Up(0x1e1)
-                isShiftKeyPressed = false
-            }
-        }
-        
-        // 最初に特殊キー（文字なし）をチェック
+        // まず特殊キー（文字なし）をチェック
         let x68KeyTableIndex = getMacKeyToX68KeyTableIndex(event.keyCode)
         if x68KeyTableIndex != 0 {
             // print("🐛 Using special key KeyTable index: \(x68KeyTableIndex) for keyCode: \(event.keyCode)")
@@ -1686,38 +1661,49 @@ extension GameScene {
             }
             return
         }
-        
-        // 物理キーベースのマッピング（修飾キーに依存しない基本文字）
-        if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
-            let ascii = baseChar.asciiValue!
-            // print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
-            if isKeyDown {
-                X68000_Key_Down(UInt32(ascii))
-            } else {
-                X68000_Key_Up(UInt32(ascii))
-            }
+        // macOS のテキスト入力は insertText で処理するため、ここでは文字処理は行わない
+        // 非文字キーのみここで処理する
+
+        // 物理キーベースの最終フォールバック（必要最小限）
+        if let baseChar = getBaseCharacterForKeyCode(event.keyCode), let ascii = baseChar.asciiValue {
+            if isKeyDown { X68000_Key_Down(UInt32(ascii)) } else { X68000_Key_Up(UInt32(ascii)) }
             return
         }
         
-        // フォールバック: 文字ベース処理
-        if let characters = event.characters, !characters.isEmpty {
-            let char = characters.first!
-            let asciiValue = char.asciiValue
-            
-            // print("🐛 Fallback character: '\(char)' ASCII: \(asciiValue ?? 0)")
-            
-            if let ascii = asciiValue {
-                // print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
-                if isKeyDown {
-                    X68000_Key_Down(UInt32(ascii))
-                } else {
-                    X68000_Key_Up(UInt32(ascii))
+        // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
+    }
+
+    // 文字入力（insertText 経由）を X68000 に送る
+    func handleTextInput(_ text: String) {
+        guard !text.isEmpty else { return }
+        for scalar in text.unicodeScalars {
+            let value = scalar.value
+            // X68000 側は ASCII 相当の KeyTable を期待。ASCII 範囲のみ送る。
+            if value < 0x80 {
+                let c = UInt32(value)
+                // 大文字/記号などで Shift が必要な場合に備え、簡易的に Shift を併用
+                let needsShift: Bool = needsShiftForASCII(value)
+                if needsShift && !isShiftKeyPressed {
+                    X68000_Key_Down(0x1e1)
                 }
-                return
+                X68000_Key_Down(c)
+                X68000_Key_Up(c)
+                if needsShift && !isShiftKeyPressed {
+                    X68000_Key_Up(0x1e1)
+                }
             }
         }
-        
-        // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
+    }
+
+    private func needsShiftForASCII(_ v: UInt32) -> Bool {
+        // A-Z, 記号の一部は Shift が必要（US/JIS 物理配列差はここでは吸収しない）
+        if (0x41...0x5a).contains(v) { return true } // 'A'..'Z'
+        switch v {
+        case 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x28, 0x29, 0x3f, 0x5e, 0x5f, 0x7e, 0x2b, 0x2a, 0x3a, 0x3c, 0x3e, 0x7c:
+            return true
+        default:
+            return false
+        }
     }
     
     override func keyUp(with event: NSEvent) {

@@ -21,6 +21,26 @@ class MouseCaptureSKView: SKView {
         return true
     }
     
+    // Ensure macOS text input system delivers composed text (IME, layout-correct chars)
+    override func keyDown(with event: NSEvent) {
+        // First, let the text input system translate the event into text
+        self.interpretKeyEvents([event])
+        // Then, keep default behavior so the scene still gets keyDown for non-text/special keys
+        super.keyDown(with: event)
+    }
+    
+    override func insertText(_ insertString: Any) {
+        let text: String
+        if let s = insertString as? String {
+            text = s
+        } else if let a = insertString as? NSAttributedString {
+            text = a.string
+        } else {
+            return
+        }
+        gameViewController?.gameScene?.handleTextInput(text)
+    }
+    
     override func mouseDown(with event: NSEvent) {
         infoLog("🖱️ MouseCaptureSKView.mouseDown - forwarding to GameViewController", category: .input)
         gameViewController?.mouseDown(with: event)
