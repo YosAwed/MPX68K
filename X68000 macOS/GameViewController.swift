@@ -89,11 +89,16 @@ class GameViewController: NSViewController {
         
         let openPanel = NSOpenPanel()
         openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "0" : "1")"
-        openPanel.allowedContentTypes = [
-            UTType(filenameExtension: "dim")!,
-            UTType(filenameExtension: "xdf")!,
-            UTType(filenameExtension: "d88")!
-        ]
+        if #available(macOS 11.0, *) {
+            var types: [UTType] = []
+            if let dim = UTType(filenameExtension: "dim") { types.append(dim) }
+            if let xdf = UTType(filenameExtension: "xdf") { types.append(xdf) }
+            if let d88 = UTType(filenameExtension: "d88") { types.append(d88) }
+            if types.isEmpty { types = [.data] }
+            openPanel.allowedContentTypes = types
+        } else {
+            openPanel.allowedFileTypes = ["dim", "xdf", "d88"]
+        }
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
@@ -110,7 +115,7 @@ class GameViewController: NSViewController {
             // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
         }
         // Priority 2: User's Documents folder
-        else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
+        else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             if FileManager.default.fileExists(atPath: userDocuments.path) {
                 defaultDirectory = userDocuments
                 // Reduced logging for performance
@@ -208,7 +213,7 @@ class GameViewController: NSViewController {
             // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
         }
         // Priority 2: User's Documents folder
-        else if let userDocuments = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.appendingPathComponent("Documents") {
+        else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             if FileManager.default.fileExists(atPath: userDocuments.path) {
                 defaultDirectory = userDocuments
                 // Reduced logging for performance
