@@ -29,15 +29,29 @@ class X68MouseController
     
     var click_flag : Int = 0
     
-    // Click debouncing to prevent multiple clicks
+    // Click state tracking and short hold enforcement
     private var lastClickTime: [Int: TimeInterval] = [:]
-    private let clickDebounceInterval: TimeInterval = 0.3 // 300ms debounce
     private var lastClickState: [Int: Bool] = [:] // Track last state for each button
+    private var pendingRelease: Set<Int> = []
+    private var holdUntilFrame: [Int: Int] = [:]
+    private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms
+    private let minimumHoldSeconds: TimeInterval = 0.06
+    private var lastPressTime: [Int: TimeInterval] = [:]
+    private let pressDebounceInterval: TimeInterval = 0.12
+    private var lastReleaseTime: [Int: TimeInterval] = [:]
+    private let retriggerGuardInterval: TimeInterval = 0.15 // ignore press soon after release (non-capture)
     
     var x68k_width: Float = 0.0
     var x68k_height: Float = 0.0
     
     var frame = 0
+    
+    // (Removed hold logic) We send button state every frame in capture mode
+    
+    // Last-sent snapshot to suppress duplicate packets
+    private var lastSentButtonState: Int = -1
+    private var lastSentTx: Int = -1
+    private var lastSentTy: Int = -1
     
     func Update()
     {
@@ -52,17 +66,59 @@ class X68MouseController
         }
         
         // Only process mouse updates when in capture mode
-        guard isCaptureMode else { return }
+        guard isCaptureMode else {
+            // In non-capture, nothing to send here; event handlers call sendDirectUpdate()
+            button_state = current_button_state
+            return
+        }
         
-        // Use delta movement (dx, dy) instead of absolute position to prevent drift
-        if dx != 0.0 || dy != 0.0 {
+        // No hold: current_button_state comes directly from button_state
+        
+        // Apply deferred releases once minimum hold elapsed
+        if !pendingRelease.isEmpty {
+            var buttonsToClear: [Int] = []
+            for b in pendingRelease {
+                if let until = holdUntilFrame[b], frame >= until {
+                    buttonsToClear.append(b)
+                }
+            }
+            if !buttonsToClear.isEmpty {
+                for b in buttonsToClear {
+                    pendingRelease.remove(b)
+                    holdUntilFrame[b] = nil
+                    // Clear the bit safely
+                    current_button_state &= ~(1<<b)
+                }
+            }
+        }
+
+        // Send updates:
+        // 1) Movement deltas when present
+        // 2) Or button-only update when button state changed and no movement
+        // Clamp tiny residuals to zero to avoid inertia, but very small
+        let deadEps: Float = 0.0008
+        if abs(dx) < deadEps { dx = 0.0 }
+        if abs(dy) < deadEps { dy = 0.0 }
+        let movement = (dx != 0.0 || dy != 0.0)
+        if movement {
             X68000_Mouse_Set( dx*x68k_width, dy*x68k_height, current_button_state)
             dx = 0.0
             dy = 0.0
-        } else {
-            // No movement, just update button state - treat X and Y coordinates the same way
-            X68000_Mouse_SetDirect( mx*x68k_width, my*x68k_height, current_button_state)
+
+            // Update last-sent snapshot after sending delta
+            let tx = Int(mx * x68k_width)
+            let ty = Int(my * x68k_height)
+            lastSentTx = tx
+            lastSentTy = ty
+            lastSentButtonState = current_button_state
+        } else if current_button_state != lastSentButtonState {
+            // Button state changed without movement
+            X68000_Mouse_Set(0, 0, current_button_state)
+            lastSentButtonState = current_button_state
         }
+        
+        // Sync internal state after sends
+        button_state = current_button_state
     }
     
     fileprivate func Normalize(_ a :CGFloat, _ b :CGFloat ) -> Float
@@ -82,9 +138,9 @@ class X68MouseController
         mx = x
         my = y
         
-        // Simple direct sensitivity adjustment without accumulation
+        // Accumulate deltas based on absolute position change (no cumulative filtering)
         dx += (x - old_x) * mouseSensitivity
-        dy += (y - old_y) * mouseSensitivity
+        dy += (y - old_y) * mouseSensitivity * -1.0 // invert Y to match X68 expected direction
         
         old_x = x
         old_y = y
@@ -110,37 +166,95 @@ class X68MouseController
         old_x = x
         old_y = y
     }
-    func Click(_ type: Int,_ pressed:Bool) {
-        // Check if this is actually a state change
-        let lastState = lastClickState[type] ?? false
-        if lastState == pressed {
-            // No state change, ignore duplicate call
+    
+    // Send current state immediately to the emulator (for non-capture mode)
+    func sendDirectUpdate() {
+        // Require valid screen size to avoid zero output
+        guard x68k_width > 0 && x68k_height > 0 else { return }
+        let tx = Int(mx * x68k_width)
+        let ty = Int(my * x68k_height)
+        // Suppress duplicates: only send if position (in pixel) or button changed
+        if tx == lastSentTx && ty == lastSentTy && button_state == lastSentButtonState {
             return
         }
-        
-        let currentTime = CFAbsoluteTimeGetCurrent()
-        
-        // Additional time-based debouncing
+        if tx == lastSentTx && ty == lastSentTy {
+            // Position unchanged: update buttons only (no movement)
+            X68000_Mouse_Set(0, 0, button_state)
+            lastSentButtonState = button_state
+        } else {
+            X68000_Mouse_SetDirect(Float(tx), Float(ty), button_state)
+            lastSentTx = tx
+            lastSentTy = ty
+            lastSentButtonState = button_state
+        }
+    }
+    
+    // Send only button state (no movement), for capture mode clicks
+    func sendButtonOnlyUpdate() {
+        // Avoid redundant sends
+        if button_state != lastSentButtonState {
+            X68000_Mouse_Set(0, 0, button_state)
+            lastSentButtonState = button_state
+        }
+    }
+    func Click(_ type: Int,_ pressed:Bool) {
+        // Ignore duplicate state
+        let lastState = lastClickState[type] ?? false
+        if lastState == pressed { return }
+
+        lastClickState[type] = pressed
+
+        let now = Date().timeIntervalSince1970
+        infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
+
         if pressed {
-            if let lastTime = lastClickTime[type] {
-                let timeSinceLastClick = currentTime - lastTime
-                if timeSinceLastClick < clickDebounceInterval {
-                    // Too soon since last click, ignore this one
-                    return
+            // For non-capture numeric UIs, ignore re-press right after release
+            if !isCaptureMode, let lr = lastReleaseTime[type], (Date().timeIntervalSince1970 - lr) < retriggerGuardInterval {
+                return
+            }
+            // Short press debounce to avoid spurious rapid re-press
+            if let lp = lastPressTime[type] {
+                if now - lp < pressDebounceInterval { return }
+            }
+            lastPressTime[type] = now
+            // Press: set bit and arm minimum hold
+            pendingRelease.remove(type)
+            button_state |= (1<<type)
+            holdUntilFrame[type] = frame + minimumHoldFrames
+            lastClickTime[type] = now
+        } else {
+            // Release: enforce minimum hold in both capture and non-capture
+            let sinceDown = now - (lastClickTime[type] ?? now)
+            let needDelay = sinceDown < minimumHoldSeconds
+            lastReleaseTime[type] = now
+
+            if isCaptureMode {
+                if needDelay {
+                    // Defer clearing until Update()
+                    pendingRelease.insert(type)
+                } else {
+                    // Immediate clear
+                    button_state &= ~(1<<type)
+                }
+            } else {
+                if needDelay {
+                    // Defer on main queue to simulate hold time
+                    let delay = minimumHoldSeconds - sinceDown
+                    pendingRelease.insert(type)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                        guard let self = self else { return }
+                        if self.pendingRelease.contains(type) {
+                            self.pendingRelease.remove(type)
+                            self.button_state &= ~(1<<type)
+                            self.sendDirectUpdate()
+                        }
+                    }
+                } else {
+                    button_state &= ~(1<<type)
                 }
             }
-            lastClickTime[type] = currentTime
         }
-        
-        // Update state tracking
-        lastClickState[type] = pressed
-        
-        infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
-        if pressed {
-            button_state |= (1<<type)
-        } else {
-            button_state &= ~(1<<type)
-        }
+
         infoLog("🖱️ X68MouseController.Click: button_state after=\(button_state)", category: .input)
     }
     func ClickOnce()

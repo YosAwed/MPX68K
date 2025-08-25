@@ -75,6 +75,10 @@ public class DiskStateManager {
     // Swift側でマウント情報を記録（C関数からファイル名が取得できない場合の代替）
     private var mountedFDDFiles: [Int: URL] = [:]  // drive -> URL
     private var mountedHDDFile: URL? = nil
+
+    // Program-driven eject guard: briefly reinsert restored FDDs if ejected at boot
+    private var fddReinsertProtection: [Int: (path: String, attempts: Int)] = [:]
+    private var reinsertProtectionDeadline: Date?
     
     // Public autoMountMode property
     public var autoMountMode: AutoMountMode {
@@ -87,6 +91,37 @@ public class DiskStateManager {
         }
         set {
             userDefaults.set(newValue.rawValue, forKey: autoMountModeKey)
+        }
+    }
+
+    // Mark a restored FDD for temporary protection against program-driven ejects
+    public func markFDDReinsertProtection(drive: Int, path: String, windowSeconds: TimeInterval = 3.0) {
+        fddReinsertProtection[drive] = (path: path, attempts: 0)
+        let deadline = Date().addingTimeInterval(windowSeconds)
+        if let current = reinsertProtectionDeadline {
+            if deadline > current { reinsertProtectionDeadline = deadline }
+        } else {
+            reinsertProtectionDeadline = deadline
+        }
+        debugLog("Reinsert protection armed for drive \(drive) until \(reinsertProtectionDeadline!)", category: .fileSystem)
+    }
+
+    // Called each frame to enforce protection window; reinserts once if ejected
+    public func tickFDDReinsertProtection() {
+        guard let deadline = reinsertProtectionDeadline else { return }
+        if Date() > deadline {
+            fddReinsertProtection.removeAll()
+            reinsertProtectionDeadline = nil
+            return
+        }
+        for (drive, info) in fddReinsertProtection {
+            // Already mounted? then clear
+            if X68000_IsFDDReady(drive) != 0 { fddReinsertProtection.removeValue(forKey: drive); continue }
+            // Avoid infinite loops
+            if info.attempts >= 1 { continue }
+            X68000_LoadFDD(drive, info.path)
+            fddReinsertProtection[drive] = (path: info.path, attempts: info.attempts + 1)
+            infoLog("Reinserted restored FDD to drive \(drive) after program eject", category: .fileSystem)
         }
     }
     
@@ -278,6 +313,8 @@ public class DiskStateManager {
             totalCount += 1
             if restoreFDDState(fddState) {
                 successCount += 1
+                // Arm reinsert protection for apps that auto-eject on startup
+                DiskStateManager.shared.markFDDReinsertProtection(drive: fddState.drive, path: fddState.filePath)
             }
         }
         

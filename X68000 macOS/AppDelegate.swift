@@ -880,7 +880,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             isMouseCaptureEnabled = false
             
             // Disable X68000 mouse mode
-            gameViewController?.disableMouseCapture()
+            if let gvc = gameViewController, let scene = gvc.gameScene {
+                scene.releaseAllMouseButtons()
+                gvc.disableMouseCapture()
+            } else {
+                gameViewController?.disableMouseCapture()
+            }
             infoLog("X68000 mouse mode disabled via F12", category: .input)
             
             // Update menu checkmark immediately

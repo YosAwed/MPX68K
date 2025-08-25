@@ -1079,6 +1079,9 @@ class GameScene: SKScene {
                 mouseController.SetScreenSize(width: Float(w), height: Float(h))
                 mouseController.Update()
             }
+
+            // Tick FDD reinsert protection to counter program-driven eject at boot
+            DiskStateManager.shared.tickFDDReinsertProtection()
             
             // Step emulator forward one frame
             X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
@@ -1615,10 +1618,21 @@ extension GameScene {
         mouseController?.disableCaptureMode()
         infoLog("Mouse capture mode disabled in GameScene", category: .input)
     }
+
+    // Force-release any held mouse buttons (safety when exiting capture)
+    func releaseAllMouseButtons() {
+        guard let mc = mouseController else { return }
+        if mc.button_state != 0 {
+            mc.button_state = 0
+            #if os(macOS)
+            mc.sendButtonOnlyUpdate()
+            #endif
+        }
+    }
     
     
     override func keyDown(with event: NSEvent) {
-        // print("key press: \(event) keyCode: \(event.keyCode)")
+        // print("🔍 key press: keyCode=\(event.keyCode) characters='\(event.characters ?? "nil")' shift=\(event.modifierFlags.contains(.shift))")
         
         // F1 key mode switching disabled - F1 now available for X68000 use
         
@@ -1688,9 +1702,15 @@ extension GameScene {
         }
         
         // 物理キーベースのマッピング（修飾キーに依存しない基本文字）
-        if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
-            let ascii = baseChar.asciiValue!
+//        if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
+//            let ascii = baseChar.asciiValue!
             // print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
+        // Use character-based processing to handle shift key combinations correctly
+        if let characters = event.characters,
+           let char = characters.first,
+           let ascii = char.asciiValue,
+           ascii >= 32 && ascii <= 126 { // printable ASCII range
+            // print("🟢 Using character mapping: '\(char)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
             if isKeyDown {
                 X68000_Key_Down(UInt32(ascii))
             } else {
@@ -1700,21 +1720,30 @@ extension GameScene {
         }
         
         // フォールバック: 文字ベース処理
-        if let characters = event.characters, !characters.isEmpty {
-            let char = characters.first!
-            let asciiValue = char.asciiValue
+//       if let characters = event.characters, !characters.isEmpty {
+//           let char = characters.first!
+//           let asciiValue = char.asciiValue
             
             // print("🐛 Fallback character: '\(char)' ASCII: \(asciiValue ?? 0)")
             
-            if let ascii = asciiValue {
+//            if let ascii = asciiValue {
                 // print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
-                if isKeyDown {
-                    X68000_Key_Down(UInt32(ascii))
-                } else {
-                    X68000_Key_Up(UInt32(ascii))
-                }
-                return
+//                if isKeyDown {
+//                    X68000_Key_Down(UInt32(ascii))
+//                } else {
+//                    X68000_Key_Up(UInt32(ascii))
+//                }
+//                return
+        // フォールバック: 物理キーベースのマッピング（修飾キーに依存しない基本文字）
+        if let baseChar = getBaseCharacterForKeyCode(event.keyCode),
+           let ascii = baseChar.asciiValue {
+            // print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
+            if isKeyDown {
+                X68000_Key_Down(UInt32(ascii))
+            } else {
+                X68000_Key_Up(UInt32(ascii))
             }
+            return
         }
         
         // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
@@ -1816,14 +1845,14 @@ extension GameScene {
         case 25: return "9"  // 9キー
         case 29: return "0"  // 0キー
         
-        // 記号（シフトなし状態）- Japanese keyboard corrected
-        case 27: return "-"  // =/- キー (Japanese keyboard)
-        case 24: return "="  // -/_ キー (Japanese keyboard)
+        // 記号（シフトなし状態）- US keyboard layout
+        case 27: return "="  // = key (US keyboard)
+        case 24: return "-"  // - key (US keyboard)
         case 33: return "["
         case 30: return "]"
         case 42: return "\\"
-        case 39: return ";"
-        case 41: return "'"
+        case 41: return ";"  // semicolon key (US keyboard)
+        case 39: return "'"  // apostrophe key (US keyboard)
         case 43: return ","
         case 47: return "."
         case 44: return "/"

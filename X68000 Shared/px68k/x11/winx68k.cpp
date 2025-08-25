@@ -910,8 +910,9 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
  
     int dx = tx - nx;
     int dy = ty - ny;
-	if ( abs(dx) < 2 ) dx = 0;
-	if ( abs(dy) < 2 ) dy = 0;
+    // Lower deadzone for fine-grained apps (e.g., VisualShell)
+    if ( abs(dx) < 1 ) dx = 0;
+    if ( abs(dy) < 1 ) dy = 0;
 
 	const int max = 15;
 //	printf("nx:%3d ny:%3d dx:%3d dy:%3d\n", nx, ny, dx, dy);
@@ -923,12 +924,13 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 		dx = +max;
 	}
 
-	if ( dy == 0 ) {
+    if ( dy == 0 ) {
 	} else if ( dy < -max ) {
 		dy = -max;
 	} else if ( dy > +max ) {
 		dy = +max;
 	}
+    // Do not invert here; Swift side uses scene coordinates consistently
 //    printf(" nx:%3d ny:%3d tx:%3d ty:%3d dx:%3d dy:%3d\n", nx, ny, tx, ty, dx, dy );
 
 
@@ -952,8 +954,13 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 
 void X68000_Mouse_Set( float x, float y, const long button )
 {
-    MouseX = (int)x;
-    MouseY = (int)y;
+    // Clamp deltas to SCC 8-bit signed range
+    int ix = (int)x;
+    int iy = (int)y;
+    if (ix > 127) ix = 127; else if (ix < -128) ix = -128;
+    if (iy > 127) iy = 127; else if (iy < -128) iy = -128;
+    MouseX = (signed char)ix;
+    MouseY = (signed char)iy;
     MouseSt = button;
     
     
