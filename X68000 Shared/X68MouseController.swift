@@ -135,6 +135,12 @@ class X68MouseController
         // Accumulate deltas based on absolute position change (no cumulative filtering)
         dx += (x - old_x) * mouseSensitivity
         dy += (y - old_y) * mouseSensitivity * -1.0 // invert Y to match X68 expected direction
+        // Clamp accumulated deltas to SCC 8-bit safe range per frame
+        let maxStep: Float = 0.9 // normalized per frame safety
+        if dx > maxStep { dx = maxStep }
+        if dx < -maxStep { dx = -maxStep }
+        if dy > maxStep { dy = maxStep }
+        if dy < -maxStep { dy = -maxStep }
         
         old_x = x
         old_y = y
