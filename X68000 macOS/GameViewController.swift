@@ -715,11 +715,7 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
 
-        // Center OS cursor once so deltas are captured within our window
-        if let window = view.window {
-            let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
-            CGWarpMouseCursorPosition(center)
-        }
+        // Do not warp cursor on enable to avoid top-left blinking
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -776,8 +772,10 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: track deltas only; no warping when cursor decoupled
-            mouseController.addDeltas(event.deltaX, event.deltaY)
+            // Capture mode: ignore events that report zero delta repeatedly
+            if event.deltaX != 0 || event.deltaY != 0 {
+                mouseController.addDeltas(event.deltaX, event.deltaY)
+            }
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow
