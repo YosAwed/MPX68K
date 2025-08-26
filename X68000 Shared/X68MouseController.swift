@@ -196,6 +196,12 @@ class X68MouseController
         dx += sx
         dy += sy
     }
+
+    // Accumulate normalized deltas (relative to scene size)
+    func addDeltasNormalized(_ ndx: CGFloat, _ ndy: CGFloat) {
+        dx += Float(ndx) * mouseSensitivity
+        dy += Float(ndy) * mouseSensitivity * -1.0
+    }
     
     // Send only button state (no movement), for capture mode clicks
     func sendButtonOnlyUpdate() {
