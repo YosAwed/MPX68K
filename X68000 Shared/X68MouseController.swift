@@ -40,7 +40,7 @@ class X68MouseController
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
     private let retriggerGuardInterval: TimeInterval = 0.15 // ignore press soon after release (non-capture)
-    private let pulseLeftClickInCapture: Bool = true
+    private let pulseLeftClickInCapture: Bool = false
     private let pulseHoldFrames: Int = 3
     
     var x68k_width: Float = 0.0

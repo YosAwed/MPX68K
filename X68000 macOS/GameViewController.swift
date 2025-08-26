@@ -786,7 +786,8 @@ extension GameViewController: NSDraggingDestination {
                 let w = Float(X68000_GetScreenWidth())
                 let h = Float(X68000_GetScreenHeight())
                 mouseController.SetScreenSize(width: w, height: h)
-                mouseController.sendDirectUpdate()
+                // Do not push absolute packet here; button handlers will send button-only updates.
+                // This avoids extra Mouse_SetDirect between the two clicks that can break double-click detection.
             }
         }
     }
