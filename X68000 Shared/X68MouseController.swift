@@ -136,7 +136,7 @@ class X68MouseController
         dx += (x - old_x) * mouseSensitivity
         dy += (y - old_y) * mouseSensitivity * -1.0 // invert Y to match X68 expected direction
         // Clamp accumulated deltas to SCC 8-bit safe range per frame
-        let maxStep: Float = 0.9 // normalized per frame safety
+        let maxStep: Float = 0.25 // tighter per-frame to prevent leaps
         if dx > maxStep { dx = maxStep }
         if dx < -maxStep { dx = -maxStep }
         if dy > maxStep { dy = maxStep }

@@ -772,8 +772,13 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use raw deltas only
+            // Capture mode: use raw deltas and keep OS cursor centered (invisible)
             mouseController.addDeltas(event.deltaX, event.deltaY)
+            if let window = view.window {
+                let c = window.contentLayoutRect
+                let center = CGPoint(x: c.midX, y: c.midY)
+                CGWarpMouseCursorPosition(center)
+            }
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow
