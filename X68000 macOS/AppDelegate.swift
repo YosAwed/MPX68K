@@ -361,14 +361,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Find FDD and HDD menus
         for menuItem in mainMenu.items {
             if let submenu = menuItem.submenu {
-                logger.debug("Found submenu: '\(submenu.title)'")
-                if submenu.title == "FDD" {
+                logger.debug("Found submenu for menu item: '\(menuItem.title)'")
+                if menuItem.title == "FDD" {
                     logger.debug("Updating FDD menu")
                     self.updateFDDMenuTitles(submenu: submenu)
-                } else if submenu.title == "HDD" {
+                } else if menuItem.title == "HDD" {
                     logger.debug("Updating HDD menu")
                     self.updateHDDMenuTitles(submenu: submenu)
-                } else if submenu.title == "Display" {
+                } else if menuItem.title == "Display" {
                     logger.debug("Updating Display menu")
                     self.updateMouseMenuCheckmark()
                 }
@@ -467,7 +467,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     logger.debug("Drive 1 is ready")
                     if let filename = X68000_GetFDDFilename(1) {
                         let name = String(cString: filename)
-                        logger.debug("Raw filename for Drive 1: '\(name)')")
+                        logger.debug("Raw filename for Drive 1: '\(name)'")
                         
                         // Check if we have a valid filename
                         if !name.isEmpty && name != "/" && name.count > 1 {
