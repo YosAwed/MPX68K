@@ -1076,13 +1076,6 @@ class GameScene: SKScene {
             
             // Only update mouse controller when in capture mode
             if let mouseController = mouseController, mouseController.isCaptureMode {
-                // Poll raw mouse deltas from CoreGraphics to avoid event delivery issues
-                var ddx: Int32 = 0
-                var ddy: Int32 = 0
-                CGGetLastMouseDelta(&ddx, &ddy)
-                if ddx != 0 || ddy != 0 {
-                    mouseController.addDeltas(CGFloat(ddx), CGFloat(ddy))
-                }
                 mouseController.SetScreenSize(width: Float(w), height: Float(h))
                 mouseController.Update()
             }
