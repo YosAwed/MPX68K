@@ -706,8 +706,8 @@ extension GameViewController: NSDraggingDestination {
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
-        // Keep OS cursor associated so NSEvent absolute locations are valid
-        CGAssociateMouseAndMouseCursorPosition(Int32(1))
+        // Decouple OS cursor to prevent edge clamp and host click-through
+        CGAssociateMouseAndMouseCursorPosition(Int32(0))
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -715,7 +715,13 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
 
-        // Do not warp on enable to avoid host cursor artifacts
+        // Pin OS cursor to window center (convert to CG global coordinates)
+        if let window = view.window, let screen = window.screen {
+            let screenFrame = screen.frame
+            let center = CGPoint(x: window.frame.midX,
+                                 y: screenFrame.maxY - window.frame.midY)
+            CGWarpMouseCursorPosition(center)
+        }
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -772,11 +778,13 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use absolute scene position to derive internal deltas (no warps)
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(event.locationInWindow, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
+            // Capture mode: raw deltas and keep OS cursor pinned to center each event
+            mouseController.addDeltas(event.deltaX, event.deltaY)
+            if let window = view.window, let screen = window.screen {
+                let screenFrame = screen.frame
+                let center = CGPoint(x: window.frame.midX,
+                                     y: screenFrame.maxY - window.frame.midY)
+                CGWarpMouseCursorPosition(center)
             }
         } else {
             // Non-capture: use absolute location within the SKView and send direct

@@ -955,8 +955,8 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 void X68000_Mouse_Set( float x, float y, const long button )
 {
     // Clamp deltas to SCC 8-bit signed range
-    int ix = (int)x;
-    int iy = (int)y;
+    int ix = (int)lrintf(x);
+    int iy = (int)lrintf(y);
     if (ix > 127) ix = 127; else if (ix < -128) ix = -128;
     if (iy > 127) iy = 127; else if (iy < -128) iy = -128;
     MouseX = (signed char)ix;

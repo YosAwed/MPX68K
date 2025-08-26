@@ -97,7 +97,7 @@ class X68MouseController
 
         // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia, but very small
-        let deadEps: Float = 0.0008
+        let deadEps: Float = 0.0003
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
         let movement = (dx != 0.0 || dy != 0.0)
