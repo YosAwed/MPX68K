@@ -705,7 +705,7 @@ extension GameViewController: NSDraggingDestination {
         // Hide the macOS cursor
         NSCursor.hide()
         // Detach OS cursor from hardware mouse so warps are unnecessary
-        CGAssociateMouseAndMouseCursorPosition(false)
+        CGAssociateMouseAndMouseCursorPosition(Int32(0))
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -730,7 +730,7 @@ extension GameViewController: NSDraggingDestination {
         // Show the macOS cursor
         NSCursor.unhide()
         // Re-attach OS cursor to hardware mouse
-        CGAssociateMouseAndMouseCursorPosition(true)
+        CGAssociateMouseAndMouseCursorPosition(Int32(1))
         
         // Disable mouse capture mode in the game scene
         gameScene?.disableMouseCapture()
