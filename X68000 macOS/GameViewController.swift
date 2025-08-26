@@ -698,16 +698,16 @@ extension GameViewController: NSDraggingDestination {
     func enableMouseCapture() {
         // debugLog("Enabling X68000 mouse capture", category: .input)
         
-        // Ensure we are the first responder for mouse events
-        view.window?.makeFirstResponder(self)
-        infoLog("GameViewController made first responder for mouse capture", category: .input)
+        // Route events via SKView for consistent forwarding
+        view.window?.makeFirstResponder(self.view)
+        infoLog("MouseCaptureSKView made first responder for mouse capture", category: .input)
         
         // Hide the macOS cursor
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
-        // Decouple OS cursor; feed raw deltas to emulator
-        CGAssociateMouseAndMouseCursorPosition(Int32(0))
+        // Keep OS cursor associated to ensure deltaX/Y are delivered
+        CGAssociateMouseAndMouseCursorPosition(Int32(1))
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
