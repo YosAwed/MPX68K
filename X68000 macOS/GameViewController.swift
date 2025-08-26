@@ -706,8 +706,8 @@ extension GameViewController: NSDraggingDestination {
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
-        // Keep OS cursor associated to ensure we receive proper absolute positions
-        CGAssociateMouseAndMouseCursorPosition(Int32(1))
+        // Decouple OS cursor so host doesn't receive real clicks/moves
+        CGAssociateMouseAndMouseCursorPosition(Int32(0))
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -715,7 +715,11 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
 
-        // Do not warp cursor on enable to avoid top-left blinking
+        // Warp OS cursor once to our window center so subsequent clicks target this window
+        if let window = view.window {
+            let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+            CGWarpMouseCursorPosition(center)
+        }
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -772,12 +776,8 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use absolute scene position to derive internal deltas
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(event.locationInWindow, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
-            }
+            // Capture mode: use raw deltas (host cursor decoupled, warps once at enable)
+            mouseController.addDeltas(event.deltaX, event.deltaY)
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow
