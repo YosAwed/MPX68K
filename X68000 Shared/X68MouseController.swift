@@ -34,8 +34,9 @@ class X68MouseController
     private var lastClickState: [Int: Bool] = [:] // Track last state for each button
     private var pendingRelease: Set<Int> = []
     private var holdUntilFrame: [Int: Int] = [:]
-    private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms
-    private let minimumHoldSeconds: TimeInterval = 0.06
+    private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
+    private let minimumHoldSeconds: TimeInterval = 0.06 // UI only
+    private let minimumHoldFramesCaptureLeft: Int = 1
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
@@ -94,30 +95,25 @@ class X68MouseController
             }
         }
 
-        // Send updates:
-        // 1) Movement deltas when present
-        // 2) Or button-only update when button state changed and no movement
+        // Send updates every frame in capture mode to clear core deltas
         // Clamp tiny residuals to zero to avoid inertia, but very small
         let deadEps: Float = 0.0008
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
         let movement = (dx != 0.0 || dy != 0.0)
         if movement {
-            X68000_Mouse_Set( dx*x68k_width, dy*x68k_height, current_button_state)
+            X68000_Mouse_Set(dx * x68k_width, dy * x68k_height, current_button_state)
             dx = 0.0
             dy = 0.0
-
-            // Update last-sent snapshot after sending delta
-            let tx = Int(mx * x68k_width)
-            let ty = Int(my * x68k_height)
-            lastSentTx = tx
-            lastSentTy = ty
-            lastSentButtonState = current_button_state
-        } else if current_button_state != lastSentButtonState {
-            // Button state changed without movement
+        } else {
             X68000_Mouse_Set(0, 0, current_button_state)
-            lastSentButtonState = current_button_state
         }
+        // Update last-sent snapshot after sending
+        let tx = Int(mx * x68k_width)
+        let ty = Int(my * x68k_height)
+        lastSentTx = tx
+        lastSentTy = ty
+        lastSentButtonState = current_button_state
         
         // Sync internal state after sends
         button_state = current_button_state
@@ -210,6 +206,11 @@ class X68MouseController
         infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
 
         if pressed {
+            // If a deferred release is pending for this button, finalize it now to allow double-click
+            if pendingRelease.contains(type) {
+                pendingRelease.remove(type)
+                button_state &= ~(1<<type)
+            }
             // Only guard re-press in non-capture UI (to avoid typing repeats)
             if !isCaptureMode, let lr = lastReleaseTime[type], (Date().timeIntervalSince1970 - lr) < retriggerGuardInterval {
                 return
@@ -223,22 +224,18 @@ class X68MouseController
             // Press: set bit and arm minimum hold
             pendingRelease.remove(type)
             button_state |= (1<<type)
-            holdUntilFrame[type] = frame + minimumHoldFrames
+            let holdFrames = (isCaptureMode && type == 0) ? minimumHoldFramesCaptureLeft : minimumHoldFrames
+            holdUntilFrame[type] = frame + holdFrames
             lastClickTime[type] = now
         } else {
             // Release: enforce minimum hold in both capture and non-capture
             let sinceDown = now - (lastClickTime[type] ?? now)
-            let needDelay = sinceDown < minimumHoldSeconds
+            let needDelay = !isCaptureMode && (sinceDown < minimumHoldSeconds)
             lastReleaseTime[type] = now
 
             if isCaptureMode {
-                if needDelay {
-                    // Defer clearing until Update()
-                    pendingRelease.insert(type)
-                } else {
-                    // Immediate clear
-                    button_state &= ~(1<<type)
-                }
+                // Immediate clear in capture mode
+                button_state &= ~(1<<type)
             } else {
                 if needDelay {
                     // Defer on main queue to simulate hold time
