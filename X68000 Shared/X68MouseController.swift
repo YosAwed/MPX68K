@@ -210,12 +210,12 @@ class X68MouseController
         infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
 
         if pressed {
-            // In capture (game-like UIs), ignore re-press right after release
-            if isCaptureMode, let lr = lastReleaseTime[type], (Date().timeIntervalSince1970 - lr) < retriggerGuardInterval {
+            // Only guard re-press in non-capture UI (to avoid typing repeats)
+            if !isCaptureMode, let lr = lastReleaseTime[type], (Date().timeIntervalSince1970 - lr) < retriggerGuardInterval {
                 return
             }
-            // Short press debounce to avoid spurious rapid re-press
-            let debounce = isCaptureMode ? pressDebounceInterval : 0.05
+            // Short press debounce (none for capture, small for non-capture)
+            let debounce: TimeInterval = isCaptureMode ? 0.0 : 0.05
             if let lp = lastPressTime[type] {
                 if now - lp < debounce { return }
             }
@@ -223,12 +223,7 @@ class X68MouseController
             // Press: set bit and arm minimum hold
             pendingRelease.remove(type)
             button_state |= (1<<type)
-            // In capture mode, pulse left-click to a short press regardless of physical hold
-            let holdFrames = isCaptureMode && pulseLeftClickInCapture && type == 0 ? pulseHoldFrames : minimumHoldFrames
-            holdUntilFrame[type] = frame + holdFrames
-            if isCaptureMode && pulseLeftClickInCapture && type == 0 {
-                pendingRelease.insert(type)
-            }
+            holdUntilFrame[type] = frame + minimumHoldFrames
             lastClickTime[type] = now
         } else {
             // Release: enforce minimum hold in both capture and non-capture
