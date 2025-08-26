@@ -704,6 +704,8 @@ extension GameViewController: NSDraggingDestination {
         
         // Hide the macOS cursor
         NSCursor.hide()
+        // Detach OS cursor from hardware mouse so warps are unnecessary
+        CGAssociateMouseAndMouseCursorPosition(false)
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -727,6 +729,8 @@ extension GameViewController: NSDraggingDestination {
         
         // Show the macOS cursor
         NSCursor.unhide()
+        // Re-attach OS cursor to hardware mouse
+        CGAssociateMouseAndMouseCursorPosition(true)
         
         // Disable mouse capture mode in the game scene
         gameScene?.disableMouseCapture()
@@ -763,15 +767,8 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use raw deltas; recenter cursor to keep inside window
-            let dx = event.deltaX
-            let dy = event.deltaY
-            mouseController.addDeltas(dx, dy)
-            // Periodically re-center to prevent hitting window edges
-            if let window = view.window {
-                let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
-                CGWarpMouseCursorPosition(center)
-            }
+            // Capture mode: track deltas only; no warping when cursor decoupled
+            mouseController.addDeltas(event.deltaX, event.deltaY)
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow
