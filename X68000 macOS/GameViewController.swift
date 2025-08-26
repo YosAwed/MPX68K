@@ -714,13 +714,7 @@ extension GameViewController: NSDraggingDestination {
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
         
-        // Store the initial cursor position for delta tracking
-        if let window = view.window {
-            // Position cursor at window center to ensure it stays within bounds
-            let windowCenter = CGPoint(x: window.frame.midX, y: window.frame.midY)
-            CGWarpMouseCursorPosition(windowCenter)
-            // debugLog("Mouse cursor positioned at window center", category: .input)
-        }
+        // No warping on enable to avoid macOS cursor reappearing outside window
         
         infoLog("X68000 mouse capture enabled - Mac cursor hidden", category: .input)
     }
@@ -769,11 +763,14 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use absolute scene position to derive internal deltas
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(event.locationInWindow, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
+            // Capture mode: use raw deltas; recenter cursor to keep inside window
+            let dx = event.deltaX
+            let dy = event.deltaY
+            mouseController.addDeltas(dx, dy)
+            // Periodically re-center to prevent hitting window edges
+            if let window = view.window {
+                let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+                CGWarpMouseCursorPosition(center)
             }
         } else {
             // Non-capture: use absolute location within the SKView and send direct

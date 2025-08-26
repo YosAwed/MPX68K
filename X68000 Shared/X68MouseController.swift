@@ -166,16 +166,16 @@ class X68MouseController
     }
     
     // Send current state immediately to the emulator (for non-capture mode)
-    func sendDirectUpdate() {
+    func sendDirectUpdate(forceAbsolute: Bool = false) {
         // Require valid screen size to avoid zero output
         guard x68k_width > 0 && x68k_height > 0 else { return }
         let tx = Int(mx * x68k_width)
         let ty = Int(my * x68k_height)
         // Suppress duplicates: only send if position (in pixel) or button changed
-        if tx == lastSentTx && ty == lastSentTy && button_state == lastSentButtonState {
+        if !forceAbsolute && tx == lastSentTx && ty == lastSentTy && button_state == lastSentButtonState {
             return
         }
-        if tx == lastSentTx && ty == lastSentTy {
+        if !forceAbsolute && tx == lastSentTx && ty == lastSentTy {
             // Position unchanged: update buttons only (no movement)
             X68000_Mouse_Set(0, 0, button_state)
             lastSentButtonState = button_state
@@ -185,6 +185,14 @@ class X68MouseController
             lastSentTy = ty
             lastSentButtonState = button_state
         }
+    }
+
+    // Accumulate raw deltas (capture mode)
+    func addDeltas(_ deltaX: CGFloat, _ deltaY: CGFloat) {
+        let sx = Float(deltaX) * mouseSensitivity
+        let sy = Float(deltaY) * mouseSensitivity * -1.0 // invert Y
+        dx += sx
+        dy += sy
     }
     
     // Send only button state (no movement), for capture mode clicks
