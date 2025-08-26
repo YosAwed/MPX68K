@@ -772,10 +772,8 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: ignore events that report zero delta repeatedly
-            if event.deltaX != 0 || event.deltaY != 0 {
-                mouseController.addDeltas(event.deltaX, event.deltaY)
-            }
+            // Capture mode: always feed raw deltas
+            mouseController.addDeltas(event.deltaX, event.deltaY)
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow

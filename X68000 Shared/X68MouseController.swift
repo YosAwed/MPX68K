@@ -95,7 +95,7 @@ class X68MouseController
             }
         }
 
-        // Send updates every frame in capture mode to clear core deltas
+        // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia, but very small
         let deadEps: Float = 0.0008
         if abs(dx) < deadEps { dx = 0.0 }
@@ -105,15 +105,11 @@ class X68MouseController
             X68000_Mouse_Set(dx * x68k_width, dy * x68k_height, current_button_state)
             dx = 0.0
             dy = 0.0
-        } else {
+            lastSentButtonState = current_button_state
+        } else if current_button_state != lastSentButtonState {
             X68000_Mouse_Set(0, 0, current_button_state)
+            lastSentButtonState = current_button_state
         }
-        // Update last-sent snapshot after sending
-        let tx = Int(mx * x68k_width)
-        let ty = Int(my * x68k_height)
-        lastSentTx = tx
-        lastSentTy = ty
-        lastSentButtonState = current_button_state
         
         // Sync internal state after sends
         button_state = current_button_state
