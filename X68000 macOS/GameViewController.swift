@@ -706,8 +706,8 @@ extension GameViewController: NSDraggingDestination {
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
-        // Decouple OS cursor so host doesn't receive real clicks/moves
-        CGAssociateMouseAndMouseCursorPosition(Int32(0))
+        // Keep OS cursor associated; we'll confine with conditional warp
+        CGAssociateMouseAndMouseCursorPosition(Int32(1))
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -715,11 +715,7 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
 
-        // Warp OS cursor once to our window center so subsequent clicks target this window
-        if let window = view.window {
-            let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
-            CGWarpMouseCursorPosition(center)
-        }
+        // Do not warp immediately; we'll warp only near edges during movement
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -776,8 +772,23 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: use raw deltas (host cursor decoupled, warps once at enable)
-            mouseController.addDeltas(event.deltaX, event.deltaY)
+            // Capture mode: use absolute scene position and confine near edges
+            if let skView = self.view as? SKView, let scene = skView.scene {
+                let locationInView = skView.convert(event.locationInWindow, from: nil)
+                let locationInScene = scene.convertPoint(fromView: locationInView)
+                mouseController.SetPosition(locationInScene, scene.size)
+                // Conditional warp to center if pointer nears window edge
+                if let window = view.window {
+                    let margin: CGFloat = 8
+                    let loc = event.locationInWindow
+                    let bounds = window.contentLayoutRect
+                    if loc.x <= bounds.minX + margin || loc.x >= bounds.maxX - margin ||
+                       loc.y <= bounds.minY + margin || loc.y >= bounds.maxY - margin {
+                        let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+                        CGWarpMouseCursorPosition(center)
+                    }
+                }
+            }
         } else {
             // Non-capture: use absolute location within the SKView and send direct
             let viewPoint = event.locationInWindow
