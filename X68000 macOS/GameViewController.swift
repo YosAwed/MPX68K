@@ -704,6 +704,8 @@ extension GameViewController: NSDraggingDestination {
         
         // Hide the macOS cursor
         NSCursor.hide()
+        // Ensure we receive mouseMoved events even when not key only
+        view.window?.acceptsMouseMovedEvents = true
         // Detach OS cursor from hardware mouse so warps are unnecessary
         CGAssociateMouseAndMouseCursorPosition(Int32(0))
         
@@ -712,6 +714,12 @@ extension GameViewController: NSDraggingDestination {
         
         // Add mouse tracking area to the view
         setupMouseTracking()
+
+        // Center OS cursor once so deltas are captured within our window
+        if let window = view.window {
+            let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+            CGWarpMouseCursorPosition(center)
+        }
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -729,6 +737,7 @@ extension GameViewController: NSDraggingDestination {
         
         // Show the macOS cursor
         NSCursor.unhide()
+        view.window?.acceptsMouseMovedEvents = false
         // Re-attach OS cursor to hardware mouse
         CGAssociateMouseAndMouseCursorPosition(Int32(1))
         
