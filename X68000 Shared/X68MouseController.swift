@@ -36,7 +36,7 @@ class X68MouseController
     private var holdUntilFrame: [Int: Int] = [:]
     private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
     private let minimumHoldSeconds: TimeInterval = 0.06 // UI only
-    private let minimumHoldFramesCaptureLeft: Int = 1
+    private let minimumHoldFramesCaptureLeft: Int = 3
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
@@ -232,7 +232,8 @@ class X68MouseController
                 return
             }
             // Short press debounce (none for capture, small for non-capture)
-            let debounce: TimeInterval = isCaptureMode ? 0.0 : 0.05
+            // In capture, add small press debounce to allow double-click separation
+            let debounce: TimeInterval = isCaptureMode ? 0.02 : 0.05
             if let lp = lastPressTime[type] {
                 if now - lp < debounce { return }
             }
