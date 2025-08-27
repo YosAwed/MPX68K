@@ -1,33 +1,28 @@
 # MPX68K
 
 A Sharp X68000 computer emulator for macOS platforms, based on the px68k emulator core.
-This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.com/hissorii/px68k). Based on his source code, [Goroman](https://github.com/GOROman) converted it for iOS, and I made it work on MacOS.
+This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.com/hissorii/px68k). Based on his source code, [Goroman](https://github.com/GOROman) converted it for iOS, and I made it works on MacOS.
 
 ## Overview
 
-MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on Apple platforms.
+MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on Apple silicon platforms.
 
 ## Features
 
 ### Core Emulation
-- **Complete X68000 Hardware Emulation**: CPU, sound, graphics, and I/O
+- **X68000 Hardware Emulation**: CPU, sound, graphics, and I/O
 - **M68000 CPU**: Powered by C68K emulator core
 - **FM Sound Synthesis**: High-quality audio via fmgen
-- **Multiple Disk Formats**: Support for .dim, .xdf, .d88, .hdf, .hdm files
-- **Advanced Security**: Thread-safe file operations and input validation
-- **Professional Logging**: Comprehensive logging system with categorized output
+- **Multiple Disk Formats**: Support for .dim, .xdf, .hdf files
 
 ### macOS Enhancements
 - **Dual FDD Support**: Menu-driven management for Drive 0 and Drive 1
-- **Hard Disk Support**: Complete HDD management with dedicated menu
+- **Hard Disk Support**: HDD management with dedicated menu
 - **Screen Rotation**: 90-degree rotation support for vertical games (tate mode)
-- **Enhanced Joycard**: Keyboard, mouse, and GameController input
-- **Drag & Drop**: Multi-file support with automatic drive assignment
+- **Enhanced Joycard**: Keyboard, mouse input
 - **Native Menu Integration**: Dedicated FDD, HDD, and Display menus with keyboard shortcuts
-- **Enterprise-Grade Stability**: Thread-safe operations and race condition prevention
-- **Advanced Debugging**: Unified logging system with performance monitoring
 
-### Cross-Platform
+### Platform
 - **macOS Support**: Native menu bar and keyboard/mouse input
 - **iCloud Integration**: Seamless file sync across devices
 
@@ -35,7 +30,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ### macOS
 - macOS 15.0 or later
-- Apple Silicon Mac recommended (Intel Macs supported)
+- Apple Silicon Mac
 - Minimum 4GB RAM
 - 1GB free disk space for ROM and disk images
 
@@ -66,7 +61,7 @@ Place the ROM files in the location:
 ### Important Notes
 
 - **Legal Notice**: ROM files are copyrighted by SHARP CORPORATION. You must own an original X68000 system to legally use these files.
-- **File Names**: ROM file names are case-sensitive and must be exactly `CGROM.DAT` and `IPLROM.DAT`.
+- **File Names**: ROM file names must be exactly `CGROM.DAT` and `IPLROM.DAT`.
 - **File Integrity**: Ensure ROM files are not corrupted. The emulator will display an error if files are missing or invalid.
 - **Backup**: Always keep backup copies of your ROM files in a safe location.
 
@@ -82,6 +77,7 @@ If you see garbled text or boot failures, verify that your ROM files are correct
 ## Installation
 
 ### Building from Source
+You need Apple Developer Account for using XCode and certification.
 
 1. **Clone the repository:**
    ```bash
@@ -124,7 +120,6 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Arrow Keys** or **WASD**: 8-direction movement
 - **Space** or **J**: Button A
 - **Z** or **K**: Button B
-- **Mouse**: Click on visual joycard buttons
 
 ## File Formats
 
@@ -132,13 +127,12 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 |-----------|-------------|------|-------------------|----------|
 | .dim | Standard disk image | Floppy | macOS | Validated |
 | .xdf | Extended disk format | Floppy | macOS | Validated |
-| .d88 | D88 disk format | Floppy | macOS | Validated |
 | .hdf | Hard disk format | Hard Disk | macOS | Validated |
-| .hdm | Hard disk format (alt) | Hard Disk | macOS | Validated |
 
 ### Hard Disk Usage
 
 Hard disk images provide faster access and larger storage capacity compared to floppy disks:
+You can make HDD image using this application, but it requires initialization by using FORMAT.X running by Human68k on the emulator.
 
 1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf files
 2. **Boot Priority**: When both FDD and HDD are present, X68000 boots from FDD first (if a bootable disk is inserted), then falls back to HDD
@@ -203,7 +197,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 
 ## Recent Updates
 
-### Version 4.1.0 (Build 908) - December 2024
+### Version 4.1.0 (Build 910) - August 2025
 
 #### ✅ New Features
 - **Dual FDD Drive Support**: Independent Drive 0/1 management
@@ -211,17 +205,12 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 - **Screen Rotation Support**: 90-degree rotation for vertical games (tate mode)
 - **Enhanced macOS Joycard**: Keyboard and mouse input support
 - **Menu Integration**: Native macOS menu bar with FDD, HDD, and Display shortcuts
-- **Multi-file Drag & Drop**: Automatic drive assignment by file type
-- **Visual Feedback**: Real-time button highlighting
-- **File Format Expansion**: Added .hdf, .hdm, .d88 support for disk images
 - **Window Management**: Automatic window resizing for optimal display
 
 #### 🔒 Security & Stability Improvements
-- **Thread-Safe File Operations**: Fixed race conditions in disk pair loading
 - **Memory Safety**: Enhanced buffer bounds checking and validation
 - **Input Validation**: Comprehensive file format validation with security checks
 - **Sandboxed File Access**: Secure file system operations with proper scoping
-- **Error Handling**: Robust error handling with detailed logging
 
 #### 🛠️ Code Quality & Performance
 - **Professional Logging System**: Replaced 200+ print statements with X68Logger
@@ -232,12 +221,6 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 - **Compiler Warnings Eliminated**: Zero warnings in release builds
 - **Memory Management**: Optimized Swift-C interoperability
 - **Build System**: Enhanced Xcode project configuration
-
-#### 🔧 Developer Experience
-- **Comprehensive Documentation**: Updated CLAUDE.md with architectural details
-- **Third-Party Licenses**: Proper attribution for all open source components
-- **Code Signing**: Enterprise-ready signing and notarization support
-- **CI/CD Ready**: Streamlined build and archive processes
 
 ## Development
 
