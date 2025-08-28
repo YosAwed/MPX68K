@@ -291,17 +291,16 @@ class GameViewController: NSViewController {
         alert.informativeText = "Select the size for the new hard disk image:"
         alert.alertStyle = .informational
         
-        // Add size options
+        // Add size options (FORMAT.X supports up to 40MB)
         alert.addButton(withTitle: "10 MB")
-        alert.addButton(withTitle: "20 MB") 
+        alert.addButton(withTitle: "20 MB")
         alert.addButton(withTitle: "40 MB")
-        alert.addButton(withTitle: "80 MB")
         alert.addButton(withTitle: "Cancel")
         
         let response = alert.runModal()
         
-        // Check for Cancel button (fifth button)
-        if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 4 {
+        // Check for Cancel button (fourth button)
+        if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3 {
             // debugLog("HDD creation cancelled", category: .ui)
             return
         }
@@ -320,9 +319,6 @@ class GameViewController: NSViewController {
         case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue:   // 40 MB
             sizeInMB = 40
             sizeInBytes = 40 * 1024 * 1024
-        case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3:  // 80 MB (fourth button)
-            sizeInMB = 80
-            sizeInBytes = 80 * 1024 * 1024
         default:
             errorLog("Unexpected button response", category: .ui)
             return
