@@ -22,62 +22,40 @@ class MouseCaptureSKView: SKView {
     }
     
     override func mouseDown(with event: NSEvent) {
-        // Avoid double delivery: if GameViewController is first responder, let it receive the event via responder chain
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         infoLog("🖱️ MouseCaptureSKView.mouseDown - forwarding to GameViewController", category: .input)
         gameViewController?.mouseDown(with: event)
         // Don't call super to prevent SKView from handling the event
     }
     
     override func mouseUp(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         infoLog("🖱️ MouseCaptureSKView.mouseUp - forwarding to GameViewController", category: .input)
         gameViewController?.mouseUp(with: event)
         // Don't call super to prevent SKView from handling the event
     }
     
     override func rightMouseDown(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         infoLog("🖱️ MouseCaptureSKView.rightMouseDown - forwarding to GameViewController", category: .input)
         gameViewController?.rightMouseDown(with: event)
         // Don't call super to prevent SKView from handling the event
     }
     
     override func rightMouseUp(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         infoLog("🖱️ MouseCaptureSKView.rightMouseUp - forwarding to GameViewController", category: .input)
         gameViewController?.rightMouseUp(with: event)
         // Don't call super to prevent SKView from handling the event
     }
     
     override func mouseMoved(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         gameViewController?.mouseMoved(with: event)
         // Don't call super to prevent SKView from handling the event
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         gameViewController?.mouseDragged(with: event)
         // Don't call super to prevent SKView from handling the event
     }
     
     override func rightMouseDragged(with event: NSEvent) {
-        if let window = self.window, window.firstResponder === gameViewController {
-            return
-        }
         gameViewController?.rightMouseDragged(with: event)
         // Don't call super to prevent SKView from handling the event
     }
@@ -101,6 +79,11 @@ class GameViewController: NSViewController {
     
     // Mouse tracking for mouse capture mode
     private var mouseTrackingArea: NSTrackingArea?
+    private var suppressNextMouseEvent: Bool = false
+    private var discardNextDelta: Bool = false
+    private var discardDeltaCount: Int = 0
+    // Swallow initial noisy deltas after enabling capture
+    private var captureSettleUntil: TimeInterval? = nil
     
     func load(_ url: URL) {
         // Reduced logging for performance
@@ -707,12 +690,15 @@ extension GameViewController: NSDraggingDestination {
         view.window?.makeFirstResponder(self.view)
         infoLog("MouseCaptureSKView made first responder for mouse capture", category: .input)
         
-        // Hide the macOS cursor
+        // Hide the macOS cursor (AppKit only)
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
-        // Decouple OS cursor to prevent edge clamp and host click-through
+        // Decouple OS cursor for true capture (prevent host edge clamp/click-through)
         CGAssociateMouseAndMouseCursorPosition(Int32(0))
+        discardNextDelta = true // Drop the first delta after enabling to avoid spikes
+        discardDeltaCount = 0    // No extra discards; rely on single suppress
+        captureSettleUntil = Date().timeIntervalSince1970 + 0.15 // swallow ~150ms of synthetic noise
         
         // Enable mouse capture mode in the game scene
         gameScene?.enableMouseCapture()
@@ -720,13 +706,9 @@ extension GameViewController: NSDraggingDestination {
         // Add mouse tracking area to the view
         setupMouseTracking()
 
-        // Pin OS cursor to window center (convert to CG global coordinates)
-        if let window = view.window, let screen = window.screen {
-            let screenFrame = screen.frame
-            let center = CGPoint(x: window.frame.midX,
-                                 y: screenFrame.maxY - window.frame.midY)
-            CGWarpMouseCursorPosition(center)
-        }
+        // Do not warp OS cursor here
+
+        // Do not warp on enable to avoid visual jump
         
         // Mouse controller will be initialized automatically in enableCaptureMode
         // No need for manual initialization here
@@ -742,7 +724,7 @@ extension GameViewController: NSDraggingDestination {
         // Remove mouse tracking area
         removeMouseTracking()
         
-        // Show the macOS cursor
+        // Show the macOS cursor (AppKit only)
         NSCursor.unhide()
         view.window?.acceptsMouseMovedEvents = false
         // Re-attach OS cursor to hardware mouse
@@ -750,6 +732,7 @@ extension GameViewController: NSDraggingDestination {
         
         // Disable mouse capture mode in the game scene
         gameScene?.disableMouseCapture()
+        captureSettleUntil = nil
         
         infoLog("X68000 mouse capture disabled - Mac cursor visible", category: .input)
     }
@@ -783,13 +766,38 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         if mouseController.isCaptureMode {
-            // Capture mode: raw deltas and keep OS cursor pinned to center each event
+            // Capture mode: use raw deltas and re-center each event
+            if let until = captureSettleUntil, Date().timeIntervalSince1970 < until {
+                // During settle window, keep cursor centered and swallow events
+                if let window = view.window, let screen = window.screen {
+                    let sf = screen.frame
+                    let center = CGPoint(x: window.frame.midX,
+                                         y: sf.maxY - window.frame.midY)
+                    CGWarpMouseCursorPosition(center)
+                    suppressNextMouseEvent = true
+                }
+                return
+            } else if captureSettleUntil != nil {
+                // Settle window elapsed
+                captureSettleUntil = nil
+            }
+            if suppressNextMouseEvent {
+                suppressNextMouseEvent = false
+                return
+            }
+            if discardNextDelta || discardDeltaCount > 0 {
+                discardNextDelta = false
+                if discardDeltaCount > 0 { discardDeltaCount -= 1 }
+                return
+            }
+            // Use macOS deltaY as-is; downstream handles orientation
             mouseController.addDeltas(event.deltaX, event.deltaY)
             if let window = view.window, let screen = window.screen {
-                let screenFrame = screen.frame
+                let sf = screen.frame
                 let center = CGPoint(x: window.frame.midX,
-                                     y: screenFrame.maxY - window.frame.midY)
+                                     y: sf.maxY - window.frame.midY)
                 CGWarpMouseCursorPosition(center)
+                suppressNextMouseEvent = true // next move is synthetic
             }
         } else {
             // Non-capture: use absolute location within the SKView and send direct
@@ -823,8 +831,8 @@ extension GameViewController: NSDraggingDestination {
     override func mouseDown(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
-        
-        // Update position first to avoid stale coordinates on click
+
+        // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         if !mouseController.isCaptureMode {
             if let skView = self.view as? SKView, let scene = skView.scene {
                 let locationInView = skView.convert(event.locationInWindow, from: nil)
@@ -832,6 +840,14 @@ extension GameViewController: NSDraggingDestination {
                 mouseController.SetPosition(locationInScene, scene.size)
             }
         }
+
+        // ダブルクリック判定（OS の clickCount に依存せず自前判定）
+        let isDouble = mouseController.handleDoubleClick(0)
+        if isDouble {
+            mouseController.handleDoubleClickPress(0)
+            return
+        }
+
         mouseController.Click(0, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
         else { mouseController.sendDirectUpdate() }
@@ -840,6 +856,10 @@ extension GameViewController: NSDraggingDestination {
     override func mouseUp(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
+        // 直前でダブルクリックを送出した場合は今回のアップを消費
+        if mouseController.consumeDoubleClickFlag(0) {
+            return
+        }
         mouseController.Click(0, false)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
         else { mouseController.sendDirectUpdate() }
@@ -856,6 +876,11 @@ extension GameViewController: NSDraggingDestination {
                 mouseController.SetPosition(locationInScene, scene.size)
             }
         }
+        let isDouble = mouseController.handleDoubleClick(1)
+        if isDouble {
+            mouseController.handleDoubleClickPress(1)
+            return
+        }
         mouseController.Click(1, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
         else { mouseController.sendDirectUpdate() }
@@ -865,6 +890,9 @@ extension GameViewController: NSDraggingDestination {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         // In capture mode, cursor visibility is managed by enable/disableMouseCapture
+        if mouseController.consumeDoubleClickFlag(1) {
+            return
+        }
         mouseController.Click(1, false)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
         else { mouseController.sendDirectUpdate() }

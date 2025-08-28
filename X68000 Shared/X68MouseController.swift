@@ -16,7 +16,7 @@ class X68MouseController
     var isCaptureMode = false
     
     // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
-    var mouseSensitivity: Float = 0.8
+    var mouseSensitivity: Float = 0.3
     
     var mx : Float = 0.0
     var my : Float = 0.0
@@ -35,14 +35,25 @@ class X68MouseController
     private var pendingRelease: Set<Int> = []
     private var holdUntilFrame: [Int: Int] = [:]
     private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
-    private let minimumHoldSeconds: TimeInterval = 0.06 // UI only
+    private let minimumHoldSeconds: TimeInterval = 0.03 // 修正: 0.06 -> 0.03
     private let minimumHoldFramesCaptureLeft: Int = 3
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
-    private let retriggerGuardInterval: TimeInterval = 0.15 // ignore press soon after release (non-capture)
+    private let retriggerGuardInterval: TimeInterval = 0.08 // 修正: 0.15 -> 0.08
     private let pulseLeftClickInCapture: Bool = false
     private let pulseHoldFrames: Int = 3
+    
+    // 新規追加: ダブルクリック処理
+    private var doubleClickWindow: TimeInterval = 0.45
+    private var doubleClickPulseGap: TimeInterval = 0.12
+    private var doubleClickQueue: [(frame: Int, type: Int, pressed: Bool)] = []
+    private var lastSingleClickTime: [Int: TimeInterval] = [:]
+    private var doubleClickDetected: [Int: Bool] = [:]
+    
+    // 新規追加: 状態管理の改善
+    private var clickProcessing: Set<Int> = []
+    private var scheduledReleases: [Int: DispatchWorkItem] = [:]
     
     var x68k_width: Float = 0.0
     var x68k_height: Float = 0.0
@@ -95,21 +106,56 @@ class X68MouseController
             }
         }
 
+        // Apply scheduled double-click pulses (frame-synchronous) – ensure SCC sees a packet
+        if !doubleClickQueue.isEmpty {
+            var applied = false
+            doubleClickQueue.removeAll { item in
+                if item.frame <= frame {
+                    if item.pressed { button_state |= (1 << item.type) }
+                    else { button_state &= ~(1 << item.type) }
+                    applied = true
+                    return true
+                }
+                return false
+            }
+            if applied {
+                current_button_state = button_state
+        // Force a button-only packet even if no movement this frame (twice for reliability)
+                let l = (current_button_state & 0x1) != 0
+                let r = (current_button_state & 0x2) != 0
+                X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
+                X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
+                X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
+                X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
+                lastSentButtonState = current_button_state
+            }
+        }
+
         // Send updates only on movement or button-change
-        // Clamp tiny residuals to zero to avoid inertia, but very small
-        let deadEps: Float = 0.0003
+        // Clamp tiny residuals to zero to avoid inertia
+        let deadEps: Float = 0.06
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
         let movement = (dx != 0.0 || dy != 0.0)
+        // Prefer movement packets; if no movement, send button-only packet to avoid jitter
         if movement {
-            X68000_Mouse_Set(dx * x68k_width, dy * x68k_height, current_button_state)
+            // Keep button state current via Mouse_Event so MouseStat is correct
+            let leftDown = (current_button_state & 0x1) != 0
+            let rightDown = (current_button_state & 0x2) != 0
+            X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
+            X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
+            // Send relative movement directly to SCC range (no screen scaling)
+            X68000_Mouse_Set(dx, dy, current_button_state)
             dx = 0.0
             dy = 0.0
-            lastSentButtonState = current_button_state
         } else if current_button_state != lastSentButtonState {
-            X68000_Mouse_Set(0, 0, current_button_state)
-            lastSentButtonState = current_button_state
+            // Button-only change: route via Mouse_Event for SCC path
+            let leftDown = (current_button_state & 0x1) != 0
+            let rightDown = (current_button_state & 0x2) != 0
+            X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
+            X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
         }
+        lastSentButtonState = current_button_state
         
         // Sync internal state after sends
         button_state = current_button_state
@@ -134,9 +180,9 @@ class X68MouseController
         
         // Accumulate deltas based on absolute position change (no cumulative filtering)
         dx += (x - old_x) * mouseSensitivity
-        dy += (y - old_y) * mouseSensitivity * -1.0 // invert Y to match X68 expected direction
+        dy += (y - old_y) * mouseSensitivity * -1.0
         // Clamp accumulated deltas to SCC 8-bit safe range per frame
-        let maxStep: Float = 0.25 // tighter per-frame to prevent leaps
+        let maxStep: Float = 0.10 // reduce per-frame movement to improve precision
         if dx > maxStep { dx = maxStep }
         if dx < -maxStep { dx = -maxStep }
         if dy > maxStep { dy = maxStep }
@@ -178,8 +224,11 @@ class X68MouseController
             return
         }
         if !forceAbsolute && tx == lastSentTx && ty == lastSentTy {
-            // Position unchanged: update buttons only (no movement)
-            X68000_Mouse_Set(0, 0, button_state)
+            // Position unchanged: update buttons via Mouse_Event
+            let leftDown = (button_state & 0x1) != 0
+            let rightDown = (button_state & 0x2) != 0
+            X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
+            X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
             lastSentButtonState = button_state
         } else {
             X68000_Mouse_SetDirect(Float(tx), Float(ty), button_state)
@@ -189,10 +238,11 @@ class X68MouseController
         }
     }
 
-    // Accumulate raw deltas (capture mode)
+        // Accumulate raw deltas (capture mode)
     func addDeltas(_ deltaX: CGFloat, _ deltaY: CGFloat) {
+        // Not used in associated+absolute mode; keep for fallback
         let sx = Float(deltaX) * mouseSensitivity
-        let sy = Float(deltaY) * mouseSensitivity * -1.0 // invert Y
+        let sy = Float(deltaY) * mouseSensitivity
         dx += sx
         dy += sy
     }
@@ -207,15 +257,81 @@ class X68MouseController
     func sendButtonOnlyUpdate() {
         // Avoid redundant sends
         if button_state != lastSentButtonState {
-            X68000_Mouse_Set(0, 0, button_state)
+            let leftDown = (button_state & 0x1) != 0
+            let rightDown = (button_state & 0x2) != 0
+            X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
+            X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
             lastSentButtonState = button_state
         }
     }
+    
+    // 新規追加: ダブルクリック判定処理
+    func handleDoubleClick(_ type: Int) -> Bool {
+        let now = Date().timeIntervalSince1970
+        if let lastClick = lastSingleClickTime[type] {
+            if now - lastClick <= doubleClickWindow {
+                doubleClickDetected[type] = true
+                infoLog("🖱️ Double-click detected for button \(type)", category: .input)
+                return true
+            }
+        }
+        lastSingleClickTime[type] = now
+        doubleClickDetected[type] = false
+        return false
+    }
+    
+    // 新規追加: ダブルクリック専用処理
+    func handleDoubleClickPress(_ type: Int) {
+        // フレーム同期の二度押し（SCCのサンプリングに合わせる）
+        let k = 2 // 約36ms間隔 @55Hz（短めにして反応優先）
+        let nowF = self.frame
+        doubleClickQueue.removeAll { $0.type == type }
+        doubleClickQueue.append((frame: nowF + 0, type: type, pressed: true))
+        doubleClickQueue.append((frame: nowF + k, type: type, pressed: false))
+        doubleClickQueue.append((frame: nowF + 2*k, type: type, pressed: true))
+        doubleClickQueue.append((frame: nowF + 3*k, type: type, pressed: false))
+    }
+
+    // 新規追加: ダブルクリック消費フラグ
+    // GameViewController 側で直近のダブルクリック判定を一度だけ無視するために使用
+    func consumeDoubleClickFlag(_ type: Int) -> Bool {
+        let flag = doubleClickDetected[type] ?? false
+        if flag {
+            doubleClickDetected[type] = false
+        }
+        return flag
+    }
+    
+    // 修正: 改善された遅延リリース処理
+    private func scheduleRelease(_ type: Int, delay: TimeInterval) {
+        // 既存の遅延リリースをキャンセル
+        scheduledReleases[type]?.cancel()
+        
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if self.pendingRelease.contains(type) {
+                self.pendingRelease.remove(type)
+                self.button_state &= ~(1<<type)
+                self.sendDirectUpdate()
+            }
+            self.scheduledReleases[type] = nil
+        }
+        
+        scheduledReleases[type] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+    
     func Click(_ type: Int,_ pressed:Bool) {
+        // 修正: 処理中の場合は無視
+        if clickProcessing.contains(type) { return }
+        
         // Ignore duplicate state
         let lastState = lastClickState[type] ?? false
         if lastState == pressed { return }
 
+        clickProcessing.insert(type)
+        defer { clickProcessing.remove(type) }
+        
         lastClickState[type] = pressed
 
         let now = Date().timeIntervalSince1970
@@ -232,8 +348,8 @@ class X68MouseController
                 return
             }
             // Short press debounce (none for capture, small for non-capture)
-            // In capture, add small press debounce to allow double-click separation
-            let debounce: TimeInterval = isCaptureMode ? 0.02 : 0.05
+            // 修正: デバウンス間隔の調整
+            let debounce: TimeInterval = isCaptureMode ? 0.01 : 0.02
             if let lp = lastPressTime[type] {
                 if now - lp < debounce { return }
             }
@@ -255,17 +371,10 @@ class X68MouseController
                 button_state &= ~(1<<type)
             } else {
                 if needDelay {
-                    // Defer on main queue to simulate hold time
+                    // 修正: 改善された遅延処理を使用
                     let delay = minimumHoldSeconds - sinceDown
                     pendingRelease.insert(type)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                        guard let self = self else { return }
-                        if self.pendingRelease.contains(type) {
-                            self.pendingRelease.remove(type)
-                            self.button_state &= ~(1<<type)
-                            self.sendDirectUpdate()
-                        }
-                    }
+                    scheduleRelease(type, delay: delay)
                 } else {
                     button_state &= ~(1<<type)
                 }
@@ -289,9 +398,14 @@ class X68MouseController
         dx = 0.0
         dy = 0.0
         
-        // Reset to center position to ensure consistent starting point
-        ResetPosition(0.5, 0.5)
+        // Keep last known normalized position; do not recenter here
         
+        // Clear any accumulated core-side deltas to prevent initial drift
+        X68000_Mouse_ResetState()
+        // Do not send any absolute/relative packet here; first real movement will initialize
+        
+        // Enable core-side capture as well（リセットは済）
+        X68000_Mouse_StartCapture(1)
         // debugLog("Mouse controller capture mode enabled", category: .input)
     }
     
@@ -312,28 +426,19 @@ class X68MouseController
         lastClickTime.removeAll()
         lastClickState.removeAll()
         
-        // Send multiple stop commands to ensure X68000 mouse system stops completely
-        if x68k_width > 0 && x68k_height > 0 {
-            // First try to counteract any ongoing movement with large opposite deltas
-            X68000_Mouse_Set(-1000, -1000, 0) // Large negative deltas to counteract right-down drift
-            X68000_Mouse_Set(-500, -500, 0)   // Medium negative deltas
-            X68000_Mouse_Set(-100, -100, 0)   // Small negative deltas
-            
-            // Send zero deltas multiple times to ensure complete stop
-            for _ in 0..<10 {
-                X68000_Mouse_Set(0, 0, 0)
-            }
-            
-            // Set stable center position
-            X68000_Mouse_SetDirect(x68k_width/2, x68k_height/2, 0)
-            
-            // Send more zeros to be absolutely sure
-            for _ in 0..<5 {
-                X68000_Mouse_Set(0, 0, 0)
-            }
-        }
+        // 修正: 新しい状態管理のクリア
+        clickProcessing.removeAll()
+        scheduledReleases.values.forEach { $0.cancel() }
+        scheduledReleases.removeAll()
+        lastSingleClickTime.removeAll()
+        doubleClickDetected.removeAll()
         
+        // Do not inject corrective deltas or center here to avoid side-effects
+        
+        // Disable core-side capture
+        X68000_Mouse_StartCapture(0)
         // debugLog("Mouse controller capture mode disabled", category: .input)
     }
     
 }
+

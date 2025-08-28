@@ -134,6 +134,8 @@ class GameScene: SKScene {
             t.alpha = 1.0
         }
     }
+
+    // (Removed duplicate update override; using main update loop below)
     
     func load(url: URL) {
         // debugLog("GameScene.load() called with: \(url.lastPathComponent)", category: .fileSystem)

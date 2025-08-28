@@ -730,6 +730,36 @@ void X68000_GetImage( unsigned char* data ) {
     }
 }
 
+// Expose core mouse capture toggle to Swift
+void X68000_Mouse_StartCapture(int flag) {
+    Mouse_StartCapture(flag);
+    if (flag) {
+        // Do nothing else here; Swift side already reset before enabling
+    }
+}
+
+// Bridge Mouse_Event for movement and button state updates
+void X68000_Mouse_Event(int param, float dx, float dy) {
+    Mouse_Event(param, dx, dy);
+}
+
+// Expose mouse state reset (clears accumulated deltas and last state)
+void X68000_Mouse_ResetState(void) {
+    Mouse_ResetState();
+}
+
+// Set absolute mouse position in X68K memory, with no relative movement
+void X68000_Mouse_SetAbsolute(float x, float y) {
+    WORD xx = (WORD)x;
+    WORD yy = (WORD)y;
+    BYTE* mouse = &MEM[0xace];
+    *mouse++ = ((BYTE*)&xx)[0];
+    *mouse++ = ((BYTE*)&xx)[1];
+    *mouse++ = ((BYTE*)&yy)[0];
+    *mouse++ = ((BYTE*)&yy)[1];
+    // Do not touch MouseX/MouseY here; leave relative queue untouched
+}
+
 void FDD_SetFD(int drive, char* filename, int readonly);
 
 BYTE* s_disk_image_buffer[5] = {0};    // Dynamic allocation up to 80MB
@@ -962,6 +992,11 @@ void X68000_Mouse_Set( float x, float y, const long button )
     MouseX = (signed char)ix;
     MouseY = (signed char)iy;
     MouseSt = button;
+    // If no movement but button change, keep MouseX/MouseY at 0 to avoid spurious drift
+    if ((int)x == 0 && (int)y == 0) {
+        MouseX = 0;
+        MouseY = 0;
+    }
     
     
     /*

@@ -18,6 +18,10 @@ const int X68000_GetScreenHeight();
 
 void X68000_Mouse_Set( float x, float y, long button );
 void X68000_Mouse_SetDirect( float x, float y, long button );
+void X68000_Mouse_StartCapture(int flag);
+void X68000_Mouse_Event(int param, float dx, float dy);
+void X68000_Mouse_ResetState(void);
+void X68000_Mouse_SetAbsolute(float x, float y);
 
 unsigned char* X68000_GetSRAMPointer();
 unsigned char* X68000_GetCGROMPointer(); // added by Awed 2023/10/7
