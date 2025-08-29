@@ -215,6 +215,9 @@ class X68MouseController
     
     // Send current state immediately to the emulator (for non-capture mode)
     func sendDirectUpdate(forceAbsolute: Bool = false) {
+        // In non-capture mode, do not send position updates on host mouse moves
+        // This function is now only used for button updates in non-capture or
+        // explicit absolute sends when forceAbsolute is true from UI actions.
         // Require valid screen size to avoid zero output
         guard x68k_width > 0 && x68k_height > 0 else { return }
         let tx = Int(mx * x68k_width)
@@ -223,13 +226,14 @@ class X68MouseController
         if !forceAbsolute && tx == lastSentTx && ty == lastSentTy && button_state == lastSentButtonState {
             return
         }
-        if !forceAbsolute && tx == lastSentTx && ty == lastSentTy {
-            // Position unchanged: update buttons via Mouse_Event
+        if !forceAbsolute {
+            // Do not move pointer in non-capture path; only reflect buttons
             let leftDown = (button_state & 0x1) != 0
             let rightDown = (button_state & 0x2) != 0
             X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
             X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
             lastSentButtonState = button_state
+            return
         } else {
             X68000_Mouse_SetDirect(Float(tx), Float(ty), button_state)
             lastSentTx = tx

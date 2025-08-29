@@ -796,19 +796,8 @@ extension GameViewController: NSDraggingDestination {
                 suppressNextMouseEvent = true // next move is synthetic
             }
         } else {
-            // Non-capture: use absolute location within the SKView and send direct
-            let viewPoint = event.locationInWindow
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(viewPoint, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
-                // Ensure screen size is known
-                let w = Float(X68000_GetScreenWidth())
-                let h = Float(X68000_GetScreenHeight())
-                mouseController.SetScreenSize(width: w, height: h)
-                // Do not push absolute packet here; button handlers will send button-only updates.
-                // This avoids extra Mouse_SetDirect between the two clicks that can break double-click detection.
-            }
+            // Non-capture: ignore macOS mouse movement entirely to avoid visual drift in emulator
+            return
         }
     }
 
@@ -829,13 +818,7 @@ extension GameViewController: NSDraggingDestination {
               let mouseController = gameScene.mouseController else { return }
 
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
-        if !mouseController.isCaptureMode {
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(event.locationInWindow, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
-            }
-        }
+        // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
 
         // ダブルクリック判定（OS の clickCount に依存せず自前判定）
         let isDouble = mouseController.handleDoubleClick(0)
@@ -846,7 +829,6 @@ extension GameViewController: NSDraggingDestination {
 
         mouseController.Click(0, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
-        else { mouseController.sendDirectUpdate() }
     }
     
     override func mouseUp(with event: NSEvent) {
@@ -865,13 +847,7 @@ extension GameViewController: NSDraggingDestination {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         // In capture mode, cursor visibility is managed by enable/disableMouseCapture
-        if !mouseController.isCaptureMode {
-            if let skView = self.view as? SKView, let scene = skView.scene {
-                let locationInView = skView.convert(event.locationInWindow, from: nil)
-                let locationInScene = scene.convertPoint(fromView: locationInView)
-                mouseController.SetPosition(locationInScene, scene.size)
-            }
-        }
+        // 修正: マウスモードOFFでは座標を更新しない
         let isDouble = mouseController.handleDoubleClick(1)
         if isDouble {
             mouseController.handleDoubleClickPress(1)
@@ -879,7 +855,6 @@ extension GameViewController: NSDraggingDestination {
         }
         mouseController.Click(1, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
-        else { mouseController.sendDirectUpdate() }
     }
     
     override func rightMouseUp(with event: NSEvent) {
