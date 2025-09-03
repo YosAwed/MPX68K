@@ -249,7 +249,7 @@
 		535D07B12E685E1D00CF5265 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		535D07B32E685E2900CF5265 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 macOS-Bridging-Header.h"; sourceTree = "<group>"; };
-		535D07B62E685ED400CF5265 /* ppi_8255.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi_8255.h; sourceTree = "<group>"; };
+		535D07B72E686CB300CF5265 /* ppi_8255.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi_8255.h; sourceTree = "<group>"; };
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
 		53A861182E4375CA0056E4DE /* X68Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Logger.swift; sourceTree = "<group>"; };
 		53A861192E4375CA0056E4DE /* X68Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Security.swift; sourceTree = "<group>"; };
@@ -454,7 +454,7 @@
 				07F4C71D2430667D002CF5CA /* midi.h */,
 				07F4C6FC2430667A002CF5CA /* palette.c */,
 				07F4C6F42430667A002CF5CA /* palette.h */,
-				535D07B62E685ED400CF5265 /* ppi_8255.h */,
+				535D07B72E686CB300CF5265 /* ppi_8255.h */,
 				535D07AC2E685DF900CF5265 /* ppi.h */,
 				535D07AF2E685E0300CF5265 /* ppi.c */,
 				07F4C7042430667B002CF5CA /* pia.c */,
