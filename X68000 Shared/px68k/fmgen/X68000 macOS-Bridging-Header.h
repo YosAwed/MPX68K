@@ -43,3 +43,7 @@ const int X68000_IsHDDDirty();
 const long X68000_GetMIDIBufferSize();
 unsigned char* X68000_GetMIDIBuffer();
 
+// PPI (JoyportU) functions
+void PPI_SetJoyportUMode(int mode);
+int PPI_GetJoyportUMode(void);
+

@@ -64,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Initial menu update once after app launch  
         DispatchQueue.main.async { [weak self] in
             self?.updateMenuTitles()
+            self?.updateJoyportUMenuCheckmarks()
         }
         
         // Listen for disk image loading notifications to update menus
@@ -172,6 +173,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     
                     // debugLog("Found settings menu: \(submenu.title)", category: .ui)
                     addAutoMountMenuItem(to: submenu)
+                    addJoyportUMenuItem(to: submenu)
                     return
                 }
             }
@@ -182,6 +184,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
            let firstSubmenu = firstMenuItem.submenu {
             // debugLog("Adding auto-mount setting to app menu as fallback", category: .ui)
             addAutoMountMenuItem(to: firstSubmenu)
+            addJoyportUMenuItem(to: firstSubmenu)
         }
     }
     
@@ -296,6 +299,67 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.insertItem(diskStateMenuItem, at: insertIndex)
         
         infoLog("Added 'Disk State Management' menu with AutoMountMode options", category: .ui)
+    }
+    
+    private func addJoyportUMenuItem(to menu: NSMenu) {
+        // Create JoyportU submenu
+        let joyportUSubmenu = NSMenu(title: "JoyportU Settings")
+        let joyportUMenuItem = NSMenuItem(
+            title: "JoyportU Settings",
+            action: nil,
+            keyEquivalent: ""
+        )
+        joyportUMenuItem.submenu = joyportUSubmenu
+        
+        // JoyportU mode options
+        let disabledItem = NSMenuItem(
+            title: "Disabled",
+            action: #selector(setJoyportUDisabled(_:)),
+            keyEquivalent: ""
+        )
+        disabledItem.target = self
+        disabledItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-disabled")
+        
+        let notifyModeItem = NSMenuItem(
+            title: "Notify Mode",
+            action: #selector(setJoyportUNotifyMode(_:)),
+            keyEquivalent: ""
+        )
+        notifyModeItem.target = self
+        notifyModeItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-notifyMode")
+        
+        let commandModeItem = NSMenuItem(
+            title: "Command Mode",
+            action: #selector(setJoyportUCommandMode(_:)),
+            keyEquivalent: ""
+        )
+        commandModeItem.target = self
+        commandModeItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-commandMode")
+        
+        // Add mode items to submenu
+        joyportUSubmenu.addItem(disabledItem)
+        joyportUSubmenu.addItem(notifyModeItem)
+        joyportUSubmenu.addItem(commandModeItem)
+        
+        // Find insertion point before Quit menu item
+        var insertIndex = menu.items.count
+        for (index, item) in menu.items.enumerated() {
+            if item.keyEquivalent == "q" && item.action == #selector(NSApplication.terminate(_:)) {
+                insertIndex = index
+                break
+            }
+        }
+        
+        // Add separator before JoyportU Settings if not already present
+        if insertIndex > 0 && !menu.items[insertIndex - 1].isSeparatorItem {
+            let separator = NSMenuItem.separator()
+            menu.insertItem(separator, at: insertIndex)
+            insertIndex += 1
+        }
+        
+        menu.insertItem(joyportUMenuItem, at: insertIndex)
+        
+        infoLog("Added 'JoyportU Settings' menu with mode options", category: .ui)
     }
     
     // Manual menu update when files are opened/closed
@@ -907,6 +971,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     }
                 }
                 break
+            }
+        }
+    }
+    
+    // MARK: - JoyportU Settings Actions
+    @objc private func setJoyportUDisabled(_ sender: Any) {
+        infoLog("Setting JoyportU mode to Disabled", category: .ui)
+        gameViewController?.setJoyportUMode(0)
+        updateJoyportUMenuCheckmarks()
+    }
+    
+    @objc private func setJoyportUNotifyMode(_ sender: Any) {
+        infoLog("Setting JoyportU mode to Notify Mode", category: .ui)
+        gameViewController?.setJoyportUMode(1)
+        updateJoyportUMenuCheckmarks()
+    }
+    
+    @objc private func setJoyportUCommandMode(_ sender: Any) {
+        infoLog("Setting JoyportU mode to Command Mode", category: .ui)
+        gameViewController?.setJoyportUMode(2)
+        updateJoyportUMenuCheckmarks()
+    }
+    
+    private func updateJoyportUMenuCheckmarks() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        
+        let currentMode = gameViewController?.getJoyportUMode() ?? 0
+        
+        // Find and update JoyportU menu items
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu {
+                for subMenuItem in submenu.items {
+                    if let subSubmenu = subMenuItem.submenu,
+                       subMenuItem.title == "JoyportU Settings" {
+                        for joyportUItem in subSubmenu.items {
+                            switch joyportUItem.identifier?.rawValue {
+                            case "JoyportU-disabled":
+                                joyportUItem.state = (currentMode == 0) ? .on : .off
+                            case "JoyportU-notifyMode":
+                                joyportUItem.state = (currentMode == 1) ? .on : .off
+                            case "JoyportU-commandMode":
+                                joyportUItem.state = (currentMode == 2) ? .on : .off
+                            default:
+                                break
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -654,29 +654,7 @@ class GameScene: SKScene {
             titleSprite.run(sequence)
         }
         
-        let w = (self.size.width + self.size.height) * 0.05
-        self.spinnyNode = SKShapeNode(rectOf: CGSize(width: w, height: w), cornerRadius: w * 0.3)
-        
-        if let spinnyNode = self.spinnyNode {
-            spinnyNode.lineWidth = 20.0
-            
-            // Spinner animation
-            let rotateAction = SKAction.rotate(byAngle: CGFloat(Double.pi), duration: 1)
-            let repeatAction = SKAction.repeatForever(rotateAction)
-            spinnyNode.run(repeatAction)
-            
-            spinnyNode.fillColor = SKColor.green
-            spinnyNode.strokeColor = SKColor.green
-            spinnyNode.position = CGPoint(x: 0, y: 0)
-            self.addChild(spinnyNode)
-            
-            // Remove spinner after a delay
-            let removeAction = SKAction.run {
-                spinnyNode.removeFromParent()
-            }
-            let waitAndRemove = SKAction.sequence([SKAction.wait(forDuration: 8.0), removeAction])
-            spinnyNode.run(waitAndRemove)
-        }
+        // Spinny node creation removed to eliminate green square at startup
         
         #if os(iOS)
         let tapGes = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
@@ -1453,7 +1431,7 @@ extension GameScene {
             let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
             
             if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-                self.makeSpinny(at: location, color: SKColor.green)
+                // self.makeSpinny(at: location, color: SKColor.green) // Removed to eliminate green square
             }
             break
         }

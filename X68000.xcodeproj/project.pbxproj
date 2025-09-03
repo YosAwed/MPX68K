@@ -60,8 +60,6 @@
 		07F4C7542430667D002CF5CA /* ioc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71F2430667D002CF5CA /* ioc.c */; };
 		07F4C7562430667D002CF5CA /* disk_xdf.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7202430667D002CF5CA /* disk_xdf.c */; };
 		07F4C7592430A73C002CF5CA /* AudioStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7572430A73C002CF5CA /* AudioStream.swift */; };
-		07F863BF242F93EA00CBB224 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863BE242F93EA00CBB224 /* AppDelegate.swift */; };
-		07F863C1242F93EA00CBB224 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863C0242F93EA00CBB224 /* GameViewController.swift */; };
 		07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 07F863C2242F93EA00CBB224 /* Main.storyboard */; };
 		07F863C7242F93EA00CBB224 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 07F863A2242F93E800CBB224 /* Actions.sks */; };
 		07F863CB242F93EA00CBB224 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F863A4242F93E800CBB224 /* GameScene.swift */; };
@@ -80,6 +78,9 @@
 		07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */ = {isa = PBXBuildFile; fileRef = 07F864B2242F97BE00CBB224 /* menu_str_sjis.txt */; };
 		07F864D9242F97BE00CBB224 /* status.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B4242F97BE00CBB224 /* status.c */; };
 		07F864DB242F97BE00CBB224 /* timer.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864B7242F97BE00CBB224 /* timer.c */; };
+		535D07B02E685E0300CF5265 /* ppi.c in Sources */ = {isa = PBXBuildFile; fileRef = 535D07AF2E685E0300CF5265 /* ppi.c */; };
+		535D07B22E685E1D00CF5265 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B12E685E1D00CF5265 /* AppDelegate.swift */; };
+		535D07B42E685E2900CF5265 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B32E685E2900CF5265 /* GameViewController.swift */; };
 		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
 		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
@@ -201,12 +202,9 @@
 		07F863A4242F93E800CBB224 /* GameScene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
 		07F863A5242F93EA00CBB224 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		07F863BC242F93EA00CBB224 /* X68000.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = X68000.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		07F863BE242F93EA00CBB224 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		07F863C0242F93EA00CBB224 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		07F863C3242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		07F863C5242F93EA00CBB224 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		07F863D8242F944100CBB224 /* X68000 iOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 iOS-Bridging-Header.h"; sourceTree = "<group>"; };
-		07F863D9242F944100CBB224 /* X68000 macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 macOS-Bridging-Header.h"; sourceTree = "<group>"; };
 		07F86403242F94BB00CBB224 /* dosio.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dosio.c; sourceTree = "<group>"; };
 		07F86404242F94BB00CBB224 /* peace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = peace.c; sourceTree = "<group>"; };
 		07F86405242F94BB00CBB224 /* peace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = peace.h; sourceTree = "<group>"; };
@@ -246,6 +244,12 @@
 		07F864B4242F97BE00CBB224 /* status.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = status.c; sourceTree = "<group>"; };
 		07F864B7242F97BE00CBB224 /* timer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = timer.c; sourceTree = "<group>"; };
 		3DD3E14A263EC71A001A75F0 /* X68000Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = X68000Debug.entitlements; sourceTree = "<group>"; };
+		535D07AC2E685DF900CF5265 /* ppi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi.h; sourceTree = "<group>"; };
+		535D07AF2E685E0300CF5265 /* ppi.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ppi.c; sourceTree = "<group>"; };
+		535D07B12E685E1D00CF5265 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		535D07B32E685E2900CF5265 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 macOS-Bridging-Header.h"; sourceTree = "<group>"; };
+		535D07B62E685ED400CF5265 /* ppi_8255.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi_8255.h; sourceTree = "<group>"; };
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
 		53A861182E4375CA0056E4DE /* X68Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Logger.swift; sourceTree = "<group>"; };
 		53A861192E4375CA0056E4DE /* X68Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Security.swift; sourceTree = "<group>"; };
@@ -337,8 +341,8 @@
 			children = (
 				3DD3E14A263EC71A001A75F0 /* X68000Debug.entitlements */,
 				078594F624335FF700B5F09C /* X68000.entitlements */,
-				07F863BE242F93EA00CBB224 /* AppDelegate.swift */,
-				07F863C0242F93EA00CBB224 /* GameViewController.swift */,
+				535D07B32E685E2900CF5265 /* GameViewController.swift */,
+				535D07B12E685E1D00CF5265 /* AppDelegate.swift */,
 				07F863C2242F93EA00CBB224 /* Main.storyboard */,
 				07F863C5242F93EA00CBB224 /* Info.plist */,
 			);
@@ -381,7 +385,7 @@
 				07F4C6CB2430664A002CF5CA /* opm.cpp */,
 				07F4C6D52430664B002CF5CA /* opm.h */,
 				07F863D8242F944100CBB224 /* X68000 iOS-Bridging-Header.h */,
-				07F863D9242F944100CBB224 /* X68000 macOS-Bridging-Header.h */,
+				535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */,
 			);
 			path = fmgen;
 			sourceTree = "<group>";
@@ -450,6 +454,9 @@
 				07F4C71D2430667D002CF5CA /* midi.h */,
 				07F4C6FC2430667A002CF5CA /* palette.c */,
 				07F4C6F42430667A002CF5CA /* palette.h */,
+				535D07B62E685ED400CF5265 /* ppi_8255.h */,
+				535D07AC2E685DF900CF5265 /* ppi.h */,
+				535D07AF2E685E0300CF5265 /* ppi.c */,
 				07F4C7042430667B002CF5CA /* pia.c */,
 				07F4C71C2430667D002CF5CA /* pia.h */,
 				07F4C71E2430667D002CF5CA /* rtc.c */,
@@ -619,6 +626,7 @@
 		07F863B8242F93EA00CBB224 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				535D07B42E685E2900CF5265 /* GameViewController.swift in Sources */,
 				07F4C7542430667D002CF5CA /* ioc.c in Sources */,
 				07F86410242F94BB00CBB224 /* fake.c in Sources */,
 				07F4C6C8243065F9002CF5CA /* m68000.c in Sources */,
@@ -650,6 +658,7 @@
 				0764421B243328C3006E5208 /* FileSystem.swift in Sources */,
 				07F4C7262430667D002CF5CA /* midi.c in Sources */,
 				07F4C7422430667D002CF5CA /* mfp.c in Sources */,
+				535D07B22E685E1D00CF5265 /* AppDelegate.swift in Sources */,
 				07F4C7592430A73C002CF5CA /* AudioStream.swift in Sources */,
 				07F4C7462430667D002CF5CA /* bg.c in Sources */,
 				07F4C7442430667D002CF5CA /* sysport.c in Sources */,
@@ -662,6 +671,7 @@
 				07F4C74C2430667D002CF5CA /* disk_dim.c in Sources */,
 				0786963E243DBB73007FCCEA /* TAAnalogJoyStick.swift in Sources */,
 				07F4C7402430667D002CF5CA /* fdd.c in Sources */,
+				535D07B02E685E0300CF5265 /* ppi.c in Sources */,
 				07B71D7D243A350500953E25 /* MIDIController.swift in Sources */,
 				07F8640E242F94BB00CBB224 /* peace.c in Sources */,
 				07F4C74A2430667D002CF5CA /* scc.c in Sources */,
@@ -672,9 +682,7 @@
 				07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */,
 				07F4C7562430667D002CF5CA /* disk_xdf.c in Sources */,
 				07F864BD242F97BE00CBB224 /* windraw.c in Sources */,
-				07F863C1242F93EA00CBB224 /* GameViewController.swift in Sources */,
 				07F864D3242F97BE00CBB224 /* common.c in Sources */,
-				07F863BF242F93EA00CBB224 /* AppDelegate.swift in Sources */,
 				07F4C72E2430667D002CF5CA /* adpcm.c in Sources */,
 				07F4C7382430667D002CF5CA /* palette.c in Sources */,
 				07F864C3242F97BE00CBB224 /* keyboard.c in Sources */,

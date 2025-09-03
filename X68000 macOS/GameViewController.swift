@@ -868,5 +868,17 @@ extension GameViewController: NSDraggingDestination {
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
         else { mouseController.sendDirectUpdate() }
     }
+    
+    // MARK: - JoyportU Settings
+    func setJoyportUMode(_ mode: Int) {
+        infoLog("Setting JoyportU mode to \(mode)", category: .input)
+        // Call C function to set PPI JoyportU mode
+        PPI_SetJoyportUMode(Int32(mode))
+    }
+    
+    func getJoyportUMode() -> Int {
+        // Call C function to get PPI JoyportU mode
+        return Int(PPI_GetJoyportUMode())
+    }
 }
 
