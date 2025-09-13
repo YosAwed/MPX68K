@@ -45,7 +45,7 @@ class X68MouseController
     private let pulseHoldFrames: Int = 3
     
     // 新規追加: ダブルクリック処理
-    private var doubleClickWindow: TimeInterval = 0.45
+    private var doubleClickWindow: TimeInterval = 0.25  // 修正: 超高速連続クリック検出（250ms）
     private var doubleClickPulseGap: TimeInterval = 0.12
     private var doubleClickQueue: [(frame: Int, type: Int, pressed: Bool)] = []
     private var lastSingleClickTime: [Int: TimeInterval] = [:]
@@ -109,8 +109,10 @@ class X68MouseController
         // Apply scheduled double-click pulses (frame-synchronous) – ensure SCC sees a packet
         if !doubleClickQueue.isEmpty {
             var applied = false
+            let processedEvents = doubleClickQueue.filter { $0.frame <= frame }
             doubleClickQueue.removeAll { item in
                 if item.frame <= frame {
+                    infoLog("🖱️ Processing double-click event: frame=\(item.frame), type=\(item.type), pressed=\(item.pressed)", category: .input)
                     if item.pressed { button_state |= (1 << item.type) }
                     else { button_state &= ~(1 << item.type) }
                     applied = true
@@ -120,13 +122,23 @@ class X68MouseController
             }
             if applied {
                 current_button_state = button_state
-        // Force a button-only packet even if no movement this frame (twice for reliability)
+        // Force direct SCC transmission for double-click (multiple methods for reliability)
                 let l = (current_button_state & 0x1) != 0
                 let r = (current_button_state & 0x2) != 0
+                infoLog("🖱️ Sending double-click to emulator: left=\(l), right=\(r), button_state=\(current_button_state)", category: .input)
+
+                // Method 1: Mouse_Event calls
                 X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
                 X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
+
+                // Method 2: Direct SCC packet via Mouse_Set (ensure SCC sees the state)
+                X68000_Mouse_Set(0.0, 0.0, current_button_state)
+
+                // Method 3: Repeat for emphasis (double-click needs to be obvious)
                 X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
                 X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
+                X68000_Mouse_Set(0.0, 0.0, current_button_state)
+
                 lastSentButtonState = current_button_state
             }
         }
@@ -275,6 +287,7 @@ class X68MouseController
         if let lastClick = lastSingleClickTime[type] {
             if now - lastClick <= doubleClickWindow {
                 doubleClickDetected[type] = true
+                lastSingleClickTime[type] = now // 修正: ダブルクリック検出時も時間を更新
                 infoLog("🖱️ Double-click detected for button \(type)", category: .input)
                 return true
             }
@@ -286,14 +299,23 @@ class X68MouseController
     
     // 新規追加: ダブルクリック専用処理
     func handleDoubleClickPress(_ type: Int) {
-        // フレーム同期の二度押し（SCCのサンプリングに合わせる）
-        let k = 2 // 約36ms間隔 @55Hz（短めにして反応優先）
+        // より遅いダブルクリックタイミング - VS.X互換性重視
+        let pressFrames = 11  // 約200ms @55Hz - 長いクリック時間
+        let releaseFrames = 6 // 約109ms @55Hz - 長いリリース時間
+        let gapFrames = 11    // 約200ms @55Hz - 長いクリック間隔
         let nowF = self.frame
         doubleClickQueue.removeAll { $0.type == type }
+
+        // 極高速連打: press→release→(即座に)press→release
         doubleClickQueue.append((frame: nowF + 0, type: type, pressed: true))
-        doubleClickQueue.append((frame: nowF + k, type: type, pressed: false))
-        doubleClickQueue.append((frame: nowF + 2*k, type: type, pressed: true))
-        doubleClickQueue.append((frame: nowF + 3*k, type: type, pressed: false))
+        doubleClickQueue.append((frame: nowF + pressFrames, type: type, pressed: false))
+        doubleClickQueue.append((frame: nowF + pressFrames + releaseFrames + gapFrames, type: type, pressed: true))
+        doubleClickQueue.append((frame: nowF + pressFrames + releaseFrames + gapFrames + pressFrames, type: type, pressed: false))
+
+        let frames = [nowF, nowF + pressFrames, nowF + pressFrames + releaseFrames + gapFrames, nowF + pressFrames + releaseFrames + gapFrames + pressFrames]
+        infoLog("🖱️ Ultra-fast consecutive clicks: frame=\(nowF), events at frames \(frames)", category: .input)
+        infoLog("🖱️ Ultra timing: press=\(pressFrames)f(~\(Int(Double(pressFrames)/55.0*1000))ms), release=\(releaseFrames)f, gap=\(gapFrames)f", category: .input)
+        infoLog("🖱️ Total duration: ~\(Int(Double(pressFrames + releaseFrames + gapFrames + pressFrames)/55.0*1000))ms (app-level detection)", category: .input)
     }
 
     // 新規追加: ダブルクリック消費フラグ

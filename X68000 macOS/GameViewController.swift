@@ -11,6 +11,22 @@ import SpriteKit
 import GameplayKit
 import UniformTypeIdentifiers
 
+// MARK: - Serial Communication Support
+
+public enum SCCMode: Int32 {
+    case mouseOnly = 0
+    case serialPTY = 1
+    case serialTCP = 2
+    case serialFile = 3
+    case serialTCPServer = 4
+}
+
+// SCC Function declarations
+@_silgen_name("SCC_Init") func SCC_Init()
+@_silgen_name("SCC_SetMode") func SCC_SetMode(_ mode: Int32, _ config: UnsafePointer<CChar>?) -> Int32
+@_silgen_name("SCC_CloseSerial") func SCC_CloseSerial()
+@_silgen_name("SCC_GetSlavePath") func SCC_GetSlavePath() -> UnsafePointer<CChar>?
+
 // MARK: - Custom SKView for Mouse Event Forwarding
 
 class MouseCaptureSKView: SKView {
@@ -76,6 +92,10 @@ class GameViewController: NSViewController {
     
     static weak var shared: GameViewController?
     var gameScene: GameScene?
+    
+    // Serial Communication Manager wrapper
+    internal var currentSerialMode: SCCMode = .mouseOnly
+    internal var isSerialConnected: Bool = false
     
     // Mouse tracking for mouse capture mode
     private var mouseTrackingArea: NSTrackingArea?
@@ -412,6 +432,9 @@ class GameViewController: NSViewController {
         // 静的参照を設定
         GameViewController.shared = self
         // debugLog("GameViewController.shared set in viewDidLoad", category: .ui)
+        
+        // Initialize SCC for serial communication
+        SCC_Init()
         
         gameScene = GameScene.newGameScene()
         
@@ -820,21 +843,24 @@ extension GameViewController: NSDraggingDestination {
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
 
-        // ダブルクリック判定（OS の clickCount に依存せず自前判定）
+        // Disable macOS native double-click detection - let VS.X handle it
+        // 修正: macOSネイティブダブルクリック検出を無効化し、VS.Xに委ねる
         let isDouble = mouseController.handleDoubleClick(0)
         if isDouble {
+            infoLog("🖱️ GameViewController: Left double-click detected, scheduling press events", category: .input)
             mouseController.handleDoubleClickPress(0)
-            return
+            // 修正: ダブルクリック時は通常のClick処理をスキップ（キューイベントに委ねる）
+        } else {
+            mouseController.Click(0, true)
         }
-
-        mouseController.Click(0, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
     }
     
     override func mouseUp(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
-        // 直前でダブルクリックを送出した場合は今回のアップを消費
+        // Use custom double-click handling instead of macOS native
+        // 修正: カスタムダブルクリック処理を使用、macOSネイティブは無効化
         if mouseController.consumeDoubleClickFlag(0) {
             return
         }
@@ -850,10 +876,12 @@ extension GameViewController: NSDraggingDestination {
         // 修正: マウスモードOFFでは座標を更新しない
         let isDouble = mouseController.handleDoubleClick(1)
         if isDouble {
+            infoLog("🖱️ GameViewController: Right double-click detected, scheduling press events", category: .input)
             mouseController.handleDoubleClickPress(1)
-            return
+            // 修正: ダブルクリック時は通常のClick処理をスキップ（キューイベントに委ねる）
+        } else {
+            mouseController.Click(1, true)
         }
-        mouseController.Click(1, true)
         if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
     }
     
@@ -879,6 +907,112 @@ extension GameViewController: NSDraggingDestination {
     func getJoyportUMode() -> Int {
         // Call C function to get PPI JoyportU mode
         return Int(PPI_GetJoyportUMode())
+    }
+    
+    // MARK: - Serial Communication Management
+    
+    var sccManager: SCCManagerProxy {
+        return SCCManagerProxy(gameViewController: self)
+    }
+    
+    func setSerialMouseOnly() -> Bool {
+        let result = SCC_SetMode(SCCMode.mouseOnly.rawValue, nil)
+        if result == 0 {
+            currentSerialMode = .mouseOnly
+            isSerialConnected = false
+            return true
+        }
+        return false
+    }
+    
+    func createSerialPTY() -> Bool {
+        let result = SCC_SetMode(SCCMode.serialPTY.rawValue, nil)
+        if result == 0 {
+            currentSerialMode = .serialPTY
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func connectSerialTCP(host: String, port: Int) -> Bool {
+        let config = "\(host):\(port)"
+        let result = config.withCString { ptr in SCC_SetMode(SCCMode.serialTCP.rawValue, ptr) }
+        if result == 0 {
+            currentSerialMode = .serialTCP
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func startSerialTCPServer(port: Int) -> Bool {
+        let config = "\(port)"
+        let result = config.withCString { ptr in SCC_SetMode(SCCMode.serialTCPServer.rawValue, ptr) }
+        if result == 0 {
+            currentSerialMode = .serialTCPServer
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func disconnectSerial() {
+        SCC_CloseSerial()
+        currentSerialMode = .mouseOnly
+        isSerialConnected = false
+    }
+    
+    func getPTYSlavePath() -> String? {
+        if let cPath = SCC_GetSlavePath() {
+            return String(cString: cPath)
+        }
+        return nil
+    }
+    
+    func getScreenCommand() -> String? {
+        if let slavePath = getPTYSlavePath() {
+            return "screen \(slavePath) 9600"
+        }
+        return nil
+    }
+}
+
+// MARK: - SCCManager Proxy for AppDelegate compatibility
+
+struct SCCManagerProxy {
+    weak var gameViewController: GameViewController?
+    
+    var currentMode: SCCMode {
+        return gameViewController?.currentSerialMode ?? .mouseOnly
+    }
+    
+    func setMouseOnlyMode() -> Bool {
+        return gameViewController?.setSerialMouseOnly() ?? false
+    }
+    
+    func createPTY() -> Bool {
+        return gameViewController?.createSerialPTY() ?? false
+    }
+    
+    func connectTCP(host: String, port: Int) -> Bool {
+        return gameViewController?.connectSerialTCP(host: host, port: port) ?? false
+    }
+    
+    func startTCPServer(port: Int) -> Bool {
+        return gameViewController?.startSerialTCPServer(port: port) ?? false
+    }
+    
+    func disconnect() {
+        gameViewController?.disconnectSerial()
+    }
+    
+    func getPTYSlavePath() -> String? {
+        return gameViewController?.getPTYSlavePath()
+    }
+    
+    func getScreenCommand() -> String? {
+        return gameViewController?.getScreenCommand()
     }
 }
 

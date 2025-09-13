@@ -29,6 +29,7 @@
 #include "scc.h"
 #include "crtc.h"
 #include "mouse.h"
+#include <sys/time.h>
 
 float	MouseDX = 0;
 float	MouseDY = 0;
@@ -95,6 +96,12 @@ void Mouse_Event(int param, float dx, float dy)
 // ----------------------------------
 //	Mouse Data send to SCC
 // ----------------------------------
+static double GetCurrentTimeMs(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000.0) + (tv.tv_usec / 1000.0);
+}
+
 void Mouse_SetData(void)
 {
     // 修正: @GOROmanコメントを削除し、重複防止機能付きで有効化
@@ -110,10 +117,10 @@ void Mouse_SetData(void)
 
 		MouseSt = MouseStat;
 
-		// 修正: 重複データの送信を防止
-		// 移動量が0で、ボタン状態も変化していない場合は送信しない
+		// 修正: ドラッグ対応 - 移動量があるか、ボタン状態変化があれば送信
 		if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
-			return;  // 変化がない場合は送信しない
+			// 移動量もボタン状態変化もない場合はスキップ
+			return;
 		}
 
 		if (x > 127) {
@@ -141,6 +148,22 @@ void Mouse_SetData(void)
 		LastMouseY = MouseY;
 		LastMouseSt = MouseSt;
 		MouseDataSendCount++;
+
+		// タイミングログ（ボタン状態変化時のみ）
+		static double lastButtonTime = 0.0;
+		static BYTE lastButtonState = 0;
+		if ((MouseSt & 0x03) != (lastButtonState & 0x03)) {
+		    double currentTime = GetCurrentTimeMs();
+		    if (lastButtonTime > 0) {
+		        double interval = currentTime - lastButtonTime;
+		        printf("Mouse: Button %02X→%02X, interval=%.1fms, X=%d, Y=%d\n",
+		               lastButtonState, MouseSt, interval, MouseX, MouseY);
+		    } else {
+		        printf("Mouse: Button %02X (first), X=%d, Y=%d\n", MouseSt, MouseX, MouseY);
+		    }
+		    lastButtonTime = currentTime;
+		    lastButtonState = MouseSt;
+		}
 
 	} else {
 		MouseSt = 0;
