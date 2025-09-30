@@ -64,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Initial menu update once after app launch  
         DispatchQueue.main.async { [weak self] in
             self?.updateMenuTitles()
+            self?.updateSerialMenuCheckmarks()
             self?.updateJoyportUMenuCheckmarks()
         }
         
@@ -173,6 +174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     
                     // debugLog("Found settings menu: \(submenu.title)", category: .ui)
                     addAutoMountMenuItem(to: submenu)
+                    addSerialMenuItem(to: submenu)
                     addJoyportUMenuItem(to: submenu)
                     return
                 }
@@ -184,6 +186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
            let firstSubmenu = firstMenuItem.submenu {
             // debugLog("Adding auto-mount setting to app menu as fallback", category: .ui)
             addAutoMountMenuItem(to: firstSubmenu)
+            addSerialMenuItem(to: firstSubmenu)
             addJoyportUMenuItem(to: firstSubmenu)
         }
     }
@@ -299,6 +302,87 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.insertItem(diskStateMenuItem, at: insertIndex)
         
         infoLog("Added 'Disk State Management' menu with AutoMountMode options", category: .ui)
+    }
+    
+    private func addSerialMenuItem(to menu: NSMenu) {
+        // Create Serial Communication submenu
+        let serialSubmenu = NSMenu(title: "Serial Communication")
+        let serialMenuItem = NSMenuItem(
+            title: "Serial Communication",
+            action: nil,
+            keyEquivalent: ""
+        )
+        serialMenuItem.submenu = serialSubmenu
+        
+        // Serial mode options
+        let mouseOnlyItem = NSMenuItem(
+            title: "Mouse Only (Default)",
+            action: #selector(setSerialMouseOnly(_:)),
+            keyEquivalent: ""
+        )
+        mouseOnlyItem.target = self
+        mouseOnlyItem.identifier = NSUserInterfaceItemIdentifier("Serial-mouseOnly")
+        
+        let ptyItem = NSMenuItem(
+            title: "PTY (Terminal Access)",
+            action: #selector(setSerialPTY(_:)),
+            keyEquivalent: ""
+        )
+        ptyItem.target = self
+        ptyItem.identifier = NSUserInterfaceItemIdentifier("Serial-PTY")
+        
+        let tcpItem = NSMenuItem(
+            title: "TCP Connection...",
+            action: #selector(setSerialTCP(_:)),
+            keyEquivalent: ""
+        )
+        tcpItem.target = self
+        tcpItem.identifier = NSUserInterfaceItemIdentifier("Serial-TCP")
+        
+        let tcpServerItem = NSMenuItem(
+            title: "TCP Server...",
+            action: #selector(setSerialTCPServer(_:)),
+            keyEquivalent: ""
+        )
+        tcpServerItem.target = self
+        tcpServerItem.identifier = NSUserInterfaceItemIdentifier("Serial-TCPServer")
+        
+        let separator = NSMenuItem.separator()
+        
+        let disconnectItem = NSMenuItem(
+            title: "Disconnect",
+            action: #selector(disconnectSerial(_:)),
+            keyEquivalent: ""
+        )
+        disconnectItem.target = self
+        
+        // Add mode items to submenu
+        serialSubmenu.addItem(mouseOnlyItem)
+        serialSubmenu.addItem(ptyItem)
+        serialSubmenu.addItem(tcpItem)
+        serialSubmenu.addItem(tcpServerItem)
+        serialSubmenu.addItem(separator)
+        serialSubmenu.addItem(disconnectItem)
+        
+        // Find insertion point before Quit menu item
+        var insertIndex = menu.items.count
+        for (index, item) in menu.items.enumerated() {
+            if item.keyEquivalent == "q" && item.action == #selector(NSApplication.terminate(_:)) {
+                insertIndex = index
+                break
+            }
+        }
+        
+        // Add separator before Serial Communication if not already present
+        if insertIndex > 0 && !menu.items[insertIndex - 1].isSeparatorItem {
+            let separator = NSMenuItem.separator()
+            menu.insertItem(separator, at: insertIndex)
+            insertIndex += 1
+        }
+        
+        menu.insertItem(serialMenuItem, at: insertIndex)
+        
+        infoLog("Added 'Serial Communication' menu with mode options", category: .ui)
     }
     
     private func addJoyportUMenuItem(to menu: NSMenu) {
@@ -971,6 +1055,181 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     }
                 }
                 break
+            }
+        }
+    }
+    
+    // MARK: - Serial Communication Settings Actions
+    @objc private func setSerialMouseOnly(_ sender: Any) {
+        infoLog("Setting serial mode to Mouse Only", category: .ui)
+        gameViewController?.sccManager.setMouseOnlyMode()
+        updateSerialMenuCheckmarks()
+    }
+    
+    @objc private func setSerialPTY(_ sender: Any) {
+        infoLog("Setting serial mode to PTY", category: .ui)
+        if gameViewController?.sccManager.createPTY() == true {
+            // Show PTY path information
+            if let slavePath = gameViewController?.sccManager.getPTYSlavePath(),
+               let screenCommand = gameViewController?.sccManager.getScreenCommand() {
+                
+                let alert = NSAlert()
+                alert.messageText = "PTY Created Successfully"
+                alert.informativeText = "PTY slave path: \(slavePath)\n\nTo connect from terminal, use:\n\(screenCommand)"
+                alert.alertStyle = .informational
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "PTY Creation Failed"
+            alert.informativeText = "Could not create PTY for serial communication."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+        updateSerialMenuCheckmarks()
+    }
+    
+    @objc private func setSerialTCP(_ sender: Any) {
+        // Show TCP configuration dialog
+        let alert = NSAlert()
+        alert.messageText = "TCP Serial Connection"
+        alert.informativeText = "Enter host and port for TCP serial connection:"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Connect")
+        alert.addButton(withTitle: "Cancel")
+        
+        let hostField = NSTextField(frame: NSRect(x: 0, y: 28, width: 200, height: 24))
+        hostField.stringValue = "localhost"
+        hostField.placeholderString = "Host (e.g., localhost)"
+        
+        let portField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        portField.stringValue = "23"
+        portField.placeholderString = "Port (e.g., 23)"
+        
+        let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 52))
+        accessoryView.addSubview(hostField)
+        accessoryView.addSubview(portField)
+        alert.accessoryView = accessoryView
+        
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let host = hostField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let port = Int(portField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+               !host.isEmpty, port > 0, port <= 65535 {
+                
+                infoLog("Setting serial mode to TCP: \(host):\(port)", category: .ui)
+                if gameViewController?.sccManager.connectTCP(host: host, port: port) == true {
+                    let successAlert = NSAlert()
+                    successAlert.messageText = "TCP Connection Established"
+                    successAlert.informativeText = "Successfully connected to \(host):\(port)\nSerial communication is now active."
+                    successAlert.alertStyle = .informational
+                    successAlert.addButton(withTitle: "OK")
+                    successAlert.runModal()
+                } else {
+                    let errorAlert = NSAlert()
+                    errorAlert.messageText = "TCP Connection Failed"
+                    errorAlert.informativeText = "Could not connect to \(host):\(port). Please check the host and port settings."
+                    errorAlert.alertStyle = .warning
+                    errorAlert.addButton(withTitle: "OK")
+                    errorAlert.runModal()
+                }
+            } else {
+                let errorAlert = NSAlert()
+                errorAlert.messageText = "Invalid Input"
+                errorAlert.informativeText = "Please enter a valid host name and port number (1-65535)."
+                errorAlert.alertStyle = .warning
+                errorAlert.addButton(withTitle: "OK")
+                errorAlert.runModal()
+            }
+        }
+        updateSerialMenuCheckmarks()
+    }
+    
+    @objc private func setSerialTCPServer(_ sender: Any) {
+        // Show TCP Server configuration dialog
+        let alert = NSAlert()
+        alert.messageText = "TCP Serial Server"
+        alert.informativeText = "Enter port for TCP server (emulator will listen for connections):"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Start Server")
+        alert.addButton(withTitle: "Cancel")
+        
+        let portField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        portField.stringValue = "54321"
+        portField.placeholderString = "Port (e.g., 54321)"
+        
+        let accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        accessoryView.addSubview(portField)
+        alert.accessoryView = accessoryView
+        
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            if let port = Int(portField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)),
+               port > 0, port <= 65535 {
+                
+                infoLog("Starting TCP server on port: \(port)", category: .ui)
+                if gameViewController?.sccManager.startTCPServer(port: port) == true {
+                    let successAlert = NSAlert()
+                    successAlert.messageText = "TCP Server Started"
+                    successAlert.informativeText = "Server is listening on port \(port)\n\nTo connect from terminal:\ntelnet localhost \(port)\n\nOr from another host:\ntelnet <emulator-ip> \(port)"
+                    successAlert.alertStyle = .informational
+                    successAlert.addButton(withTitle: "OK")
+                    successAlert.runModal()
+                } else {
+                    let errorAlert = NSAlert()
+                    errorAlert.messageText = "TCP Server Failed"
+                    errorAlert.informativeText = "Could not start TCP server on port \(port). Port may be in use."
+                    errorAlert.alertStyle = .warning
+                    errorAlert.addButton(withTitle: "OK")
+                    errorAlert.runModal()
+                }
+            } else {
+                let errorAlert = NSAlert()
+                errorAlert.messageText = "Invalid Port"
+                errorAlert.informativeText = "Please enter a valid port number (1-65535)."
+                errorAlert.alertStyle = .warning
+                errorAlert.addButton(withTitle: "OK")
+                errorAlert.runModal()
+            }
+        }
+        updateSerialMenuCheckmarks()
+    }
+    
+    @objc private func disconnectSerial(_ sender: Any) {
+        infoLog("Disconnecting serial communication", category: .ui)
+        gameViewController?.sccManager.disconnect()
+        updateSerialMenuCheckmarks()
+    }
+    
+    private func updateSerialMenuCheckmarks() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        
+        let currentMode = gameViewController?.sccManager.currentMode ?? .mouseOnly
+        
+        // Find and update Serial menu items
+        for menuItem in mainMenu.items {
+            if let submenu = menuItem.submenu {
+                for subMenuItem in submenu.items {
+                    if let subSubmenu = subMenuItem.submenu,
+                       subMenuItem.title == "Serial Communication" {
+                        for serialItem in subSubmenu.items {
+                            switch serialItem.identifier?.rawValue {
+                            case "Serial-mouseOnly":
+                                serialItem.state = (currentMode == .mouseOnly) ? .on : .off
+                            case "Serial-PTY":
+                                serialItem.state = (currentMode == .serialPTY) ? .on : .off
+                            case "Serial-TCP":
+                                serialItem.state = (currentMode == .serialTCP) ? .on : .off
+                            case "Serial-TCPServer":
+                                serialItem.state = (currentMode == .serialTCPServer) ? .on : .off
+                            default:
+                                break
+                            }
+                        }
+                    }
+                }
             }
         }
     }

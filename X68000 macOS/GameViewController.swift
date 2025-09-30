@@ -842,59 +842,54 @@ extension GameViewController: NSDraggingDestination {
 
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
-
-        // Disable macOS native double-click detection - let VS.X handle it
-        // 修正: macOSネイティブダブルクリック検出を無効化し、VS.Xに委ねる
-        let isDouble = mouseController.handleDoubleClick(0)
-        if isDouble {
-            infoLog("🖱️ GameViewController: Left double-click detected, scheduling press events", category: .input)
-            mouseController.handleDoubleClickPress(0)
-            // 修正: ダブルクリック時は通常のClick処理をスキップ（キューイベントに委ねる）
+        if mouseController.isCaptureMode {
+            // ダブルクリックはVS.X側で検出させるため、合成イベントは送らない
+            mouseController.Click(0, true)
+            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(0, true)
+            mouseController.sendDirectUpdate()
         }
-        if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
     }
-    
+
     override func mouseUp(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
-        // Use custom double-click handling instead of macOS native
-        // 修正: カスタムダブルクリック処理を使用、macOSネイティブは無効化
-        if mouseController.consumeDoubleClickFlag(0) {
-            return
+        if mouseController.isCaptureMode {
+            // ダブルクリック抑止やイベント消費は行わない
+            mouseController.Click(0, false)
+            mouseController.sendButtonOnlyUpdate()
+        } else {
+            mouseController.Click(0, false)
+            mouseController.sendDirectUpdate()
         }
-        mouseController.Click(0, false)
-        if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
-        else { mouseController.sendDirectUpdate() }
     }
-    
+
     override func rightMouseDown(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         // In capture mode, cursor visibility is managed by enable/disableMouseCapture
         // 修正: マウスモードOFFでは座標を更新しない
-        let isDouble = mouseController.handleDoubleClick(1)
-        if isDouble {
-            infoLog("🖱️ GameViewController: Right double-click detected, scheduling press events", category: .input)
-            mouseController.handleDoubleClickPress(1)
-            // 修正: ダブルクリック時は通常のClick処理をスキップ（キューイベントに委ねる）
+        if mouseController.isCaptureMode {
+            mouseController.Click(1, true)
+            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(1, true)
         }
-        if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
     }
-    
+
     override func rightMouseUp(with event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
-        // In capture mode, cursor visibility is managed by enable/disableMouseCapture
-        if mouseController.consumeDoubleClickFlag(1) {
-            return
+        // Always send right mouseUp for single click processing
+        // 修正: 右クリックのmouseUpも常にシングルクリック処理として送信
+        if mouseController.isCaptureMode {
+            mouseController.Click(1, false)
+            mouseController.sendButtonOnlyUpdate()
+        } else {
+            mouseController.Click(1, false)
+            mouseController.sendDirectUpdate()
         }
-        mouseController.Click(1, false)
-        if mouseController.isCaptureMode { mouseController.sendButtonOnlyUpdate() }
-        else { mouseController.sendDirectUpdate() }
     }
     
     // MARK: - JoyportU Settings
@@ -1015,4 +1010,3 @@ struct SCCManagerProxy {
         return gameViewController?.getScreenCommand()
     }
 }
-

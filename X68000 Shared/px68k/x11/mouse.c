@@ -45,6 +45,38 @@ static signed char LastMouseY = 0;
 static BYTE LastMouseSt = 0;
 static int MouseDataSendCount = 0;  // 送信回数をカウント
 
+// ダブルクリック実行中の移動データ抑制用
+static int DoubleClickInProgress = 0;
+
+// Button state queue to ensure each press/release reaches SCC consumers
+// This avoids collapsing fast transitions between host polls
+#define BTN_QUEUE_SIZE 16
+static BYTE ButtonStateQueue[BTN_QUEUE_SIZE];
+static int ButtonQueueHead = 0;
+static int ButtonQueueTail = 0;
+// Ensure pressed state is visible across at least two SCC polls
+static BYTE RepeatState = 0;
+static int RepeatCount = 0; // remaining repeats for last delivered state
+
+static inline int BtnQueueIsEmpty(void) {
+    return ButtonQueueHead == ButtonQueueTail;
+}
+static inline void BtnQueuePush(BYTE st) {
+    int nextTail = (ButtonQueueTail + 1) % BTN_QUEUE_SIZE;
+    if (nextTail == ButtonQueueHead) {
+        // Queue full: drop oldest
+        ButtonQueueHead = (ButtonQueueHead + 1) % BTN_QUEUE_SIZE;
+    }
+    ButtonStateQueue[ButtonQueueTail] = st;
+    ButtonQueueTail = nextTail;
+}
+static inline BYTE BtnQueuePop(void) {
+    if (BtnQueueIsEmpty()) return MouseStat;
+    BYTE st = ButtonStateQueue[ButtonQueueHead];
+    ButtonQueueHead = (ButtonQueueHead + 1) % BTN_QUEUE_SIZE;
+    return st;
+}
+
 
 void Mouse_Init(void)
 {
@@ -68,6 +100,7 @@ void Mouse_Event(int param, float dx, float dy)
 //	printf("Mouse( %d, %f %f )\n", param, dx, dy);
 
 	if (MouseSW) {
+		BYTE oldStat = MouseStat;
 		switch (param) {
         case 0:	// mouse move
             // Invert Y here so positive dy means up on X68 side
@@ -88,6 +121,13 @@ void Mouse_Event(int param, float dx, float dy)
 			break;
 		default:
 			break;
+		}
+
+		// Enqueue button state transitions so SCC can observe both press and release
+		if (MouseStat != oldStat) {
+			BYTE st = (MouseStat & 0x03);
+			// Enqueue once; delivery is ordered by SCC polls
+			BtnQueuePush(st);
 		}
 	}
 }
@@ -115,7 +155,34 @@ void Mouse_SetData(void)
 
 		MouseDX = MouseDY = 0;
 
-		MouseSt = MouseStat;
+		// Use queued button state if available to avoid collapsing fast transitions
+		if (RepeatCount > 0) {
+			// Repeat last delivered pressed state once more to cross SCC polls
+			MouseSt = RepeatState;
+			RepeatCount--;
+		} else if (!BtnQueueIsEmpty()) {
+			MouseSt = BtnQueuePop();
+			// If any button is currently DOWN, arrange to repeat this on next poll
+			if ((MouseSt & 0x03) != 0) {
+				RepeatState = MouseSt;
+				RepeatCount = 1; // repeat once
+			} else {
+				RepeatState = 0;
+				RepeatCount = 0;
+			}
+		} else {
+			MouseSt = MouseStat;
+			// No queue: do not repeat idle states
+			RepeatState = 0;
+			RepeatCount = 0;
+		}
+
+		// 修正: ダブルクリック実行中は移動データを抑制
+		if (DoubleClickInProgress && (x != 0 || y != 0)) {
+			// ダブルクリック実行中の移動データは破棄
+			MouseDX = MouseDY = 0;
+			return;
+		}
 
 		// 修正: ドラッグ対応 - 移動量があるか、ボタン状態変化があれば送信
 		if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
@@ -226,3 +293,13 @@ void Mouse_ResetState(void)
     MouseY = 0;
 }
 
+// ダブルクリック実行中フラグを制御する関数
+void Mouse_SetDoubleClickInProgress(int flag)
+{
+    DoubleClickInProgress = flag;
+    if (flag) {
+        printf("Mouse: Double-click mode ON - movement suppressed\n");
+    } else {
+        printf("Mouse: Double-click mode OFF - movement restored\n");
+    }
+}

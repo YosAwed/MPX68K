@@ -36,24 +36,28 @@ class X68MouseController
     private var holdUntilFrame: [Int: Int] = [:]
     private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
     private let minimumHoldSeconds: TimeInterval = 0.03 // 修正: 0.06 -> 0.03
-    private let minimumHoldFramesCaptureLeft: Int = 3
+    private let minimumHoldFramesCaptureLeft: Int = 1
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
     private let retriggerGuardInterval: TimeInterval = 0.08 // 修正: 0.15 -> 0.08
     private let pulseLeftClickInCapture: Bool = false
     private let pulseHoldFrames: Int = 3
-    
-    // 新規追加: ダブルクリック処理
-    private var doubleClickWindow: TimeInterval = 0.25  // 修正: 超高速連続クリック検出（250ms）
-    private var doubleClickPulseGap: TimeInterval = 0.12
+
+    private var clickProcessing: Set<Int> = []
+    private var scheduledReleases: [Int: DispatchWorkItem] = [:]
+
+    // Double-click emulation/timing
+    private let doubleClickWindow: TimeInterval = 0.20
     private var doubleClickQueue: [(frame: Int, type: Int, pressed: Bool)] = []
     private var lastSingleClickTime: [Int: TimeInterval] = [:]
     private var doubleClickDetected: [Int: Bool] = [:]
-    
-    // 新規追加: 状態管理の改善
-    private var clickProcessing: Set<Int> = []
-    private var scheduledReleases: [Int: DispatchWorkItem] = [:]
+
+    // Suppress relative movement between the taps that make up a double-click
+    private var doubleClickSuppressionActive = false
+    private var doubleClickSuppressionWorkItem: DispatchWorkItem?
+    private let doubleClickSuppressionInterval: TimeInterval = 0.32
+    private var doubleClickSuppressionQueueCount = 0
     
     var x68k_width: Float = 0.0
     var x68k_height: Float = 0.0
@@ -106,42 +110,7 @@ class X68MouseController
             }
         }
 
-        // Apply scheduled double-click pulses (frame-synchronous) – ensure SCC sees a packet
-        if !doubleClickQueue.isEmpty {
-            var applied = false
-            let processedEvents = doubleClickQueue.filter { $0.frame <= frame }
-            doubleClickQueue.removeAll { item in
-                if item.frame <= frame {
-                    infoLog("🖱️ Processing double-click event: frame=\(item.frame), type=\(item.type), pressed=\(item.pressed)", category: .input)
-                    if item.pressed { button_state |= (1 << item.type) }
-                    else { button_state &= ~(1 << item.type) }
-                    applied = true
-                    return true
-                }
-                return false
-            }
-            if applied {
-                current_button_state = button_state
-        // Force direct SCC transmission for double-click (multiple methods for reliability)
-                let l = (current_button_state & 0x1) != 0
-                let r = (current_button_state & 0x2) != 0
-                infoLog("🖱️ Sending double-click to emulator: left=\(l), right=\(r), button_state=\(current_button_state)", category: .input)
-
-                // Method 1: Mouse_Event calls
-                X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
-                X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
-
-                // Method 2: Direct SCC packet via Mouse_Set (ensure SCC sees the state)
-                X68000_Mouse_Set(0.0, 0.0, current_button_state)
-
-                // Method 3: Repeat for emphasis (double-click needs to be obvious)
-                X68000_Mouse_Event(1, l ? 1.0 : 0.0, 0.0)
-                X68000_Mouse_Event(2, r ? 1.0 : 0.0, 0.0)
-                X68000_Mouse_Set(0.0, 0.0, current_button_state)
-
-                lastSentButtonState = current_button_state
-            }
-        }
+        // ダブルクリック合成イベントは廃止：VS.X側でダブルクリック判定を行う
 
         // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia
@@ -280,52 +249,31 @@ class X68MouseController
             lastSentButtonState = button_state
         }
     }
-    
-    // 新規追加: ダブルクリック判定処理
-    func handleDoubleClick(_ type: Int) -> Bool {
-        let now = Date().timeIntervalSince1970
-        if let lastClick = lastSingleClickTime[type] {
-            if now - lastClick <= doubleClickWindow {
-                doubleClickDetected[type] = true
-                lastSingleClickTime[type] = now // 修正: ダブルクリック検出時も時間を更新
-                infoLog("🖱️ Double-click detected for button \(type)", category: .input)
-                return true
-            }
-        }
-        lastSingleClickTime[type] = now
-        doubleClickDetected[type] = false
-        return false
-    }
-    
-    // 新規追加: ダブルクリック専用処理
-    func handleDoubleClickPress(_ type: Int) {
-        // より遅いダブルクリックタイミング - VS.X互換性重視
-        let pressFrames = 11  // 約200ms @55Hz - 長いクリック時間
-        let releaseFrames = 6 // 約109ms @55Hz - 長いリリース時間
-        let gapFrames = 11    // 約200ms @55Hz - 長いクリック間隔
-        let nowF = self.frame
-        doubleClickQueue.removeAll { $0.type == type }
 
-        // 極高速連打: press→release→(即座に)press→release
-        doubleClickQueue.append((frame: nowF + 0, type: type, pressed: true))
-        doubleClickQueue.append((frame: nowF + pressFrames, type: type, pressed: false))
-        doubleClickQueue.append((frame: nowF + pressFrames + releaseFrames + gapFrames, type: type, pressed: true))
-        doubleClickQueue.append((frame: nowF + pressFrames + releaseFrames + gapFrames + pressFrames, type: type, pressed: false))
+    func handleDoubleClick(_ type: Int) -> Bool { return false }
 
-        let frames = [nowF, nowF + pressFrames, nowF + pressFrames + releaseFrames + gapFrames, nowF + pressFrames + releaseFrames + gapFrames + pressFrames]
-        infoLog("🖱️ Ultra-fast consecutive clicks: frame=\(nowF), events at frames \(frames)", category: .input)
-        infoLog("🖱️ Ultra timing: press=\(pressFrames)f(~\(Int(Double(pressFrames)/55.0*1000))ms), release=\(releaseFrames)f, gap=\(gapFrames)f", category: .input)
-        infoLog("🖱️ Total duration: ~\(Int(Double(pressFrames + releaseFrames + gapFrames + pressFrames)/55.0*1000))ms (app-level detection)", category: .input)
+    func handleDoubleClickPress(_ type: Int) { /* no-op: let VS.X detect double-click */ }
+
+    func consumeDoubleClickFlag(_ type: Int) -> Bool { return false }
+
+    private func activateDoubleClickSuppression() {
+        if doubleClickSuppressionActive { return }
+        doubleClickSuppressionActive = true
+        X68000_Mouse_SetDoubleClickInProgress(1)
     }
 
-    // 新規追加: ダブルクリック消費フラグ
-    // GameViewController 側で直近のダブルクリック判定を一度だけ無視するために使用
-    func consumeDoubleClickFlag(_ type: Int) -> Bool {
-        let flag = doubleClickDetected[type] ?? false
-        if flag {
-            doubleClickDetected[type] = false
+    private func deactivateDoubleClickSuppression() {
+        if !doubleClickSuppressionActive {
+            doubleClickSuppressionWorkItem?.cancel()
+            doubleClickSuppressionWorkItem = nil
+            doubleClickSuppressionQueueCount = 0
+            return
         }
-        return flag
+        doubleClickSuppressionActive = false
+        doubleClickSuppressionWorkItem?.cancel()
+        doubleClickSuppressionWorkItem = nil
+        doubleClickSuppressionQueueCount = 0
+        X68000_Mouse_SetDoubleClickInProgress(0)
     }
     
     // 修正: 改善された遅延リリース処理
@@ -386,6 +334,8 @@ class X68MouseController
             let holdFrames = (isCaptureMode && type == 0) ? minimumHoldFramesCaptureLeft : minimumHoldFrames
             holdUntilFrame[type] = frame + holdFrames
             lastClickTime[type] = now
+
+            // ダブルクリック抑制のトグルは使用しない
         } else {
             // Release: enforce minimum hold in both capture and non-capture
             let sinceDown = now - (lastClickTime[type] ?? now)
@@ -405,6 +355,8 @@ class X68MouseController
                     button_state &= ~(1<<type)
                 }
             }
+
+            // ダブルクリック抑制のトグルは使用しない
         }
 
         infoLog("🖱️ X68MouseController.Click: button_state after=\(button_state)", category: .input)
@@ -419,19 +371,24 @@ class X68MouseController
     
     func enableCaptureMode() {
         isCaptureMode = true
-        
+
         // Initialize mouse position to prevent jumping
         dx = 0.0
         dy = 0.0
         
         // Keep last known normalized position; do not recenter here
-        
+
         // Clear any accumulated core-side deltas to prevent initial drift
         X68000_Mouse_ResetState()
         // Do not send any absolute/relative packet here; first real movement will initialize
-        
+
         // Enable core-side capture as well（リセットは済）
         X68000_Mouse_StartCapture(1)
+        doubleClickQueue.removeAll()
+        lastSingleClickTime.removeAll()
+        doubleClickDetected.removeAll()
+        doubleClickSuppressionQueueCount = 0
+        deactivateDoubleClickSuppression()
         // debugLog("Mouse controller capture mode enabled", category: .input)
     }
     
@@ -456,15 +413,17 @@ class X68MouseController
         clickProcessing.removeAll()
         scheduledReleases.values.forEach { $0.cancel() }
         scheduledReleases.removeAll()
+        doubleClickQueue.removeAll()
         lastSingleClickTime.removeAll()
         doubleClickDetected.removeAll()
-        
+        doubleClickSuppressionQueueCount = 0
         // Do not inject corrective deltas or center here to avoid side-effects
-        
+
+        deactivateDoubleClickSuppression()
+
         // Disable core-side capture
         X68000_Mouse_StartCapture(0)
         // debugLog("Mouse controller capture mode disabled", category: .input)
     }
     
 }
-

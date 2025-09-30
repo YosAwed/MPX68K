@@ -38,6 +38,12 @@ BYTE SCC_Vector = 0;
 BYTE SCC_Dat[3] = {0, 0, 0};
 BYTE SCC_DatNum = 0;
 
+// Gradual mouse data transmission (like zsrc)
+static BYTE SCC_MouseBuffer[3] = {0, 0, 0};
+static int SCC_MouseBufferPos = 3;  // 3 means no data
+static unsigned int SCC_MouseSendCycles = 0;
+static const unsigned int SCC_MOUSE_CYCLES_PER_BYTE = 100;  // Much faster timing
+
 // Enhanced serial ports
 typedef enum {
     SCC_MODE_MOUSE_ONLY = 0,
@@ -86,6 +92,22 @@ static DWORD FASTCALL SCC_Int(BYTE irq)
 void SCC_IntCheck(void)
 {
     if (scc_port_a.mode == SCC_MODE_MOUSE_ONLY) {
+        // Temporary: Disable gradual transmission - causing mouse lockup
+        /*
+        if (SCC_MouseBufferPos < 3 && !SCC_DatNum) {
+            SCC_MouseSendCycles++;
+            if (SCC_MouseSendCycles >= SCC_MOUSE_CYCLES_PER_BYTE) {
+                // Send one byte from buffer
+                SCC_DatNum = 1;
+                SCC_Dat[0] = SCC_MouseBuffer[SCC_MouseBufferPos];
+                SCC_MouseBufferPos++;
+                SCC_MouseSendCycles = 0;
+
+                printf("SCC: Gradual send byte %d: %02X\n", SCC_MouseBufferPos-1, SCC_Dat[0]);
+            }
+        }
+        */
+
         if ( (SCC_DatNum) && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08) ) {
             IRQH_Int(5, &SCC_Int);
         } else if ( (SCC_DatNum==3) && ((SCC_RegsB[1]&0x18)==0x08) && (SCC_RegsB[9]&0x08) ) {
@@ -96,7 +118,7 @@ void SCC_IntCheck(void)
             printf("SCC_IntCheck: SERIAL INTERRUPT TRIGGERED!\n");
             IRQH_Int(5, &SCC_Int);
         } else if (scc_port_a.rx_ready) {
-            printf("SCC_IntCheck: rx_ready=1 but interrupt not triggered (RegB1=0x%02X, RegB9=0x%02X)\n", 
+            printf("SCC_IntCheck: rx_ready=1 but interrupt not triggered (RegB1=0x%02X, RegB9=0x%02X)\n",
                    SCC_RegsB[1], SCC_RegsB[9]);
         }
     }
@@ -445,6 +467,12 @@ void SCC_Init(void)
 {
     MouseX = 0; MouseY = 0; MouseSt = 0;
     SCC_RegNumA = SCC_RegSetA = SCC_RegNumB = SCC_RegSetB = 0; SCC_Vector = 0; SCC_DatNum = 0;
+
+    // Initialize gradual mouse transmission variables
+    SCC_MouseBufferPos = 3;  // No data
+    SCC_MouseSendCycles = 0;
+    memset(SCC_MouseBuffer, 0, sizeof(SCC_MouseBuffer));
+
     memset(&scc_port_a, 0, sizeof(scc_port_a)); memset(&scc_port_b, 0, sizeof(scc_port_b));
     scc_port_a.mode = SCC_MODE_MOUSE_ONLY; scc_port_a.master_fd = -1;
     scc_port_a.server_fd = -1; scc_port_a.client_fd = -1;  // TCPサーバー関連フィールドを初期化
@@ -473,21 +501,18 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                             return; // 重複データはスキップ
                         }
 
+                        // X68000 mouse protocol order: Y -> X -> status
                         SCC_DatNum = 3;
-                        // 正しい順序: Y → X → extra/button
-                        SCC_Dat[0] = MouseY; SCC_Dat[1] = MouseX; SCC_Dat[2] = MouseSt;
+                        SCC_Dat[0] = (BYTE)MouseY;
+                        SCC_Dat[1] = (BYTE)MouseX;
+                        SCC_Dat[2] = MouseSt;
 
                         // 今回送信したデータを記録
                         lastSentMouseSt = MouseSt;
                         lastSentMouseX = MouseX;
                         lastSentMouseY = MouseY;
 
-                        // タイミングログ（すべてのボタン状態変化）
-                        struct timeval tv;
-                        gettimeofday(&tv, NULL);
-                        double currentTime = (tv.tv_sec * 1000.0) + (tv.tv_usec / 1000.0);
-                        printf("SCC: RTS queued at %.1fms - St=%02X, X=%d, Y=%d\n",
-                               currentTime, MouseSt, MouseX, MouseY);
+                        // ログ出力を削除（ノイズ削減のため）
                     }
                 } else {
                     if ((data & 2) && scc_port_a.connected) { scc_port_a.tx_ready = 1; }

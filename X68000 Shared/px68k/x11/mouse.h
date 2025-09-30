@@ -14,5 +14,6 @@ void Mouse_SetData(void);
 void Mouse_StartCapture(int flag);
 void Mouse_ChangePos(void);
 void Mouse_ResetState(void);
+void Mouse_SetDoubleClickInProgress(int flag);
 
 #endif //_winx68k_mouse

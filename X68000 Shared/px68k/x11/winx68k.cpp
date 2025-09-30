@@ -494,7 +494,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 Keyboard_Int();
             }
             MouseIntCnt++;
-            if ( MouseIntCnt>(VLINE_TOTAL/8) ) {
+            if ( MouseIntCnt>(VLINE_TOTAL/8) ) {  // 修正: 元の頻度に戻す
                 MouseIntCnt = 0;
                 SCC_IntCheck();
             }
@@ -746,6 +746,11 @@ void X68000_Mouse_Event(int param, float dx, float dy) {
 // Expose mouse state reset (clears accumulated deltas and last state)
 void X68000_Mouse_ResetState(void) {
     Mouse_ResetState();
+}
+
+// Control double-click movement suppression
+void X68000_Mouse_SetDoubleClickInProgress(int flag) {
+    Mouse_SetDoubleClickInProgress(flag);
 }
 
 // Set absolute mouse position in X68K memory, with no relative movement

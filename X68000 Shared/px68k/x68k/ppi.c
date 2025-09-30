@@ -64,7 +64,7 @@ static char* FindJoyportUDevice(void)
                         CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, (const SInt32[]){0xE6B3}));
     
     io_iterator_t iterator;
-    if (IOServiceGetMatchingServices(kIOMasterPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+    if (IOServiceGetMatchingServices(kIOMainPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
         return NULL;
     }
     
