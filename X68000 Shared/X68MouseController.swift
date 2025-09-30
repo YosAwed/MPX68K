@@ -35,7 +35,7 @@ class X68MouseController
     private var pendingRelease: Set<Int> = []
     private var holdUntilFrame: [Int: Int] = [:]
     private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
-    private let minimumHoldSeconds: TimeInterval = 0.03 // 修正: 0.06 -> 0.03
+    private let minimumHoldSeconds: TimeInterval = 0.06
     private let minimumHoldFramesCaptureLeft: Int = 3
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
