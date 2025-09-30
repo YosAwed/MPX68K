@@ -79,7 +79,7 @@
            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
            <ActionContent
               title = "Increment build number"
-              scriptText = "cd \&quot;${PROJECT_DIR}\&quot;\nif command -v xcrun >/dev/null 2>&1; then\n  xcrun agvtool next-version -all || true\nfi\n">
+              scriptText = "cd &quot;${PROJECT_DIR}&quot;\nif command -v xcrun &gt;/dev/null 2&gt;&amp;1; then\n  xcrun agvtool next-version -all || true\nfi\n">
               <EnvironmentBuildable>
                  <BuildableReference
                     BuildableIdentifier = "primary"
