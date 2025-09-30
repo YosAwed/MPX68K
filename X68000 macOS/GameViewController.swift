@@ -104,6 +104,8 @@ class GameViewController: NSViewController {
     private var discardDeltaCount: Int = 0
     // Swallow initial noisy deltas after enabling capture
     private var captureSettleUntil: TimeInterval? = nil
+    // Swallow the immediate next left mouseUp when we synthesize a second click for double-click
+    private var swallowNextLeftMouseUp: Bool = false
     
     func load(_ url: URL) {
         // Reduced logging for performance
@@ -843,7 +845,19 @@ extension GameViewController: NSDraggingDestination {
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
         if mouseController.isCaptureMode {
-            // ダブルクリックはVS.X側で検出させるため、合成イベントは送らない
+            // 左のダブルクリックは「2回の単純クリック」に等価化する
+            if event.clickCount >= 2 {
+                swallowNextLeftMouseUp = true
+                mouseController.Click(0, true)
+                mouseController.sendButtonOnlyUpdate()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { [weak self] in
+                    guard let self = self,
+                          let mc = self.gameScene?.mouseController else { return }
+                    mc.Click(0, false)
+                    mc.sendButtonOnlyUpdate()
+                }
+                return
+            }
             mouseController.Click(0, true)
             mouseController.sendButtonOnlyUpdate()
         } else {
@@ -856,7 +870,10 @@ extension GameViewController: NSDraggingDestination {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         if mouseController.isCaptureMode {
-            // ダブルクリック抑止やイベント消費は行わない
+            if swallowNextLeftMouseUp {
+                swallowNextLeftMouseUp = false
+                return
+            }
             mouseController.Click(0, false)
             mouseController.sendButtonOnlyUpdate()
         } else {
