@@ -492,25 +492,12 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                     if ( (!(SCC_RegsB[5]&2)) && (data&2) && (SCC_RegsB[3]&1) && (!SCC_DatNum) ) {
                         Mouse_SetData();
 
-                        // 重複データ送信防止：前回と同じデータの場合はスキップ
-                        static BYTE lastSentMouseSt = 0xFF;
-                        static signed char lastSentMouseX = 127;
-                        static signed char lastSentMouseY = 127;
-
-                        if (MouseSt == lastSentMouseSt && MouseX == lastSentMouseX && MouseY == lastSentMouseY) {
-                            return; // 重複データはスキップ
-                        }
-
                         // X68000 mouse protocol order: Y -> X -> status
                         SCC_DatNum = 3;
                         SCC_Dat[0] = (BYTE)MouseY;
                         SCC_Dat[1] = (BYTE)MouseX;
                         SCC_Dat[2] = MouseSt;
-
-                        // 今回送信したデータを記録
-                        lastSentMouseSt = MouseSt;
-                        lastSentMouseX = MouseX;
-                        lastSentMouseY = MouseY;
+                        // 連続RTSでも常に最新状態を送信する（重複でも送信）
 
                         // ログ出力を削除（ノイズ削減のため）
                     }
