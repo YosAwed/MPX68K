@@ -120,13 +120,13 @@ class X68MouseController
         let movement = (dx != 0.0 || dy != 0.0)
         // Prefer movement packets; if no movement, send button-only packet to avoid jitter
         if movement {
-            // Update button state and accumulate relative movement via Mouse_Event path
+            // Keep button state current via Mouse_Event so MouseStat is correct
             let leftDown = (current_button_state & 0x1) != 0
             let rightDown = (current_button_state & 0x2) != 0
             X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
             X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
-            // Accumulate relative movement for SCC to consume on RTS
-            X68000_Mouse_Event(0, dx, dy)
+            // Send relative movement directly to SCC range (no screen scaling)
+            X68000_Mouse_Set(dx, dy, current_button_state)
             dx = 0.0
             dy = 0.0
         } else if current_button_state != lastSentButtonState {
