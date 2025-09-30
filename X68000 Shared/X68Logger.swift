@@ -34,17 +34,29 @@ extension Logger {
     static let network = Logger(subsystem: "com.goroman.x68mac", category: "network")
 }
 
+/// ランタイムでログ出力量を制御する設定
+struct X68LogConfig {
+    /// infoLog 有効化（既定: false で抑制）
+    static var enableInfoLogs: Bool = false
+    /// debugLog 有効化（既定: false で抑制）
+    static var enableDebugLogs: Bool = false
+}
+
 /// デバッグ専用のログ関数
 /// リリースビルドでは出力されない
 func debugLog(_ message: String, category: Logger = .x68mac) {
     #if DEBUG
+    if X68LogConfig.enableDebugLogs {
         category.debug("\(message)")
+    }
     #endif
 }
 
 /// 情報ログ関数
 func infoLog(_ message: String, category: Logger = .x68mac) {
-    category.info("\(message)")
+    if X68LogConfig.enableInfoLogs {
+        category.info("\(message)")
+    }
 }
 
 /// 警告ログ関数
@@ -78,4 +90,3 @@ func performanceLog<T>(_ operation: String, category: Logger = .x68mac, block: (
     
     return result
 }
-

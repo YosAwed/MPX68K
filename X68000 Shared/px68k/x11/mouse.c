@@ -216,21 +216,7 @@ void Mouse_SetData(void)
 		LastMouseSt = MouseSt;
 		MouseDataSendCount++;
 
-		// タイミングログ（ボタン状態変化時のみ）
-		static double lastButtonTime = 0.0;
-		static BYTE lastButtonState = 0;
-		if ((MouseSt & 0x03) != (lastButtonState & 0x03)) {
-		    double currentTime = GetCurrentTimeMs();
-		    if (lastButtonTime > 0) {
-		        double interval = currentTime - lastButtonTime;
-		        printf("Mouse: Button %02X→%02X, interval=%.1fms, X=%d, Y=%d\n",
-		               lastButtonState, MouseSt, interval, MouseX, MouseY);
-		    } else {
-		        printf("Mouse: Button %02X (first), X=%d, Y=%d\n", MouseSt, MouseX, MouseY);
-		    }
-		    lastButtonTime = currentTime;
-		    lastButtonState = MouseSt;
-		}
+		// ログ抑制: ボタン状態のタイミングログを無効化
 
 	} else {
 		MouseSt = 0;
