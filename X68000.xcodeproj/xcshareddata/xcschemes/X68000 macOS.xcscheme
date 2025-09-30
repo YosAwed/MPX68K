@@ -71,8 +71,26 @@
    <AnalyzeAction
       buildConfiguration = "Debug">
    </AnalyzeAction>
-   <ArchiveAction
-      buildConfiguration = "Release"
-      revealArchiveInOrganizer = "YES">
-   </ArchiveAction>
+  <ArchiveAction
+     buildConfiguration = "Release"
+     revealArchiveInOrganizer = "YES">
+     <PreActions>
+        <ExecutionAction
+           ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+           <ActionContent
+              title = "Increment build number"
+              scriptText = "cd \&quot;${PROJECT_DIR}\&quot;\nif command -v xcrun >/dev/null 2>&1; then\n  xcrun agvtool next-version -all || true\nfi\n">
+              <EnvironmentBuildable>
+                 <BuildableReference
+                    BuildableIdentifier = "primary"
+                    BlueprintIdentifier = "07F863BB242F93EA00CBB224"
+                    BuildableName = "X68000.app"
+                    BlueprintName = "X68000 macOS"
+                    ReferencedContainer = "container:X68000.xcodeproj">
+                 </BuildableReference>
+              </EnvironmentBuildable>
+           </ActionContent>
+        </ExecutionAction>
+     </PreActions>
+  </ArchiveAction>
 </Scheme>

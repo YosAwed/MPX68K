@@ -1062,7 +1062,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // MARK: - Serial Communication Settings Actions
     @objc private func setSerialMouseOnly(_ sender: Any) {
         infoLog("Setting serial mode to Mouse Only", category: .ui)
-        gameViewController?.sccManager.setMouseOnlyMode()
+        _ = gameViewController?.sccManager.setMouseOnlyMode()
         updateSerialMenuCheckmarks()
     }
     
