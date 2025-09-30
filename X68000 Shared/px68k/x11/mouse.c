@@ -165,7 +165,7 @@ void Mouse_SetData(void)
 			// If any button is currently DOWN, arrange to repeat this on next poll
 			if ((MouseSt & 0x03) != 0) {
 				RepeatState = MouseSt;
-				RepeatCount = 1; // repeat once
+				RepeatCount = 2; // repeat twice
 			} else {
 				RepeatState = 0;
 				RepeatCount = 0;
