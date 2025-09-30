@@ -492,12 +492,13 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                     if ( (!(SCC_RegsB[5]&2)) && (data&2) && (SCC_RegsB[3]&1) && (!SCC_DatNum) ) {
                         Mouse_SetData();
 
-                        // X68000 mouse protocol order: Y -> X -> status
+                        // X68000 mouse packet order must align with consumer:
+                        // First byte read = Status, then X, then Y
                         SCC_DatNum = 3;
-                        SCC_Dat[0] = (BYTE)MouseY;
-                        SCC_Dat[1] = (BYTE)MouseX;
-                        SCC_Dat[2] = MouseSt;
-                        // 連続RTSでも常に最新状態を送信する（重複でも送信）
+                        SCC_Dat[2] = MouseSt;        // first byte delivered
+                        SCC_Dat[1] = (BYTE)MouseX;   // second
+                        SCC_Dat[0] = (BYTE)MouseY;   // third
+                        // Always send latest state on each RTS rising edge
 
                         // ログ出力を削除（ノイズ削減のため）
                     }
