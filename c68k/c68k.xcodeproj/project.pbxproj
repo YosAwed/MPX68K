@@ -403,7 +403,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+                MACOSX_DEPLOYMENT_TARGET = 12.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)_DEBUG";
 				SDKROOT = macosx;
@@ -423,7 +423,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+                MACOSX_DEPLOYMENT_TARGET = 12.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
