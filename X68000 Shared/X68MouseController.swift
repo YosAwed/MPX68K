@@ -351,8 +351,13 @@ class X68MouseController
             lastReleaseTime[type] = now
 
             if isCaptureMode {
-                // Immediate clear in capture mode
-                button_state &= ~(1<<type)
+                // In capture mode: defer release until holdUntilFrame to ensure SCC polls see the press
+                let until = holdUntilFrame[type] ?? frame
+                if frame < until {
+                    pendingRelease.insert(type)
+                } else {
+                    button_state &= ~(1<<type)
+                }
             } else {
                 if needDelay {
                     // 修正: 改善された遅延処理を使用
