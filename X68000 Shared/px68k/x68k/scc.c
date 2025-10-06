@@ -461,9 +461,8 @@ void SCC_Init(void)
     MouseX = 0; MouseY = 0; MouseSt = 0;
     SCC_RegNumA = SCC_RegSetA = SCC_RegNumB = SCC_RegSetB = 0; SCC_Vector = 0; SCC_DatNum = 0;
 
-    // Initialize gradual mouse transmission variables
+    // Initialize mouse packet latch buffer
     SCC_MouseBufferPos = 3;  // No data
-    SCC_MouseSendCycles = 0;
     memset(SCC_MouseBuffer, 0, sizeof(SCC_MouseBuffer));
 
     memset(&scc_port_a, 0, sizeof(scc_port_a)); memset(&scc_port_b, 0, sizeof(scc_port_b));
