@@ -36,7 +36,7 @@ class X68MouseController
     private var holdUntilFrame: [Int: Int] = [:]
     private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
     private let minimumHoldSeconds: TimeInterval = 0.06
-    private let minimumHoldFramesCaptureLeft: Int = 3
+    private let minimumHoldFramesCaptureLeft: Int = 5
     private var lastPressTime: [Int: TimeInterval] = [:]
     private let pressDebounceInterval: TimeInterval = 0.12
     private var lastReleaseTime: [Int: TimeInterval] = [:]
@@ -56,7 +56,7 @@ class X68MouseController
     // Suppress relative movement between the taps that make up a double-click
     private var doubleClickSuppressionActive = false
     private var doubleClickSuppressionWorkItem: DispatchWorkItem?
-    private let doubleClickSuppressionInterval: TimeInterval = 0.32
+    private let doubleClickSuppressionInterval: TimeInterval = 0.22
     private var doubleClickSuppressionQueueCount = 0
     
     var x68k_width: Float = 0.0
