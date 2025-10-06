@@ -38,9 +38,35 @@ BYTE SCC_Vector = 0;
 BYTE SCC_Dat[3] = {0, 0, 0};
 BYTE SCC_DatNum = 0;
 
-// Latch one pending mouse packet when RTS rises while a packet is still pending
-static BYTE SCC_MouseBuffer[3] = {0, 0, 0};
-static int SCC_MouseBufferPos = 3;  // 3 means empty, 0 means full packet buffered
+// Latch queue for pending mouse packets when RTS rises while a packet is still pending
+#define SCC_MOUSE_QSIZE 4
+static BYTE SCC_MouseQueue[SCC_MOUSE_QSIZE][3]; // [][2]=Status, [][1]=X, [][0]=Y
+static int SCC_MouseQHead = 0;
+static int SCC_MouseQTail = 0;
+static int SCC_MouseQCount = 0;
+
+static inline int SCC_MouseQIsEmpty(void) { return SCC_MouseQCount == 0; }
+static inline int SCC_MouseQIsFull(void) { return SCC_MouseQCount >= SCC_MOUSE_QSIZE; }
+static inline void SCC_MouseQEnqueue(BYTE st, BYTE x, BYTE y) {
+    if (SCC_MouseQIsFull()) {
+        // Drop oldest
+        SCC_MouseQHead = (SCC_MouseQHead + 1) % SCC_MOUSE_QSIZE;
+        SCC_MouseQCount--;
+    }
+    SCC_MouseQueue[SCC_MouseQTail][2] = st;
+    SCC_MouseQueue[SCC_MouseQTail][1] = x;
+    SCC_MouseQueue[SCC_MouseQTail][0] = y;
+    SCC_MouseQTail = (SCC_MouseQTail + 1) % SCC_MOUSE_QSIZE;
+    SCC_MouseQCount++;
+}
+static inline void SCC_MouseQDequeue(BYTE* st, BYTE* x, BYTE* y) {
+    if (SCC_MouseQIsEmpty()) return;
+    *st = SCC_MouseQueue[SCC_MouseQHead][2];
+    *x  = SCC_MouseQueue[SCC_MouseQHead][1];
+    *y  = SCC_MouseQueue[SCC_MouseQHead][0];
+    SCC_MouseQHead = (SCC_MouseQHead + 1) % SCC_MOUSE_QSIZE;
+    SCC_MouseQCount--;
+}
 
 // Enhanced serial ports
 typedef enum {
@@ -95,16 +121,14 @@ void SCC_IntCheck(void)
             IRQH_Int(5, &SCC_Int);
         } else if ( (SCC_DatNum==3) && ((SCC_RegsB[1]&0x18)==0x08) && (SCC_RegsB[9]&0x08) ) {
             IRQH_Int(5, &SCC_Int);
-        } else if (!SCC_DatNum && SCC_MouseBufferPos == 0) {
-            // If a full packet is buffered and line conditions allow, publish it now
+        } else if (!SCC_DatNum && !SCC_MouseQIsEmpty()) {
+            // If a buffered packet exists and line conditions allow, publish it now
+            BYTE st, x, y; SCC_MouseQDequeue(&st, &x, &y);
             SCC_DatNum = 3;
-            SCC_Dat[2] = SCC_MouseBuffer[2]; // Status first
-            SCC_Dat[1] = SCC_MouseBuffer[1]; // X
-            SCC_Dat[0] = SCC_MouseBuffer[0]; // Y
-            SCC_MouseBufferPos = 3; // mark empty
-            if ((SCC_RegsB[9]&0x08)) {
-                IRQH_Int(5, &SCC_Int);
-            }
+            SCC_Dat[2] = st; // Status first
+            SCC_Dat[1] = x;  // X
+            SCC_Dat[0] = y;  // Y
+            if ((SCC_RegsB[9]&0x08)) { IRQH_Int(5, &SCC_Int); }
         }
     } else {
         if (scc_port_a.rx_ready && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08)) {
@@ -461,9 +485,9 @@ void SCC_Init(void)
     MouseX = 0; MouseY = 0; MouseSt = 0;
     SCC_RegNumA = SCC_RegSetA = SCC_RegNumB = SCC_RegSetB = 0; SCC_Vector = 0; SCC_DatNum = 0;
 
-    // Initialize mouse packet latch buffer
-    SCC_MouseBufferPos = 3;  // No data
-    memset(SCC_MouseBuffer, 0, sizeof(SCC_MouseBuffer));
+    // Initialize mouse packet latch queue
+    SCC_MouseQHead = 0; SCC_MouseQTail = 0; SCC_MouseQCount = 0;
+    memset(SCC_MouseQueue, 0, sizeof(SCC_MouseQueue));
 
     memset(&scc_port_a, 0, sizeof(scc_port_a)); memset(&scc_port_b, 0, sizeof(scc_port_b));
     scc_port_a.mode = SCC_MODE_MOUSE_ONLY; scc_port_a.master_fd = -1;
@@ -493,11 +517,8 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                             SCC_Dat[1] = (BYTE)MouseX;   // X
                             SCC_Dat[0] = (BYTE)MouseY;   // Y
                         } else {
-                            // A packet is still pending; buffer the latest
-                            SCC_MouseBuffer[2] = MouseSt;
-                            SCC_MouseBuffer[1] = (BYTE)MouseX;
-                            SCC_MouseBuffer[0] = (BYTE)MouseY;
-                            SCC_MouseBufferPos = 0; // mark as full
+                            // A packet is still pending; enqueue latest
+                            SCC_MouseQEnqueue(MouseSt, (BYTE)MouseX, (BYTE)MouseY);
                         }
                     }
                 } else {
