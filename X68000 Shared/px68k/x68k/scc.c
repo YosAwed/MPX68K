@@ -38,11 +38,9 @@ BYTE SCC_Vector = 0;
 BYTE SCC_Dat[3] = {0, 0, 0};
 BYTE SCC_DatNum = 0;
 
-// Gradual mouse data transmission (like zsrc)
+// Latch one pending mouse packet when RTS rises while a packet is still pending
 static BYTE SCC_MouseBuffer[3] = {0, 0, 0};
-static int SCC_MouseBufferPos = 3;  // 3 means no data
-static unsigned int SCC_MouseSendCycles = 0;
-static const unsigned int SCC_MOUSE_CYCLES_PER_BYTE = 100;  // Much faster timing
+static int SCC_MouseBufferPos = 3;  // 3 means empty, 0 means full packet buffered
 
 // Enhanced serial ports
 typedef enum {
@@ -92,26 +90,21 @@ static DWORD FASTCALL SCC_Int(BYTE irq)
 void SCC_IntCheck(void)
 {
     if (scc_port_a.mode == SCC_MODE_MOUSE_ONLY) {
-        // Temporary: Disable gradual transmission - causing mouse lockup
-        /*
-        if (SCC_MouseBufferPos < 3 && !SCC_DatNum) {
-            SCC_MouseSendCycles++;
-            if (SCC_MouseSendCycles >= SCC_MOUSE_CYCLES_PER_BYTE) {
-                // Send one byte from buffer
-                SCC_DatNum = 1;
-                SCC_Dat[0] = SCC_MouseBuffer[SCC_MouseBufferPos];
-                SCC_MouseBufferPos++;
-                SCC_MouseSendCycles = 0;
-
-                printf("SCC: Gradual send byte %d: %02X\n", SCC_MouseBufferPos-1, SCC_Dat[0]);
-            }
-        }
-        */
-
+        // Normal interrupt on data ready
         if ( (SCC_DatNum) && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08) ) {
             IRQH_Int(5, &SCC_Int);
         } else if ( (SCC_DatNum==3) && ((SCC_RegsB[1]&0x18)==0x08) && (SCC_RegsB[9]&0x08) ) {
             IRQH_Int(5, &SCC_Int);
+        } else if (!SCC_DatNum && SCC_MouseBufferPos == 0) {
+            // If a full packet is buffered and line conditions allow, publish it now
+            SCC_DatNum = 3;
+            SCC_Dat[2] = SCC_MouseBuffer[2]; // Status first
+            SCC_Dat[1] = SCC_MouseBuffer[1]; // X
+            SCC_Dat[0] = SCC_MouseBuffer[0]; // Y
+            SCC_MouseBufferPos = 3; // mark empty
+            if ((SCC_RegsB[9]&0x08)) {
+                IRQH_Int(5, &SCC_Int);
+            }
         }
     } else {
         if (scc_port_a.rx_ready && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08)) {
@@ -488,19 +481,25 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
         if (SCC_RegSetB) {
             if (SCC_RegNumB == 5) {
                 if (scc_port_a.mode == SCC_MODE_MOUSE_ONLY) {
-                    // 修正: XEiJ互換のRTS変化検出 - 0→1への変化を確実にキャッチ
-                    if ( (!(SCC_RegsB[5]&2)) && (data&2) && (SCC_RegsB[3]&1) && (!SCC_DatNum) ) {
+                    // Detect RTS 0->1 with receiver enabled
+                    int rtsRising = (!(SCC_RegsB[5]&2)) && (data&2);
+                    int rxEnabled = (SCC_RegsB[3]&1);
+                    if (rtsRising && rxEnabled) {
+                        // Latch current mouse state
                         Mouse_SetData();
-
-                        // X68000 mouse packet order must align with consumer:
-                        // First byte read = Status, then X, then Y
-                        SCC_DatNum = 3;
-                        SCC_Dat[2] = MouseSt;        // first byte delivered
-                        SCC_Dat[1] = (BYTE)MouseX;   // second
-                        SCC_Dat[0] = (BYTE)MouseY;   // third
-                        // Always send latest state on each RTS rising edge
-
-                        // ログ出力を削除（ノイズ削減のため）
+                        if (!SCC_DatNum) {
+                            // Publish immediately
+                            SCC_DatNum = 3;
+                            SCC_Dat[2] = MouseSt;        // Status first
+                            SCC_Dat[1] = (BYTE)MouseX;   // X
+                            SCC_Dat[0] = (BYTE)MouseY;   // Y
+                        } else {
+                            // A packet is still pending; buffer the latest
+                            SCC_MouseBuffer[2] = MouseSt;
+                            SCC_MouseBuffer[1] = (BYTE)MouseX;
+                            SCC_MouseBuffer[0] = (BYTE)MouseY;
+                            SCC_MouseBufferPos = 0; // mark as full
+                        }
                     }
                 } else {
                     if ((data & 2) && scc_port_a.connected) { scc_port_a.tx_ready = 1; }
