@@ -335,7 +335,15 @@ class X68MouseController
             holdUntilFrame[type] = frame + holdFrames
             lastClickTime[type] = now
 
-            // ダブルクリック抑制のトグルは使用しない
+            if type == 0 {
+                // 最初のタップで抑制を明示的にオフ（直前の状態をクリア）
+                if doubleClickSuppressionActive {
+                    doubleClickSuppressionWorkItem?.cancel()
+                    doubleClickSuppressionWorkItem = nil
+                } else {
+                    deactivateDoubleClickSuppression()
+                }
+            }
         } else {
             // Release: enforce minimum hold in both capture and non-capture
             let sinceDown = now - (lastClickTime[type] ?? now)
@@ -356,7 +364,21 @@ class X68MouseController
                 }
             }
 
-            // ダブルクリック抑制のトグルは使用しない
+            if type == 0 {
+                if doubleClickSuppressionActive {
+                    // 2回目の解放で即時に抑制終了
+                    deactivateDoubleClickSuppression()
+                } else {
+                    // 次のタップまでの微小移動を抑制
+                    activateDoubleClickSuppression()
+                    let workItem = DispatchWorkItem { [weak self] in
+                        self?.deactivateDoubleClickSuppression()
+                    }
+                    doubleClickSuppressionWorkItem?.cancel()
+                    doubleClickSuppressionWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(deadline: .now() + doubleClickSuppressionInterval, execute: workItem)
+                }
+            }
         }
 
         infoLog("🖱️ X68MouseController.Click: button_state after=\(button_state)", category: .input)

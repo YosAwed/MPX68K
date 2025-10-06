@@ -119,9 +119,14 @@ void Mouse_SetData(void)
 		y = (int)MouseDY;
 
 		MouseDX = MouseDY = 0;
-
         // 現在のボタン状態をそのまま送る
         MouseSt = MouseStat;
+
+        // ダブルクリック抑制中は移動量のみ無効化（ボタンは送る）
+        if (DoubleClickInProgress && (x != 0 || y != 0)) {
+            x = 0;
+            y = 0;
+        }
 
         // 変化がなければ送らない（移動0かつボタン状態同一）
         if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
@@ -217,8 +222,8 @@ void Mouse_ResetState(void)
     MouseY = 0;
 }
 
-// ダブルクリックフラグ制御（互換のため残し、何もしない実装に）
+// ダブルクリック抑制フラグの制御（移動量のみ抑止）
 void Mouse_SetDoubleClickInProgress(int flag)
 {
-    (void)flag;
+    DoubleClickInProgress = flag;
 }
