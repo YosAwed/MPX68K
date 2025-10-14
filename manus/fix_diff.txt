@@ -1,0 +1,52 @@
+--- "/home/ubuntu/MPX68K/X68000 Shared/px68k/x68k/scc.c"	2025-10-08 02:31:02.400049353 -0400
++++ /home/ubuntu/scc_FIXED.c	2025-10-08 02:36:02.168252135 -0400
+@@ -121,15 +121,9 @@
+             IRQH_Int(5, &SCC_Int);
+         } else if ( (SCC_DatNum==3) && ((SCC_RegsB[1]&0x18)==0x08) && (SCC_RegsB[9]&0x08) ) {
+             IRQH_Int(5, &SCC_Int);
+-        } else if (!SCC_DatNum && !SCC_MouseQIsEmpty()) {
+-            // If a buffered packet exists and line conditions allow, publish it now
+-            BYTE st, x, y; SCC_MouseQDequeue(&st, &x, &y);
+-            SCC_DatNum = 3;
+-            SCC_Dat[2] = st; // Status first
+-            SCC_Dat[1] = x;  // X
+-            SCC_Dat[0] = y;  // Y
+-            if ((SCC_RegsB[9]&0x08)) { IRQH_Int(5, &SCC_Int); }
+         }
++        // FIX: Queue processing removed to match original px68k behavior
++        // The queue was causing issues with double-click detection
+     } else {
+         if (scc_port_a.rx_ready && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08)) {
+             printf("SCC_IntCheck: SERIAL INTERRUPT TRIGGERED!\n");
+@@ -507,20 +501,19 @@
+                     // Detect RTS 0->1 with receiver enabled
+                     int rtsRising = (!(SCC_RegsB[5]&2)) && (data&2);
+                     int rxEnabled = (SCC_RegsB[3]&1);
+-                    if (rtsRising && rxEnabled) {
+-                        // Latch current mouse state
++                    // FIX: Only generate mouse data when no data is pending (same as original px68k)
++                    // This ensures that each polling cycle gets exactly one mouse state,
++                    // which is critical for double-click detection.
++                    if (rtsRising && rxEnabled && (!SCC_DatNum)) {
+                         Mouse_SetData();
+-                        if (!SCC_DatNum) {
+-                            // Publish immediately
+-                            SCC_DatNum = 3;
+-                            SCC_Dat[2] = MouseSt;        // Status first
+-                            SCC_Dat[1] = (BYTE)MouseX;   // X
+-                            SCC_Dat[0] = (BYTE)MouseY;   // Y
+-                        } else {
+-                            // A packet is still pending; enqueue latest
+-                            SCC_MouseQEnqueue(MouseSt, (BYTE)MouseX, (BYTE)MouseY);
+-                        }
++                        SCC_DatNum = 3;
++                        SCC_Dat[2] = MouseSt;        // Status first
++                        SCC_Dat[1] = (BYTE)MouseX;   // X
++                        SCC_Dat[0] = (BYTE)MouseY;   // Y
+                     }
++                    // Queue functionality removed: it interferes with double-click detection
++                    // by causing Mouse_SetData() to be called even when data is pending,
++                    // which can lose intermediate button state changes.
+                 } else {
+                     if ((data & 2) && scc_port_a.connected) { scc_port_a.tx_ready = 1; }
+                 }

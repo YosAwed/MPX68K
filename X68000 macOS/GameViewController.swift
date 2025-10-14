@@ -781,6 +781,7 @@ extension GameViewController: NSDraggingDestination {
     }
     
     // MARK: - Mouse Event Handling
+
     private func handleMouseEvent(_ event: NSEvent) {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
@@ -788,37 +789,16 @@ extension GameViewController: NSDraggingDestination {
         if mouseController.isCaptureMode {
             // Capture mode: use raw deltas and re-center each event
             if let until = captureSettleUntil, Date().timeIntervalSince1970 < until {
-                // During settle window, keep cursor centered and swallow events
-                if let window = view.window, let screen = window.screen {
-                    let sf = screen.frame
-                    let center = CGPoint(x: window.frame.midX,
-                                         y: sf.maxY - window.frame.midY)
-                    CGWarpMouseCursorPosition(center)
-                    suppressNextMouseEvent = true
-                }
+                // During settle window, just swallow events (no warping needed when decoupled)
                 return
             } else if captureSettleUntil != nil {
                 // Settle window elapsed
                 captureSettleUntil = nil
             }
-            if suppressNextMouseEvent {
-                suppressNextMouseEvent = false
-                return
-            }
-            if discardNextDelta || discardDeltaCount > 0 {
-                discardNextDelta = false
-                if discardDeltaCount > 0 { discardDeltaCount -= 1 }
-                return
-            }
-            // Use macOS deltaY as-is; downstream handles orientation
-            mouseController.addDeltas(event.deltaX, event.deltaY)
-            if let window = view.window, let screen = window.screen {
-                let sf = screen.frame
-                let center = CGPoint(x: window.frame.midX,
-                                     y: sf.maxY - window.frame.midY)
-                CGWarpMouseCursorPosition(center)
-                suppressNextMouseEvent = true // next move is synthetic
-            }
+            // No synthetic events from warping when decoupled; no need to discard here
+            // Invert Y here to cancel core inversion; matches prior good behavior
+            mouseController.addDeltas(event.deltaX, -event.deltaY)
+            // Reduced verbose per-event logging; no cursor warping when decoupled
         } else {
             // Non-capture: ignore macOS mouse movement entirely to avoid visual drift in emulator
             return
@@ -844,8 +824,9 @@ extension GameViewController: NSDraggingDestination {
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
         if mouseController.isCaptureMode {
+            // Immediately reflect press in core for simplicity
+            X68000_Mouse_Event(1, 1.0, 0.0)
             mouseController.Click(0, true)
-            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(0, true)
             mouseController.sendDirectUpdate()
@@ -856,8 +837,8 @@ extension GameViewController: NSDraggingDestination {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         if mouseController.isCaptureMode {
+            X68000_Mouse_Event(1, 0.0, 0.0)
             mouseController.Click(0, false)
-            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(0, false)
             mouseController.sendDirectUpdate()
@@ -870,8 +851,8 @@ extension GameViewController: NSDraggingDestination {
         // In capture mode, cursor visibility is managed by enable/disableMouseCapture
         // 修正: マウスモードOFFでは座標を更新しない
         if mouseController.isCaptureMode {
+            X68000_Mouse_Event(2, 1.0, 0.0)
             mouseController.Click(1, true)
-            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(1, true)
         }
@@ -883,8 +864,8 @@ extension GameViewController: NSDraggingDestination {
         // Always send right mouseUp for single click processing
         // 修正: 右クリックのmouseUpも常にシングルクリック処理として送信
         if mouseController.isCaptureMode {
+            X68000_Mouse_Event(2, 0.0, 0.0)
             mouseController.Click(1, false)
-            mouseController.sendButtonOnlyUpdate()
         } else {
             mouseController.Click(1, false)
             mouseController.sendDirectUpdate()

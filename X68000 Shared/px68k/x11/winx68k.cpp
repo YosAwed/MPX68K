@@ -730,22 +730,33 @@ void X68000_GetImage( unsigned char* data ) {
     }
 }
 
+// Accumulators for sub-pixel mouse deltas routed via X68000_Mouse_Set
+static float s_mouseAccX = 0.0f;
+static float s_mouseAccY = 0.0f;
+
 // Expose core mouse capture toggle to Swift
 void X68000_Mouse_StartCapture(int flag) {
     Mouse_StartCapture(flag);
     if (flag) {
         // Do nothing else here; Swift side already reset before enabling
+        s_mouseAccX = 0.0f;
+        s_mouseAccY = 0.0f;
     }
 }
 
 // Bridge Mouse_Event for movement and button state updates
 void X68000_Mouse_Event(int param, float dx, float dy) {
     Mouse_Event(param, dx, dy);
+    // Minimal trace for field debugging (can be silenced later)
+    // printf("Mouse_Event param=%d dx=%.3f dy=%.3f\n", param, dx, dy);
 }
 
 // Expose mouse state reset (clears accumulated deltas and last state)
 void X68000_Mouse_ResetState(void) {
     Mouse_ResetState();
+    // Also clear fractional accumulators to avoid drift after resets
+    s_mouseAccX = 0.0f;
+    s_mouseAccY = 0.0f;
 }
 
 // Control double-click movement suppression
@@ -763,6 +774,10 @@ void X68000_Mouse_SetAbsolute(float x, float y) {
     *mouse++ = ((BYTE*)&yy)[0];
     *mouse++ = ((BYTE*)&yy)[1];
     // Do not touch MouseX/MouseY here; leave relative queue untouched
+    // Verbose trace disabled by default to reduce log noise
+    // printf("[winx68k] SetAbsolute x=%d y=%d -> MEM[0xACE..]=(%02X %02X %02X %02X)\n",
+    //        (int)x, (int)y,
+    //        MEM[0xace], MEM[0xacf], MEM[0xad0], MEM[0xad1]);
 }
 
 void FDD_SetFD(int drive, char* filename, int readonly);
@@ -971,6 +986,9 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 
     MouseX = dx;
     MouseY = dy;
+    // Verbose trace disabled by default to reduce log noise
+    // printf("[winx68k] SetDirect target=(%d,%d) current=(%d,%d) -> d=(%d,%d) btn=0x%02lX\n",
+    //        tx, ty, nx, ny, dx, dy, button & 0xff);
 #else
     xx = (WORD)x;
     yy = (WORD)y;
@@ -989,21 +1007,26 @@ void X68000_Mouse_SetDirect( float x, float y, const long button )
 
 void X68000_Mouse_Set( float x, float y, const long button )
 {
-    // Clamp deltas to SCC 8-bit signed range
-    int ix = (int)lrintf(x);
-    int iy = (int)lrintf(y);
+    // Accumulate fractional deltas so tiny movements aren't rounded away
+    s_mouseAccX += x;
+    s_mouseAccY += y;
+
+    // Convert accumulated movement to integer steps
+    int ix = (int)lrintf(s_mouseAccX);
+    int iy = (int)lrintf(s_mouseAccY);
+
+    // Clamp to SCC 8-bit signed range
     if (ix > 127) ix = 127; else if (ix < -128) ix = -128;
     if (iy > 127) iy = 127; else if (iy < -128) iy = -128;
+
     MouseX = (signed char)ix;
     MouseY = (signed char)iy;
     MouseSt = button;
-    // If no movement but button change, keep MouseX/MouseY at 0 to avoid spurious drift
-    if ((int)x == 0 && (int)y == 0) {
-        MouseX = 0;
-        MouseY = 0;
-    }
-    
-    
+
+    // Remove the integer portion we just emitted, keep leftover fraction
+    s_mouseAccX -= (float)ix;
+    s_mouseAccY -= (float)iy;
+
     /*
     BYTE* mouse = &MEM[0xace];
     WORD xx, yy;
@@ -1026,6 +1049,3 @@ void X68000_Mouse_Set( float x, float y, const long button )
 
 }
 //extern "C"
-
-
-

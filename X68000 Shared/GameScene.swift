@@ -1567,22 +1567,11 @@ extension GameScene {
     }
     
     override func mouseMoved(with event: NSEvent) {
-        // Only handle mouse movement when in capture mode
-        guard let mouseController = mouseController, mouseController.isCaptureMode else { 
-            // Removed verbose mouse logging for performance
-            return 
-        }
-        
-        let location = event.location(in: self)
-        // Removed verbose mouse movement logging for performance
-        
-        // Convert mouse position to X68000 mouse coordinates
-        mouseController.SetPosition(location, size)
-        
-        // Debug: Show what coordinates are being sent
-        let normalizedX = Float(location.x) / Float(size.width)
-        let normalizedY = Float(location.y) / Float(size.height)
-        debugLog("Sending normalized coords: (\(normalizedX), \(normalizedY))", category: .input)
+        // In capture mode, GameViewController provides raw deltas and recenters.
+        // Avoid duplicate/inverted updates from Scene-level handler.
+        guard let mouseController = mouseController else { return }
+        if mouseController.isCaptureMode { return }
+        // Non-capture movement is intentionally ignored to avoid visual drift.
     }
     
     // MARK: - Mouse Capture Management

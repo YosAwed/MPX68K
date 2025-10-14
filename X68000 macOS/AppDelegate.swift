@@ -58,6 +58,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
+        // Enable verbose logs for troubleshooting
+        X68LogConfig.enableInfoLogs = true
+        X68LogConfig.enableDebugLogs = true
+        infoLog("Verbose logging enabled (info/debug)", category: .ui)
         setupHDDMenu()
         setupSettingsMenu()
         
@@ -755,6 +759,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // debugLog("AppDelegate.applicationWillResignActive - saving data", category: .x68mac)
         gameViewController?.saveSRAM()
     }
+
+    // Opt-in to secure state restoration coding on supported macOS versions
+    @available(macOS 12.0, *)
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        return true
+    }
     
     // ファイルメニューからの「開く」アクション
     @IBAction func openDocument(_ sender: Any) {
@@ -1317,4 +1327,3 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
 }
-

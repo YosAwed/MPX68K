@@ -1,6 +1,12 @@
 // ---------------------------------------------------------------------------------------
 //  SCC_ENHANCED.C - Z8530 SCC with Real Serial Communication Support
 //  X68000 hardware-compliant version: Port A for Mouse, Port B for Serial
+//  
+//  CHANGES:
+//  - Port A: Mouse only (always enabled)
+//  - Port B: Serial communication (PTY, TCP, File)
+//  - Both ports operate independently and simultaneously
+//  - Double-click detection fixed
 // ---------------------------------------------------------------------------------------
 
 #include "../m68000/common.h"
@@ -532,27 +538,17 @@ void SCC_Init(void)
 // ============================================================================
 // I/O Functions
 // ============================================================================
-// Reduce SCC verbose logging by default
-// #define SCC_DEBUG 1
 void FASTCALL SCC_Write(DWORD adr, BYTE data)
 {
     if (adr>=0xe98008) return;
     
-    // Port B Control (0xE98001) - Mouse channel (compat with original px68k)
+    // Port B Control (0xE98001)
     if ((adr&7) == 1) {
         if (SCC_RegSetB) {
             if (SCC_RegNumB == 5) {
-                // Mouse RTS control on Port B (raise: generate a packet when queue empty)
-                int rtsRising = (!(SCC_RegsB[5]&2)) && (data&2);
-                if (rtsRising && (!SCC_DatNum)) {
-                    Mouse_SetData();
-                    SCC_DatNum = 3;
-                    SCC_Dat[2] = MouseSt;
-                    SCC_Dat[1] = (BYTE)MouseX;
-                    SCC_Dat[0] = (BYTE)MouseY;
-#ifdef SCC_DEBUG
-                    printf("[scc.c] PB RTS rising: queued MouseSt=0x%02X X=%d Y=%d\n", MouseSt, MouseX, MouseY);
-#endif
+                // Port B: Serial communication RTS control
+                if ((data & 2) && scc_port_b.connected) {
+                    scc_port_b.tx_ready = 1;
                 }
             } else if (SCC_RegNumB == 2) {
                 SCC_Vector = data;
@@ -580,7 +576,22 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
     // Port A Control (0xE98005)
     else if ((adr&7) == 5) {
         if (SCC_RegSetA) {
-            if (SCC_RegNumA == 2) {
+            if (SCC_RegNumA == 5) {
+                // Port A: Mouse RTS control
+                // Detect RTS 0->1 transition with receiver enabled
+                int rtsRising = (!(SCC_RegsA[5]&2)) && (data&2);
+                int rxEnabled = (SCC_RegsA[3]&1);
+                
+                // DOUBLE-CLICK FIX: Only generate mouse data when no data is pending
+                // This ensures each polling cycle gets exactly one mouse state
+                if (rtsRising && rxEnabled && (!SCC_DatNum)) {
+                    Mouse_SetData();
+                    SCC_DatNum = 3;
+                    SCC_Dat[2] = MouseSt;
+                    SCC_Dat[1] = (BYTE)MouseX;
+                    SCC_Dat[0] = (BYTE)MouseY;
+                }
+            } else if (SCC_RegNumA == 2) {
                 SCC_RegsB[2] = data;
                 SCC_Vector = data;
             } else if (SCC_RegNumA == 9) {
@@ -614,53 +625,28 @@ BYTE FASTCALL SCC_Read(DWORD adr)
     // Port B Control (0xE98001)
     if ((adr&7) == 1) {
         if (!SCC_RegNumB) {
-            // For mouse (Port A) availability, mirror original behavior: bit0 reflects SCC_DatNum
-            ret = (SCC_DatNum ? 1 : 0);
-#ifdef SCC_DEBUG
-            printf("[scc.c] Read PortB CTRL (RR0) -> ret=0x%02X (SCC_DatNum=%d)\n", ret, SCC_DatNum);
-#endif
+            ret = 0;
+            if (scc_port_b.tx_ready) ret |= 4;  // TX ready
+            if (scc_port_b.rx_ready) ret |= 1;  // RX data available
         }
         SCC_RegNumB = 0;
         SCC_RegSetB = 0;
     }
-    // Port B Data (0xE98003) - Return mouse packet bytes (compat) when in mouse-only mode
+    // Port B Data (0xE98003)
     else if ((adr&7) == 3) {
-        if (SCC_DatNum == 0) {
-            // Populate packet on demand
-            Mouse_SetData();
-            SCC_DatNum = 3;
-            SCC_Dat[2] = MouseSt;
-            SCC_Dat[1] = (BYTE)MouseX;
-            SCC_Dat[0] = (BYTE)MouseY;
-#ifdef SCC_DEBUG
-            printf("[scc.c] PB DATA populate: MouseSt=0x%02X X=%d Y=%d\n", MouseSt, MouseX, MouseY);
-#endif
+        BYTE d;
+        if (SCC_ReceiveByte(&scc_port_b, &d) == 0) {
+            ret = d;
         }
-        SCC_DatNum--;
-        ret = SCC_Dat[SCC_DatNum];
-#ifdef SCC_DEBUG
-        printf("[scc.c] PB DATA read -> byte=%d value=0x%02X (remaining=%d)\n", SCC_DatNum, ret, SCC_DatNum);
-#endif
     }
     // Port A Control (0xE98005)
     else if ((adr&7) == 5) {
         switch(SCC_RegNumA) {
             case 0:
-                // RR0: bit0 = RX Character Available, bit2 = TX Buffer Empty
-                ret = 0;
-                if (SCC_DatNum) ret |= 0x01; // RX available
-                ret |= 0x04;                  // TX empty (always ready for mouse)
-#ifdef SCC_DEBUG
-                printf("[scc.c] Read PortA CTRL (RR0) -> ret=0x%02X (SCC_DatNum=%d)\n", ret, SCC_DatNum);
-#endif
+                ret = 4;  // TX buffer empty (mouse always ready)
                 break;
             case 3:
-                // Some drivers may look at RR3 too; mirror RX/TX status minimally
-                ret = 0;
-                if (SCC_DatNum) ret |= 0x01; // reuse bit0 as RX available indicator
-#ifdef SCC_DEBUG
-                printf("[scc.c] Read PortA CTRL (RR3 mirror) -> ret=0x%02X\n", ret);
-#endif
+                ret = (SCC_DatNum ? 4 : 0);  // RX data available
                 break;
         }
         SCC_RegNumA = 0;
@@ -668,7 +654,11 @@ BYTE FASTCALL SCC_Read(DWORD adr)
     }
     // Port A Data (0xE98007)
     else if ((adr&7) == 7) {
-        // Port A DATA: not used for mouse in original mapping; leave for future use
+        // Read mouse data
+        if (SCC_DatNum) {
+            SCC_DatNum--;
+            ret = SCC_Dat[SCC_DatNum];
+        }
     }
     
     return ret;

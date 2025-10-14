@@ -1,0 +1,44 @@
+--- a/X68000 Shared/px68k/x68k/scc.c
++++ b/X68000 Shared/px68k/x68k/scc.c
+@@ -507,17 +507,11 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
+                 if (scc_port_a.mode == SCC_MODE_MOUSE_ONLY) {
+                     // Detect RTS 0->1 with receiver enabled
+                     int rtsRising = (!(SCC_RegsB[5]&2)) && (data&2);
+                     int rxEnabled = (SCC_RegsB[3]&1);
+-                    if (rtsRising && rxEnabled) {
+-                        // Latch current mouse state
++                    // FIX: Only generate mouse data when no data is pending (same as original)
++                    if (rtsRising && rxEnabled && (!SCC_DatNum)) {
+                         Mouse_SetData();
+-                        if (!SCC_DatNum) {
+-                            // Publish immediately
+-                            SCC_DatNum = 3;
+-                            SCC_Dat[2] = MouseSt;        // Status first
+-                            SCC_Dat[1] = (BYTE)MouseX;   // X
+-                            SCC_Dat[0] = (BYTE)MouseY;   // Y
+-                        } else {
+-                            // A packet is still pending; enqueue latest
+-                            SCC_MouseQEnqueue(MouseSt, (BYTE)MouseX, (BYTE)MouseY);
+-                        }
++                        SCC_DatNum = 3;
++                        SCC_Dat[2] = MouseSt;        // Status first
++                        SCC_Dat[1] = (BYTE)MouseX;   // X
++                        SCC_Dat[0] = (BYTE)MouseY;   // Y
+                     }
+@@ -113,11 +113,7 @@ void SCC_IntCheck(void)
+             IRQH_Int(5, &SCC_Int);
+         } else if ( (SCC_DatNum==3) && ((SCC_RegsB[1]&0x18)==0x08) && (SCC_RegsB[9]&0x08) ) {
+             IRQH_Int(5, &SCC_Int);
+         }
+-        } else if (!SCC_DatNum && !SCC_MouseQIsEmpty()) {
+-            // If a buffered packet exists and line conditions allow, publish it now
+-            BYTE st, x, y; SCC_MouseQDequeue(&st, &x, &y);
+-            SCC_DatNum = 3;
+-            SCC_Dat[2] = st; // Status first
+-            SCC_Dat[1] = x;  // X
+-            SCC_Dat[0] = y;  // Y
+-            if ((SCC_RegsB[9]&0x08)) { IRQH_Int(5, &SCC_Int); }
+-        }
++        // FIX: Remove queue processing to match original behavior
+     } else {
+         if (scc_port_a.rx_ready && ((SCC_RegsB[1]&0x18)==0x10) && (SCC_RegsB[9]&0x08)) {

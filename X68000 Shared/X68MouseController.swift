@@ -16,7 +16,20 @@ class X68MouseController
     var isCaptureMode = false
     
     // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
-    var mouseSensitivity: Float = 0.3
+    // Slight bump for lighter feel
+    var mouseSensitivity: Float = 0.52
+
+    // Clamp per-frame movement in capture mode to avoid big jumps
+    private let movementMaxStepCapture: Float = 1.75
+    
+    // Hysteresis + small-move boost to balance light feel and crisp stop
+    private var movingX: Bool = false
+    private var movingY: Bool = false
+    private let startThreshold: Float = 0.04   // begin moving when above this
+    private let stopThreshold:  Float = 0.10   // stop quickly when below this
+    private let smallBoostThreshold: Float = 0.25 // apply small-boost under this
+    private let smallBoostGain: Float = 1.35
+    private let smallStepFloor: Float = 0.02
     
     var mx : Float = 0.0
     var my : Float = 0.0
@@ -114,6 +127,7 @@ class X68MouseController
 
         // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia
+        // Keep tiny sensor noise out; hysteresis handles crisp stop
         let deadEps: Float = 0.06
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
@@ -123,10 +137,50 @@ class X68MouseController
             // Keep button state current via Mouse_Event so MouseStat is correct
             let leftDown = (current_button_state & 0x1) != 0
             let rightDown = (current_button_state & 0x2) != 0
+            // Send relative movement via SCC mouse queue; core inverts Y internally
+            // Apply clamp to avoid large single-step movement
+            var sx = dx
+            var sy = dy
+            if sx > movementMaxStepCapture { sx = movementMaxStepCapture }
+            if sx < -movementMaxStepCapture { sx = -movementMaxStepCapture }
+            if sy > movementMaxStepCapture { sy = movementMaxStepCapture }
+            if sy < -movementMaxStepCapture { sy = -movementMaxStepCapture }
+            
+            // Axis-wise hysteresis for crisp stop
+            let ax = abs(sx), ay = abs(sy)
+            // X axis
+            if movingX {
+                if ax < stopThreshold { sx = 0; movingX = false }
+            } else {
+                if ax <= startThreshold { sx = 0 } else { movingX = true }
+            }
+            // Y axis
+            if movingY {
+                if ay < stopThreshold { sy = 0; movingY = false }
+            } else {
+                if ay <= startThreshold { sy = 0 } else { movingY = true }
+            }
+
+            // Small-move boost to increase fine movement without sacrificing stop
+            if sx != 0 {
+                let mag = abs(sx)
+                if mag < smallBoostThreshold {
+                    let boosted = max(mag * smallBoostGain, smallStepFloor)
+                    sx = (sx > 0) ? boosted : -boosted
+                }
+            }
+            if sy != 0 {
+                let mag = abs(sy)
+                if mag < smallBoostThreshold {
+                    let boosted = max(mag * smallBoostGain, smallStepFloor)
+                    sy = (sy > 0) ? boosted : -boosted
+                }
+            }
+            // Reduced verbose per-move logging
+            X68000_Mouse_Event(0, sx, sy)
             X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
             X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
-            // Send relative movement directly to SCC range (no screen scaling)
-            X68000_Mouse_Set(dx, dy, current_button_state)
+            // Do NOT push absolute/direct updates in capture mode; it causes cursor ghosting
             dx = 0.0
             dy = 0.0
         } else if current_button_state != lastSentButtonState {
@@ -135,6 +189,8 @@ class X68MouseController
             let rightDown = (current_button_state & 0x2) != 0
             X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
             X68000_Mouse_Event(2, rightDown ? 1.0 : 0.0, 0.0)
+            // Reduced verbose per-button-change logging
+            // Avoid absolute/direct updates here to prevent ghosting
         }
         lastSentButtonState = current_button_state
         
@@ -309,7 +365,7 @@ class X68MouseController
         lastClickState[type] = pressed
 
         let now = Date().timeIntervalSince1970
-        infoLog("🖱️ X68MouseController.Click: type=\(type), pressed=\(pressed), button_state before=\(button_state)", category: .input)
+        // Reduced verbose click logging
 
         if pressed {
             // If a deferred release is pending for this button, finalize it now to allow double-click
@@ -328,11 +384,15 @@ class X68MouseController
                 if now - lp < debounce { return }
             }
             lastPressTime[type] = now
-            // Press: set bit and arm minimum hold
+            // Press: set bit; in capture mode do not arm hold to preserve exact cadence
             pendingRelease.remove(type)
             button_state |= (1<<type)
-            let holdFrames = (isCaptureMode && type == 0) ? minimumHoldFramesCaptureLeft : minimumHoldFrames
-            holdUntilFrame[type] = frame + holdFrames
+            if !isCaptureMode {
+                let holdFrames = minimumHoldFrames
+                holdUntilFrame[type] = frame + holdFrames
+            } else {
+                holdUntilFrame[type] = nil
+            }
             lastClickTime[type] = now
 
             if type == 0 {
@@ -351,13 +411,10 @@ class X68MouseController
             lastReleaseTime[type] = now
 
             if isCaptureMode {
-                // In capture mode: defer release until holdUntilFrame to ensure SCC polls see the press
-                let until = holdUntilFrame[type] ?? frame
-                if frame < until {
-                    pendingRelease.insert(type)
-                } else {
-                    button_state &= ~(1<<type)
-                }
+                // In capture mode: release immediately
+                pendingRelease.remove(type)
+                holdUntilFrame[type] = nil
+                button_state &= ~(1<<type)
             } else {
                 if needDelay {
                     // 修正: 改善された遅延処理を使用
@@ -386,7 +443,7 @@ class X68MouseController
             }
         }
 
-        infoLog("🖱️ X68MouseController.Click: button_state after=\(button_state)", category: .input)
+        // Reduced verbose click logging
     }
     func ClickOnce()
     {
