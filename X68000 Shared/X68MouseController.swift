@@ -69,7 +69,7 @@ class X68MouseController
     // Suppress relative movement between the taps that make up a double-click
     private var doubleClickSuppressionActive = false
     private var doubleClickSuppressionWorkItem: DispatchWorkItem?
-    private let doubleClickSuppressionInterval: TimeInterval = 0.22
+    private let doubleClickSuppressionInterval: TimeInterval = 0.26
     private var doubleClickSuppressionQueueCount = 0
     
     var x68k_width: Float = 0.0
@@ -378,8 +378,8 @@ class X68MouseController
                 return
             }
             // Short press debounce (none for capture, small for non-capture)
-            // 修正: デバウンス間隔の調整
-            let debounce: TimeInterval = isCaptureMode ? 0.01 : 0.02
+            // 修正: キャプチャ時はデバウンス無し（VS.Xのダブルクリックを優先）
+            let debounce: TimeInterval = isCaptureMode ? 0.0 : 0.02
             if let lp = lastPressTime[type] {
                 if now - lp < debounce { return }
             }
@@ -396,13 +396,11 @@ class X68MouseController
             lastClickTime[type] = now
 
             if type == 0 {
-                // 最初のタップで抑制を明示的にオフ（直前の状態をクリア）
-                if doubleClickSuppressionActive {
-                    doubleClickSuppressionWorkItem?.cancel()
-                    doubleClickSuppressionWorkItem = nil
-                } else {
-                    deactivateDoubleClickSuppression()
-                }
+                // 左押下中は微小移動を抑制（ドラッグ扱いされないように）
+                activateDoubleClickSuppression()
+                // 既存の解除スケジュールはキャンセルのみ（抑制は維持）
+                doubleClickSuppressionWorkItem?.cancel()
+                doubleClickSuppressionWorkItem = nil
             }
         } else {
             // Release: enforce minimum hold in both capture and non-capture
@@ -427,19 +425,13 @@ class X68MouseController
             }
 
             if type == 0 {
-                if doubleClickSuppressionActive {
-                    // 2回目の解放で即時に抑制終了
-                    deactivateDoubleClickSuppression()
-                } else {
-                    // 次のタップまでの微小移動を抑制
-                    activateDoubleClickSuppression()
-                    let workItem = DispatchWorkItem { [weak self] in
-                        self?.deactivateDoubleClickSuppression()
-                    }
-                    doubleClickSuppressionWorkItem?.cancel()
-                    doubleClickSuppressionWorkItem = workItem
-                    DispatchQueue.main.asyncAfter(deadline: .now() + doubleClickSuppressionInterval, execute: workItem)
+                // 解放後も一定時間は移動を抑制（ダブルクリック距離条件を満たすため）
+                let workItem = DispatchWorkItem { [weak self] in
+                    self?.deactivateDoubleClickSuppression()
                 }
+                doubleClickSuppressionWorkItem?.cancel()
+                doubleClickSuppressionWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + doubleClickSuppressionInterval, execute: workItem)
             }
         }
 

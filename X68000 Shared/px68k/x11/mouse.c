@@ -41,7 +41,7 @@ POINT	CursorPos;
 int	mousex = 0, mousey = 0;
 
 // Button state queue to preserve rapid press/release transitions for VS.X
-#define BTNQ_CAP 8
+#define BTNQ_CAP 32
 static BYTE ButtonStQueue[BTNQ_CAP];
 static int BtnQHead = 0, BtnQTail = 0, BtnQCount = 0;
 
@@ -89,6 +89,7 @@ void Mouse_Init(void)
 	LastMouseSt = 0;
 	MouseStatPrev = 0;
 	MouseDataSendCount = 0;
+    BtnQHead = BtnQTail = BtnQCount = 0;
 }
 
 
@@ -272,6 +273,7 @@ void Mouse_ResetState(void)
     LastMouseY = 0;
     LastMouseSt = 0;
     MouseStatPrev = 0;
+    BtnQHead = BtnQTail = BtnQCount = 0;
     // Also clear SCC-visible queue
     MouseX = 0;
     MouseY = 0;
