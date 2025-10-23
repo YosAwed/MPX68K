@@ -158,12 +158,9 @@ class GameScene: SKScene {
             node.fontSize = 64
             node.position.y = -350
             node.text = imagefilename
-            
             node.zPosition = 4.0
             // Animation disabled - skip node creation entirely
-            // node.alpha = 0
-            // self.addChild(node)
-            
+
             if self.fileSystem == nil {
                 // debugLog("Creating new FileSystem instance", category: .fileSystem)
                 self.fileSystem = FileSystem()
@@ -526,15 +523,18 @@ class GameScene: SKScene {
     let userDefaults = UserDefaults.standard
     
     private func settings() {
-        if let clock = userDefaults.object(forKey: "clock") as? String {
-            self.clockMHz = Int(clock)!
+        if let clock = userDefaults.object(forKey: "clock") as? String,
+           let clockValue = Int(clock) {
+            self.clockMHz = clockValue
             infoLog("CPU Clock: \(self.clockMHz) MHz", category: .emulation)
+        } else if userDefaults.object(forKey: "clock") != nil {
+            warningLog("Invalid clock value in UserDefaults, using default: \(self.clockMHz) MHz", category: .emulation)
         }
-        
+
         // 画面回転設定の読み込み - 起動時は常に横画面に強制
         currentRotation = .landscape
         infoLog("Screen rotation forced to Landscape on startup", category: .ui)
-        
+
         if let virtual_mouse = userDefaults.object(forKey: "virtual_mouse") as? Bool {
             infoLog("virtual_mouse: \(virtual_mouse)", category: .input)
         }
@@ -542,14 +542,19 @@ class GameScene: SKScene {
             infoLog("virtual_pad: \(virtual_pad)", category: .input)
             virtualPad.isHidden = !virtual_pad
         }
-        if let sample = userDefaults.object(forKey: "samplingrate") as? String {
-            self.samplingRate = Int(sample)!
+        if let sample = userDefaults.object(forKey: "samplingrate") as? String,
+           let sampleValue = Int(sample) {
+            self.samplingRate = sampleValue
             infoLog("Sampling Rate: \(self.samplingRate) Hz", category: .audio)
+        } else if userDefaults.object(forKey: "samplingrate") != nil {
+            warningLog("Invalid sampling rate value in UserDefaults, using default: \(self.samplingRate) Hz", category: .audio)
         }
-        if let fps = userDefaults.object(forKey: "fps") as? String {
-            let fpsValue = Int(fps)!
+        if let fps = userDefaults.object(forKey: "fps") as? String,
+           let fpsValue = Int(fps) {
             view?.preferredFramesPerSecond = fpsValue
             infoLog("FPS: \(fpsValue) Hz", category: .ui)
+        } else if userDefaults.object(forKey: "fps") != nil {
+            warningLog("Invalid FPS value in UserDefaults, using default", category: .ui)
         }
         if let vsync = userDefaults.object(forKey: "vsync") as? Bool {
             self.vsync = vsync
@@ -580,7 +585,11 @@ class GameScene: SKScene {
         // Use new state restore system for auto-mounting
         debugLog("GameScene: Calling bootWithStateRestore()", category: .fileSystem)
         self.fileSystem?.bootWithStateRestore()
-        joycard = X68JoyCard(id: 0, scene: self, sprite: (self.childNode(withName: "//JoyCard") as? SKSpriteNode)!)
+
+        guard let joyCardSprite = self.childNode(withName: "//JoyCard") as? SKSpriteNode else {
+            fatalError("JoyCard sprite node not found in scene")
+        }
+        joycard = X68JoyCard(id: 0, scene: self, sprite: joyCardSprite)
         devices.append(joycard!)
         
         for device in devices {
@@ -1524,27 +1533,10 @@ extension GameScene {
         
         // Clock control area disabled - no title label activation on click
         // Spinny and title pulse animations have been disabled for cleaner macOS experience
-        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-        //     if let label = self.label {
-        //         if let pulseAction = SKAction(named: "Pulse") {
-        //             label.run(pulseAction, withKey: "fadeInOut")
-        //         }
-        //     }
-        //     self.makeSpinny(at: location, color: SKColor.green)
-        // }
     }
     
     override func mouseDragged(with event: NSEvent) {
-        // Only create spinny for clock control area (upper area, excluding mode button area)
-        let location = event.location(in: self)
-        let modeButtonX = -size.width/2 + 150
-        let modeButtonY = size.height/2 - 30
-        let _ = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
-        
         // Spinny animation disabled for cleaner macOS experience
-        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-        //     self.makeSpinny(at: location, color: SKColor.blue)
-        // }
     }
     
     override func mouseUp(with event: NSEvent) {
@@ -1554,16 +1546,6 @@ extension GameScene {
         if currentInputMode == .joycard {
             joycard?.handleMouseClick(at: location, pressed: false)
         }
-        
-        // Spinny animation disabled for cleaner macOS experience  
-        // No upper area interactions to prevent unwanted UI activations
-        // let modeButtonX = -size.width/2 + 150
-        // let modeButtonY = size.height/2 - 30
-        // let distanceFromModeButton = sqrt(pow(location.x - modeButtonX, 2) + pow(location.y - modeButtonY, 2))
-        // 
-        // if location.y > 400.0 && distanceFromModeButton >= 100.0 {
-        //     self.makeSpinny(at: location, color: SKColor.red)
-        // }
     }
     
     override func mouseMoved(with event: NSEvent) {
@@ -1669,11 +1651,7 @@ extension GameScene {
             }
             return
         }
-        
-        // 物理キーベースのマッピング（修飾キーに依存しない基本文字）
-//        if let baseChar = getBaseCharacterForKeyCode(event.keyCode) {
-//            let ascii = baseChar.asciiValue!
-            // print("🐛 Using physical key mapping: '\(baseChar)' ASCII: \(ascii) for keyCode: \(event.keyCode)")
+
         // Use character-based processing to handle shift key combinations correctly
         if let characters = event.characters,
            let char = characters.first,
@@ -1687,22 +1665,7 @@ extension GameScene {
             }
             return
         }
-        
-        // フォールバック: 文字ベース処理
-//       if let characters = event.characters, !characters.isEmpty {
-//           let char = characters.first!
-//           let asciiValue = char.asciiValue
-            
-            // print("🐛 Fallback character: '\(char)' ASCII: \(asciiValue ?? 0)")
-            
-//            if let ascii = asciiValue {
-                // print("🐛 Using KeyTable index: \(ascii) for character: '\(char)'")
-//                if isKeyDown {
-//                    X68000_Key_Down(UInt32(ascii))
-//                } else {
-//                    X68000_Key_Up(UInt32(ascii))
-//                }
-//                return
+
         // フォールバック: 物理キーベースのマッピング（修飾キーに依存しない基本文字）
         if let baseChar = getBaseCharacterForKeyCode(event.keyCode),
            let ascii = baseChar.asciiValue {

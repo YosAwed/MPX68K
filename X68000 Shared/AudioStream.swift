@@ -153,13 +153,29 @@ private func resetFadeOut() {
 }
 
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
-    
-    let audioData = buffer.pointee.mAudioData
+
+    guard let audioData = buffer.pointee.mAudioData else {
+        errorLog("Audio buffer data is nil", category: .audio)
+        return
+    }
+
     let size = buffer.pointee.mAudioDataBytesCapacity / 4  // Size in samples (16-bit stereo)
-    
+
     // Enhanced safety check with better noise prevention
-    if size > 0 && size <= 32768 {  // Further increased buffer size limit for 100ms buffers
-        let mAudioDataPtr = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
+    guard size > 0 && size <= 32768 else {  // Further increased buffer size limit for 100ms buffers
+        if size > 32768 {
+            errorLog("Audio buffer size \(size) exceeds maximum allowed (32768)", category: .audio)
+        }
+        return
+    }
+
+    // Verify buffer has sufficient capacity for Int16 conversion
+    guard buffer.pointee.mAudioDataBytesCapacity >= size * 4 else {
+        errorLog("Audio buffer capacity insufficient: \(buffer.pointee.mAudioDataBytesCapacity) bytes, need \(size * 4)", category: .audio)
+        return
+    }
+
+    let mAudioDataPtr = UnsafeMutablePointer<Int16>(OpaquePointer(audioData))
         
         // Pre-clear buffer completely to prevent any residual noise
         memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
