@@ -643,21 +643,27 @@ class FileSystem {
     func createDocumentsFolder() {
         // iCloudコンテナのURL
         //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-        let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let path = (url?.appendingPathComponent("X68000"))!
+        guard let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true) else {
+            errorLog("Failed to get documents directory URL", category: .fileSystem)
+            return
+        }
+        let path = url.appendingPathComponent("X68000")
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
             errorLog("Error creating directory", error: error, category: .fileSystem)
         }
-        
+
 #if true
-        let fileURL = getDocumentsPath("README.txt")
+        guard let fileURL = getDocumentsPath("README.txt") else {
+            errorLog("Failed to get README.txt path", category: .fileSystem)
+            return
+        }
         let todayText = "POWER TO MAKE YOUR DREAM COME TRUE. Please put CGROM.DAT, IPLROM.DAT, and disk images here.\nSRAM.DAT (save data) will also be saved in this directory."
-        if ( FileManager.default.fileExists( atPath: fileURL!.path ) == true ) {
+        if ( FileManager.default.fileExists( atPath: fileURL.path ) == true ) {
         } else {
             do {
-                try todayText.write(to: fileURL!, atomically: true, encoding: .utf8)
+                try todayText.write(to: fileURL, atomically: true, encoding: .utf8)
             }
             catch {
                 errorLog("Write error", category: .fileSystem)
@@ -1375,8 +1381,8 @@ class FileSystem {
             self?.loadCompanionDiskWithFallback(companionUrl: companionUrl) {
                 // Cleanup regardless of success/failure (thread-safe)
                 FileSystem.loadingPairLock.lock()
+                defer { FileSystem.loadingPairLock.unlock() }
                 FileSystem.currentlyLoadingPair = nil
-                FileSystem.loadingPairLock.unlock()
                 debugLog("Cleared pair loading state for: \(pairIdentifier)", category: .fileSystem)
             }
         }
@@ -1454,17 +1460,13 @@ class FileSystem {
         let pairIdentifier = directory.path + "/" + baseFilename.lowercased()
         
         debugLog("Checking pair identifier: \(pairIdentifier)", category: .fileSystem)
-        
+
         // Thread-safe check and set for loading pair
         FileSystem.loadingPairLock.lock()
-        let currentlyLoadingStatus = FileSystem.currentlyLoadingPair
-        FileSystem.loadingPairLock.unlock()
-        
-        debugLog("Currently loading: \(currentlyLoadingStatus ?? "none")", category: .fileSystem)
-        
-        FileSystem.loadingPairLock.lock()
         defer { FileSystem.loadingPairLock.unlock() }
-        
+
+        debugLog("Currently loading: \(FileSystem.currentlyLoadingPair ?? "none")", category: .fileSystem)
+
         // Check if we're already loading this pair - only check at the pair level
         if let currentPair = FileSystem.currentlyLoadingPair, currentPair == pairIdentifier {
             warningLog("Already loading disk pair: \(pairIdentifier), skipping", category: .fileSystem)
@@ -1482,8 +1484,8 @@ class FileSystem {
         // Create completion handler that clears the pair loading state
         let completePairLoading = {
             FileSystem.loadingPairLock.lock()
+            defer { FileSystem.loadingPairLock.unlock() }
             FileSystem.currentlyLoadingPair = nil
-            FileSystem.loadingPairLock.unlock()
             print("Debug: Cleared pair loading state for: \(pairIdentifier)")
         }
         
