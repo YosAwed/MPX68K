@@ -352,6 +352,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         tcpServerItem.identifier = NSUserInterfaceItemIdentifier("Serial-TCPServer")
         
         let separator = NSMenuItem.separator()
+
+        let compatItem = NSMenuItem(
+            title: "Original Mouse SCC (Compat)",
+            action: #selector(toggleSCCCompatMode(_:)),
+            keyEquivalent: ""
+        )
+        compatItem.target = self
+        compatItem.identifier = NSUserInterfaceItemIdentifier("Serial-CompatMouse")
         
         let disconnectItem = NSMenuItem(
             title: "Disconnect",
@@ -367,6 +375,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         serialSubmenu.addItem(tcpServerItem)
         serialSubmenu.addItem(separator)
         serialSubmenu.addItem(disconnectItem)
+        serialSubmenu.addItem(NSMenuItem.separator())
+        serialSubmenu.addItem(compatItem)
         
         // Find insertion point before Quit menu item
         var insertIndex = menu.items.count
@@ -1068,7 +1078,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             }
         }
     }
-    
+
     // MARK: - Serial Communication Settings Actions
     @objc private func setSerialMouseOnly(_ sender: Any) {
         infoLog("Setting serial mode to Mouse Only", category: .ui)
@@ -1156,6 +1166,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         updateSerialMenuCheckmarks()
     }
+
+    @objc private func toggleSCCCompatMode(_ sender: Any) {
+        // Toggle original px68k SCC mouse behavior
+        let enabled = SCC_GetCompatMode() != 0
+        SCC_SetCompatMode(enabled ? 0 : 1)
+        infoLog("SCC Mouse Compat Mode: \(enabled ? "OFF" : "ON")", category: .ui)
+        updateSerialMenuCheckmarks()
+    }
     
     @objc private func setSerialTCPServer(_ sender: Any) {
         // Show TCP Server configuration dialog
@@ -1234,6 +1252,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                 serialItem.state = (currentMode == .serialTCP) ? .on : .off
                             case "Serial-TCPServer":
                                 serialItem.state = (currentMode == .serialTCPServer) ? .on : .off
+                            case "Serial-CompatMouse":
+                                serialItem.state = (SCC_GetCompatMode() != 0) ? .on : .off
                             default:
                                 break
                             }

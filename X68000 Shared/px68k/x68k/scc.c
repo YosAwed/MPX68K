@@ -31,6 +31,23 @@ BYTE MouseSt = 0;
 BYTE SCC_Dat[3] = {0, 0, 0};
 BYTE SCC_DatNum = 0;
 
+// Compatibility mode: when enabled, mimic original px68k SCC mouse behavior
+// - Only generate mouse packet on RTS rising edge when RX enabled and no data pending
+// - Port A control reads return original bit patterns (RR0=0x04, RR3=(SCC_DatNum?0x04:0))
+static int g_scc_mouse_compat_mode = 0;
+static int g_scc_trace = 0; // verbose tracing (env SCC_MOUSE_TRACE=1)
+static int g_scc_edgelog = 0; // lightweight edge log (env SCC_MOUSE_EDGELOG=1)
+
+// Last published snapshot (compat mode coalescing)
+static BYTE g_last_pub_st = 0;
+static signed char g_last_pub_x = 0;
+static signed char g_last_pub_y = 0;
+
+static long long scc_now_ms(void) {
+    struct timeval tv; gettimeofday(&tv, NULL);
+    return (long long)tv.tv_sec * 1000LL + (tv.tv_usec / 1000);
+}
+
 // ============================================================================
 // SCC Registers
 // ============================================================================
@@ -80,6 +97,46 @@ typedef struct {
 
 static SCC_SerialPort scc_port_b;  // Port B for serial communication
 
+// ----------------------------------------------------------------------------
+// Mouse packet edge queue (preserve rapid press/release transitions)
+// We publish at most one packet per RTS rising edge. If another edge occurs
+// while a packet is still pending, we latch the latest button state as a
+// button-only packet (X=0,Y=0) for publication on the next RTS rising.
+#define SCC_MOUSE_QSIZE 8
+static BYTE g_mouse_q[SCC_MOUSE_QSIZE][3]; // [][2]=Status, [][1]=X, [][0]=Y
+static int g_mouse_q_head = 0, g_mouse_q_tail = 0, g_mouse_q_cnt = 0;
+static inline int mouse_q_empty(void){ return g_mouse_q_cnt == 0; }
+static inline int mouse_q_full(void){ return g_mouse_q_cnt >= SCC_MOUSE_QSIZE; }
+static inline void mouse_q_enq(BYTE st, BYTE x, BYTE y){
+    if (mouse_q_full()) { g_mouse_q_head = (g_mouse_q_head + 1) % SCC_MOUSE_QSIZE; g_mouse_q_cnt--; }
+    g_mouse_q[g_mouse_q_tail][2] = st;
+    g_mouse_q[g_mouse_q_tail][1] = x;
+    g_mouse_q[g_mouse_q_tail][0] = y;
+    g_mouse_q_tail = (g_mouse_q_tail + 1) % SCC_MOUSE_QSIZE;
+    g_mouse_q_cnt++;
+}
+static inline int mouse_q_deq(BYTE* st, BYTE* x, BYTE* y){
+    if (mouse_q_empty()) return 0;
+    *st = g_mouse_q[g_mouse_q_head][2];
+    *x  = g_mouse_q[g_mouse_q_head][1];
+    *y  = g_mouse_q[g_mouse_q_head][0];
+    g_mouse_q_head = (g_mouse_q_head + 1) % SCC_MOUSE_QSIZE;
+    g_mouse_q_cnt--;
+    return 1;
+}
+
+// Public API: latch a mouse packet (typically button-only) at event time.
+// This decouples host edge timing from SCC RTS sampling.
+void SCC_LatchMouseStatus(BYTE st, signed char x, signed char y)
+{
+    if (g_scc_mouse_compat_mode) {
+        // In strict compat mode, do not use the queue at all
+        return;
+    }
+    // Only store minimal changes; queue is small
+    mouse_q_enq(st, (BYTE)x, (BYTE)y);
+}
+
 // ============================================================================
 // Forward declarations
 // ============================================================================
@@ -91,6 +148,19 @@ static int SCC_StartTCPServer(SCC_SerialPort* port, int port_num);
 static int SCC_OpenFile(SCC_SerialPort* port, const char* path);
 static int SCC_SendByte(SCC_SerialPort* port, BYTE data);
 static int SCC_ReceiveByte(SCC_SerialPort* port, BYTE* data);
+
+// ----------------------------------------------------------------------------
+// Compatibility mode control (public C API)
+void SCC_SetCompatMode(int enable) {
+    g_scc_mouse_compat_mode = (enable ? 1 : 0);
+    // Inform mouse layer to switch behavior as well
+    extern void Mouse_SetCompatMode(int enable);
+    Mouse_SetCompatMode(g_scc_mouse_compat_mode);
+}
+
+int SCC_GetCompatMode(void) {
+    return g_scc_mouse_compat_mode;
+}
 
 // ============================================================================
 // Interrupt handling
@@ -527,6 +597,28 @@ void SCC_Init(void)
     scc_port_b.stop_bits = 1;
     scc_port_b.parity = 0;
     scc_port_b.slave_path[0] = '\0';
+
+    // Optional: enable compat mode via environment variable
+    // Set SCC_MOUSE_COMPAT=1 to force original px68k behavior
+    const char* compatEnv = getenv("SCC_MOUSE_COMPAT");
+    if (compatEnv && (compatEnv[0] == '1' || compatEnv[0] == 't' || compatEnv[0] == 'T' || compatEnv[0] == 'y' || compatEnv[0] == 'Y')) {
+        g_scc_mouse_compat_mode = 1;
+    }
+    const char* traceEnv = getenv("SCC_MOUSE_TRACE");
+    if (traceEnv && (traceEnv[0] == '1' || traceEnv[0] == 't' || traceEnv[0] == 'T' || traceEnv[0] == 'y' || traceEnv[0] == 'Y')) {
+        g_scc_trace = 1;
+        printf("[scc.c] SCC mouse trace enabled\n");
+    }
+    const char* edgeEnv = getenv("SCC_MOUSE_EDGELOG");
+    if (edgeEnv && (edgeEnv[0] == '1' || edgeEnv[0] == 't' || edgeEnv[0] == 'T' || edgeEnv[0] == 'y' || edgeEnv[0] == 'Y')) {
+        g_scc_edgelog = 1;
+        printf("[scc.c] SCC mouse edge log enabled\n");
+    }
+    // Clear mouse queue
+    g_mouse_q_head = g_mouse_q_tail = g_mouse_q_cnt = 0;
+    g_last_pub_st = 0;
+    g_last_pub_x = 0;
+    g_last_pub_y = 0;
 }
 
 // ============================================================================
@@ -542,17 +634,71 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
     if ((adr&7) == 1) {
         if (SCC_RegSetB) {
             if (SCC_RegNumB == 5) {
-                // Mouse RTS control on Port B (raise: generate a packet when queue empty)
+                // Mouse RTS control on Port B (raise edge)
                 int rtsRising = (!(SCC_RegsB[5]&2)) && (data&2);
-                if (rtsRising && (!SCC_DatNum)) {
-                    Mouse_SetData();
-                    SCC_DatNum = 3;
-                    SCC_Dat[2] = MouseSt;
-                    SCC_Dat[1] = (BYTE)MouseX;
-                    SCC_Dat[0] = (BYTE)MouseY;
-#ifdef SCC_DEBUG
-                    printf("[scc.c] PB RTS rising: queued MouseSt=0x%02X X=%d Y=%d\n", MouseSt, MouseX, MouseY);
-#endif
+                if (g_scc_trace) {
+                    printf("[scc.c] WR5 write data=0x%02X rtsRising=%d pend=%d q=%d compat=%d\n",
+                           data, rtsRising, SCC_DatNum, g_mouse_q_cnt, g_scc_mouse_compat_mode);
+                }
+                if (g_scc_mouse_compat_mode) {
+                    // Strict original behavior: require RX enabled and no pending data
+                    int rxEnabled = (SCC_RegsB[3] & 0x01) != 0;
+                    if (rtsRising && rxEnabled && (!SCC_DatNum)) {
+                        Mouse_SetData();
+                        // Strict compat with duplicate coalescing by status:
+                        // publish only when button status changed to reduce extra samples.
+                        if (MouseSt != g_last_pub_st) {
+                            SCC_DatNum = 3;
+                            SCC_Dat[2] = MouseSt;
+                            SCC_Dat[1] = (BYTE)MouseX;
+                            SCC_Dat[0] = (BYTE)MouseY;
+                            g_last_pub_st = MouseSt;
+                            g_last_pub_x = MouseX;
+                            g_last_pub_y = MouseY;
+                            if (g_scc_trace || g_scc_edgelog) {
+                                printf("[scc.c] PUBLISH t=%lld st=0x%02X x=%d y=%d\n", scc_now_ms(), MouseSt, MouseX, MouseY);
+                            }
+                            SCC_IntCheck();
+                        } else {
+                            if (g_scc_trace || g_scc_edgelog) {
+                                printf("[scc.c] PUBLISH skip (same st) t=%lld st=0x%02X\n", scc_now_ms(), MouseSt);
+                            }
+                        }
+                    }
+                } else {
+                    // Enhanced behavior with edge queue
+                    if (rtsRising) {
+                        if (!SCC_DatNum) {
+                            BYTE st, x, y;
+                            if (mouse_q_deq(&st, &x, &y)) {
+                                // Drain movement before publishing queued button-only
+                                Mouse_SetData();
+                                SCC_DatNum = 3;
+                                SCC_Dat[2] = st;
+                                SCC_Dat[1] = 0;
+                                SCC_Dat[0] = 0;
+                                if (g_scc_trace) {
+                                    printf("[scc.c] RTS: publish QUEUED button-only st=0x%02X\n", st);
+                                }
+                            } else {
+                                Mouse_SetData();
+                                SCC_DatNum = 3;
+                                SCC_Dat[2] = MouseSt;
+                                SCC_Dat[1] = (BYTE)MouseX;
+                                SCC_Dat[0] = (BYTE)MouseY;
+                                if (g_scc_trace) {
+                                    printf("[scc.c] RTS: publish FRESH st=0x%02X x=%d y=%d\n", MouseSt, MouseX, MouseY);
+                                }
+                            }
+                            SCC_IntCheck();
+                        } else {
+                            BYTE st = MouseSt;
+                            mouse_q_enq(st, 0, 0);
+                            if (g_scc_trace) {
+                                printf("[scc.c] RTS: pending present -> LATCH st=0x%02X (q=%d)\n", st, g_mouse_q_cnt);
+                            }
+                        }
+                    }
                 }
             } else if (SCC_RegNumB == 2) {
                 SCC_Vector = data;
@@ -625,43 +771,68 @@ BYTE FASTCALL SCC_Read(DWORD adr)
     }
     // Port B Data (0xE98003) - Return mouse packet bytes (compat) when in mouse-only mode
     else if ((adr&7) == 3) {
-        if (SCC_DatNum == 0) {
+//        if (SCC_DatNum == 0) {
+            if (SCC_DatNum) {
+            SCC_DatNum--;
+            ret = SCC_Dat[SCC_DatNum];
+            if (g_scc_trace) {
+                printf("[scc.c] PB DATA read -> idx=%d val=0x%02X pend=%d\n", SCC_DatNum, ret, SCC_DatNum);
+            }
+
             // Populate packet on demand
-            Mouse_SetData();
-            SCC_DatNum = 3;
-            SCC_Dat[2] = MouseSt;
-            SCC_Dat[1] = (BYTE)MouseX;
-            SCC_Dat[0] = (BYTE)MouseY;
-#ifdef SCC_DEBUG
+            // Mouse_SetData();
+            // SCC_DatNum = 3;
+            // SCC_Dat[2] = MouseSt;
+            // SCC_Dat[1] = (BYTE)MouseX;
+            // SCC_Dat[0] = (BYTE)MouseY;
+
+             #ifdef SCC_DEBUG
             printf("[scc.c] PB DATA populate: MouseSt=0x%02X X=%d Y=%d\n", MouseSt, MouseX, MouseY);
 #endif
         }
-        SCC_DatNum--;
-        ret = SCC_Dat[SCC_DatNum];
+
+//        SCC_DatNum--;
+//        ret = SCC_Dat[SCC_DatNum];
+
 #ifdef SCC_DEBUG
         printf("[scc.c] PB DATA read -> byte=%d value=0x%02X (remaining=%d)\n", SCC_DatNum, ret, SCC_DatNum);
 #endif
     }
     // Port A Control (0xE98005)
     else if ((adr&7) == 5) {
-        switch(SCC_RegNumA) {
-            case 0:
-                // RR0: bit0 = RX Character Available, bit2 = TX Buffer Empty
-                ret = 0;
-                if (SCC_DatNum) ret |= 0x01; // RX available
-                ret |= 0x04;                  // TX empty (always ready for mouse)
+        if (g_scc_mouse_compat_mode) {
+            // Original px68k behavior
+            switch (SCC_RegNumA) {
+                case 0:
+                    // RR0: TX Buffer Empty only
+                    ret = 0x04;
+                    break;
+                case 3:
+                    // RR3: mirror TX empty bit depending on pending data
+                    ret = (SCC_DatNum ? 0x04 : 0x00);
+                    break;
+            }
+        } else {
+            // Enhanced default: expose RX available on bit0; TX empty on bit2
+            switch(SCC_RegNumA) {
+                case 0:
+                    // RR0: bit0 = RX Character Available, bit2 = TX Buffer Empty
+                    ret = 0;
+                    if (SCC_DatNum) ret |= 0x01; // RX available
+                    ret |= 0x04;                  // TX empty (always ready for mouse)
 #ifdef SCC_DEBUG
-                printf("[scc.c] Read PortA CTRL (RR0) -> ret=0x%02X (SCC_DatNum=%d)\n", ret, SCC_DatNum);
+                    printf("[scc.c] Read PortA CTRL (RR0) -> ret=0x%02X (SCC_DatNum=%d)\n", ret, SCC_DatNum);
 #endif
-                break;
-            case 3:
-                // Some drivers may look at RR3 too; mirror RX/TX status minimally
-                ret = 0;
-                if (SCC_DatNum) ret |= 0x01; // reuse bit0 as RX available indicator
+                    break;
+                case 3:
+                    // Some drivers may look at RR3 too; mirror RX/TX status minimally
+                    ret = 0;
+                    if (SCC_DatNum) ret |= 0x01; // reuse bit0 as RX available indicator
 #ifdef SCC_DEBUG
-                printf("[scc.c] Read PortA CTRL (RR3 mirror) -> ret=0x%02X\n", ret);
+                    printf("[scc.c] Read PortA CTRL (RR3 mirror) -> ret=0x%02X\n", ret);
 #endif
-                break;
+                    break;
+            }
         }
         SCC_RegNumA = 0;
         SCC_RegSetA = 0;

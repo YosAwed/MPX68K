@@ -16,4 +16,7 @@ void Mouse_ChangePos(void);
 void Mouse_ResetState(void);
 void Mouse_SetDoubleClickInProgress(int flag);
 
+// Toggle strict original px68k behavior for mouse handling
+void Mouse_SetCompatMode(int enable);
+
 #endif //_winx68k_mouse

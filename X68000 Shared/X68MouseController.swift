@@ -17,18 +17,18 @@ class X68MouseController
     
     // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
     // Slight bump for lighter feel
-    var mouseSensitivity: Float = 0.52
+    var mouseSensitivity: Float = 0.45
 
     // Clamp per-frame movement in capture mode to avoid big jumps
-    private let movementMaxStepCapture: Float = 1.75
+    private let movementMaxStepCapture: Float = 1.20
     
     // Hysteresis + small-move boost to balance light feel and crisp stop
     private var movingX: Bool = false
     private var movingY: Bool = false
-    private let startThreshold: Float = 0.04   // begin moving when above this
+    private let startThreshold: Float = 0.06   // begin moving when above this (more deadzone)
     private let stopThreshold:  Float = 0.10   // stop quickly when below this
-    private let smallBoostThreshold: Float = 0.25 // apply small-boost under this
-    private let smallBoostGain: Float = 1.35
+    private let smallBoostThreshold: Float = 0.18 // apply small-boost under this (reduced)
+    private let smallBoostGain: Float = 1.20
     private let smallStepFloor: Float = 0.02
     
     var mx : Float = 0.0
@@ -69,7 +69,7 @@ class X68MouseController
     // Suppress relative movement between the taps that make up a double-click
     private var doubleClickSuppressionActive = false
     private var doubleClickSuppressionWorkItem: DispatchWorkItem?
-    private let doubleClickSuppressionInterval: TimeInterval = 0.26
+    private let doubleClickSuppressionInterval: TimeInterval = 0.20
     private var doubleClickSuppressionQueueCount = 0
     
     var x68k_width: Float = 0.0
@@ -128,10 +128,18 @@ class X68MouseController
         // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia
         // Keep tiny sensor noise out; hysteresis handles crisp stop
-        let deadEps: Float = 0.06
+        let deadEps: Float = 0.08
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
-        let movement = (dx != 0.0 || dy != 0.0)
+        var movement = (dx != 0.0 || dy != 0.0)
+
+        // During double-click suppression window, drop all movement to guarantee
+        // zero distance between clicks for VS.X detection.
+        if doubleClickSuppressionActive {
+            dx = 0.0
+            dy = 0.0
+            movement = false
+        }
         // Prefer movement packets; if no movement, send button-only packet to avoid jitter
         if movement {
             // Keep button state current via Mouse_Event so MouseStat is correct
@@ -396,11 +404,8 @@ class X68MouseController
             lastClickTime[type] = now
 
             if type == 0 {
-                // 左押下中は微小移動を抑制（ドラッグ扱いされないように）
-                activateDoubleClickSuppression()
-                // 既存の解除スケジュールはキャンセルのみ（抑制は維持）
-                doubleClickSuppressionWorkItem?.cancel()
-                doubleClickSuppressionWorkItem = nil
+                // Allow drag while left button is held: disable suppression on press
+                deactivateDoubleClickSuppression()
             }
         } else {
             // Release: enforce minimum hold in both capture and non-capture
@@ -425,7 +430,8 @@ class X68MouseController
             }
 
             if type == 0 {
-                // 解放後も一定時間は移動を抑制（ダブルクリック距離条件を満たすため）
+                // 解放直後から一定時間、移動を抑制（ダブルクリック距離条件を満たす）
+                activateDoubleClickSuppression()
                 let workItem = DispatchWorkItem { [weak self] in
                     self?.deactivateDoubleClickSuppression()
                 }

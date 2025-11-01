@@ -48,3 +48,6 @@ unsigned char* X68000_GetMIDIBuffer();
 void PPI_SetJoyportUMode(int mode);
 int PPI_GetJoyportUMode(void);
 
+// SCC compatibility toggle (original px68k mouse behavior)
+void SCC_SetCompatMode(int enable);
+int SCC_GetCompatMode(void);

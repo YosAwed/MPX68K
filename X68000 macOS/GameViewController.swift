@@ -710,12 +710,18 @@ extension GameViewController: NSDraggingDestination {
         view.window?.makeFirstResponder(self.view)
         infoLog("MouseCaptureSKView made first responder for mouse capture", category: .input)
         
+        // Ensure our app/window is active to receive clicks after capture
+        NSApp.activate(ignoringOtherApps: true)
+
         // Hide the macOS cursor (AppKit only)
         NSCursor.hide()
         // Ensure we receive mouseMoved events even when not key only
         view.window?.acceptsMouseMovedEvents = true
         // Decouple OS cursor for true capture (prevent host edge clamp/click-through)
-        CGAssociateMouseAndMouseCursorPosition(Int32(0))
+        CGAssociateMouseAndMouseCursorPosition(0)
+        // Immediately warp the OS cursor into our window so the next click
+        // lands in this app rather than at the old global location.
+        warpCursorToViewCenter()
         discardNextDelta = true // Drop the first delta after enabling to avoid spikes
         discardDeltaCount = 0    // No extra discards; rely on single suppress
         captureSettleUntil = Date().timeIntervalSince1970 + 0.15 // swallow ~150ms of synthetic noise
@@ -748,7 +754,7 @@ extension GameViewController: NSDraggingDestination {
         NSCursor.unhide()
         view.window?.acceptsMouseMovedEvents = false
         // Re-attach OS cursor to hardware mouse
-        CGAssociateMouseAndMouseCursorPosition(Int32(1))
+        CGAssociateMouseAndMouseCursorPosition(1)
         
         // Disable mouse capture mode in the game scene
         gameScene?.disableMouseCapture()
@@ -950,6 +956,21 @@ extension GameViewController: NSDraggingDestination {
             return "screen \(slavePath) 9600"
         }
         return nil
+    }
+}
+
+// MARK: - Cursor Utilities
+extension GameViewController {
+    /// Warp the OS cursor to the center of our view in screen coordinates.
+    /// Keeps future clicks within this app when the cursor is decoupled.
+    fileprivate func warpCursorToViewCenter() {
+        guard let window = self.view.window else { return }
+        // View bounds in window coords
+        let rectInWindow = view.convert(view.bounds, to: nil)
+        // Convert to screen coords (global Quartz space expected by CGWarp)
+        let rectOnScreen = window.convertToScreen(rectInWindow)
+        let center = CGPoint(x: rectOnScreen.midX, y: rectOnScreen.midY)
+        CGWarpMouseCursorPosition(center)
     }
 }
 

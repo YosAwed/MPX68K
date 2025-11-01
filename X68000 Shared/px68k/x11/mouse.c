@@ -29,6 +29,7 @@
 #include "scc.h"
 #include "crtc.h"
 #include "mouse.h"
+#include "scc.h"
 #include <sys/time.h>
 #include <math.h>
 
@@ -75,6 +76,13 @@ static int MouseDataSendCount = 0;  // 送信回数をカウント
 
 // ダブルクリック実行中フラグ（現在ロジックでは未使用。互換のため残置）
 static int DoubleClickInProgress = 0;
+static int g_mouse_edgelog = 0; // env SCC_MOUSE_EDGELOG=1
+
+// 互換モード: オリジナルpx68kに合わせて簡素化した動作に切り替える
+static int g_mouse_compat_mode = 0;
+
+// Forward decl for edge logging timestamp
+static double GetCurrentTimeMs(void);
 
 
 void Mouse_Init(void)
@@ -87,9 +95,15 @@ void Mouse_Init(void)
 	LastMouseX = 0;
 	LastMouseY = 0;
 	LastMouseSt = 0;
-	MouseStatPrev = 0;
-	MouseDataSendCount = 0;
+    MouseStatPrev = 0;
+    MouseDataSendCount = 0;
     BtnQHead = BtnQTail = BtnQCount = 0;
+
+    const char* edgeEnv = getenv("SCC_MOUSE_EDGELOG");
+    if (edgeEnv && (edgeEnv[0]=='1'||edgeEnv[0]=='t'||edgeEnv[0]=='T'||edgeEnv[0]=='y'||edgeEnv[0]=='Y')) {
+        g_mouse_edgelog = 1;
+        printf("[mouse.c] edge log enabled\n");
+    }
 }
 
 
@@ -109,20 +123,38 @@ void Mouse_Event(int param, float dx, float dy)
             MouseDX += dx;
             MouseDY -= dy;
 			break;
-		case 1:	// left button
-			if (dx != 0)
-				MouseStat |= 1;
-			else
-				MouseStat &= 0xfe;
-			if (MouseStat != MouseStatPrev) { BtnQ_Enq(MouseStat); MouseStatPrev = MouseStat; }
-			break;
-		case 2:	// right button
-			if (dx != 0)
-				MouseStat |= 2;
-			else
-				MouseStat &= 0xfd;
-			if (MouseStat != MouseStatPrev) { BtnQ_Enq(MouseStat); MouseStatPrev = MouseStat; }
-			break;
+        case 1:	// left button
+            if (dx != 0)
+                MouseStat |= 1;
+            else
+                MouseStat &= 0xfe;
+            // Latch only on actual edge
+            if (MouseStat != MouseStatPrev) {
+                if (g_mouse_edgelog) {
+                    double t = GetCurrentTimeMs();
+                    printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
+                }
+                SCC_LatchMouseStatus(MouseStat, 0, 0);
+                if (!g_mouse_compat_mode) { BtnQ_Enq(MouseStat); }
+                MouseStatPrev = MouseStat;
+            }
+            break;
+        case 2:	// right button
+            if (dx != 0)
+                MouseStat |= 2;
+            else
+                MouseStat &= 0xfd;
+            // Latch only on actual edge
+            if (MouseStat != MouseStatPrev) {
+                if (g_mouse_edgelog) {
+                    double t = GetCurrentTimeMs();
+                    printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
+                }
+                SCC_LatchMouseStatus(MouseStat, 0, 0);
+                if (!g_mouse_compat_mode) { BtnQ_Enq(MouseStat); }
+                MouseStatPrev = MouseStat;
+            }
+            break;
 		default:
 			break;
 		}
@@ -153,22 +185,31 @@ void Mouse_SetData(void)
 
 	if (MouseSW) {
 
-	// If there is a queued button state, emit it as a button-only packet
-	BYTE queued;
-	int buttonOnly = BtnQ_Deq(&queued);
-	if (buttonOnly) {
-		x = 0; y = 0;
-		MouseSt = queued;
-	} else {
-		// Round to nearest so small movements materialize without needing accumulator
-		x = (int)lrintf(MouseDX);
-		y = (int)lrintf(MouseDY);
-
-		// Clear accumulators to avoid residual drift/inertia
+	// 互換モードではキューを使わず、その時点の状態をそのままサンプルする
+	if (g_mouse_compat_mode) {
+		x = (int)MouseDX;
+		y = (int)MouseDY;
 		MouseDX = 0.0f;
 		MouseDY = 0.0f;
-		// 現在のボタン状態をそのまま送る
 		MouseSt = MouseStat;
+	} else {
+		// If there is a queued button state, emit it as a button-only packet
+		BYTE queued;
+		int buttonOnly = BtnQ_Deq(&queued);
+		if (buttonOnly) {
+			x = 0; y = 0;
+			MouseSt = queued;
+		} else {
+			// Round to nearest so small movements materialize without needing accumulator
+			x = (int)lrintf(MouseDX);
+			y = (int)lrintf(MouseDY);
+
+			// Clear accumulators to avoid residual drift/inertia
+			MouseDX = 0.0f;
+			MouseDY = 0.0f;
+			// 現在のボタン状態をそのまま送る
+			MouseSt = MouseStat;
+		}
 	}
 
         // ダブルクリック抑制中は移動量のみ無効化（ボタンは送る）
@@ -178,11 +219,13 @@ void Mouse_SetData(void)
         }
 
         // 変化がなければ送らない（移動0かつボタン状態同一）
-        // ただし、直前の移動量を再送しないように、可視のデルタを必ずゼロに設定
-        if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
-            MouseX = 0;
-            MouseY = 0;
-            return;
+        // 互換モードではオリジナル準拠として抑制しない（常に現在値を報告）
+        if (!g_mouse_compat_mode) {
+            if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
+                MouseX = 0;
+                MouseY = 0;
+                return;
+            }
         }
 
 		if (x > 127) {
@@ -226,6 +269,17 @@ void Mouse_SetData(void)
 		LastMouseY = 0;
 		LastMouseSt = 0;
 	}
+}
+
+void Mouse_SetCompatMode(int enable)
+{
+    g_mouse_compat_mode = (enable ? 1 : 0);
+    // トグル時は状態をクリアして履歴に引きずられないようにする
+    BtnQHead = BtnQTail = BtnQCount = 0;
+    LastMouseX = 0;
+    LastMouseY = 0;
+    LastMouseSt = 0;
+    MouseStatPrev = MouseStat;
 }
 
 
