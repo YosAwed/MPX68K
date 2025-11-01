@@ -135,7 +135,8 @@ class X68MouseController
 
         // During double-click suppression window, drop all movement to guarantee
         // zero distance between clicks for VS.X detection.
-        if doubleClickSuppressionActive {
+        // NOTE: In SCC compat mode, disable this as VS.X expects raw click sequences
+        if doubleClickSuppressionActive && SCC_GetCompatMode() == 0 {
             dx = 0.0
             dy = 0.0
             movement = false
@@ -429,8 +430,9 @@ class X68MouseController
                 }
             }
 
-            if type == 0 {
+            if type == 0 && SCC_GetCompatMode() == 0 {
                 // 解放直後から一定時間、移動を抑制（ダブルクリック距離条件を満たす）
+                // NOTE: Disabled in SCC compat mode to allow VS.X raw click sequences
                 activateDoubleClickSuppression()
                 let workItem = DispatchWorkItem { [weak self] in
                     self?.deactivateDoubleClickSuppression()

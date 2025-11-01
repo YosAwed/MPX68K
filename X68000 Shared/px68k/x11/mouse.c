@@ -134,8 +134,11 @@ void Mouse_Event(int param, float dx, float dy)
                     double t = GetCurrentTimeMs();
                     printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
                 }
-                SCC_LatchMouseStatus(MouseStat, 0, 0);
-                if (!g_mouse_compat_mode) { BtnQ_Enq(MouseStat); }
+                // In compat mode, keep it simple like original PX68K
+                if (!g_mouse_compat_mode) {
+                    SCC_LatchMouseStatus(MouseStat, 0, 0);
+                    BtnQ_Enq(MouseStat);
+                }
                 MouseStatPrev = MouseStat;
             }
             break;
@@ -150,8 +153,11 @@ void Mouse_Event(int param, float dx, float dy)
                     double t = GetCurrentTimeMs();
                     printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
                 }
-                SCC_LatchMouseStatus(MouseStat, 0, 0);
-                if (!g_mouse_compat_mode) { BtnQ_Enq(MouseStat); }
+                // In compat mode, keep it simple like original PX68K
+                if (!g_mouse_compat_mode) {
+                    SCC_LatchMouseStatus(MouseStat, 0, 0);
+                    BtnQ_Enq(MouseStat);
+                }
                 MouseStatPrev = MouseStat;
             }
             break;
