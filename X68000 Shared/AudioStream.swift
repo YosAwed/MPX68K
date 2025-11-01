@@ -154,10 +154,7 @@ private func resetFadeOut() {
 
 func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buffer: AudioQueueBufferRef) {
 
-    guard let audioData = buffer.pointee.mAudioData else {
-        errorLog("Audio buffer data is nil", category: .audio)
-        return
-    }
+    let audioData = buffer.pointee.mAudioData
 
     let size = buffer.pointee.mAudioDataBytesCapacity / 4  // Size in samples (16-bit stereo)
 
@@ -241,15 +238,9 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
                 resetFadeOut()
             }
         }
-        
+
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
-    } else {
-        // Clear and enqueue if size is invalid
-        memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
-        buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
-        AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
-    }
 }
 
 

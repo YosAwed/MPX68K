@@ -645,9 +645,8 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                     int rxEnabled = (SCC_RegsB[3] & 0x01) != 0;
                     if (rtsRising && rxEnabled && (!SCC_DatNum)) {
                         Mouse_SetData();
-                        // Strict compat with duplicate coalescing by status:
-                        // publish only when button status changed to reduce extra samples.
-                        if (MouseSt != g_last_pub_st) {
+                        // In compat mode, publish packet if there's any change (movement or button)
+                        if (MouseSt != g_last_pub_st || MouseX != g_last_pub_x || MouseY != g_last_pub_y) {
                             SCC_DatNum = 3;
                             SCC_Dat[2] = MouseSt;
                             SCC_Dat[1] = (BYTE)MouseX;
@@ -661,7 +660,7 @@ void FASTCALL SCC_Write(DWORD adr, BYTE data)
                             SCC_IntCheck();
                         } else {
                             if (g_scc_trace || g_scc_edgelog) {
-                                printf("[scc.c] PUBLISH skip (same st) t=%lld st=0x%02X\n", scc_now_ms(), MouseSt);
+                                printf("[scc.c] PUBLISH skip (no change) t=%lld st=0x%02X x=%d y=%d\n", scc_now_ms(), MouseSt, MouseX, MouseY);
                             }
                         }
                     }
