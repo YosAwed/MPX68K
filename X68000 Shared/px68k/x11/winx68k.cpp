@@ -747,8 +747,15 @@ void X68000_Mouse_StartCapture(int flag) {
 // Bridge Mouse_Event for movement and button state updates
 void X68000_Mouse_Event(int param, float dx, float dy) {
     Mouse_Event(param, dx, dy);
-    // Minimal trace for field debugging (can be silenced later)
-    // printf("Mouse_Event param=%d dx=%.3f dy=%.3f\n", param, dx, dy);
+    // Debug trace for VS.X double-click investigation (enable with SCC_MOUSE_TRACE=1)
+    static int scc_trace_enabled = -1;
+    if (scc_trace_enabled == -1) {
+        const char* trace_env = getenv("SCC_MOUSE_TRACE");
+        scc_trace_enabled = (trace_env && trace_env[0] == '1') ? 1 : 0;
+    }
+    if (scc_trace_enabled) {
+        printf("[X68000_Mouse_Event] param=%d dx=%.3f dy=%.3f\n", param, dx, dy);
+    }
 }
 
 // Expose mouse state reset (clears accumulated deltas and last state)

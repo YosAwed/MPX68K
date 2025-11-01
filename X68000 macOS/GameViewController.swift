@@ -836,6 +836,18 @@ extension GameViewController: NSDraggingDestination {
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility
             if SCC_GetCompatMode() != 0 {
+                // First update mouse position for VS.X coordinate awareness
+                let locationInView = event.locationInWindow
+                if let windowContentView = view.window?.contentView {
+                    let viewLocation = windowContentView.convert(locationInView, to: view)
+                    let normalizedX = Float(viewLocation.x / view.bounds.width)
+                    let normalizedY = Float(1.0 - (viewLocation.y / view.bounds.height)) // Flip Y
+                    // Update mouse coordinates
+                    mouseController.mx = max(0.0, min(1.0, normalizedX))
+                    mouseController.my = max(0.0, min(1.0, normalizedY))
+                    // Send position first, then button press
+                    mouseController.sendDirectUpdate(forceAbsolute: true)
+                }
                 X68000_Mouse_Event(1, 1.0, 0.0)
             }
             mouseController.Click(0, true)
@@ -874,6 +886,18 @@ extension GameViewController: NSDraggingDestination {
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility
             if SCC_GetCompatMode() != 0 {
+                // First update mouse position for VS.X coordinate awareness
+                let locationInView = event.locationInWindow
+                if let windowContentView = view.window?.contentView {
+                    let viewLocation = windowContentView.convert(locationInView, to: view)
+                    let normalizedX = Float(viewLocation.x / view.bounds.width)
+                    let normalizedY = Float(1.0 - (viewLocation.y / view.bounds.height)) // Flip Y
+                    // Update mouse coordinates
+                    mouseController.mx = max(0.0, min(1.0, normalizedX))
+                    mouseController.my = max(0.0, min(1.0, normalizedY))
+                    // Send position first, then button press
+                    mouseController.sendDirectUpdate(forceAbsolute: true)
+                }
                 X68000_Mouse_Event(2, 1.0, 0.0)
             }
             mouseController.Click(1, true)
