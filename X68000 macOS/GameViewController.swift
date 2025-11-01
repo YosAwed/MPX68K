@@ -834,8 +834,14 @@ extension GameViewController: NSDraggingDestination {
             X68000_Mouse_Event(1, 1.0, 0.0)
             mouseController.Click(0, true)
         } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(1, 1.0, 0.0)
+            }
             mouseController.Click(0, true)
-            mouseController.sendDirectUpdate()
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
         }
     }
 
@@ -846,8 +852,14 @@ extension GameViewController: NSDraggingDestination {
             X68000_Mouse_Event(1, 0.0, 0.0)
             mouseController.Click(0, false)
         } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(1, 0.0, 0.0)
+            }
             mouseController.Click(0, false)
-            mouseController.sendDirectUpdate()
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
         }
     }
 
@@ -860,7 +872,14 @@ extension GameViewController: NSDraggingDestination {
             X68000_Mouse_Event(2, 1.0, 0.0)
             mouseController.Click(1, true)
         } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(2, 1.0, 0.0)
+            }
             mouseController.Click(1, true)
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
         }
     }
 
@@ -873,8 +892,14 @@ extension GameViewController: NSDraggingDestination {
             X68000_Mouse_Event(2, 0.0, 0.0)
             mouseController.Click(1, false)
         } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(2, 0.0, 0.0)
+            }
             mouseController.Click(1, false)
-            mouseController.sendDirectUpdate()
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
         }
     }
     
