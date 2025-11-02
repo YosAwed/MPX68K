@@ -16,11 +16,11 @@ class X68MouseController
     var isCaptureMode = false
     
     // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
-    // Slight bump for lighter feel
-    var mouseSensitivity: Float = 0.45
+    // Increased for faster cursor movement
+    var mouseSensitivity: Float = 0.90
 
     // Clamp per-frame movement in capture mode to avoid big jumps
-    private let movementMaxStepCapture: Float = 1.20
+    private let movementMaxStepCapture: Float = 2.50
     
     // Hysteresis + small-move boost to balance light feel and crisp stop
     private var movingX: Bool = false
@@ -228,7 +228,7 @@ class X68MouseController
         dx += (x - old_x) * mouseSensitivity
         dy += (y - old_y) * mouseSensitivity * -1.0
         // Clamp accumulated deltas to SCC 8-bit safe range per frame
-        let maxStep: Float = 0.10 // reduce per-frame movement to improve precision
+        let maxStep: Float = 0.50 // increased per-frame movement for faster cursor response
         if dx > maxStep { dx = maxStep }
         if dx < -maxStep { dx = -maxStep }
         if dy > maxStep { dy = maxStep }
