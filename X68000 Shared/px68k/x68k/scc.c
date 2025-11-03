@@ -147,7 +147,6 @@ static int SCC_ConnectTCP(SCC_SerialPort* port, const char* host, int port_num);
 static int SCC_StartTCPServer(SCC_SerialPort* port, int port_num);
 static int SCC_OpenFile(SCC_SerialPort* port, const char* path);
 static int SCC_SendByte(SCC_SerialPort* port, BYTE data);
-static int SCC_ReceiveByte(SCC_SerialPort* port, BYTE* data);
 
 // ----------------------------------------------------------------------------
 // Compatibility mode control (public C API)
@@ -419,23 +418,6 @@ static int SCC_SendByte(SCC_SerialPort* port, BYTE data)
     return (w == 1) ? 0 : -1;
 }
 
-static int SCC_ReceiveByte(SCC_SerialPort* port, BYTE* data)
-{
-    if (!port->connected) return -1;
-    
-    pthread_mutex_lock(&port->rx_mutex);
-    if (port->rx_head != port->rx_tail) {
-        *data = port->rx_buffer[port->rx_tail];
-        port->rx_tail = (port->rx_tail + 1) % (int)sizeof(port->rx_buffer);
-        if (port->rx_head == port->rx_tail) {
-            port->rx_ready = 0;
-        }
-        pthread_mutex_unlock(&port->rx_mutex);
-        return 0;
-    }
-    pthread_mutex_unlock(&port->rx_mutex);
-    return -1;
-}
 
 // ============================================================================
 // Public API

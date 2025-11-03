@@ -78,8 +78,7 @@ static int MouseDataSendCount = 0;  // 送信回数をカウント
 static int DoubleClickInProgress = 0;
 static int g_mouse_edgelog = 0; // env SCC_MOUSE_EDGELOG=1
 
-// 互換モード: オリジナルpx68kに合わせて簡素化した動作に切り替える
-static int g_mouse_compat_mode = 0;
+// 互換モード: SCC_GetCompatMode()を使用（旧g_mouse_compat_mode変数は削除）
 
 // Forward decl for edge logging timestamp
 static double GetCurrentTimeMs(void);
@@ -134,8 +133,8 @@ void Mouse_Event(int param, float dx, float dy)
                     double t = GetCurrentTimeMs();
                     printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
                 }
-                // In compat mode, keep it simple like original PX68K
-                if (!g_mouse_compat_mode) {
+                // In SCC compat mode, keep it simple like original PX68K
+                if (!SCC_GetCompatMode()) {
                     SCC_LatchMouseStatus(MouseStat, 0, 0);
                     BtnQ_Enq(MouseStat);
                 }
@@ -153,8 +152,8 @@ void Mouse_Event(int param, float dx, float dy)
                     double t = GetCurrentTimeMs();
                     printf("[mouse.c] EDGE t=%.3f st=0x%02X\n", t, MouseStat);
                 }
-                // In compat mode, keep it simple like original PX68K
-                if (!g_mouse_compat_mode) {
+                // In SCC compat mode, keep it simple like original PX68K
+                if (!SCC_GetCompatMode()) {
                     SCC_LatchMouseStatus(MouseStat, 0, 0);
                     BtnQ_Enq(MouseStat);
                 }
@@ -191,8 +190,8 @@ void Mouse_SetData(void)
 
 	if (MouseSW) {
 
-	// 互換モードではキューを使わず、その時点の状態をそのままサンプルする
-	if (g_mouse_compat_mode) {
+	// SCC互換モードではキューを使わず、その時点の状態をそのままサンプルする（オリジナルPX68K準拠）
+	if (SCC_GetCompatMode()) {
 		x = (int)MouseDX;
 		y = (int)MouseDY;
 		MouseDX = 0.0f;
@@ -225,8 +224,8 @@ void Mouse_SetData(void)
         }
 
         // 変化がなければ送らない（移動0かつボタン状態同一）
-        // 互換モードではオリジナル準拠として抑制しない（常に現在値を報告）
-        if (!g_mouse_compat_mode) {
+        // SCC互換モードではオリジナルPX68K準拠として抑制しない（常に現在値を報告）
+        if (!SCC_GetCompatMode()) {
             if (x == 0 && y == 0 && MouseSt == LastMouseSt) {
                 MouseX = 0;
                 MouseY = 0;
@@ -279,13 +278,9 @@ void Mouse_SetData(void)
 
 void Mouse_SetCompatMode(int enable)
 {
-    g_mouse_compat_mode = (enable ? 1 : 0);
-    // トグル時は状態をクリアして履歴に引きずられないようにする
-    BtnQHead = BtnQTail = BtnQCount = 0;
-    LastMouseX = 0;
-    LastMouseY = 0;
-    LastMouseSt = 0;
-    MouseStatPrev = MouseStat;
+    // FIXED: Removed recursive call to prevent infinite loop
+    // This function is now managed entirely by SCC_SetCompatMode()
+    // No action needed here as SCC_SetCompatMode() handles the state internally
 }
 
 

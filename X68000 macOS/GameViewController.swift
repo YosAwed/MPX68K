@@ -830,8 +830,7 @@ extension GameViewController: NSDraggingDestination {
         // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
         // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
         if mouseController.isCaptureMode {
-            // Immediately reflect press in core for simplicity
-            X68000_Mouse_Event(1, 1.0, 0.0)
+            // Queue via controller; emission is frame-locked for stable cadence
             mouseController.Click(0, true)
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility
@@ -861,7 +860,6 @@ extension GameViewController: NSDraggingDestination {
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         if mouseController.isCaptureMode {
-            X68000_Mouse_Event(1, 0.0, 0.0)
             mouseController.Click(0, false)
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility
@@ -881,7 +879,6 @@ extension GameViewController: NSDraggingDestination {
         // In capture mode, cursor visibility is managed by enable/disableMouseCapture
         // 修正: マウスモードOFFでは座標を更新しない
         if mouseController.isCaptureMode {
-            X68000_Mouse_Event(2, 1.0, 0.0)
             mouseController.Click(1, true)
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility
@@ -913,7 +910,6 @@ extension GameViewController: NSDraggingDestination {
         // Always send right mouseUp for single click processing
         // 修正: 右クリックのmouseUpも常にシングルクリック処理として送信
         if mouseController.isCaptureMode {
-            X68000_Mouse_Event(2, 0.0, 0.0)
             mouseController.Click(1, false)
         } else {
             // In SCC compat mode, send direct events for VS.X compatibility

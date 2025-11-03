@@ -15,21 +15,28 @@ class X68MouseController
     // Mouse capture mode state
     var isCaptureMode = false
     
-    // Mouse sensitivity adjustment (lower = less sensitive, higher = more sensitive)
-    // Slight bump for lighter feel
-    var mouseSensitivity: Float = 0.45
+    // Base sensitivity (small moves stay small). Larger moves are accelerated below.
+    var mouseSensitivity: Float = 0.85
 
-    // Clamp per-frame movement in capture mode to avoid big jumps
-    private let movementMaxStepCapture: Float = 1.20
-    
-    // Hysteresis + small-move boost to balance light feel and crisp stop
+    // Cache SCC compatibility mode to avoid infinite loops
+    private var cachedSCCCompatMode: Int32 = 0
+    private var lastSCCCompatCheck: TimeInterval = 0
+    private let sccCompatCheckInterval: TimeInterval = 1.0  // Check every 1 second
+
+    // Clamp per-frame movement in capture mode to avoid pathological spikes
+    private let movementMaxStepCapture: Float = 9.0
+
+    // Hysteresis for crisp stop/start
     private var movingX: Bool = false
     private var movingY: Bool = false
-    private let startThreshold: Float = 0.06   // begin moving when above this (more deadzone)
-    private let stopThreshold:  Float = 0.10   // stop quickly when below this
-    private let smallBoostThreshold: Float = 0.18 // apply small-boost under this (reduced)
-    private let smallBoostGain: Float = 1.20
-    private let smallStepFloor: Float = 0.02
+    private let startThreshold: Float = 0.02
+    private let stopThreshold:  Float = 0.04
+
+    // Acceleration: only large deltas are amplified
+    // If |delta| <= accelStart, scale ~1. Above it, scale increases up to accelMaxScale.
+    private let accelStart: Float = 8.0
+    private let accelGain: Float = 0.03
+    private let accelMaxScale: Float = 1.8
     
     var mx : Float = 0.0
     var my : Float = 0.0
@@ -47,13 +54,15 @@ class X68MouseController
     private var lastClickState: [Int: Bool] = [:] // Track last state for each button
     private var pendingRelease: Set<Int> = []
     private var holdUntilFrame: [Int: Int] = [:]
-    private let minimumHoldFrames: Int = 3 // ~55Hz => ~54ms (UI)
-    private let minimumHoldSeconds: TimeInterval = 0.06
-    private let minimumHoldFramesCaptureLeft: Int = 5
+    // Target click cadence ~100ms
+    private let targetClickInterval: TimeInterval = 0.10
+    private let minimumHoldFrames: Int = 5 // ~60Hz => ~100ms
+    private let minimumHoldSeconds: TimeInterval = 0.10
+    private let minimumHoldFramesCaptureLeft: Int = 6
     private var lastPressTime: [Int: TimeInterval] = [:]
-    private let pressDebounceInterval: TimeInterval = 0.12
+    private let pressDebounceInterval: TimeInterval = 0.10
     private var lastReleaseTime: [Int: TimeInterval] = [:]
-    private let retriggerGuardInterval: TimeInterval = 0.08 // 修正: 0.15 -> 0.08
+    private let retriggerGuardInterval: TimeInterval = 0.10
     private let pulseLeftClickInCapture: Bool = false
     private let pulseHoldFrames: Int = 3
 
@@ -72,11 +81,35 @@ class X68MouseController
     private let doubleClickSuppressionInterval: TimeInterval = 0.20
     private var doubleClickSuppressionQueueCount = 0
     
+    // Edge throttling to normalize cadence (~100ms)
+    private var lastEdgeTime: [Int: TimeInterval] = [:]
+    
     var x68k_width: Float = 0.0
     var x68k_height: Float = 0.0
     
     var frame = 0
-    
+
+    // Frame-locked button edge scheduler (for stable cadence in capture mode)
+    private var edgeQueueCount: [Int: Int] = [:]   // queued toggle count per button
+    private var nextAllowedFrame: [Int: Int] = [:] // next frame an edge may be emitted
+
+    // Safe SCC compatibility mode checker to avoid infinite loops
+    private func getSCCCompatMode() -> Int32 {
+        let now = Date().timeIntervalSince1970
+        if now - lastSCCCompatCheck > sccCompatCheckInterval {
+            // Only check C function occasionally to avoid loops
+            cachedSCCCompatMode = SCC_GetCompatMode()
+            lastSCCCompatCheck = now
+        }
+        return cachedSCCCompatMode
+    }
+
+    // Force update SCC compat mode cache (called when mode is changed externally)
+    func updateSCCCompatModeCache() {
+        cachedSCCCompatMode = SCC_GetCompatMode()
+        lastSCCCompatCheck = Date().timeIntervalSince1970
+    }
+
     // (Removed hold logic) We send button state every frame in capture mode
     
     // Last-sent snapshot to suppress duplicate packets
@@ -105,20 +138,16 @@ class X68MouseController
         
         // No hold: current_button_state comes directly from button_state
         
-        // Apply deferred releases once minimum hold elapsed
-        if !pendingRelease.isEmpty {
-            var buttonsToClear: [Int] = []
-            for b in pendingRelease {
-                if let until = holdUntilFrame[b], frame >= until {
-                    buttonsToClear.append(b)
-                }
-            }
-            if !buttonsToClear.isEmpty {
-                for b in buttonsToClear {
-                    pendingRelease.remove(b)
-                    holdUntilFrame[b] = nil
-                    // Clear the bit safely
-                    current_button_state &= ~(1<<b)
+        // Frame-locked edge scheduler: apply at most one toggle per button per 6 frames (~100ms)
+        for b in [0, 1] {
+            let queued = edgeQueueCount[b] ?? 0
+            if queued > 0 {
+                let allow = nextAllowedFrame[b] ?? frame
+                if frame >= allow {
+                    // Toggle the bit
+                    current_button_state ^= (1 << b)
+                    edgeQueueCount[b] = queued - 1
+                    nextAllowedFrame[b] = frame + minimumHoldFrames
                 }
             }
         }
@@ -128,18 +157,19 @@ class X68MouseController
         // Send updates only on movement or button-change
         // Clamp tiny residuals to zero to avoid inertia
         // Keep tiny sensor noise out; hysteresis handles crisp stop
-        let deadEps: Float = 0.08
+        let deadEps: Float = 0.04
         if abs(dx) < deadEps { dx = 0.0 }
         if abs(dy) < deadEps { dy = 0.0 }
         var movement = (dx != 0.0 || dy != 0.0)
 
-        // During double-click suppression window, drop all movement to guarantee
-        // zero distance between clicks for VS.X detection.
-        // NOTE: In SCC compat mode, disable this as VS.X expects raw click sequences
-        if doubleClickSuppressionActive && SCC_GetCompatMode() == 0 {
-            dx = 0.0
-            dy = 0.0
-            movement = false
+        // During double-click suppression window, minimal movement filtering
+        // In SCC compat mode, allow all movement for VS.X compatibility
+        if doubleClickSuppressionActive && getSCCCompatMode() == 0 {
+            // Only suppress large movements, allow micro-movements for VS.X
+            let suppressThreshold: Float = 0.5
+            if abs(dx) > suppressThreshold { dx = 0.0 }
+            if abs(dy) > suppressThreshold { dy = 0.0 }
+            movement = (dx != 0.0 || dy != 0.0)
         }
         // Prefer movement packets; if no movement, send button-only packet to avoid jitter
         if movement {
@@ -147,13 +177,8 @@ class X68MouseController
             let leftDown = (current_button_state & 0x1) != 0
             let rightDown = (current_button_state & 0x2) != 0
             // Send relative movement via SCC mouse queue; core inverts Y internally
-            // Apply clamp to avoid large single-step movement
             var sx = dx
             var sy = dy
-            if sx > movementMaxStepCapture { sx = movementMaxStepCapture }
-            if sx < -movementMaxStepCapture { sx = -movementMaxStepCapture }
-            if sy > movementMaxStepCapture { sy = movementMaxStepCapture }
-            if sy < -movementMaxStepCapture { sy = -movementMaxStepCapture }
             
             // Axis-wise hysteresis for crisp stop
             let ax = abs(sx), ay = abs(sy)
@@ -170,21 +195,24 @@ class X68MouseController
                 if ay <= startThreshold { sy = 0 } else { movingY = true }
             }
 
-            // Small-move boost to increase fine movement without sacrificing stop
-            if sx != 0 {
-                let mag = abs(sx)
-                if mag < smallBoostThreshold {
-                    let boosted = max(mag * smallBoostGain, smallStepFloor)
-                    sx = (sx > 0) ? boosted : -boosted
-                }
+            // Acceleration: only amplify large instantaneous deltas
+            func accel(_ v: Float) -> Float {
+                if v == 0 { return 0 }
+                let sign: Float = v > 0 ? 1.0 : -1.0
+                let mag = abs(v)
+                if mag <= accelStart { return v }
+                let over = mag - accelStart
+                let scale = min(1.0 + over * accelGain, accelMaxScale)
+                return sign * mag * scale
             }
-            if sy != 0 {
-                let mag = abs(sy)
-                if mag < smallBoostThreshold {
-                    let boosted = max(mag * smallBoostGain, smallStepFloor)
-                    sy = (sy > 0) ? boosted : -boosted
-                }
-            }
+            sx = accel(sx)
+            sy = accel(sy)
+
+            // Final clamp to avoid pathological spikes after acceleration
+            if sx > movementMaxStepCapture { sx = movementMaxStepCapture }
+            if sx < -movementMaxStepCapture { sx = -movementMaxStepCapture }
+            if sy > movementMaxStepCapture { sy = movementMaxStepCapture }
+            if sy < -movementMaxStepCapture { sy = -movementMaxStepCapture }
             // Reduced verbose per-move logging
             X68000_Mouse_Event(0, sx, sy)
             X68000_Mouse_Event(1, leftDown ? 1.0 : 0.0, 0.0)
@@ -228,7 +256,7 @@ class X68MouseController
         dx += (x - old_x) * mouseSensitivity
         dy += (y - old_y) * mouseSensitivity * -1.0
         // Clamp accumulated deltas to SCC 8-bit safe range per frame
-        let maxStep: Float = 0.10 // reduce per-frame movement to improve precision
+        let maxStep: Float = 0.20 // allow faster movement for better responsiveness
         if dx > maxStep { dx = maxStep }
         if dx < -maxStep { dx = -maxStep }
         if dy > maxStep { dy = maxStep }
@@ -351,7 +379,10 @@ class X68MouseController
             if self.pendingRelease.contains(type) {
                 self.pendingRelease.remove(type)
                 self.button_state &= ~(1<<type)
-                self.sendDirectUpdate()
+                // In capture mode, Update() will deliver state via Mouse_Event
+                if !self.isCaptureMode {
+                    self.sendDirectUpdate()
+                }
             }
             self.scheduledReleases[type] = nil
         }
@@ -361,89 +392,42 @@ class X68MouseController
     }
     
     func Click(_ type: Int,_ pressed:Bool) {
-        // 修正: 処理中の場合は無視
-        if clickProcessing.contains(type) { return }
-        
-        // Ignore duplicate state
-        let lastState = lastClickState[type] ?? false
-        if lastState == pressed { return }
+        // In capture mode, queue button edges and emit them on frame boundaries
+        if isCaptureMode {
+            // Ignore duplicate physical state
+            let lastState = lastClickState[type] ?? false
+            if lastState == pressed { return }
+            lastClickState[type] = pressed
 
-        clickProcessing.insert(type)
-        defer { clickProcessing.remove(type) }
-        
-        lastClickState[type] = pressed
+            // Each transition request enqueues one toggle
+            edgeQueueCount[type] = (edgeQueueCount[type] ?? 0) + 1
+            // Initialize allowance if not set
+            if nextAllowedFrame[type] == nil { nextAllowedFrame[type] = frame }
 
-        let now = Date().timeIntervalSince1970
-        // Reduced verbose click logging
-
-        if pressed {
-            // If a deferred release is pending for this button, finalize it now to allow double-click
-            if pendingRelease.contains(type) {
-                pendingRelease.remove(type)
-                button_state &= ~(1<<type)
-            }
-            // Only guard re-press in non-capture UI (to avoid typing repeats)
-            if !isCaptureMode, let lr = lastReleaseTime[type], (Date().timeIntervalSince1970 - lr) < retriggerGuardInterval {
-                return
-            }
-            // Short press debounce (none for capture, small for non-capture)
-            // 修正: キャプチャ時はデバウンス無し（VS.Xのダブルクリックを優先）
-            let debounce: TimeInterval = isCaptureMode ? 0.0 : 0.02
-            if let lp = lastPressTime[type] {
-                if now - lp < debounce { return }
-            }
-            lastPressTime[type] = now
-            // Press: set bit; in capture mode do not arm hold to preserve exact cadence
-            pendingRelease.remove(type)
-            button_state |= (1<<type)
-            if !isCaptureMode {
-                let holdFrames = minimumHoldFrames
-                holdUntilFrame[type] = frame + holdFrames
-            } else {
-                holdUntilFrame[type] = nil
-            }
-            lastClickTime[type] = now
-
-            if type == 0 {
-                // Allow drag while left button is held: disable suppression on press
-                deactivateDoubleClickSuppression()
-            }
-        } else {
-            // Release: enforce minimum hold in both capture and non-capture
-            let sinceDown = now - (lastClickTime[type] ?? now)
-            let needDelay = !isCaptureMode && (sinceDown < minimumHoldSeconds)
-            lastReleaseTime[type] = now
-
-            if isCaptureMode {
-                // In capture mode: release immediately
-                pendingRelease.remove(type)
-                holdUntilFrame[type] = nil
-                button_state &= ~(1<<type)
-            } else {
-                if needDelay {
-                    // 修正: 改善された遅延処理を使用
-                    let delay = minimumHoldSeconds - sinceDown
-                    pendingRelease.insert(type)
-                    scheduleRelease(type, delay: delay)
-                } else {
-                    button_state &= ~(1<<type)
-                }
-            }
-
-            if type == 0 && SCC_GetCompatMode() == 0 {
-                // 解放直後から一定時間、移動を抑制（ダブルクリック距離条件を満たす）
-                // NOTE: Disabled in SCC compat mode to allow VS.X raw click sequences
-                activateDoubleClickSuppression()
-                let workItem = DispatchWorkItem { [weak self] in
-                    self?.deactivateDoubleClickSuppression()
-                }
-                doubleClickSuppressionWorkItem?.cancel()
-                doubleClickSuppressionWorkItem = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + doubleClickSuppressionInterval, execute: workItem)
-            }
+            // Do not mutate button_state here; Update() will emit with stable cadence
+            return
         }
 
-        // Reduced verbose click logging
+        // Non-capture path: keep existing immediate behavior with light debounce
+        // 修正: 処理中の場合は無視
+        if clickProcessing.contains(type) { return }
+        let lastState = lastClickState[type] ?? false
+        if lastState == pressed { return }
+        clickProcessing.insert(type)
+        defer { clickProcessing.remove(type) }
+        lastClickState[type] = pressed
+        let now = Date().timeIntervalSince1970
+        // Short debounce
+        let debounce: TimeInterval = 0.02
+        if pressed {
+            if let lp = lastPressTime[type], now - lp < debounce { return }
+            lastPressTime[type] = now
+            button_state |= (1<<type)
+        } else {
+            lastReleaseTime[type] = now
+            button_state &= ~(1<<type)
+        }
+        sendDirectUpdate()
     }
     func ClickOnce()
     {
@@ -455,6 +439,10 @@ class X68MouseController
     
     func enableCaptureMode() {
         isCaptureMode = true
+
+        // Initialize SCC compat mode cache
+        cachedSCCCompatMode = SCC_GetCompatMode()
+        lastSCCCompatCheck = Date().timeIntervalSince1970
 
         // Initialize mouse position to prevent jumping
         dx = 0.0

@@ -21,6 +21,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // Mouse mode state tracking
     private var isMouseCaptureEnabled = false
+
+    // Caching for FDD/HDD status to prevent infinite loops
+    private var cachedFDDReady: [Int: Bool] = [:]
+    private var cachedFDDFilename: [Int: String?] = [:]
+    private var cachedHDDReady: Bool = false
+    private var cachedHDDFilename: String? = nil
+    private var lastDriveStatusCheck: TimeInterval = 0
+    private let driveStatusCheckInterval: TimeInterval = 1.0
+
+    // Prevent recursive calls to updateMenuTitles
+    private var isUpdatingMenuTitles = false
+    private var isUpdatingSerialMenuCheckmarks = false
+
+    // Caching for SCC compat mode to prevent infinite loops
+    private var cachedSCCCompatMode: Int32 = 0
+    private var lastSCCCompatCheck: TimeInterval = 0
+    private let sccCompatCheckInterval: TimeInterval = 1.0
     
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
@@ -62,15 +79,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         X68LogConfig.enableInfoLogs = true
         X68LogConfig.enableDebugLogs = true
         infoLog("Verbose logging enabled (info/debug)", category: .ui)
-        setupHDDMenu()
-        setupSettingsMenu()
-        
-        // Initial menu update once after app launch  
-        DispatchQueue.main.async { [weak self] in
-            self?.updateMenuTitles()
-            self?.updateSerialMenuCheckmarks()
-            self?.updateJoyportUMenuCheckmarks()
-        }
+
+        // Defer menu setup to next runloop to ensure storyboard menu is fully loaded.
+        // Build a consistent menu to avoid AppKit validating an incomplete storyboard menu.
+        // Note: We also build in applicationWillFinishLaunching for even earlier stabilization.
+        rebuildMenuSystem()
+        // Perform initial updates after build
+        updateMenuTitles()
+        updateSerialMenuCheckmarks()
+        updateJoyportUMenuCheckmarks()
         
         // Listen for disk image loading notifications to update menus
         NotificationCenter.default.addObserver(
@@ -80,7 +97,345 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             object: nil
         )
     }
-    
+
+    // MARK: - Menu System Rebuild
+    private func rebuildMenuSystem() {
+        infoLog("Rebuilding corrupted menu system programmatically", category: .ui)
+
+        // Create new main menu
+        let mainMenu = NSMenu(title: "Main Menu")
+
+        // App Menu (X68000)
+        let appMenuItem = NSMenuItem(title: "X68000", action: nil, keyEquivalent: "")
+        let appMenu = NSMenu(title: "X68000")
+        appMenuItem.submenu = appMenu
+
+        // About X68000
+        let aboutItem = NSMenuItem(title: "About X68000", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(aboutItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Services submenu
+        let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
+        let servicesMenu = NSMenu(title: "Services")
+        servicesItem.submenu = servicesMenu
+        NSApp.servicesMenu = servicesMenu
+        appMenu.addItem(servicesItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Hide/Show items
+        let hideItem = NSMenuItem(title: "Hide X68000", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(hideItem)
+
+        let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthersItem)
+
+        let showAllItem = NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(showAllItem)
+
+        appMenu.addItem(NSMenuItem.separator())
+
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit X68000", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(quitItem)
+
+        mainMenu.addItem(appMenuItem)
+
+        // FDD Menu
+        let fddMenuItem = NSMenuItem(title: "FDD", action: nil, keyEquivalent: "")
+        let fddMenu = NSMenu(title: "FDD")
+        fddMenuItem.submenu = fddMenu
+
+        // Drive 0
+        let openDrive0Item = NSMenuItem(title: "Open Drive 0...", action: #selector(openFDDDriveA(_:)), keyEquivalent: "")
+        openDrive0Item.target = self
+        openDrive0Item.identifier = NSUserInterfaceItemIdentifier("FDD-open-drive-A")
+        fddMenu.addItem(openDrive0Item)
+
+        let ejectDrive0Item = NSMenuItem(title: "Eject Drive 0", action: #selector(ejectFDDDriveA(_:)), keyEquivalent: "")
+        ejectDrive0Item.target = self
+        ejectDrive0Item.identifier = NSUserInterfaceItemIdentifier("FDD-eject-drive-A")
+        fddMenu.addItem(ejectDrive0Item)
+
+        fddMenu.addItem(NSMenuItem.separator())
+
+        // Drive 1
+        let openDrive1Item = NSMenuItem(title: "Open Drive 1...", action: #selector(openFDDDriveB(_:)), keyEquivalent: "")
+        openDrive1Item.target = self
+        openDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-open-drive-B")
+        fddMenu.addItem(openDrive1Item)
+
+        let ejectDrive1Item = NSMenuItem(title: "Eject Drive 1", action: #selector(ejectFDDDriveB(_:)), keyEquivalent: "")
+        ejectDrive1Item.target = self
+        ejectDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-eject-drive-B")
+        fddMenu.addItem(ejectDrive1Item)
+
+        mainMenu.addItem(fddMenuItem)
+
+        // HDD Menu
+        let hddMenuItem = NSMenuItem(title: "HDD", action: nil, keyEquivalent: "")
+        let hddMenu = NSMenu(title: "HDD")
+        hddMenuItem.submenu = hddMenu
+
+        let openHDDItem = NSMenuItem(title: "Open Hard Disk...", action: #selector(openHDD(_:)), keyEquivalent: "")
+        openHDDItem.target = self
+        openHDDItem.identifier = NSUserInterfaceItemIdentifier("HDD-open")
+        hddMenu.addItem(openHDDItem)
+
+        let ejectHDDItem = NSMenuItem(title: "Eject Hard Disk", action: #selector(ejectHDD(_:)), keyEquivalent: "")
+        ejectHDDItem.target = self
+        ejectHDDItem.identifier = NSUserInterfaceItemIdentifier("HDD-eject")
+        hddMenu.addItem(ejectHDDItem)
+
+        hddMenu.addItem(NSMenuItem.separator())
+
+        let createHDDItem = NSMenuItem(title: "Create Empty HDD...", action: #selector(createEmptyHDD(_:)), keyEquivalent: "")
+        createHDDItem.target = self
+        hddMenu.addItem(createHDDItem)
+
+        let saveHDDItem = NSMenuItem(title: "Save HDD", action: #selector(saveHDD(_:)), keyEquivalent: "s")
+        saveHDDItem.keyEquivalentModifierMask = [.command, .shift]
+        saveHDDItem.target = self
+        hddMenu.addItem(saveHDDItem)
+
+        mainMenu.addItem(hddMenuItem)
+
+        // Clock Menu
+        let clockMenuItem = NSMenuItem(title: "Clock", action: nil, keyEquivalent: "")
+        let clockMenu = NSMenu(title: "Clock")
+        clockMenuItem.submenu = clockMenu
+
+        let clk1 = NSMenuItem(title: "1 MHz", action: #selector(GameViewController.setClock1MHz(_:)), keyEquivalent: "1")
+        clk1.keyEquivalentModifierMask = [.control]
+        clk1.target = nil
+        clockMenu.addItem(clk1)
+
+        let clk10 = NSMenuItem(title: "10 MHz", action: #selector(GameViewController.setClock10MHz(_:)), keyEquivalent: "2")
+        clk10.keyEquivalentModifierMask = [.control]
+        clk10.target = nil
+        clockMenu.addItem(clk10)
+
+        let clk16 = NSMenuItem(title: "16 MHz", action: #selector(GameViewController.setClock16MHz(_:)), keyEquivalent: "3")
+        clk16.keyEquivalentModifierMask = [.control]
+        clk16.target = nil
+        clockMenu.addItem(clk16)
+
+        let clk24 = NSMenuItem(title: "24 MHz (Default)", action: #selector(GameViewController.setClock24MHz(_:)), keyEquivalent: "4")
+        clk24.keyEquivalentModifierMask = [.control]
+        clk24.target = nil
+        clockMenu.addItem(clk24)
+
+        clockMenu.addItem(NSMenuItem.separator())
+
+        let clk40 = NSMenuItem(title: "40 MHz", action: #selector(GameViewController.setClock40MHz(_:)), keyEquivalent: "5")
+        clk40.keyEquivalentModifierMask = [.control]
+        clk40.target = nil
+        clockMenu.addItem(clk40)
+
+        let clk50 = NSMenuItem(title: "50 MHz (Max)", action: #selector(GameViewController.setClock50MHz(_:)), keyEquivalent: "6")
+        clk50.keyEquivalentModifierMask = [.control]
+        clk50.target = nil
+        clockMenu.addItem(clk50)
+
+        mainMenu.addItem(clockMenuItem)
+
+        // Display Menu
+        let displayMenuItem = NSMenuItem(title: "Display", action: nil, keyEquivalent: "")
+        let displayMenu = NSMenu(title: "Display")
+        displayMenuItem.submenu = displayMenu
+
+        let rotateItem = NSMenuItem(title: "Rotate Screen", action: #selector(rotateScreen(_:)), keyEquivalent: "r")
+        rotateItem.target = self
+        displayMenu.addItem(rotateItem)
+
+        let landscapeItem = NSMenuItem(title: "Landscape Mode", action: #selector(setLandscapeMode(_:)), keyEquivalent: "")
+        landscapeItem.target = self
+        displayMenu.addItem(landscapeItem)
+
+        let portraitItem = NSMenuItem(title: "Portrait Mode", action: #selector(setPortraitMode(_:)), keyEquivalent: "")
+        portraitItem.target = self
+        displayMenu.addItem(portraitItem)
+
+        displayMenu.addItem(NSMenuItem.separator())
+
+        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "")
+        mouseToggleItem.target = self
+        mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
+        displayMenu.addItem(mouseToggleItem)
+
+        let inputToggleItem = NSMenuItem(title: "Toggle Input Mode", action: #selector(toggleInputMode(_:)), keyEquivalent: "")
+        inputToggleItem.target = self
+        displayMenu.addItem(inputToggleItem)
+
+        mainMenu.addItem(displayMenuItem)
+
+        // System Menu
+        let systemMenuItem = NSMenuItem(title: "System", action: nil, keyEquivalent: "")
+        let systemMenu = NSMenu(title: "System")
+        systemMenuItem.submenu = systemMenu
+
+        let resetItem = NSMenuItem(title: "Reset System", action: #selector(resetSystem(_:)), keyEquivalent: "")
+        resetItem.target = self
+        systemMenu.addItem(resetItem)
+
+        // Serial Communication submenu
+        systemMenu.addItem(NSMenuItem.separator())
+        let serialMenuItem = NSMenuItem(title: "Serial Communication", action: nil, keyEquivalent: "")
+        let serialMenu = NSMenu(title: "Serial Communication")
+        serialMenuItem.submenu = serialMenu
+
+        let mouseOnlyItem = NSMenuItem(title: "Mouse Only (Default)", action: #selector(setSerialMouseOnly(_:)), keyEquivalent: "")
+        mouseOnlyItem.target = self
+        mouseOnlyItem.identifier = NSUserInterfaceItemIdentifier("Serial-mouseOnly")
+        serialMenu.addItem(mouseOnlyItem)
+
+        let ptyItem = NSMenuItem(title: "PTY (Terminal Access)", action: #selector(setSerialPTY(_:)), keyEquivalent: "")
+        ptyItem.target = self
+        ptyItem.identifier = NSUserInterfaceItemIdentifier("Serial-PTY")
+        serialMenu.addItem(ptyItem)
+
+        let tcpItem = NSMenuItem(title: "TCP Connection...", action: #selector(setSerialTCP(_:)), keyEquivalent: "")
+        tcpItem.target = self
+        tcpItem.identifier = NSUserInterfaceItemIdentifier("Serial-TCP")
+        serialMenu.addItem(tcpItem)
+
+        let tcpServerItem = NSMenuItem(title: "TCP Server...", action: #selector(setSerialTCPServer(_:)), keyEquivalent: "")
+        tcpServerItem.target = self
+        tcpServerItem.identifier = NSUserInterfaceItemIdentifier("Serial-TCPServer")
+        serialMenu.addItem(tcpServerItem)
+
+        serialMenu.addItem(NSMenuItem.separator())
+
+        let disconnectItem = NSMenuItem(title: "Disconnect", action: #selector(disconnectSerial(_:)), keyEquivalent: "")
+        disconnectItem.target = self
+        serialMenu.addItem(disconnectItem)
+
+        serialMenu.addItem(NSMenuItem.separator())
+
+        // CRITICAL: SCC Compatibility Mode toggle - this was causing the infinite loop
+        let compatItem = NSMenuItem(title: "Original Mouse SCC (Compat)", action: #selector(toggleSCCCompatMode(_:)), keyEquivalent: "")
+        compatItem.target = self
+        compatItem.identifier = NSUserInterfaceItemIdentifier("Serial-CompatMouse")
+        serialMenu.addItem(compatItem)
+
+        systemMenu.addItem(serialMenuItem)
+
+        // Disk State Management submenu
+        systemMenu.addItem(NSMenuItem.separator())
+        let diskStateMenuItem = NSMenuItem(title: "Disk State Management", action: nil, keyEquivalent: "")
+        let diskStateMenu = NSMenu(title: "Disk State Management")
+        diskStateMenuItem.submenu = diskStateMenu
+
+        // Auto-Mount Mode submenu
+        let autoMountMenuItem = NSMenuItem(title: "Auto-Mount Mode", action: nil, keyEquivalent: "")
+        let autoMountMenu = NSMenu(title: "Auto-Mount Mode")
+        autoMountMenuItem.submenu = autoMountMenu
+
+        let disabledItem = NSMenuItem(title: "Disabled", action: #selector(setAutoMountDisabled(_:)), keyEquivalent: "")
+        disabledItem.target = self
+        disabledItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-disabled")
+        autoMountMenu.addItem(disabledItem)
+
+        let lastSessionItem = NSMenuItem(title: "Restore Last Session", action: #selector(setAutoMountLastSession(_:)), keyEquivalent: "")
+        lastSessionItem.target = self
+        lastSessionItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-lastSession")
+        autoMountMenu.addItem(lastSessionItem)
+
+        let smartLoadItem = NSMenuItem(title: "Smart Load", action: #selector(setAutoMountSmartLoad(_:)), keyEquivalent: "")
+        smartLoadItem.target = self
+        smartLoadItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-smartLoad")
+        autoMountMenu.addItem(smartLoadItem)
+
+        let manualItem = NSMenuItem(title: "Manual Selection", action: #selector(setAutoMountManual(_:)), keyEquivalent: "")
+        manualItem.target = self
+        manualItem.identifier = NSUserInterfaceItemIdentifier("AutoMount-manual")
+        autoMountMenu.addItem(manualItem)
+
+        diskStateMenu.addItem(autoMountMenuItem)
+        diskStateMenu.addItem(NSMenuItem.separator())
+
+        let saveStateItem = NSMenuItem(title: "Save Current State", action: #selector(saveDiskState(_:)), keyEquivalent: "s")
+        saveStateItem.keyEquivalentModifierMask = [.command, .option]
+        saveStateItem.target = self
+        diskStateMenu.addItem(saveStateItem)
+
+        let clearStateItem = NSMenuItem(title: "Clear Saved State", action: #selector(clearDiskState(_:)), keyEquivalent: "")
+        clearStateItem.target = self
+        diskStateMenu.addItem(clearStateItem)
+
+        let showStateItem = NSMenuItem(title: "Show State Information", action: #selector(showDiskStateInfo(_:)), keyEquivalent: "")
+        showStateItem.target = self
+        diskStateMenu.addItem(showStateItem)
+
+        systemMenu.addItem(diskStateMenuItem)
+
+        // JoyportU Settings submenu
+        systemMenu.addItem(NSMenuItem.separator())
+        let joyportUMenuItem = NSMenuItem(title: "JoyportU Settings", action: nil, keyEquivalent: "")
+        let joyportUMenu = NSMenu(title: "JoyportU Settings")
+        joyportUMenuItem.submenu = joyportUMenu
+
+        let joyportUDisabledItem = NSMenuItem(title: "Disabled", action: #selector(setJoyportUDisabled(_:)), keyEquivalent: "")
+        joyportUDisabledItem.target = self
+        joyportUDisabledItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-disabled")
+        joyportUMenu.addItem(joyportUDisabledItem)
+
+        let notifyModeItem = NSMenuItem(title: "Notify Mode", action: #selector(setJoyportUNotifyMode(_:)), keyEquivalent: "")
+        notifyModeItem.target = self
+        notifyModeItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-notifyMode")
+        joyportUMenu.addItem(notifyModeItem)
+
+        let commandModeItem = NSMenuItem(title: "Command Mode", action: #selector(setJoyportUCommandMode(_:)), keyEquivalent: "")
+        commandModeItem.target = self
+        commandModeItem.identifier = NSUserInterfaceItemIdentifier("JoyportU-commandMode")
+        joyportUMenu.addItem(commandModeItem)
+
+        systemMenu.addItem(joyportUMenuItem)
+
+        mainMenu.addItem(systemMenuItem)
+
+        // Window Menu (standard)
+        let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: "Window")
+        windowMenuItem.submenu = windowMenu
+
+        let minimizeItem = NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(minimizeItem)
+
+        let zoomItem = NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(zoomItem)
+
+        windowMenu.addItem(NSMenuItem.separator())
+
+        let bringAllToFrontItem = NSMenuItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowMenu.addItem(bringAllToFrontItem)
+
+        mainMenu.addItem(windowMenuItem)
+
+        // Help Menu
+        let helpMenuItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
+        let helpMenu = NSMenu(title: "Help")
+        helpMenuItem.submenu = helpMenu
+
+        let helpItem = NSMenuItem(title: "X68000 Help", action: #selector(NSApplication.showHelp(_:)), keyEquivalent: "?")
+        helpMenu.addItem(helpItem)
+
+        mainMenu.addItem(helpMenuItem)
+
+        // Wire system menus for AppKit
+        NSApp.servicesMenu = servicesMenu
+        NSApp.windowsMenu = windowMenu
+        NSApp.helpMenu = helpMenu
+
+        // Set the new main menu
+        NSApplication.shared.mainMenu = mainMenu
+
+        infoLog("Successfully rebuilt menu system programmatically", category: .ui)
+    }
+
     private func setupHDDMenu() {
         // Find and modify the HDD menu programmatically
         guard let mainMenu = NSApplication.shared.mainMenu else {
@@ -96,6 +451,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                    submenu.items.contains(where: { $0.title.contains("Hard Disk") || $0.title.contains("ハードディスク") }) {
                     
                     // debugLog("Found HDD menu: \(submenu.title)", category: .ui)
+                    // Avoid duplicate insertion
+                    if submenu.items.contains(where: { $0.title.contains("Create Empty HDD") }) {
+                        debugLog("HDD creation items already present", category: .ui)
+                        return
+                    }
                     
                     // Add separator if not already present
                     let separator = NSMenuItem.separator()
@@ -196,6 +556,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func addAutoMountMenuItem(to menu: NSMenu) {
+        // Skip if already added
+        if menu.items.contains(where: { $0.submenu?.title == "Disk State Management" }) {
+            debugLog("'Disk State Management' menu already present", category: .ui)
+            return
+        }
         // Separator will be added automatically before Quit menu
         
         // Create Disk State Management submenu
@@ -309,6 +674,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func addSerialMenuItem(to menu: NSMenu) {
+        // Skip if already added
+        if menu.items.contains(where: { $0.submenu?.title == "Serial Communication" }) {
+            debugLog("'Serial Communication' menu already present", category: .ui)
+            return
+        }
         // Create Serial Communication submenu
         let serialSubmenu = NSMenu(title: "Serial Communication")
         let serialMenuItem = NSMenuItem(
@@ -400,6 +770,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func addJoyportUMenuItem(to menu: NSMenu) {
+        // Skip if already added
+        if menu.items.contains(where: { $0.submenu?.title == "JoyportU Settings" }) {
+            debugLog("'JoyportU Settings' menu already present", category: .ui)
+            return
+        }
         // Create JoyportU submenu
         let joyportUSubmenu = NSMenu(title: "JoyportU Settings")
         let joyportUMenuItem = NSMenuItem(
@@ -513,10 +888,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func updateMenuTitles() {
-        guard let mainMenu = NSApplication.shared.mainMenu else { 
-            logger.debug("Could not get main menu")
-            return 
+        // Prevent recursive calls
+        guard !isUpdatingMenuTitles else {
+            logger.debug("Preventing recursive updateMenuTitles call")
+            return
         }
+
+        guard let mainMenu = NSApplication.shared.mainMenu else {
+            logger.debug("Could not get main menu")
+            return
+        }
+
+        isUpdatingMenuTitles = true
+        defer { isUpdatingMenuTitles = false }
         
         logger.debug("Updating menu titles - found \(mainMenu.items.count) menu items")
         
@@ -531,8 +915,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     logger.debug("Updating HDD menu")
                     self.updateHDDMenuTitles(submenu: submenu)
                 } else if menuItem.title == "Display" {
-                    logger.debug("Updating Display menu")
-                    self.updateMouseMenuCheckmark()
+                    logger.debug("Updating Display menu - skipping mouse checkmark update to prevent infinite loop")
+                    // Commented out to prevent infinite loop:
+                    // self.updateMouseMenuCheckmark()
                 }
             } else {
                 logger.debug("Menu item '\(menuItem.title)' has no submenu")
@@ -560,10 +945,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // Update FDD Drive 0 menu items (using title matching as fallback)
             if itemId == "FDD-open-drive-A" || itemTitle.contains("Open Drive 0") || itemTitle.contains("Drive 0:") {
                 logger.debug("Updating Drive 0 open item")
-                if X68000_IsFDDReady(0) != 0 {
+                if getCachedFDDReady(0) {
                     logger.debug("Drive 0 is ready")
-                    if let filename = X68000_GetFDDFilename(0) {
-                        let name = String(cString: filename)
+                    if let filename = getCachedFDDFilename(0) {
+                        let name = filename
                         logger.debug("Raw filename for Drive 0: '\(name)'")
                         
                         // Check if we have a valid filename
@@ -595,9 +980,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
             } else if itemId == "FDD-eject-drive-A" || itemTitle.contains("Eject Drive 0") {
                 logger.debug("Updating Drive 0 eject item")
-                if X68000_IsFDDReady(0) != 0 {
-                    if let filename = X68000_GetFDDFilename(0) {
-                        let name = String(cString: filename)
+                if getCachedFDDReady(0) {
+                    if let filename = getCachedFDDFilename(0) {
+                        let name = filename
                         if !name.isEmpty && name != "/" && name.count > 1 {
                             let displayName: String
                             if name.hasPrefix("file://") {
@@ -625,10 +1010,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             // Update FDD Drive 1 menu items
             else if itemId == "FDD-open-drive-B" || itemTitle.contains("Open Drive 1") || itemTitle.contains("Drive 1:") {
                 logger.debug("Updating Drive 1 open item")
-                if X68000_IsFDDReady(1) != 0 {
+                if getCachedFDDReady(1) {
                     logger.debug("Drive 1 is ready")
-                    if let filename = X68000_GetFDDFilename(1) {
-                        let name = String(cString: filename)
+                    if let filename = getCachedFDDFilename(1) {
+                        let name = filename
                         logger.debug("Raw filename for Drive 1: '\(name)'")
                         
                         // Check if we have a valid filename
@@ -660,9 +1045,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
             } else if itemId == "FDD-eject-drive-B" || itemTitle.contains("Eject Drive 1") {
                 logger.debug("Updating Drive 1 eject item")
-                if X68000_IsFDDReady(1) != 0 {
-                    if let filename = X68000_GetFDDFilename(1) {
-                        let name = String(cString: filename)
+                if getCachedFDDReady(1) {
+                    if let filename = getCachedFDDFilename(1) {
+                        let name = filename
                         if !name.isEmpty && name != "/" && name.count > 1 {
                             let displayName: String
                             if name.hasPrefix("file://") {
@@ -699,10 +1084,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             
             if itemId == "HDD-open" || itemTitle.contains("Open Hard Disk") || itemTitle.contains("HDD:") {
                 logger.debug("Updating HDD open item")
-                if X68000_IsHDDReady() != 0 {
+                if getCachedHDDReady() {
                     logger.debug("HDD is ready")
-                    if let filename = X68000_GetHDDFilename() {
-                        let name = String(cString: filename)
+                    if let filename = getCachedHDDFilename() {
+                        let name = filename
                         let displayName: String
                         if name.hasPrefix("file://") {
                             displayName = URL(string: name)?.lastPathComponent ?? name
@@ -721,9 +1106,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 }
             } else if itemId == "HDD-eject" || itemTitle.contains("Eject Hard Disk") {
                 logger.debug("Updating HDD eject item")
-                if X68000_IsHDDReady() != 0 {
-                    if let filename = X68000_GetHDDFilename() {
-                        let name = String(cString: filename)
+                if getCachedHDDReady() {
+                    if let filename = getCachedHDDFilename() {
+                        let name = filename
                         let displayName: String
                         if name.hasPrefix("file://") {
                             displayName = URL(string: name)?.lastPathComponent ?? name
@@ -1079,6 +1464,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
 
+    // Helper functions for cached drive status to prevent infinite loops
+    private func getCachedFDDReady(_ drive: Int) -> Bool {
+        let now = Date().timeIntervalSince1970
+        if now - lastDriveStatusCheck > driveStatusCheckInterval {
+            cachedFDDReady[0] = X68000_IsFDDReady(0) != 0
+            cachedFDDReady[1] = X68000_IsFDDReady(1) != 0
+            cachedHDDReady = X68000_IsHDDReady() != 0
+            lastDriveStatusCheck = now
+        }
+        return cachedFDDReady[drive] ?? false
+    }
+
+    private func getCachedFDDFilename(_ drive: Int) -> String? {
+        let now = Date().timeIntervalSince1970
+        if now - lastDriveStatusCheck > driveStatusCheckInterval {
+            cachedFDDFilename[0] = X68000_GetFDDFilename(0) != nil ? String(cString: X68000_GetFDDFilename(0)!) : nil
+            cachedFDDFilename[1] = X68000_GetFDDFilename(1) != nil ? String(cString: X68000_GetFDDFilename(1)!) : nil
+            cachedHDDFilename = X68000_GetHDDFilename() != nil ? String(cString: X68000_GetHDDFilename()!) : nil
+            lastDriveStatusCheck = now
+        }
+        return cachedFDDFilename[drive] ?? nil
+    }
+
+    private func getCachedHDDReady() -> Bool {
+        let now = Date().timeIntervalSince1970
+        if now - lastDriveStatusCheck > driveStatusCheckInterval {
+            cachedFDDReady[0] = X68000_IsFDDReady(0) != 0
+            cachedFDDReady[1] = X68000_IsFDDReady(1) != 0
+            cachedHDDReady = X68000_IsHDDReady() != 0
+            lastDriveStatusCheck = now
+        }
+        return cachedHDDReady
+    }
+
+    private func getCachedHDDFilename() -> String? {
+        let now = Date().timeIntervalSince1970
+        if now - lastDriveStatusCheck > driveStatusCheckInterval {
+            cachedFDDFilename[0] = X68000_GetFDDFilename(0) != nil ? String(cString: X68000_GetFDDFilename(0)!) : nil
+            cachedFDDFilename[1] = X68000_GetFDDFilename(1) != nil ? String(cString: X68000_GetFDDFilename(1)!) : nil
+            cachedHDDFilename = X68000_GetHDDFilename() != nil ? String(cString: X68000_GetHDDFilename()!) : nil
+            lastDriveStatusCheck = now
+        }
+        return cachedHDDFilename
+    }
+
+    private func getCachedSCCCompatMode() -> Int32 {
+        let now = Date().timeIntervalSince1970
+        if now - lastSCCCompatCheck > sccCompatCheckInterval {
+            cachedSCCCompatMode = SCC_GetCompatMode()
+            lastSCCCompatCheck = now
+        }
+        return cachedSCCCompatMode
+    }
+
     // MARK: - Serial Communication Settings Actions
     @objc private func setSerialMouseOnly(_ sender: Any) {
         infoLog("Setting serial mode to Mouse Only", category: .ui)
@@ -1169,8 +1608,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc private func toggleSCCCompatMode(_ sender: Any) {
         // Toggle original px68k SCC mouse behavior
-        let enabled = SCC_GetCompatMode() != 0
+        let enabled = getCachedSCCCompatMode() != 0
         SCC_SetCompatMode(enabled ? 0 : 1)
+
+        // Force cache update immediately after setting
+        cachedSCCCompatMode = SCC_GetCompatMode()
+        lastSCCCompatCheck = Date().timeIntervalSince1970
+
+        // Update mouse controller cache to avoid infinite loops
+        gameViewController?.gameScene?.mouseController?.updateSCCCompatModeCache()
+
         infoLog("SCC Mouse Compat Mode: \(enabled ? "OFF" : "ON")", category: .ui)
         updateSerialMenuCheckmarks()
     }
@@ -1232,7 +1679,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
     
     private func updateSerialMenuCheckmarks() {
+        // Prevent recursive calls
+        guard !isUpdatingSerialMenuCheckmarks else {
+            logger.debug("Preventing recursive updateSerialMenuCheckmarks call")
+            return
+        }
+
         guard let mainMenu = NSApplication.shared.mainMenu else { return }
+
+        isUpdatingSerialMenuCheckmarks = true
+        defer { isUpdatingSerialMenuCheckmarks = false }
         
         let currentMode = gameViewController?.sccManager.currentMode ?? .mouseOnly
         
@@ -1253,7 +1709,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                             case "Serial-TCPServer":
                                 serialItem.state = (currentMode == .serialTCPServer) ? .on : .off
                             case "Serial-CompatMouse":
-                                serialItem.state = (SCC_GetCompatMode() != 0) ? .on : .off
+                                serialItem.state = (getCachedSCCCompatMode() != 0) ? .on : .off
                             default:
                                 break
                             }
@@ -1269,6 +1725,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         infoLog("Setting JoyportU mode to Disabled", category: .ui)
         gameViewController?.setJoyportUMode(0)
         updateJoyportUMenuCheckmarks()
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Build menu as early as possible to avoid transient storyboard inconsistencies.
+        rebuildMenuSystem()
     }
     
     @objc private func setJoyportUNotifyMode(_ sender: Any) {
@@ -1314,11 +1775,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        // Avoid touching menu state until the main menu is fully attached.
+        if NSApplication.shared.mainMenu == nil || (NSApplication.shared.mainMenu?.items.isEmpty ?? true) {
+            return true
+        }
         // Enable all menu items by default
         if menuItem.identifier?.rawValue == "Display-mouse-mode" || menuItem.title.contains("Use X68000 Mouse") {
             // Always enable the mouse toggle menu item
             menuItem.state = isMouseCaptureEnabled ? .on : .off
             debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+            return true
+        } else if menuItem.menu?.title == "Clock" {
+            // Reflect current clock selection via checkmark
+            let currentMHz: Int = {
+                if let s = UserDefaults.standard.string(forKey: "clock"), let v = Int(s) { return v }
+                return 24
+            }()
+            let title = menuItem.title
+            let targetMHz: Int? = (
+                title.contains("1 MHz") ? 1 :
+                title.contains("10 MHz") ? 10 :
+                title.contains("16 MHz") ? 16 :
+                title.contains("24 MHz") ? 24 :
+                title.contains("40 MHz") ? 40 :
+                title.contains("50 MHz") ? 50 :
+                nil
+            )
+            if let mhz = targetMHz {
+                menuItem.state = (mhz == currentMHz) ? .on : .off
+            }
             return true
         } else if menuItem.identifier?.rawValue == "Settings-auto-mount" || menuItem.title.contains("Auto-Mount Disk Images") {
             // Legacy auto-mount menu item - keep for compatibility

@@ -234,58 +234,6 @@ static void StopJoyportU(void)
 //	Execute JoyportU command
 //
 //---------------------------------------------------------------------------
-static int ExecJoyportUCmd(BYTE cmd)
-{
-    if (!joyport_device.active) return -1;
-    
-    if (joyport_device.notify_mode) {
-        // In notify mode, return cached data
-        pthread_mutex_lock(&joyport_device.mutex);
-        switch (cmd) {
-            case 0x3A:
-                {
-                    BYTE data = joyport_device.port_a;
-                    pthread_mutex_unlock(&joyport_device.mutex);
-                    return data;
-                }
-            case 0x3B:
-                {
-                    BYTE data = joyport_device.port_b;
-                    pthread_mutex_unlock(&joyport_device.mutex);
-                    return data;
-                }
-            case 0x3C:
-                {
-                    BYTE data = joyport_device.port_c;
-                    pthread_mutex_unlock(&joyport_device.mutex);
-                    return data;
-                }
-            default:
-                pthread_mutex_unlock(&joyport_device.mutex);
-                return 0;
-        }
-    } else {
-        // In command mode, send command and wait for response
-        joyport_device.recv_end_mark = 0;
-        if (write(joyport_device.fd, &cmd, 1) == 1) {
-            // Wait for response with timeout
-            for (int i = 0; i < 50000; i++) {
-                pthread_mutex_lock(&joyport_device.mutex);
-                if (joyport_device.recv_end_mark) {
-                    BYTE data = joyport_device.recv_data;
-                    pthread_mutex_unlock(&joyport_device.mutex);
-                    return data;
-                }
-                pthread_mutex_unlock(&joyport_device.mutex);
-                usleep(10); // 10µs delay
-            }
-        }
-        // Timeout - deactivate device
-        StopJoyportU();
-        printf("JoyportU command timeout - device deactivated\n");
-        return -1;
-    }
-}
 
 //---------------------------------------------------------------------------
 //
