@@ -1587,6 +1587,15 @@ extension GameScene {
         
         // F1 key mode switching disabled - F1 now available for X68000 use
         
+        // macOS-like shortcut: Toggle X68000 Mouse capture with Shift-Command-M
+        if event.modifierFlags.contains([.command, .shift]),
+           let ch = event.charactersIgnoringModifiers?.lowercased(), ch == "m" {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.toggleMouseMode(self)
+            }
+            return
+        }
+
         // Check for mouse capture mode exit (F12 key)
         if event.keyCode == 111 { // F12 key
             // Check if mouse capture is currently enabled

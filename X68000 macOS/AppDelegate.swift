@@ -261,7 +261,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         displayMenu.addItem(NSMenuItem.separator())
 
-        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "")
+        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "m")
+        mouseToggleItem.keyEquivalentModifierMask = [.command, .shift]
         mouseToggleItem.target = self
         mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
         displayMenu.addItem(mouseToggleItem)

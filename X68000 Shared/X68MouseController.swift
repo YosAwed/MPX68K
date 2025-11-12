@@ -56,7 +56,7 @@ class X68MouseController
     private var holdUntilFrame: [Int: Int] = [:]
     // Target click cadence ~100ms
     private let targetClickInterval: TimeInterval = 0.10
-    private let minimumHoldFrames: Int = 5 // ~60Hz => ~100ms
+    private let minimumHoldFrames: Int = 6 // ~60Hz => ~100ms
     private let minimumHoldSeconds: TimeInterval = 0.10
     private let minimumHoldFramesCaptureLeft: Int = 6
     private var lastPressTime: [Int: TimeInterval] = [:]
