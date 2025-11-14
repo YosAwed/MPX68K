@@ -812,10 +812,28 @@ extension GameViewController: NSDraggingDestination {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
         handleMouseEvent(event)
     }
 
     override func mouseDragged(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
         handleMouseEvent(event)
     }
 
@@ -824,6 +842,16 @@ extension GameViewController: NSDraggingDestination {
     }
     
     override func mouseDown(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
 
@@ -857,6 +885,16 @@ extension GameViewController: NSDraggingDestination {
     }
 
     override func mouseUp(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+
         guard let gameScene = gameScene,
               let mouseController = gameScene.mouseController else { return }
         if mouseController.isCaptureMode {

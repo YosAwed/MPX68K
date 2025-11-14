@@ -9,6 +9,8 @@
 import SpriteKit
 import GameController
 import Metal
+import simd
+import CoreImage
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -64,6 +66,25 @@ class GameScene: SKScene {
     var titleSprite: SKSpriteNode?
     var mouseSprite: SKSpriteNode?
     var spr: SKSpriteNode = SKSpriteNode()
+    private var crtBloomNode: SKEffectNode?
+    private var crtVignetteNode: SKEffectNode?
+    private var crtCurvatureNode: SKEffectNode?
+    private var crtEffectRoot: SKNode?
+    private var scanlineOverlay: SKSpriteNode?
+    private var noiseOverlay: SKSpriteNode?
+    private var lastOverlaySize: CGSize = .zero
+    private var chromaRedNode: SKEffectNode?
+    private var chromaRedSprite: SKSpriteNode?
+    private var chromaBlueNode: SKEffectNode?
+    private var chromaBlueSprite: SKSpriteNode?
+    private var chromaBaseNode: SKEffectNode?
+    private var cornerVignetteOverlay: SKSpriteNode?
+    private var cornerVignetteCrop: SKCropNode?
+    private var cornerVignetteFill: SKSpriteNode?
+    private var lastCornerVignetteSize: CGSize = .zero
+    private var lastCornerVignetteIntensity: Float = -1.0
+    private var persistenceNode: SKSpriteNode?
+    private var lastFrameTexture: SKTexture?
     var labelMIDI: SKLabelNode?
     var joycontroller: JoyController?
     var joycard: X68JoyCard?
@@ -99,6 +120,11 @@ class GameScene: SKScene {
     let moveJoystick = TLAnalogJoystick(withDiameter: 200)
     let rotateJoystick = TLAnalogJoystick(withDiameter: 120)
     let rotateJoystick2 = TLAnalogJoystick(withDiameter: 120)
+
+    // CRT display filter manager
+    private let crtFilter = CRTFilterManager()
+    private var crtPreset: CRTPreset = .off
+    var crtOverlay: CRTOverlay?
     
     class func newGameScene() -> GameScene {
         
@@ -405,6 +431,107 @@ class GameScene: SKScene {
         X68000_Reset()
         infoLog("System reset completed", category: .emulation)
     }
+
+    // MARK: - CRT Display Mode
+    func setCRTDisplayPreset(_ preset: CRTPreset) {
+        infoLog("Setting CRT display preset: \(preset.rawValue)", category: .ui)
+        crtPreset = preset
+        userDefaults.set(preset.rawValue, forKey: "CRTDisplayPreset")
+        if spr.parent != nil {
+            crtFilter.apply(preset: preset)
+            crtFilter.attach(to: spr)
+        }
+        applyCIEffectsForCurrentCRT()
+        // Ensure overlays/filters reflect preset (including OFF)
+        if crtEffectRoot != nil {
+            let s = currentCRTSettings()
+            scanlineOverlay?.alpha = CGFloat(max(0.0, min(1.0, s.scanlineIntensity * 0.8)))
+            noiseOverlay?.alpha = CGFloat(max(0.0, min(1.0, s.noiseIntensity * 0.25)))
+            rebuildOverlaysIfNeeded(size: spr.size)
+            rebuildCornerVignetteIfNeeded(size: spr.size, intensity: s.vignetteIntensity)
+            applyChromaticSettings() // disables chroma base/filter when strength is 0 (OFF)
+        }
+        // Small on-screen notice
+        let note = SKLabelNode(text: "CRT: \(preset.rawValue.capitalized)")
+        note.fontName = "Helvetica-Bold"
+        note.fontSize = 24
+        note.fontColor = .yellow
+        note.zPosition = 1000
+        note.position = CGPoint(x: 0, y: size.height/2 - 60)
+        note.alpha = 0.0
+        addChild(note)
+        note.run(.sequence([
+            .fadeIn(withDuration: 0.12),
+            .wait(forDuration: 0.8),
+            .fadeOut(withDuration: 0.25),
+            .removeFromParent()
+        ]))
+    }
+
+    func applyCRTSettings(_ settings: CRTSettings) {
+        infoLog("Applying custom CRT settings", category: .ui)
+        crtPreset = .custom
+        userDefaults.set(crtPreset.rawValue, forKey: "CRTDisplayPreset")
+        var s = settings
+        s.enabled = true // ensure enabled when adjusting via UI
+        crtFilter.update(settings: s)
+        if spr.parent != nil {
+            crtFilter.attach(to: spr)
+        }
+        applyCIEffectsForCurrentCRT()
+        // Overlays: scanlines/noise/corner vignette
+        if crtEffectRoot != nil {
+            scanlineOverlay?.alpha = CGFloat(max(0.0, min(1.0, settings.scanlineIntensity * 0.8)))
+            noiseOverlay?.alpha = CGFloat(max(0.0, min(1.0, settings.noiseIntensity * 0.25)))
+            rebuildOverlaysIfNeeded(size: spr.size)
+            rebuildCornerVignetteIfNeeded(size: spr.size, intensity: settings.vignetteIntensity)
+        }
+        // Update chromatic overlays
+        applyChromaticSettings()
+    }
+
+    func toggleCRTSettingsPanel() {
+        if let overlay = crtOverlay {
+            overlay.removeFromParent()
+            crtOverlay = nil
+            return
+        }
+        let overlay = CRTOverlay()
+        overlay.position = CGPoint(x: 0, y: 0)
+        overlay.zPosition = 999
+        // Collect current settings (from preset applied in filter)
+        let current = currentCRTSettings()
+        overlay.configure(with: current)
+        overlay.onValueChanged = { [weak self] key, value in
+            guard let self = self else { return }
+            var s = self.currentCRTSettings()
+            switch key {
+            case "scanlineIntensity": s.scanlineIntensity = value
+            case "curvature": s.curvature = value
+            case "chroma": s.chromaShiftR = value; s.chromaShiftB = -value
+            case "persistence": s.phosphorPersistence = value
+            case "vignette": s.vignetteIntensity = value
+            case "bloom": s.bloomIntensity = value
+            case "noise": s.noiseIntensity = value
+            default: break
+            }
+            self.applyCRTSettings(s)
+        }
+        overlay.onClose = { [weak self] in
+            self?.crtOverlay?.removeFromParent()
+            self?.crtOverlay = nil
+        }
+        addChild(overlay)
+        crtOverlay = overlay
+    }
+
+    private func currentCRTSettings() -> CRTSettings {
+        // Try to return current filter settings if available; otherwise from preset
+        if crtPreset == .custom {
+            return crtFilter.settings
+        }
+        return CRTPresets.settings(for: crtPreset)
+    }
     
     // MARK: - Screen Rotation Management
     func rotateScreen() {
@@ -559,6 +686,14 @@ class GameScene: SKScene {
         if let vsync = userDefaults.object(forKey: "vsync") as? Bool {
             self.vsync = vsync
             infoLog("V-Sync: \(vsync)", category: .ui)
+        }
+
+        // Load CRT preset if saved (default: off)
+        if let presetStr = userDefaults.string(forKey: "CRTDisplayPreset"),
+           let preset = CRTPreset(rawValue: presetStr) {
+            crtPreset = preset
+        } else {
+            crtPreset = .off
         }
     }
     
@@ -1111,14 +1246,57 @@ class GameScene: SKScene {
         
         if screenSizeChanged || spr.parent == nil {
             // Recreate sprite only when necessary
-            if spr.parent != nil {
-                spr.removeFromParent()
-            }
+            if spr.parent != nil { spr.removeFromParent() }
+            if let n = crtEffectRoot { n.removeFromParent(); crtEffectRoot = nil }
             
             spr = SKSpriteNode(texture: texture, size: size)
             spr.zPosition = 0  // Use consistent zPosition from setupLayerZPositions
             applySpriteTransformSilently()
-            self.addChild(spr)
+            syncOverlaysTransformToSprite()
+
+            // Build effect chain: Curvature -> Vignette -> Bloom -> ChromaBase(G-only) -> Sprite
+            let bloomNode = SKEffectNode()
+            bloomNode.shouldRasterize = true
+            bloomNode.shouldEnableEffects = false
+            bloomNode.zPosition = 0
+            // Insert chroma base node to optionally strip R/B from base
+            let cbase = SKEffectNode()
+            cbase.shouldRasterize = true
+            cbase.shouldEnableEffects = false
+            cbase.zPosition = 0
+            cbase.addChild(spr)
+            bloomNode.addChild(cbase)
+
+            let vignetteNode = SKEffectNode()
+            vignetteNode.shouldRasterize = true
+            vignetteNode.shouldEnableEffects = false
+            vignetteNode.zPosition = 0
+            vignetteNode.addChild(bloomNode)
+
+            let curvatureNode = SKEffectNode()
+            curvatureNode.shouldRasterize = true
+            curvatureNode.shouldEnableEffects = false
+            curvatureNode.zPosition = 0
+            curvatureNode.addChild(vignetteNode)
+
+            self.addChild(curvatureNode)
+            crtBloomNode = bloomNode
+            crtVignetteNode = vignetteNode
+            crtCurvatureNode = curvatureNode
+            chromaBaseNode = cbase
+            crtEffectRoot = curvatureNode
+
+            // Attach CRT filter when sprite is (re)created
+            crtFilter.apply(preset: crtPreset)
+            crtFilter.attach(to: spr)
+
+            // Also apply CI-based effects for visible feedback (bloom/vignette)
+            applyCIEffectsForCurrentCRT()
+            // Build overlays (scanlines/noise) sized to current content
+            rebuildOverlaysIfNeeded(size: size)
+            rebuildChromaOverlaysIfNeeded(texture: texture, size: size)
+            rebuildPersistenceOverlayIfNeeded(size: size)
+            rebuildCornerVignetteIfNeeded(size: size, intensity: currentCRTSettings().vignetteIntensity)
             
             lastScreenWidth = w
             lastScreenHeight = h
@@ -1126,6 +1304,462 @@ class GameScene: SKScene {
             // Just update texture - keep existing sprite node
             spr.texture = texture
         }
+
+        // Update CRT uniforms each frame
+        let res = vector_float2(Float(w), Float(h))
+        crtFilter.frameDidUpdate(with: texture, resolution: res, dt: Float(targetFrameTime))
+        syncOverlaysTransformToSprite()
+        syncChromaticTransforms()
+        updatePersistenceOverlay(with: texture)
+        updateChromaticOverlayTextures(texture)
+
+        // Ensure no debug tint is applied
+        spr.colorBlendFactor = 0.0
+
+        // Update overlays content when enabled
+        updateNoiseOverlay()
+    }
+
+    private func applyCIEffectsForCurrentCRT() {
+        guard let bloomNode = crtBloomNode, let vignetteNode = crtVignetteNode else { return }
+        let s = currentCRTSettings()
+        if s.bloomIntensity > 0.001, let f = CIFilter(name: "CIBloom") {
+            f.setDefaults()
+            let b = CGFloat(max(0.0, min(1.0, s.bloomIntensity)))
+            // Softer, non-linear response: very gentle near 0.0, grows smoothly
+            let shaped = pow(b, 1.6)
+            let intensityVal = shaped * 0.5            // previously very strong; halve it
+            let radiusVal = CGFloat(12.0) + shaped * 48.0 // narrower default radius for softness
+            if intensityVal > 0.02 {
+                f.setValue(intensityVal, forKey: kCIInputIntensityKey)
+                f.setValue(radiusVal, forKey: kCIInputRadiusKey)
+                bloomNode.filter = f
+                bloomNode.shouldEnableEffects = true
+            } else {
+                bloomNode.filter = nil
+                bloomNode.shouldEnableEffects = false
+            }
+        } else {
+            bloomNode.filter = nil
+            bloomNode.shouldEnableEffects = false
+        }
+        // Disable CI vignette; use corner-only overlay instead
+        vignetteNode.filter = nil
+        vignetteNode.shouldEnableEffects = false
+
+        // Curvature via lens/pinch distortion (outermost)
+        if let curveNode = crtCurvatureNode {
+            if s.curvature > 0.001 {
+                if let f = CIFilter(name: "CILensDistortion") {
+                    f.setDefaults()
+                    let contentSize = spr.size
+                    let minSide = max(1.0, min(contentSize.width, contentSize.height))
+                    f.setValue(CIVector(x: contentSize.width * 0.5, y: contentSize.height * 0.5), forKey: kCIInputCenterKey)
+                    f.setValue(minSide * 0.5, forKey: kCIInputRadiusKey)
+                    // negative distortion for barrel (CRT curvature)
+                    f.setValue(-CGFloat(s.curvature) * 80.0, forKey: "inputDistortion")
+                    curveNode.filter = f
+                    curveNode.shouldEnableEffects = true
+                } else if let f = CIFilter(name: "CIPinchDistortion") {
+                    f.setDefaults()
+                    let contentSize = spr.size
+                    let minSide = max(1.0, min(contentSize.width, contentSize.height))
+                    f.setValue(CIVector(x: contentSize.width * 0.5, y: contentSize.height * 0.5), forKey: kCIInputCenterKey)
+                    f.setValue(minSide * 0.5, forKey: kCIInputRadiusKey)
+                    f.setValue(-CGFloat(s.curvature) * 0.6, forKey: kCIInputScaleKey)
+                    curveNode.filter = f
+                    curveNode.shouldEnableEffects = true
+                }
+            } else {
+                curveNode.filter = nil
+                curveNode.shouldEnableEffects = false
+            }
+        }
+    }
+
+    // Debug helpers removed
+    
+    // MARK: - Overlays (Scanlines / Noise)
+    private func rebuildOverlaysIfNeeded(size: CGSize) {
+        guard size != .zero else { return }
+        if size == lastOverlaySize, scanlineOverlay != nil, noiseOverlay != nil { return }
+        lastOverlaySize = size
+
+        // Remove old
+        scanlineOverlay?.removeFromParent(); scanlineOverlay = nil
+        noiseOverlay?.removeFromParent(); noiseOverlay = nil
+
+        // Build scanline texture matching emulator drawable size
+        if let tex = makeScanlineTexture(width: Int(size.width), height: Int(size.height), pitch: max(1, Int(currentCRTSettings().scanlinePitch))) {
+            let node = SKSpriteNode(texture: tex, size: size)
+            node.zPosition = 1
+            // Use alpha blend to avoid total blackout at high intensity
+            node.blendMode = .alpha
+            // Slightly stronger than before but still safe
+            node.alpha = CGFloat(min(1.0, currentCRTSettings().scanlineIntensity * 0.8))
+            crtEffectRoot?.addChild(node)
+            scanlineOverlay = node
+        }
+        // Build noise overlay (small texture, tiled by scaling)
+        if let tex = makeNoiseTexture(width: 128, height: 128) {
+            let node = SKSpriteNode(texture: tex, size: size)
+            node.zPosition = 2
+            node.blendMode = .alpha
+            // Keep noise subtle; map slider to a smaller effective alpha
+            node.alpha = CGFloat(currentCRTSettings().noiseIntensity * 0.25)
+            crtEffectRoot?.addChild(node)
+            noiseOverlay = node
+        }
+        syncOverlaysTransformToSprite()
+    }
+
+    private func makeScanlineTexture(width: Int, height: Int, pitch: Int) -> SKTexture? {
+        guard width > 0 && height > 0 else { return nil }
+        let bytesPerPixel = 4
+        let count = width * height * bytesPerPixel
+        var data = [UInt8](repeating: 0, count: count)
+        for y in 0..<height {
+            let isDark = ((y / max(1, pitch)) % 2) == 1
+            let alpha: UInt8 = isDark ? 140 : 0  // a bit stronger, works well with alpha blend
+            var idx = y * width * bytesPerPixel
+            for _ in 0..<width {
+                data[idx+0] = 0   // black
+                data[idx+1] = 0
+                data[idx+2] = 0
+                data[idx+3] = alpha
+                idx += 4
+            }
+        }
+        var local = data // create mutable copy for provider lifetime
+        let provider = CGDataProvider(data: NSData(bytes: &local, length: count))!
+        let cgimg = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * bytesPerPixel,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
+        return cgimg.map { SKTexture(cgImage: $0) }
+    }
+
+    private func makeNoiseTexture(width: Int, height: Int) -> SKTexture? {
+        guard width > 0 && height > 0 else { return nil }
+        let bytesPerPixel = 4
+        let count = width * height * bytesPerPixel
+        var data = [UInt8](repeating: 0, count: count)
+        for i in 0..<(width*height) {
+            let n: UInt8 = UInt8.random(in: 0...255)
+            let base = i*4
+            data[base+0] = n
+            data[base+1] = n
+            data[base+2] = n
+            data[base+3] = 24  // lower per-pixel alpha; overall intensity comes from node alpha
+        }
+        var local = data
+        let provider = CGDataProvider(data: NSData(bytes: &local, length: count))!
+        let cgimg = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * bytesPerPixel,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
+        return cgimg.map { SKTexture(cgImage: $0) }
+    }
+
+    private func updateNoiseOverlay() {
+        guard let node = noiseOverlay else { return }
+        // Refresh a small noise texture periodically for movement
+        if let tex = makeNoiseTexture(width: 128, height: 128) {
+            node.texture = tex
+        }
+    }
+
+    private func syncOverlaysTransformToSprite() {
+        guard crtEffectRoot != nil else { return }
+        if let sl = scanlineOverlay {
+            sl.position = spr.position
+            sl.zRotation = spr.zRotation
+            sl.xScale = spr.xScale
+            sl.yScale = spr.yScale
+        }
+        if let nz = noiseOverlay {
+            nz.position = spr.position
+            nz.zRotation = spr.zRotation
+            nz.xScale = spr.xScale
+            nz.yScale = spr.yScale
+        }
+        if let cv = cornerVignetteOverlay {
+            cv.position = spr.position
+            cv.zRotation = spr.zRotation
+            cv.xScale = spr.xScale
+            cv.yScale = spr.yScale
+        }
+    }
+
+    // Corner-only vignette overlay (darken only corners, not sides)
+    private func rebuildCornerVignetteIfNeeded(size: CGSize, intensity: Float) {
+        guard size != .zero else { return }
+        // If intensity is effectively zero, remove overlay and exit
+        if intensity <= 0.001 {
+            cornerVignetteOverlay?.removeFromParent(); cornerVignetteOverlay = nil
+            cornerVignetteCrop?.removeFromParent(); cornerVignetteCrop = nil
+            cornerVignetteFill = nil
+            lastCornerVignetteSize = .zero
+            lastCornerVignetteIntensity = -1.0
+            return
+        }
+        // Always rebuild on change for reliability
+        lastCornerVignetteSize = size
+        lastCornerVignetteIntensity = intensity
+
+        cornerVignetteOverlay?.removeFromParent(); cornerVignetteOverlay = nil
+        cornerVignetteCrop?.removeFromParent(); cornerVignetteCrop = nil
+        cornerVignetteFill = nil
+
+        // Build mask at moderate resolution and scale to fit
+        let w = max(64, Int(size.width.rounded()))
+        let h = max(64, Int(size.height.rounded()))
+        if let tex = makeRadialVignetteTextureForMultiply(width: w, height: h, intensity: intensity) {
+            let node = SKSpriteNode(texture: tex, size: size)
+            node.zPosition = 500
+            node.blendMode = .multiply
+            node.alpha = 1.0
+            self.addChild(node)
+            cornerVignetteOverlay = node
+            syncOverlaysTransformToSprite()
+        }
+    }
+
+    // Mask for SKCropNode (alpha-only) - not used now
+    private func makeCornerVignetteTexture(width: Int, height: Int, intensity: Float) -> SKTexture? {
+        guard width > 0 && height > 0 else { return nil }
+        let bytesPerPixel = 4
+        let count = width * height * bytesPerPixel
+        var data = [UInt8](repeating: 0, count: count)
+
+        // Corner-only mask using product of 1D edge ramps (no darkening along edge centers)
+        let k = Double(max(0.0, min(1.0, intensity)))
+        let start = 0.60 - 0.15 * k   // 0.60..0.45 as intensity grows
+        let end = 0.98                 // near absolute edge
+        let falloff: Double = 1.6      // ramp curvature
+        let maxAlpha = 220.0 * pow(k, 1.0) + 10.0
+
+        func ramp(_ a: Double) -> Double {
+            // Map |coord| in [0,1] to [0,1] between start..end with smooth curve
+            let t = max(0.0, min(1.0, (a - start) / (end - start)))
+            return pow(t, falloff)
+        }
+
+        for y in 0..<height {
+            let ay = abs((Double(y) / Double(height - 1)) * 2.0 - 1.0)
+            let vy = ramp(ay)
+            for x in 0..<width {
+                let ax = abs((Double(x) / Double(width - 1)) * 2.0 - 1.0)
+                let ux = ramp(ax)
+                let corner = ux * vy // only strong when both x and y are near edges (corners)
+                // Crop mask uses alpha channel only; compute alpha increasing to corners
+                let v = pow(corner, falloff)
+                let a = UInt8(max(0.0, min(255.0, v * maxAlpha)))
+                let idx = (y * width + x) * 4
+                data[idx+0] = 255
+                data[idx+1] = 255
+                data[idx+2] = 255
+                data[idx+3] = a
+            }
+        }
+        var local = data
+        let provider = CGDataProvider(data: NSData(bytes: &local, length: count))!
+        let cgimg = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * bytesPerPixel,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
+        return cgimg.map { SKTexture(cgImage: $0) }
+    }
+
+    // Brightness texture for multiply overlay: 1.0 center/edges, darker at corners
+    private func makeRadialVignetteTextureForMultiply(width: Int, height: Int, intensity: Float) -> SKTexture? {
+        guard width > 0 && height > 0 else { return nil }
+        let bytesPerPixel = 4
+        let count = width * height * bytesPerPixel
+        var data = [UInt8](repeating: 0, count: count)
+
+        let k = Double(max(0.0, min(1.0, intensity)))
+        // Radial vignette: start radius closer to center as intensity grows a bit
+        let start = 0.65 - 0.15 * k // 0.65..0.50
+        let end = 0.98
+        let falloff: Double = 1.8
+        let maxDark = min(0.80, 0.55 * k + 0.10) // up to ~65% darkness
+
+        for y in 0..<height {
+            let ny = (Double(y) / Double(height - 1)) * 2.0 - 1.0 // -1..1
+            for x in 0..<width {
+                let nx = (Double(x) / Double(width - 1)) * 2.0 - 1.0
+                // Elliptical radius to account for aspect ratio
+                let r = sqrt(nx*nx + ny*ny)
+                let t = max(0.0, min(1.0, (r - start) / (end - start)))
+                let dark = pow(t, falloff) * maxDark
+                let brightness = max(0.0, min(1.0, 1.0 - dark))
+                let g = UInt8(brightness * 255.0)
+                let idx = (y * width + x) * 4
+                data[idx+0] = g
+                data[idx+1] = g
+                data[idx+2] = g
+                data[idx+3] = 255
+            }
+        }
+        var local = data
+        let provider = CGDataProvider(data: NSData(bytes: &local, length: count))!
+        let cgimg = CGImage(
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: width * bytesPerPixel,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
+        return cgimg.map { SKTexture(cgImage: $0) }
+    }
+
+    // MARK: - Chromatic overlays
+    private func rebuildChromaOverlaysIfNeeded(texture: SKTexture, size: CGSize) {
+        if chromaRedNode != nil && chromaBlueNode != nil { return }
+        // Red channel overlay
+        let redSprite = SKSpriteNode(texture: texture, size: size)
+        redSprite.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        let redFx = SKEffectNode()
+        redFx.shouldRasterize = true
+        redFx.shouldEnableEffects = true
+        if let m = CIFilter(name: "CIColorMatrix") {
+            // Keep only red channel
+            m.setDefaults()
+            m.setValue(CIVector(x: 1, y: 0, z: 0, w: 0), forKey: "inputRVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+            redFx.filter = m
+        }
+        redFx.addChild(redSprite)
+        redFx.zPosition = 3
+        redSprite.blendMode = .add
+        crtEffectRoot?.addChild(redFx)
+        chromaRedNode = redFx
+        chromaRedSprite = redSprite
+
+        // Blue channel overlay
+        let blueSprite = SKSpriteNode(texture: texture, size: size)
+        blueSprite.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        let blueFx = SKEffectNode()
+        blueFx.shouldRasterize = true
+        blueFx.shouldEnableEffects = true
+        if let m = CIFilter(name: "CIColorMatrix") {
+            m.setDefaults()
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 1, w: 0), forKey: "inputBVector")
+            m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+            blueFx.filter = m
+        }
+        blueFx.addChild(blueSprite)
+        blueFx.zPosition = 4
+        blueSprite.blendMode = .add
+        crtEffectRoot?.addChild(blueFx)
+        chromaBlueNode = blueFx
+        chromaBlueSprite = blueSprite
+
+        applyChromaticSettings()
+        syncChromaticTransforms()
+    }
+
+    private func applyChromaticSettings() {
+        let s = currentCRTSettings()
+        let maxShiftPx: CGFloat = 2.5
+        let px = CGFloat(abs(s.chromaShiftR))
+        let deadzone: CGFloat = 0.15 // ignore tiny values
+        var t = (px - deadzone) / (maxShiftPx - deadzone)
+        t = max(0.0, min(1.0, t))
+        let shaped = pow(t, 1.3)
+
+        // Use subtle alpha and tiny scale change; do NOT strip base colors to avoid color cast
+        let scale = 1.0 + shaped * 0.006 // up to +0.6%
+        chromaRedSprite?.xScale = spr.xScale * scale
+        chromaRedSprite?.yScale = spr.yScale * scale
+        chromaBlueSprite?.xScale = spr.xScale / scale
+        chromaBlueSprite?.yScale = spr.yScale / scale
+
+        let overlayAlpha = min(0.22, shaped * 0.25)
+        chromaRedSprite?.alpha = overlayAlpha
+        chromaBlueSprite?.alpha = overlayAlpha
+
+        // Ensure base is untouched
+        if let base = chromaBaseNode {
+            base.filter = nil
+            base.shouldEnableEffects = false
+        }
+    }
+
+    private func syncChromaticTransforms() {
+        guard let red = chromaRedNode, let blue = chromaBlueNode else { return }
+        red.position = spr.position
+        red.zRotation = spr.zRotation
+        blue.position = spr.position
+        blue.zRotation = spr.zRotation
+    }
+
+    private func updateChromaticOverlayTextures(_ texture: SKTexture) {
+        chromaRedSprite?.texture = texture
+        chromaRedSprite?.size = spr.size
+        chromaBlueSprite?.texture = texture
+        chromaBlueSprite?.size = spr.size
+    }
+
+    // MARK: - Persistence overlay
+    private func rebuildPersistenceOverlayIfNeeded(size: CGSize) {
+        if persistenceNode != nil { return }
+        let node = SKSpriteNode(texture: nil, size: size)
+        node.zPosition = 5
+        node.blendMode = .alpha
+        node.alpha = 0.0
+        crtEffectRoot?.addChild(node)
+        persistenceNode = node
+    }
+
+    private func updatePersistenceOverlay(with currentTexture: SKTexture) {
+        let s = currentCRTSettings()
+        let shaped = pow(CGFloat(max(0.0, min(1.0, s.phosphorPersistence))), 1.1)
+        persistenceNode?.alpha = shaped * 0.95
+        if let last = lastFrameTexture {
+            persistenceNode?.texture = last
+            persistenceNode?.size = spr.size
+        }
+        // Update last frame for next draw
+        lastFrameTexture = currentTexture
     }
     
     override func didFinishUpdate() {
@@ -1392,6 +2026,11 @@ class GameScene: SKScene {
 #if os(iOS) || os(tvOS)
 extension GameScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // If CRT settings overlay is open, forward input to overlay
+        if let overlay = crtOverlay, let touch = touches.first {
+            overlay.receivePointFromScene(touch.location(in: self), in: self)
+            return
+        }
         // Check for input mode button tap
         if let touch = touches.first {
             let location = touch.location(in: self)
@@ -1447,6 +2086,10 @@ extension GameScene {
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let overlay = crtOverlay, let touch = touches.first {
+            overlay.receivePointFromScene(touch.location(in: self), in: self)
+            return
+        }
         // Handle joycard input only in joycard mode
         if currentInputMode == .joycard {
             for device in devices {
@@ -1468,6 +2111,10 @@ extension GameScene {
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let overlay = crtOverlay, let touch = touches.first {
+            overlay.receivePointFromScene(touch.location(in: self), in: self)
+            return
+        }
         // Handle joycard input only in joycard mode
         if currentInputMode == .joycard {
             for device in devices {
@@ -1507,6 +2154,10 @@ extension GameScene {
 #if os(OSX)
 extension GameScene {
     override func mouseDown(with event: NSEvent) {
+        if let overlay = crtOverlay {
+            overlay.receivePointFromScene(event.location(in: self), in: self)
+            return
+        }
         let location = event.location(in: self)
         
         // Check for input mode button click first (with broader area)
@@ -1536,10 +2187,18 @@ extension GameScene {
     }
     
     override func mouseDragged(with event: NSEvent) {
+        if let overlay = crtOverlay {
+            overlay.receivePointFromScene(event.location(in: self), in: self)
+            return
+        }
         // Spinny animation disabled for cleaner macOS experience
     }
     
     override func mouseUp(with event: NSEvent) {
+        if let overlay = crtOverlay {
+            overlay.receivePointFromScene(event.location(in: self), in: self)
+            return
+        }
         let location = event.location(in: self)
         
         // Joycard mouse click handling only in joycard mode

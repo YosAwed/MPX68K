@@ -86,6 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         rebuildMenuSystem()
         // Perform initial updates after build
         updateMenuTitles()
+        updateCRTMenuCheckmarks()
         updateSerialMenuCheckmarks()
         updateJoyportUMenuCheckmarks()
         
@@ -271,6 +272,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         inputToggleItem.target = self
         displayMenu.addItem(inputToggleItem)
 
+        let crtSettingsItem = NSMenuItem(title: "CRT Settings...", action: #selector(showCRTSettings(_:)), keyEquivalent: ",")
+        crtSettingsItem.keyEquivalentModifierMask = [.command, .shift]
+        crtSettingsItem.target = self
+        displayMenu.addItem(crtSettingsItem)
+
+        // Debug menu items (Invert/Tint) removed
+
+        // CRT Display Mode submenu
+        displayMenu.addItem(NSMenuItem.separator())
+        let crtMenuItem = NSMenuItem(title: "CRT Display Mode", action: nil, keyEquivalent: "")
+        crtMenuItem.identifier = NSUserInterfaceItemIdentifier("Display-CRTMode")
+        let crtSubmenu = NSMenu(title: "CRT Display Mode")
+        crtMenuItem.submenu = crtSubmenu
+
+        let crtOff = NSMenuItem(title: "Off", action: #selector(setCRTModeOff(_:)), keyEquivalent: "")
+        crtOff.target = self
+        crtOff.identifier = NSUserInterfaceItemIdentifier("CRTMode-off")
+        crtSubmenu.addItem(crtOff)
+
+        let crtSubtle = NSMenuItem(title: "Subtle", action: #selector(setCRTModeSubtle(_:)), keyEquivalent: "")
+        crtSubtle.target = self
+        crtSubtle.identifier = NSUserInterfaceItemIdentifier("CRTMode-subtle")
+        crtSubmenu.addItem(crtSubtle)
+
+        let crtStandard = NSMenuItem(title: "Standard", action: #selector(setCRTModeStandard(_:)), keyEquivalent: "")
+        crtStandard.target = self
+        crtStandard.identifier = NSUserInterfaceItemIdentifier("CRTMode-standard")
+        crtSubmenu.addItem(crtStandard)
+
+        let crtEnhanced = NSMenuItem(title: "Enhanced", action: #selector(setCRTModeEnhanced(_:)), keyEquivalent: "")
+        crtEnhanced.target = self
+        crtEnhanced.identifier = NSUserInterfaceItemIdentifier("CRTMode-enhanced")
+        crtSubmenu.addItem(crtEnhanced)
+
+        displayMenu.addItem(crtMenuItem)
+
         mainMenu.addItem(displayMenuItem)
 
         // System Menu
@@ -436,6 +473,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         infoLog("Successfully rebuilt menu system programmatically", category: .ui)
     }
+
+    // MARK: - CRT Display Mode Actions
+    private func persistCRTPreset(_ preset: CRTPreset) {
+        UserDefaults.standard.set(preset.rawValue, forKey: "CRTDisplayPreset")
+    }
+
+    @objc func setCRTModeOff(_ sender: Any?) {
+        if let scene = gameViewController?.gameScene { scene.setCRTDisplayPreset(.off) } else { persistCRTPreset(.off) }
+        updateCRTMenuCheckmarks()
+    }
+    @objc func setCRTModeSubtle(_ sender: Any?) {
+        if let scene = gameViewController?.gameScene { scene.setCRTDisplayPreset(.subtle) } else { persistCRTPreset(.subtle) }
+        updateCRTMenuCheckmarks()
+    }
+    @objc func setCRTModeStandard(_ sender: Any?) {
+        if let scene = gameViewController?.gameScene { scene.setCRTDisplayPreset(.standard) } else { persistCRTPreset(.standard) }
+        updateCRTMenuCheckmarks()
+    }
+    @objc func setCRTModeEnhanced(_ sender: Any?) {
+        if let scene = gameViewController?.gameScene { scene.setCRTDisplayPreset(.enhanced) } else { persistCRTPreset(.enhanced) }
+        updateCRTMenuCheckmarks()
+    }
+
+    private func currentCRTPreset() -> CRTPreset {
+        if let s = UserDefaults.standard.string(forKey: "CRTDisplayPreset"), let p = CRTPreset(rawValue: s) {
+            return p
+        }
+        return .off
+    }
+
+    // Helper: find item by identifier in a menu (no native API)
+    private func menuItem(in menu: NSMenu, withIdentifier raw: String) -> NSMenuItem? {
+        let id = NSUserInterfaceItemIdentifier(raw)
+        for item in menu.items {
+            if item.identifier == id { return item }
+        }
+        return nil
+    }
+
+    func updateCRTMenuCheckmarks() {
+        guard let mainMenu = NSApplication.shared.mainMenu else { return }
+        for mi in mainMenu.items where mi.title == "Display" {
+            guard let displayMenu = mi.submenu else { continue }
+            if let crtMenuItem = menuItem(in: displayMenu, withIdentifier: "Display-CRTMode"),
+               let crtSub = crtMenuItem.submenu {
+                let preset = currentCRTPreset()
+                for item in crtSub.items {
+                    item.state = .off
+                }
+                let idMap: [CRTPreset: String] = [
+                    .off: "CRTMode-off",
+                    .subtle: "CRTMode-subtle",
+                    .standard: "CRTMode-standard",
+                    .enhanced: "CRTMode-enhanced"
+                ]
+                if let id = idMap[preset], let mark = menuItem(in: crtSub, withIdentifier: id) {
+                    mark.state = .on
+                }
+            }
+            // Debug checkmarks removed
+        }
+    }
+
+    // MARK: - Show CRT Settings Panel
+    @objc func showCRTSettings(_ sender: Any?) {
+        if let scene = gameViewController?.gameScene {
+            scene.toggleCRTSettingsPanel()
+        }
+    }
+
+    // Debug toggle handlers removed
 
     private func setupHDDMenu() {
         // Find and modify the HDD menu programmatically

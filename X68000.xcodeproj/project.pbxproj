@@ -86,6 +86,9 @@
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
 		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
 		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
+		53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRTSettings.swift */; };
+		53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRTFilterManager.swift */; };
+		53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRTOverlay.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -218,6 +221,9 @@
 		07F86494242F97BC00CBB224 /* windraw.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = windraw.c; sourceTree = "<group>"; };
 		07F86495242F97BC00CBB224 /* cdrom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cdrom.h; sourceTree = "<group>"; };
 		07F86496242F97BC00CBB224 /* winx68k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = winx68k.h; sourceTree = "<group>"; };
+		53C0A0FF2E50000000AAA001 /* CRTSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTSettings.swift"; sourceTree = "<group>"; };
+		53C0A1012E50000000AAA001 /* CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTFilterManager.swift"; sourceTree = "<group>"; };
+		53C0A1032E50010000AAA001 /* CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTOverlay.swift"; sourceTree = "<group>"; };
 		07F86497242F97BC00CBB224 /* status.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = status.h; sourceTree = "<group>"; };
 		07F86498242F97BC00CBB224 /* timer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = timer.h; sourceTree = "<group>"; };
 		07F86499242F97BC00CBB224 /* joystick.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = joystick.h; sourceTree = "<group>"; };
@@ -324,6 +330,9 @@
 				53A861192E4375CA0056E4DE /* X68Security.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
 				07F863A5242F93EA00CBB224 /* Assets.xcassets */,
+				53C0A0FF2E50000000AAA001 /* CRTSettings.swift */,
+				53C0A1012E50000000AAA001 /* CRTFilterManager.swift */,
+				53C0A1032E50010000AAA001 /* CRTOverlay.swift */,
 			);
 			path = "X68000 Shared";
 			sourceTree = "<group>";
@@ -688,6 +697,9 @@
 				07F864C3242F97BE00CBB224 /* keyboard.c in Sources */,
 				07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */,
 				07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
+				53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */,
+				53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */,
+				53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
@@ -867,7 +879,7 @@
 					"$(BUILD_DIR)/Debug",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 4.1.1;
+				MARKETING_VERSION = 4.1.2;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
@@ -920,7 +932,7 @@
 					"$(BUILD_DIR)/Release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 4.1.1;
+				MARKETING_VERSION = 4.1.2;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;

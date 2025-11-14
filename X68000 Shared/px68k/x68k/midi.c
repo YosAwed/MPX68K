@@ -654,9 +654,12 @@ static BYTE s_midibuffer[MAX_MIDI_BUFFER_SIZE];
 static long s_midibuffersize = 0;
 void X68000_AddMIDIBuffer( const BYTE data )
 {
+    // Prevent overflow: drop when buffer is full to avoid asserts/crash
+    if (s_midibuffersize >= MAX_MIDI_BUFFER_SIZE) {
+        return; // graceful drop on overflow
+    }
     s_midibuffer[s_midibuffersize] = data;
     s_midibuffersize++;
-    assert(s_midibuffersize<MAX_MIDI_BUFFER_SIZE);
 }
 
 static void AddDelayBuf(BYTE msg)
