@@ -323,7 +323,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         bgMenu.addItem(NSMenuItem.separator())
 
-        let enableVideo = NSMenuItem(title: "Enable", action: #selector(toggleBackgroundVideo(_:)), keyEquivalent: "")
+        let enableVideo = NSMenuItem(title: "Superimpose", action: #selector(toggleBackgroundVideo(_:)), keyEquivalent: "")
         enableVideo.target = self
         enableVideo.identifier = NSUserInterfaceItemIdentifier("BGVideo-Enable")
         bgMenu.addItem(enableVideo)
