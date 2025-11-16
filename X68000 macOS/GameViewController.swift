@@ -446,7 +446,7 @@ class GameViewController: NSViewController {
         // Critical: Set frame synchronization settings first
         skView.preferredFramesPerSecond = 60
         skView.isAsynchronous = false  // Essential for consistent timing
-        skView.ignoresSiblingOrder = true
+        skView.ignoresSiblingOrder = false // ensure strict zPosition ordering for SKVideoNode/spr layering
         
         // Present the scene AFTER configuration
         skView.presentScene(gameScene)

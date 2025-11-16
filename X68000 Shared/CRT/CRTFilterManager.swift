@@ -18,13 +18,20 @@ final class CRTFilterManager {
     private var uniforms: [String: SKUniform] = [:]
     private(set) var preset: CRTPreset = .off
     private(set) var settings: CRTSettings = CRTPresets.settings(for: .off)
+    // Superimpose (luma key) uniforms
+    private var superEnabled: Float = 0.0
+    private var superThreshold: Float = 0.03
+    private var superSoftness: Float = 0.04
+    private var superAlpha: Float = 1.0
 
     // MARK: - Public API
     func attach(to node: SKSpriteNode) {
         self.node = node
-        if settings.enabled {
+        if settings.enabled || superEnabled > 0.0 {
             ensureShader()
             node.shader = shader
+            // Re-apply superimpose uniforms after shader creation
+            applySuperimposeUniformsToShader()
         } else {
             node.shader = nil
         }
@@ -47,10 +54,12 @@ final class CRTFilterManager {
     func update(settings: CRTSettings) {
         self.settings = settings
         guard let node = node else { return }
-        if settings.enabled {
+        if settings.enabled || superEnabled > 0.0 {
             ensureShader()
             node.shader = shader
             applySettingsToUniforms()
+            // Re-apply superimpose uniforms after shader update
+            applySuperimposeUniformsToShader()
         } else {
             node.shader = nil
         }
@@ -59,25 +68,7 @@ final class CRTFilterManager {
     func frameDidUpdate(with currentTexture: SKTexture, resolution: vector_float2, dt: Float) {
         guard settings.enabled else { return }
         ensureShader()
-        time += max(0.0, dt)
-        setFloat("u_time", time)
-        setVec2("u_resolution", resolution)
-
-        // Persistence: feed previous frame texture
-        if settings.phosphorPersistence > 0.001 {
-            if let prev = prevTexture {
-                setTexture("u_prevTex", prev)
-                setFloat("u_persistence", settings.phosphorPersistence)
-            } else {
-                // First frame without history: disable persistence blend for this frame
-                setFloat("u_persistence", 0.0)
-            }
-            prevTexture = currentTexture // keep only one backbuffer
-        } else {
-            setTexture("u_prevTex", nil)
-            setFloat("u_persistence", 0.0)
-            prevTexture = nil
-        }
+        // No per-frame uniforms needed for basic transparency test
     }
 
     // MARK: - Shader and uniforms
@@ -86,19 +77,12 @@ final class CRTFilterManager {
         let source = CRTFilterManager.crtFragmentSource
         let s = SKShader(source: source)
 
-        // Bootstrap uniforms with defaults
+        // Bootstrap uniforms - minimal set for transparency shader
         let initialUniforms: [SKUniform] = [
-            SKUniform(name: "u_time", float: 0.0),
-            SKUniform(name: "u_resolution", vectorFloat2: vector_float2(320, 240)),
-            SKUniform(name: "u_scanlineIntensity", float: settings.scanlineIntensity),
-            SKUniform(name: "u_scanlinePitch", float: max(1.0, settings.scanlinePitch)),
-            SKUniform(name: "u_curvature", float: settings.curvature),
-            SKUniform(name: "u_chromaShiftR", float: settings.chromaShiftR),
-            SKUniform(name: "u_chromaShiftB", float: settings.chromaShiftB),
-            SKUniform(name: "u_noiseIntensity", float: settings.noiseIntensity),
-            SKUniform(name: "u_vignetteIntensity", float: settings.vignetteIntensity),
-            SKUniform(name: "u_persistence", float: settings.phosphorPersistence),
-            SKUniform(name: "u_bloomIntensity", float: settings.bloomIntensity)
+            SKUniform(name: "u_superEnabled", float: superEnabled),
+            SKUniform(name: "u_superThreshold", float: superThreshold),
+            SKUniform(name: "u_superSoftness", float: superSoftness),
+            SKUniform(name: "u_superAlpha", float: superAlpha),
         ]
 
         s.uniforms = initialUniforms
@@ -111,13 +95,43 @@ final class CRTFilterManager {
     private func applySettingsToUniforms() {
         setFloat("u_scanlineIntensity", settings.scanlineIntensity)
         setFloat("u_scanlinePitch", max(1.0, settings.scanlinePitch))
-        setFloat("u_curvature", settings.curvature)
-        setFloat("u_chromaShiftR", settings.chromaShiftR)
-        setFloat("u_chromaShiftB", settings.chromaShiftB)
         setFloat("u_noiseIntensity", settings.noiseIntensity)
         setFloat("u_vignetteIntensity", settings.vignetteIntensity)
-        setFloat("u_persistence", settings.phosphorPersistence)
-        setFloat("u_bloomIntensity", settings.bloomIntensity)
+    }
+
+    // Public: update superimpose uniforms
+    func setSuperimpose(enabled: Bool, threshold: Float, softness: Float, alpha: Float) {
+        let newEnabled: Float = enabled ? 1.0 : 0.0
+
+        // Only log when values change significantly
+        let significantChange = fabsf(newEnabled - superEnabled) > 0.1 ||
+                               fabsf(threshold - superThreshold) > 0.001 ||
+                               fabsf(softness - superSoftness) > 0.001 ||
+                               fabsf(alpha - superAlpha) > 0.001
+
+        if significantChange {
+            print("DEBUG: CRTFilter setSuperimpose - enabled: \(newEnabled), threshold: \(threshold), softness: \(softness), alpha: \(alpha)")
+        }
+
+        superEnabled = newEnabled
+        superThreshold = threshold
+        superSoftness = softness
+        superAlpha = alpha
+        applySuperimposeUniformsToShader()
+    }
+
+    private func applySuperimposeUniformsToShader() {
+        setFloat("u_superEnabled", superEnabled)
+        setFloat("u_superThreshold", superThreshold)
+        setFloat("u_superSoftness", superSoftness)
+        setFloat("u_superAlpha", superAlpha)
+    }
+
+
+    // Public access to shader for superimpose mode
+    func getShader() -> SKShader? {
+        ensureShader()
+        return shader
     }
 
     private func setFloat(_ name: String, _ value: Float) {
@@ -145,49 +159,20 @@ final class CRTFilterManager {
     }
 
     // MARK: - Shader source
-    // Single-pass fragment shader approximating CRT effects.
-    // SpriteKit supplies: varying vec2 v_tex_coord; uniform sampler2D u_texture;
+    // Luma-key transparency shader with smooth transitions - SpriteKit compatible
     static let crtFragmentSource = """
-    // Minimal, macOS-friendly SKShader fragment to ensure visible effect
-    varying vec2 v_tex_coord;
-    uniform sampler2D u_texture;
-
-    uniform float u_time;
-    uniform vec2  u_resolution;      // (width, height) in pixels
-    uniform float u_scanlineIntensity;
-    uniform float u_scanlinePitch;   // in pixels
-    uniform float u_noiseIntensity;
-    uniform float u_vignetteIntensity;
-
-    float rand(vec2 co){
-        return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-    }
-
     void main() {
-        vec2 uv = v_tex_coord;
-        vec3 color = texture2D(u_texture, uv).rgb;
+        vec4 color = texture2D(u_texture, v_tex_coord);
 
-        // 1) Strong scanlines for visibility
-        float row = uv.y * u_resolution.y;
-        float rowIdx = floor(row / max(1.0, u_scanlinePitch));
-        float odd = mod(rowIdx, 2.0);
-        float scan = mix(1.0, 1.0 - u_scanlineIntensity, odd);
-        color *= scan;
-
-        // 2) Noise
-        if (u_noiseIntensity > 0.001) {
-            float n = rand(uv + vec2(u_time * 0.123, u_time * 0.234));
-            color += (n - 0.5) * u_noiseIntensity;
+        // Luma-key based transparency
+        float a = 1.0;
+        if (u_superEnabled >= 0.5) {
+            float luma = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+            float k = smoothstep(u_superThreshold, u_superThreshold + u_superSoftness, luma);
+            a = clamp(u_superAlpha, 0.0, 1.0) * k;
         }
 
-        // 3) Vignette (extremely subtle; edge-only handled via Core Image)
-        if (u_vignetteIntensity > 0.001) {
-            float r = length(uv - 0.5) / 0.7071; // 0..~1
-            float vig = 1.0 - (u_vignetteIntensity * 0.05) * smoothstep(0.8, 1.0, r);
-            color *= vig;
-        }
-
-        gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+        gl_FragColor = vec4(color.rgb, a);
     }
     """
 }

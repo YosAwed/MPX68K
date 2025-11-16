@@ -89,6 +89,7 @@
 		53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRTSettings.swift */; };
 		53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRTFilterManager.swift */; };
 		53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRTOverlay.swift */; };
+		53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1052E50050000AAA001 /* SuperimposeManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -224,6 +225,7 @@
 		53C0A0FF2E50000000AAA001 /* CRTSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTSettings.swift"; sourceTree = "<group>"; };
 		53C0A1012E50000000AAA001 /* CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTFilterManager.swift"; sourceTree = "<group>"; };
 		53C0A1032E50010000AAA001 /* CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTOverlay.swift"; sourceTree = "<group>"; };
+		53C0A1052E50050000AAA001 /* SuperimposeManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuperimposeManager.swift; sourceTree = "<group>"; };
 		07F86497242F97BC00CBB224 /* status.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = status.h; sourceTree = "<group>"; };
 		07F86498242F97BC00CBB224 /* timer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = timer.h; sourceTree = "<group>"; };
 		07F86499242F97BC00CBB224 /* joystick.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = joystick.h; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				07F863A2242F93E800CBB224 /* Actions.sks */,
 				073F76E42431F438005B1F18 /* GameScene.sks */,
 				0758DC57243EFCE60097E86C /* ConfigScene.sks */,
+				53C0A1072E50060000AAA001 /* Superimpose */,
 				0786961C243D9A0D007FCCEA /* X68JoyCard.swift */,
 				0786963C243DBB73007FCCEA /* TAAnalogJoyStick.swift */,
 				07869624243D9A8E007FCCEA /* X68Device.swift */,
@@ -335,6 +338,14 @@
 				53C0A1032E50010000AAA001 /* CRTOverlay.swift */,
 			);
 			path = "X68000 Shared";
+			sourceTree = "<group>";
+		};
+		53C0A1072E50060000AAA001 /* Superimpose */ = {
+			isa = PBXGroup;
+			children = (
+				53C0A1052E50050000AAA001 /* SuperimposeManager.swift */,
+			);
+			path = Superimpose;
 			sourceTree = "<group>";
 		};
 		07F863AB242F93EA00CBB224 /* Products */ = {
@@ -699,6 +710,7 @@
 				07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
 				53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */,
 				53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */,
+				53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */,
 				53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */,
 			);
 		};
