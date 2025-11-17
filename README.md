@@ -53,7 +53,7 @@ Place the ROM files in the location:
 
 1. **iCloud Document folder**:
    ```
-   /Users/<username>/Documents/X68000 (/Users/<username>/Library/Containers/NANKIN.X68000/Data/Documents/X68000)
+   /Users/<username>/Documents/X68000 (/Users/<username>/Library/Containers/NANKIN.X68000/Data/Documents/X68000) for sandbox model
    ├── README.txt (auto generated proper folder)
    ├── CGROM.DAT
    └── IPLROM.DAT
