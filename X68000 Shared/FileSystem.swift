@@ -1934,6 +1934,27 @@ class FileSystem {
         infoLog("==== Load CGROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("CGROM.DAT") else {
             errorLog("CRITICAL: CGROM.DAT not found - emulator cannot start", category: .fileSystem)
+            let message = """
+ROMファイル 'CGROM.DAT' が見つかりません。
+
+次のフォルダに CGROM.DAT と IPLROM.DAT を配置してください:
+
+  ~/Documents/X68000
+
+※ X68000 実機から取得した ROM を使用してください。
+"""
+            DispatchQueue.main.async {
+                #if os(macOS)
+                if let vc = NSApplication.shared.mainWindow?.contentViewController {
+                    vc.showUserError(message, title: "ROM ファイルがありません")
+                }
+                #elseif os(iOS)
+                if let scene = GameViewController.shared?.gameScene,
+                   let vc = scene.view?.window?.rootViewController {
+                    vc.showUserError(message, title: "ROM ファイルがありません")
+                }
+                #endif
+            }
             return false
         }
         
@@ -1963,6 +1984,27 @@ class FileSystem {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
         guard let url = findFileInDocuments("IPLROM.DAT") else {
             errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
+            let message = """
+ROMファイル 'IPLROM.DAT' が見つかりません。
+
+次のフォルダに IPLROM.DAT と CGROM.DAT を配置してください:
+
+  ~/Documents/X68000
+
+※ X68000 実機から取得した ROM を使用してください。
+"""
+            DispatchQueue.main.async {
+                #if os(macOS)
+                if let vc = NSApplication.shared.mainWindow?.contentViewController {
+                    vc.showUserError(message, title: "ROM ファイルがありません")
+                }
+                #elseif os(iOS)
+                if let scene = GameViewController.shared?.gameScene,
+                   let vc = scene.view?.window?.rootViewController {
+                    vc.showUserError(message, title: "ROM ファイルがありません")
+                }
+                #endif
+            }
             return false
         }
         

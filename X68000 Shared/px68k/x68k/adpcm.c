@@ -52,6 +52,7 @@ static BYTE ADPCM_Playing = 0;
        BYTE ADPCM_Clock = 0;
 static int ADPCM_PreCounter = 0;
 static int ADPCM_DifBuf = 0;
+static int ADPCM_DrqPending = 0;   // Pending DMA handshakes (byte requests)
 
 
 static int ADPCM_Pan = 0x00;
@@ -68,7 +69,14 @@ static const double DC_FILTER_ALPHA = 0.995;  // High-pass cutoff ~3.5Hz at 22kH
 
 int ADPCM_IsReady(void)
 {
-	return 1;
+	// Handshake callback for DMAC CH3 (ADPCM)
+	// Return 1 only when a 128us-equivalent sample tick has requested a byte.
+	if (!ADPCM_Playing) return 0;
+	if (ADPCM_DrqPending > 0) {
+		ADPCM_DrqPending--;
+		return 1;
+	}
+	return 0;
 }
 
 
@@ -120,7 +128,12 @@ void FASTCALL ADPCM_PreUpdate(DWORD clock)
 		ADPCM_DifBuf -= ( (ADPCM_SampleRate*400)/ADPCM_ClockRate );
 		if ( ADPCM_DifBuf<=0 ) {
 			ADPCM_DifBuf = 0;
-			DMA_Exec(3);
+			// Instead of calling DMA_Exec(3) directly, queue a single
+			// DMA handshake request. DMAC will service this via
+			// ADPCM_IsReady() in 1-byte units, emulating the 128us clock.
+			if (ADPCM_Playing) {
+				ADPCM_DrqPending++;
+			}
 		}
 		ADPCM_PreCounter -= 10000000L;
 	}

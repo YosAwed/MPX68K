@@ -258,35 +258,7 @@ cb_start:
    }
 //    printf("SND:%p %p %d\n", buffer, buf, len);
    
-   // Copy audio data to output buffer with noise prevention
-   if (buf != NULL && len > 0) {
-       // First clear the output buffer to ensure clean state
-       memset(buffer, 0, len);
-       
-       // Copy audio data
-       memcpy(buffer, buf, len);
-       
-       // Apply gentle fade-in/fade-out to prevent pops during silence transitions
-       short *samples = (short*)buffer;
-       int sample_count = len / 2;  // 16-bit samples
-       
-       // Check if buffer contains mostly silence
-       int silence_threshold = 100;  // Threshold for detecting silence
-       int non_silent_samples = 0;
-       for (int i = 0; i < sample_count; i++) {
-           if (abs(samples[i]) > silence_threshold) {
-               non_silent_samples++;
-           }
-       }
-       
-       // If mostly silent, ensure complete silence to prevent noise
-       if (non_silent_samples < (sample_count / 100)) {  // Less than 1% non-silent
-           memset(buffer, 0, len);
-       }
-   } else {
-       // Ensure buffer is properly cleared if no valid data
-       memset(buffer, 0, len);
-   }
+   // Simple copy of audio data to output buffer (no additional gating)
+   memcpy(buffer, buf, len);
 }
-
 
