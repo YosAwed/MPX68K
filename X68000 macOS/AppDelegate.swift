@@ -308,6 +308,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         displayMenu.addItem(crtMenuItem)
 
+        // Background Video submenu
+        let bgMenuItem = NSMenuItem(title: "Background Video", action: nil, keyEquivalent: "")
+        let bgMenu = NSMenu(title: "Background Video")
+        bgMenuItem.submenu = bgMenu
+
+        let setVideo = NSMenuItem(title: "Set Video File…", action: #selector(setBackgroundVideo(_:)), keyEquivalent: "")
+        setVideo.target = self
+        bgMenu.addItem(setVideo)
+
+        let removeVideo = NSMenuItem(title: "Remove Video", action: #selector(removeBackgroundVideo(_:)), keyEquivalent: "")
+        removeVideo.target = self
+        bgMenu.addItem(removeVideo)
+
+        bgMenu.addItem(NSMenuItem.separator())
+
+        let enableVideo = NSMenuItem(title: "Superimpose", action: #selector(toggleBackgroundVideo(_:)), keyEquivalent: "")
+        enableVideo.target = self
+        enableVideo.identifier = NSUserInterfaceItemIdentifier("BGVideo-Enable")
+        bgMenu.addItem(enableVideo)
+
+        let threshItem = NSMenuItem(title: "Threshold", action: #selector(adjustBGVideoThreshold(_:)), keyEquivalent: "")
+        threshItem.target = self
+        threshItem.identifier = NSUserInterfaceItemIdentifier("BGVideo-Threshold")
+        bgMenu.addItem(threshItem)
+
+        let softItem = NSMenuItem(title: "Softness", action: #selector(adjustBGVideoSoftness(_:)), keyEquivalent: "")
+        softItem.target = self
+        softItem.identifier = NSUserInterfaceItemIdentifier("BGVideo-Softness")
+        bgMenu.addItem(softItem)
+
+        let alphaItem = NSMenuItem(title: "Intensity", action: #selector(adjustBGVideoAlpha(_:)), keyEquivalent: "")
+        alphaItem.target = self
+        alphaItem.identifier = NSUserInterfaceItemIdentifier("BGVideo-Alpha")
+        bgMenu.addItem(alphaItem)
+
+
+        displayMenu.addItem(bgMenuItem)
+
         mainMenu.addItem(displayMenuItem)
 
         // System Menu
@@ -993,8 +1031,89 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                     }
                 }
             }
+            // (Background Video labels are updated in updateCRTMenuCheckmarks())
         }
     }
+
+    // MARK: - Background Video Actions
+    @objc func setBackgroundVideo(_ sender: Any?) {
+        print("DEBUG: setBackgroundVideo called")
+        guard let gvc = gameViewController else {
+            print("DEBUG: No gameViewController")
+            return
+        }
+        print("DEBUG: gameViewController exists, gameScene: \(gvc.gameScene != nil)")
+
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        if #available(macOS 12.0, *) {
+            var types: [UTType] = []
+            if let t = UTType(filenameExtension: "mp4") { types.append(t) }
+            if let t = UTType(filenameExtension: "mov") { types.append(t) }
+            if let t = UTType(filenameExtension: "m4v") { types.append(t) }
+            panel.allowedContentTypes = types.isEmpty ? [.movie] : types
+        } else {
+            panel.allowedFileTypes = ["mp4", "mov", "m4v"]
+        }
+
+        print("DEBUG: About to show file panel")
+        if panel.runModal() == .OK, let url = panel.url {
+            print("DEBUG: File selected: \(url.lastPathComponent)")
+
+            if let gameScene = gvc.gameScene {
+                print("DEBUG: GameScene exists, calling loadBackgroundVideo")
+                gameScene.loadBackgroundVideo(url: url)
+                gameScene.setSuperimposeEnabled(true)
+                print("DEBUG: setSuperimposeEnabled(true) called")
+            } else {
+                print("DEBUG: ERROR - GameScene is nil!")
+            }
+
+            updateCRTMenuCheckmarks()
+            print("DEBUG: Video loading and enable completed")
+        } else {
+            print("DEBUG: File panel cancelled or no URL")
+        }
+    }
+    @objc func removeBackgroundVideo(_ sender: Any?) {
+        gameViewController?.gameScene?.removeBackgroundVideo()
+        updateCRTMenuCheckmarks()
+    }
+    @objc func toggleBackgroundVideo(_ sender: Any?) {
+        guard let scene = gameViewController?.gameScene else { return }
+        scene.setSuperimposeEnabled(!scene.isSuperimposeEnabled())
+        scene.osdUpdateSuperimpose()
+        updateCRTMenuCheckmarks()
+    }
+    @objc func adjustBGVideoThreshold(_ sender: Any?) {
+        guard let scene = gameViewController?.gameScene else { return }
+        let cur = scene.getSuperimposeThreshold()
+        // Cycle 0.02 -> 0.05 -> 0.08 -> 0.02
+        // Cycle finer: 2%,5%,8%,12%,16%,20%
+        let next: Float = (cur < 0.03) ? 0.05 : (cur < 0.07) ? 0.08 : (cur < 0.11) ? 0.12 : (cur < 0.15) ? 0.16 : (cur < 0.19) ? 0.20 : 0.02
+        scene.setSuperimposeThreshold(next)
+        scene.osdUpdateSuperimpose()
+        updateCRTMenuCheckmarks()
+    }
+    @objc func adjustBGVideoSoftness(_ sender: Any?) {
+        guard let scene = gameViewController?.gameScene else { return }
+        let cur = scene.getSuperimposeSoftness()
+        // Cycle finer: 2%,6%,10%,14%,18%,20%
+        let next: Float = (cur < 0.03) ? 0.06 : (cur < 0.09) ? 0.10 : (cur < 0.13) ? 0.14 : (cur < 0.17) ? 0.18 : 0.02
+        scene.setSuperimposeSoftness(next)
+        scene.osdUpdateSuperimpose()
+        updateCRTMenuCheckmarks()
+    }
+    @objc func adjustBGVideoAlpha(_ sender: Any?) {
+        guard let scene = gameViewController?.gameScene else { return }
+        let cur = scene.getSuperimposeAlpha()
+        let steps: [Float] = [0.25, 0.5, 0.75, 1.0]
+        let next = steps.first(where: { $0 > cur + 0.01 }) ?? steps[0]
+        scene.setSuperimposeAlpha(next)
+        scene.osdUpdateSuperimpose()
+        updateCRTMenuCheckmarks()
+    }
+
     
     private func updateMenuTitles() {
         // Prevent recursive calls

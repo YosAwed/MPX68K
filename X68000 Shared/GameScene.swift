@@ -85,6 +85,12 @@ class GameScene: SKScene {
     private var lastCornerVignetteIntensity: Float = -1.0
     private var persistenceNode: SKSpriteNode?
     private var lastFrameTexture: SKTexture?
+    // Superimpose crop/mask (robust overlay path)
+    private var superCrop: SKCropNode?
+    private var superMask: SKSpriteNode?
+    private var superMaskShader: SKShader?
+    private var superimposeDetached: Bool = false
+    private var lastLoggedSuperState: (Bool, Float, Float, Float) = (false, 0.0, 0.0, 0.0)
     var labelMIDI: SKLabelNode?
     var joycontroller: JoyController?
     var joycard: X68JoyCard?
@@ -125,6 +131,8 @@ class GameScene: SKScene {
     private let crtFilter = CRTFilterManager()
     private var crtPreset: CRTPreset = .off
     var crtOverlay: CRTOverlay?
+    // Superimpose (background video)
+    private let superManager = SuperimposeManager()
     
     class func newGameScene() -> GameScene {
         
@@ -810,6 +818,10 @@ class GameScene: SKScene {
         self.view?.addGestureRecognizer(hover)
         #endif
         self.addChild(spr)
+
+        // Superimpose: attach background video manager and apply uniforms
+        superManager.attach(to: self)
+        applySuperimposeUniforms()
     }
     
     #if os(iOS)
@@ -1251,6 +1263,7 @@ class GameScene: SKScene {
             
             spr = SKSpriteNode(texture: texture, size: size)
             spr.zPosition = 0  // Use consistent zPosition from setupLayerZPositions
+            spr.blendMode = .alpha
             applySpriteTransformSilently()
             syncOverlaysTransformToSprite()
 
@@ -1312,6 +1325,9 @@ class GameScene: SKScene {
         syncChromaticTransforms()
         updatePersistenceOverlay(with: texture)
         updateChromaticOverlayTextures(texture)
+        applySuperimposeUniforms()
+
+        // Debug: handled in shader via uniform
 
         // Ensure no debug tint is applied
         spr.colorBlendFactor = 0.0
@@ -1738,6 +1754,251 @@ class GameScene: SKScene {
         chromaBlueSprite?.texture = texture
         chromaBlueSprite?.size = spr.size
     }
+
+    // MARK: - Superimpose helpers
+    func loadBackgroundVideo(url: URL) {
+        print("DEBUG: GameScene.loadBackgroundVideo called for: \(url.lastPathComponent)")
+        errorLog("GameScene: Loading background video from \(url.lastPathComponent)", category: .ui)
+        do {
+            try superManager.loadVideo(url: url)
+            print("DEBUG: superManager.loadVideo completed successfully")
+            errorLog("GameScene: Video loading initiated successfully", category: .ui)
+        } catch {
+            print("DEBUG: superManager.loadVideo failed: \(error)")
+            errorLog("Failed to load background video", error: error, category: .ui)
+        }
+    }
+    func removeBackgroundVideo() { superManager.removeVideo() }
+    func setSuperimposeEnabled(_ on: Bool) {
+        superManager.setEnabled(on)
+        if on {
+            if let video = superManager.videoNode {
+                if video.parent == nil {
+                    addChild(video)
+                    video.zPosition = -10
+                }
+                superManager.adjustVideoScale(matching: spr)
+                superManager.play()
+                // Don't show simple "ON" message here - osdUpdateSuperimpose will handle unified display
+            }
+        } else {
+            superManager.pause()
+            // Don't show simple "OFF" message here - osdUpdateSuperimpose will handle it
+        }
+        applySuperimposeUniforms()
+        // Show unified OSD message for ON/OFF changes
+        osdUpdateSuperimpose()
+    }
+    func setSuperimposeThreshold(_ v: Float) { superManager.setThreshold(v); applySuperimposeUniforms() }
+    func setSuperimposeSoftness(_ v: Float) { superManager.setSoftness(v); applySuperimposeUniforms() }
+    func setSuperimposeAlpha(_ v: Float) { superManager.setAlpha(v); applySuperimposeUniforms() }
+    private func applySuperimposeUniforms() {
+        let currentState = (superManager.settings.enabled, superManager.settings.threshold, superManager.settings.softness, superManager.settings.alpha)
+
+        // Only log when values change significantly (simplified check)
+        if currentState.0 != lastLoggedSuperState.0 || fabsf(currentState.1 - lastLoggedSuperState.1) > 0.001 || fabsf(currentState.2 - lastLoggedSuperState.2) > 0.001 || fabsf(currentState.3 - lastLoggedSuperState.3) > 0.001 {
+            print("DEBUG: applySuperimposeUniforms - enabled: \(superManager.settings.enabled), threshold: \(superManager.settings.threshold), softness: \(superManager.settings.softness), alpha: \(superManager.settings.alpha)")
+            lastLoggedSuperState = currentState
+        }
+
+        crtFilter.setSuperimpose(enabled: superManager.settings.enabled,
+                                 threshold: superManager.settings.threshold,
+                                 softness: superManager.settings.softness,
+                                 alpha: superManager.settings.alpha)
+        // When superimpose is enabled, hide full-screen overlays that would cover holes
+        if superManager.settings.enabled {
+            scanlineOverlay?.alpha = 0.0
+            noiseOverlay?.alpha = 0.0
+            cornerVignetteOverlay?.alpha = 0.0
+            // Disable SKEffectNode filters so alpha from spr is preserved
+            crtBloomNode?.filter = nil
+            crtBloomNode?.shouldEnableEffects = false
+            crtVignetteNode?.filter = nil
+            crtVignetteNode?.shouldEnableEffects = false
+            crtCurvatureNode?.filter = nil
+            crtCurvatureNode?.shouldEnableEffects = false
+            // Detach effect chain and place spr directly under scene to ensure alpha is honored
+            if !superimposeDetached { detachCRTEffectChainForSuperimpose() }
+        } else {
+            // Restore overlay alphas from current CRT settings
+            let s = currentCRTSettings()
+            scanlineOverlay?.alpha = CGFloat(min(1.0, s.scanlineIntensity * 0.8))
+            noiseOverlay?.alpha = CGFloat(min(1.0, s.noiseIntensity * 0.25))
+            // corner vignette texture encodes intensity; leave alpha at 1.0 when present
+            cornerVignetteOverlay?.alpha = 1.0
+            // Re-apply CI filters when superimpose is disabled
+            applyCIEffectsForCurrentCRT()
+            if superimposeDetached { restoreCRTEffectChainAfterSuperimpose() }
+        }
+        // Ensure crop masking (video above spr only where dark). If disabled, remove crop.
+        // Keep video aligned with sprite transform every frame
+        if let video = superManager.videoNode {
+            video.zPosition = -10
+            superManager.adjustVideoScale(matching: spr)
+        }
+        // No persistent OSD needed
+    }
+
+    // MARK: - OSD for parameter changes
+    private func showOSD(_ text: String) {
+        let label = SKLabelNode(text: text)
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 16
+        label.fontColor = .white
+        label.zPosition = 990
+        label.position = CGPoint(x: size.width/2 - 140, y: size.height/2 - 30)
+        label.alpha = 0
+        addChild(label)
+        label.run(.sequence([.fadeIn(withDuration: 0.12), .wait(forDuration: 2.5), .fadeOut(withDuration: 0.25), .removeFromParent()]))
+    }
+
+    func osdUpdateSuperimpose() {
+        let t = Int(round(superManager.settings.threshold*100))
+        let s = Int(round(superManager.settings.softness*100))
+        let a = Int(round(superManager.settings.alpha*100))
+        _ = superManager.settings.enabled ? "ON" : "OFF"
+        if superManager.settings.enabled {
+            // Show temporary ON message with parameters
+            showOSD("Superimpose ON  T:\(t)%  S:\(s)%  I:\(a)%")
+        } else {
+            // Ephemeral notice when turning OFF
+            showOSD("Superimpose OFF  T:\(t)%  S:\(s)%  I:\(a)%")
+        }
+        // No persistent OSD used
+    }
+
+
+    // Crop masking overlay: reveal video only where spr is dark (backup path)
+    private func ensureSuperimposeCrop() {
+        guard let videoNode = superManager.videoNode else { return }
+        // Create crop if needed
+        if superCrop == nil {
+            let crop = SKCropNode()
+            crop.zPosition = spr.zPosition + 0.1
+            let mask = SKSpriteNode(texture: spr.texture, size: spr.size)
+            mask.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            mask.colorBlendFactor = 0.0
+            let src = """
+            varying vec2 v_tex_coord;
+            uniform sampler2D u_texture;
+            uniform float u_th;
+            uniform float u_soft;
+            void main(){
+                vec3 c = texture2D(u_texture, v_tex_coord).rgb;
+                float l = dot(c, vec3(0.2126,0.7152,0.0722));
+                float k = smoothstep(u_th, u_th+u_soft, l);
+                float a = 1.0 - k; // dark -> a=1 (show video), bright -> a=0
+                gl_FragColor = vec4(1.0,1.0,1.0, a);
+            }
+            """
+            let shader = SKShader(source: src)
+            shader.uniforms = [
+                SKUniform(name: "u_th", float: superManager.settings.threshold),
+                SKUniform(name: "u_soft", float: superManager.settings.softness)
+            ]
+            mask.shader = shader
+            crop.maskNode = mask
+
+            // Reparent video under crop and add crop above spr
+            videoNode.removeFromParent()
+            // Ensure video node size/scale aligns to scene/spr before adding
+            videoNode.position = .zero
+            videoNode.zPosition = 0
+            videoNode.size = spr.size
+            crop.addChild(videoNode)
+            addChild(crop)
+            superCrop = crop
+            superMask = mask
+            superMaskShader = shader
+        }
+        // Ensure the current video node is a child of crop
+        if let crop = superCrop, videoNode.parent !== crop {
+            videoNode.removeFromParent()
+            videoNode.position = .zero
+            videoNode.zPosition = 0
+            videoNode.size = spr.size
+            crop.addChild(videoNode)
+        }
+        // Update mask texture / uniforms / transform each frame
+        superMask?.texture = spr.texture
+        if let shader = superMaskShader {
+            if let u = shader.uniformNamed("u_th") { u.floatValue = superManager.settings.threshold }
+            if let u = shader.uniformNamed("u_soft") { u.floatValue = superManager.settings.softness }
+        }
+        superCrop?.position = spr.position
+        superCrop?.zRotation = spr.zRotation
+        superCrop?.xScale = spr.xScale
+        superCrop?.yScale = spr.yScale
+        // For crop overlay, keep video size equal to spr region
+        videoNode.size = spr.size
+    }
+
+    private func detachCRTEffectChainForSuperimpose() {
+        // Move spr out of effect chain
+        if spr.parent !== self {
+            spr.removeFromParent()
+            addChild(spr)
+            spr.zPosition = 0
+            applySpriteTransformSilently()
+        }
+
+        // CRITICAL: Ensure CRT shader is fully initialized and applied to spr
+        print("DEBUG: Applying CRT shader directly to spr for superimpose")
+
+        // Force shader creation and uniform update before applying
+        crtFilter.setSuperimpose(enabled: superManager.settings.enabled,
+                                 threshold: superManager.settings.threshold,
+                                 softness: superManager.settings.softness,
+                                 alpha: superManager.settings.alpha)
+
+        if let shader = crtFilter.getShader() {
+            spr.shader = shader
+            print("DEBUG: CRT shader applied to spr successfully with uniforms updated")
+        } else {
+            print("DEBUG: WARNING - No CRT shader available after forced update")
+            spr.shader = nil
+        }
+
+        // Remove effect chain nodes
+        crtBloomNode?.removeFromParent(); crtBloomNode = nil
+        crtVignetteNode?.removeFromParent(); crtVignetteNode = nil
+        crtCurvatureNode?.removeFromParent(); crtCurvatureNode = nil
+        crtEffectRoot = nil
+        superimposeDetached = true
+    }
+
+    private func restoreCRTEffectChainAfterSuperimpose() {
+        // Remove shader from spr before putting it back in effect chain
+        print("DEBUG: Restoring CRT effect chain, removing shader from spr")
+        spr.shader = nil
+
+        // Rebuild effect chain identical to creation path without changing texture
+        let size = spr.size
+        // Ensure spr is detached from any parent before reparenting
+        if spr.parent != nil { spr.removeFromParent() }
+        let bloomNode = SKEffectNode(); bloomNode.shouldRasterize = true; bloomNode.shouldEnableEffects = false; bloomNode.zPosition = 0; bloomNode.addChild(spr)
+        let vignetteNode = SKEffectNode(); vignetteNode.shouldRasterize = true; vignetteNode.shouldEnableEffects = false; vignetteNode.zPosition = 0; vignetteNode.addChild(bloomNode)
+        let curvatureNode = SKEffectNode(); curvatureNode.shouldRasterize = true; curvatureNode.shouldEnableEffects = false; curvatureNode.zPosition = 0; curvatureNode.addChild(vignetteNode)
+        addChild(curvatureNode)
+        crtBloomNode = bloomNode
+        crtVignetteNode = vignetteNode
+        crtCurvatureNode = curvatureNode
+        crtEffectRoot = curvatureNode
+
+        // Apply CRT shader to the appropriate node in the effect chain
+        print("DEBUG: Applying CRT shader to effect chain")
+        crtFilter.attach(to: spr)
+
+        applyCIEffectsForCurrentCRT()
+        rebuildOverlaysIfNeeded(size: size)
+        superimposeDetached = false
+    }
+
+    // Expose read-only settings for menus/UI
+    func isSuperimposeEnabled() -> Bool { superManager.settings.enabled }
+    func getSuperimposeThreshold() -> Float { superManager.settings.threshold }
+    func getSuperimposeSoftness() -> Float { superManager.settings.softness }
+    func getSuperimposeAlpha() -> Float { superManager.settings.alpha }
 
     // MARK: - Persistence overlay
     private func rebuildPersistenceOverlayIfNeeded(size: CGSize) {

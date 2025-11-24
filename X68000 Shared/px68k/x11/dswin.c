@@ -52,24 +52,17 @@ int DSound_Init(unsigned long rate, unsigned long buflen)
     
     printf("Sound Init Sampling Rate:%luHz buflen:%lu\n", rate, buflen );
 
-    // Enhanced initialization: Clear all audio buffers thoroughly to prevent startup noise
+    // Fix: Initialize audio buffers to silence to prevent noise
     memset(pcmbuffer, 0, PCMBUF_SIZE);
     memset(rsndbuf, 0, PCMBUF_SIZE);
     
-    // Reset buffer pointers with proper alignment
+    // Reset buffer pointers
     pbsp = pcmbuffer;
     pbrp = pcmbuffer;
     pbwp = pcmbuffer;
     pbep = &pcmbuffer[PCMBUF_SIZE];
-    
-    // Pre-fill some silence to ensure stable initial state
-    for (int i = 0; i < 1024; i++) {
-        ((short*)pcmbuffer)[i] = 0;
-    }
-    
-    printf("Audio buffers initialized with silence to prevent startup noise\n");
 
-    ratebase = (DWORD)rate;
+    ratebase = rate;
 
     return TRUE;
 }
@@ -109,7 +102,7 @@ static void sound_send(int length)
    BYTE *write_end = write_start + total_bytes;
    if (write_end > pbep) {
        // Handle wrap-around case - clear in two parts
-       int first_part = (int)(pbep - write_start);
+       int first_part = pbep - write_start;
        int second_part = total_bytes - first_part;
        
        // Clear first part
@@ -121,8 +114,7 @@ static void sound_send(int length)
        memset(write_start, 0, total_bytes);
    }
 
-   // Generate audio with both sources - prevent buffer overlap issues
-   memset(pbwp, 0, total_bytes);  // Clear buffer first to prevent noise artifacts
+   // Generate audio with both sources
    ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
    OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
 
@@ -163,12 +155,12 @@ static void FASTCALL DSound_Send(int length)
 void X68000_AudioCallBack(void* buffer, const unsigned int sample)
 {
     int size = sample * sizeof(unsigned short) * 2;
-#if 0
-//	short buf[size] ;
-	memset( buffer, 0x00, size );
+#if 1
+	// Direct mixing path for debugging: bypass ring buffer and generate audio directly
+	memset(buffer, 0x00, size);
 	ratebase = 0;
-	ADPCM_Update(buffer, sample, ratebase, &buffer[0], &buffer[size*2]);
-	OPM_Update(buffer, sample, ratebase, &buffer[0], &buffer[size*2]);
+	ADPCM_Update((short *)buffer, sample, ratebase, (BYTE *)buffer, ((BYTE *)buffer) + size);
+	OPM_Update((short *)buffer, sample, ratebase, (BYTE *)buffer, ((BYTE *)buffer) + size);
 #else
     audio_callback(buffer, size);
 #endif
@@ -191,12 +183,11 @@ cb_start:
       // |         |             |          |
       // pbsp     pbrp          pbwp       pbep
 
-      datalen = (int)(pbwp - pbrp);
+      datalen = pbwp - pbrp;
 
-      // needs more data - generate predictable amount to prevent underruns
+      // needs more data - generate extra to prevent underruns
 	   if (datalen < len) {
-		   int missing_bytes = len - datalen;
-		   int extra_samples = (missing_bytes / 4) + 256; // Fixed buffer size to reduce stuttering
+		   int extra_samples = ((len - datalen) / 4) + 512; // Generate extra samples
 		   DSound_Send(extra_samples);
 //		   printf("MORE!");
 	   }
@@ -229,7 +220,7 @@ cb_start:
       // |         |             |          |
       // pbsp     pbwp          pbrp       pbep
 
-      lena = (int)(pbep - pbrp);
+      lena = pbep - pbrp;
       if (lena >= len)
       {
          buf = pbrp;
@@ -241,8 +232,7 @@ cb_start:
          lenb = len - lena;
 
 		  if (pbwp - pbsp < lenb) {
-            int missing_bytes = lenb - (int)(pbwp - pbsp);
-            int needed_samples = (missing_bytes / 4) + 128; // Smaller buffer to reduce latency
+            int needed_samples = ((lenb - (pbwp - pbsp)) / 4) + 256; // Generate extra samples  
             DSound_Send(needed_samples);
 		  }
 #if 0
@@ -258,35 +248,6 @@ cb_start:
    }
 //    printf("SND:%p %p %d\n", buffer, buf, len);
    
-   // Copy audio data to output buffer with noise prevention
-   if (buf != NULL && len > 0) {
-       // First clear the output buffer to ensure clean state
-       memset(buffer, 0, len);
-       
-       // Copy audio data
-       memcpy(buffer, buf, len);
-       
-       // Apply gentle fade-in/fade-out to prevent pops during silence transitions
-       short *samples = (short*)buffer;
-       int sample_count = len / 2;  // 16-bit samples
-       
-       // Check if buffer contains mostly silence
-       int silence_threshold = 100;  // Threshold for detecting silence
-       int non_silent_samples = 0;
-       for (int i = 0; i < sample_count; i++) {
-           if (abs(samples[i]) > silence_threshold) {
-               non_silent_samples++;
-           }
-       }
-       
-       // If mostly silent, ensure complete silence to prevent noise
-       if (non_silent_samples < (sample_count / 100)) {  // Less than 1% non-silent
-           memset(buffer, 0, len);
-       }
-   } else {
-       // Ensure buffer is properly cleared if no valid data
-       memset(buffer, 0, len);
-   }
+   // Copy audio data to output buffer (no additional silence gating)
+   memcpy(buffer, buf, len);
 }
-
-
