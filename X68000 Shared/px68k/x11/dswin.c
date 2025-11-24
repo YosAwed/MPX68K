@@ -33,7 +33,7 @@
 
 // Use a direct mixing path from the audio callback
 // instead of the legacy DSound ring buffer.
-#define DSOUND_USE_DIRECT_CALLBACK 1
+#define DSOUND_USE_DIRECT_CALLBACK 0
 
 #define PCMBUF_SIZE 2*2*48000
 BYTE pcmbuffer[PCMBUF_SIZE];
