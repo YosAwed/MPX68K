@@ -20,7 +20,6 @@ final class SuperimposeManager: NSObject {
     private(set) var settings = Settings()
 
     private var player: AVPlayer?
-    private var statusObservedPlayer: AVPlayer?
     private var queuePlayer: AVQueuePlayer?
     private var looper: AVPlayerLooper?
     private(set) var videoNode: SKVideoNode?
@@ -102,8 +101,8 @@ final class SuperimposeManager: NSObject {
                 player.play()
             }
 
-            self.player = player
-            self.startObservingPlayerStatus(player)
+            // Monitor player status first
+            player.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
 
             // Wait for player to be ready before creating video node
             if player.status == .readyToPlay {
@@ -125,7 +124,11 @@ final class SuperimposeManager: NSObject {
     }
 
     func removeVideo() {
-        stopObservingPlayerStatus()
+        // Remove KVO observer if exists
+        if let player = player {
+            player.removeObserver(self, forKeyPath: "status")
+        }
+
         NotificationCenter.default.removeObserver(self)
         player?.pause()
         videoNode?.removeFromParent()
@@ -180,18 +183,6 @@ final class SuperimposeManager: NSObject {
                     errorLog("Video player status unknown default", category: .ui)
                 }
             }
-        }
-    }
-
-    private func startObservingPlayerStatus(_ player: AVPlayer) {
-        player.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
-        statusObservedPlayer = player
-    }
-
-    private func stopObservingPlayerStatus() {
-        if let observedPlayer = statusObservedPlayer {
-            observedPlayer.removeObserver(self, forKeyPath: "status")
-            statusObservedPlayer = nil
         }
     }
 

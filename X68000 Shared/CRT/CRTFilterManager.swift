@@ -117,10 +117,6 @@ final class CRTFilterManager {
         superThreshold = threshold
         superSoftness = softness
         superAlpha = alpha
-        applySuperimposeUniformsToShader()
-    }
-
-    private func applySuperimposeUniformsToShader() {
         setFloat("u_superEnabled", superEnabled)
         setFloat("u_superThreshold", superThreshold)
         setFloat("u_superSoftness", superSoftness)
