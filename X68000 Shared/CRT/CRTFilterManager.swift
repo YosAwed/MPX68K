@@ -27,9 +27,11 @@ final class CRTFilterManager {
     // MARK: - Public API
     func attach(to node: SKSpriteNode) {
         self.node = node
-        if settings.enabled {
+        if settings.enabled || superEnabled > 0.0 {
             ensureShader()
             node.shader = shader
+            // Re-apply superimpose uniforms after shader creation
+            applySuperimposeUniformsToShader()
         } else {
             node.shader = nil
         }
@@ -52,10 +54,12 @@ final class CRTFilterManager {
     func update(settings: CRTSettings) {
         self.settings = settings
         guard let node = node else { return }
-        if settings.enabled {
+        if settings.enabled || superEnabled > 0.0 {
             ensureShader()
             node.shader = shader
             applySettingsToUniforms()
+            // Re-apply superimpose uniforms after shader update
+            applySuperimposeUniformsToShader()
         } else {
             node.shader = nil
         }
