@@ -130,6 +130,15 @@ final class CRTFilterManager {
         return shader
     }
 
+    // Re-apply current superimpose uniforms to the shader (used after shader recreate)
+    private func applySuperimposeUniformsToShader() {
+        ensureShader()
+        setFloat("u_superEnabled", superEnabled)
+        setFloat("u_superThreshold", superThreshold)
+        setFloat("u_superSoftness", superSoftness)
+        setFloat("u_superAlpha", superAlpha)
+    }
+
     private func setFloat(_ name: String, _ value: Float) {
         if let u = uniforms[name] { u.floatValue = value; return }
         let u = SKUniform(name: name, float: value)
