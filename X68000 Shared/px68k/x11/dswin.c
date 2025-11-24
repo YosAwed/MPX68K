@@ -33,7 +33,7 @@
 
 // Use a direct mixing path from the audio callback
 // instead of the legacy DSound ring buffer.
-#define DSOUND_USE_DIRECT_CALLBACK 0
+#define DSOUND_USE_DIRECT_CALLBACK 1
 
 #define PCMBUF_SIZE 2*2*48000
 BYTE pcmbuffer[PCMBUF_SIZE];
@@ -186,8 +186,9 @@ void X68000_AudioCallBack(void* buffer, const unsigned int sample)
     memset(adpcmBuf, 0x00, bufBytes);
     memset(opmBuf, 0x00, bufBytes);
 
-    // PSP 以外は rate == 0 を渡すのが元の実装
-    int rate = 0;
+    // PSP 以外は rate == 0 を渡すのが元の実装だったが、
+    // OPMの瞬間的な変化を正確に反映するため、実サンプリングレートを渡す。
+    int rate = (ratebase == 22050) ? 0 : (int)ratebase;
 
     // Generate ADPCM into temporary buffer
     ADPCM_Update(adpcmBuf, frames, rate,
