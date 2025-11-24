@@ -31,6 +31,9 @@
 //#include    "mercury.h"
 #include    "fmg_wrap.h"
 
+// Use a direct mixing path from the audio callback
+// instead of the legacy DSound ring buffer.
+#define DSOUND_USE_DIRECT_CALLBACK 1
 
 #define PCMBUF_SIZE 2*2*48000
 BYTE pcmbuffer[PCMBUF_SIZE];
@@ -62,7 +65,7 @@ int DSound_Init(unsigned long rate, unsigned long buflen)
     pbwp = pcmbuffer;
     pbep = &pcmbuffer[PCMBUF_SIZE];
 
-    ratebase = rate;
+    ratebase = (DWORD)rate;
 
     return TRUE;
 }
@@ -89,6 +92,12 @@ DSound_Cleanup(void)
 
 static void sound_send(int length)
 {
+    // In direct-callback mode, we generate audio
+    // exclusively from X68000_AudioCallBack().
+#if DSOUND_USE_DIRECT_CALLBACK
+    (void)length;
+    return;
+#else
     int rate = ratebase;
 	if ( ratebase == 22050 ) {
 		rate = 0;   // 0にしないとおかしい！
@@ -123,6 +132,7 @@ static void sound_send(int length)
 	if (pbwp >= pbep) {
       pbwp = pbsp + (pbwp - pbep);
 	}
+ #endif
 }
 
 void FASTCALL DSound_Send0(long clock)
@@ -154,14 +164,56 @@ static void FASTCALL DSound_Send(int length)
 
 void X68000_AudioCallBack(void* buffer, const unsigned int sample)
 {
-    int size = sample * sizeof(unsigned short) * 2;
-#if 1
-	// Direct mixing path for debugging: bypass ring buffer and generate audio directly
-	memset(buffer, 0x00, size);
-	ratebase = 0;
-	ADPCM_Update((short *)buffer, sample, ratebase, (BYTE *)buffer, ((BYTE *)buffer) + size);
-	OPM_Update((short *)buffer, sample, ratebase, (BYTE *)buffer, ((BYTE *)buffer) + size);
+#if DSOUND_USE_DIRECT_CALLBACK
+    // Direct mixing path: generate ADPCM and OPM into separate
+    // temporary buffers, then mix into the host buffer. This
+    // prevents OPM_Update() from overwriting ADPCM-only regions.
+
+    // Safety limit for temporary buffers
+    enum { DSOUND_MAX_FRAMES = 4096 };
+    static short adpcmBuf[DSOUND_MAX_FRAMES * 2];
+    static short opmBuf[DSOUND_MAX_FRAMES * 2];
+
+    unsigned int frames = sample;
+    if (frames > DSOUND_MAX_FRAMES) {
+        frames = DSOUND_MAX_FRAMES;
+    }
+
+    unsigned int bytesPerFrame = sizeof(short) * 2; // stereo
+    unsigned int bufBytes = frames * bytesPerFrame;
+
+    // Clear temporary buffers
+    memset(adpcmBuf, 0x00, bufBytes);
+    memset(opmBuf, 0x00, bufBytes);
+
+    // PSP 以外は rate == 0 を渡すのが元の実装
+    int rate = 0;
+
+    // Generate ADPCM into temporary buffer
+    ADPCM_Update(adpcmBuf, frames, rate,
+                 (BYTE *)adpcmBuf, ((BYTE *)adpcmBuf) + bufBytes);
+
+    // Generate OPM into temporary buffer
+    OPM_Update(opmBuf, frames, rate,
+               (BYTE *)opmBuf, ((BYTE *)opmBuf) + bufBytes);
+
+    // Mix into host buffer with 16-bit clipping
+    short *out = (short *)buffer;
+    unsigned int totalSamples = frames * 2; // stereo samples
+    for (unsigned int i = 0; i < totalSamples; i++) {
+        int v = (int)adpcmBuf[i] + (int)opmBuf[i];
+        if (v > 32767) v = 32767;
+        else if (v < -32768) v = -32768;
+        out[i] = (short)v;
+    }
+
+    // If sample > frames (rare), zero the tail to avoid garbage
+    if (sample > frames) {
+        unsigned int tailSamples = (sample - frames) * 2;
+        memset(out + totalSamples, 0x00, tailSamples * sizeof(short));
+    }
 #else
+    int size = sample * sizeof(unsigned short) * 2;
     audio_callback(buffer, size);
 #endif
 }
@@ -183,7 +235,7 @@ cb_start:
       // |         |             |          |
       // pbsp     pbrp          pbwp       pbep
 
-      datalen = pbwp - pbrp;
+      datalen = (int)(pbwp - pbrp);  // pcmbufferサイズ(192k)内なのでintへ明示キャスト
 
       // needs more data - generate extra to prevent underruns
 	   if (datalen < len) {
@@ -193,7 +245,7 @@ cb_start:
 	   }
 
 #if 0
-      datalen = pbwp - pbrp;
+      datalen = (int)(pbwp - pbrp);  // pcmbufferサイズ(192k)内なのでintへ明示キャスト
 //	   printf("%d\n",datalen);
 	   if (datalen < len) {
          printf("xxxxx not enough sound data: %5d/%5d xxxxx\n",datalen, len);
@@ -220,7 +272,7 @@ cb_start:
       // |         |             |          |
       // pbsp     pbwp          pbrp       pbep
 
-      lena = pbep - pbrp;
+      lena = (int)(pbep - pbrp);
       if (lena >= len)
       {
          buf = pbrp;
@@ -231,12 +283,13 @@ cb_start:
       {
          lenb = len - lena;
 
-		  if (pbwp - pbsp < lenb) {
-            int needed_samples = ((lenb - (pbwp - pbsp)) / 4) + 256; // Generate extra samples  
+         int available = (int)(pbwp - pbsp);
+         if (available < lenb) {
+            int needed_samples = ((lenb - available) / 4) + 256; // Generate extra samples  
             DSound_Send(needed_samples);
-		  }
+         }
 #if 0
-         if (pbwp - pbsp < lenb)
+         if (available < lenb)
             printf("xxxxx not enough sound data xxxxx\n");
 #endif
          memcpy(rsndbuf, pbrp, lena);
