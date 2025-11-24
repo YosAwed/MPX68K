@@ -33,7 +33,10 @@
 
 // Use a direct mixing path from the audio callback
 // instead of the legacy DSound ring buffer.
-#define DSOUND_USE_DIRECT_CALLBACK 1
+#define DSOUND_USE_DIRECT_CALLBACK 0
+
+// Safety limit for temporary buffers (frames)
+#define DSOUND_MAX_FRAMES 4096
 
 #define PCMBUF_SIZE 2*2*48000
 BYTE pcmbuffer[PCMBUF_SIZE];
@@ -98,40 +101,56 @@ static void sound_send(int length)
     (void)length;
     return;
 #else
-    int rate = ratebase;
-	if ( ratebase == 22050 ) {
-		rate = 0;   // 0にしないとおかしい！
-	}
+    // PSP以外はrate=0が元仕様
+    int rate = (ratebase == 22050) ? 0 : 0;
 
-   // Fix: More defensive approach to prevent race conditions
-   BYTE *write_start = pbwp;
-   int total_bytes = length * sizeof(WORD) * 2;
-   
-   // Calculate if the write would wrap around the buffer
-   BYTE *write_end = write_start + total_bytes;
-   if (write_end > pbep) {
-       // Handle wrap-around case - clear in two parts
-       int first_part = pbep - write_start;
-       int second_part = total_bytes - first_part;
-       
-       // Clear first part
-       memset(write_start, 0, first_part);
-       // Clear second part (from start of buffer)
-       memset(pbsp, 0, second_part);
-   } else {
-       // Simple case - clear continuous area
-       memset(write_start, 0, total_bytes);
-   }
+    int remain = length;
+    while (remain > 0) {
+        int frames = (remain > DSOUND_MAX_FRAMES) ? DSOUND_MAX_FRAMES : remain;
+        unsigned int bytesPerFrame = sizeof(short) * 2; // stereo
+        unsigned int bufBytes = frames * bytesPerFrame;
 
-   // Generate audio with both sources
-   ADPCM_Update((short *)pbwp, length, rate, pbsp, pbep);
-   OPM_Update((short *)pbwp, length, rate, pbsp, pbep);
+        static short adpcmBuf[DSOUND_MAX_FRAMES * 2];
+        static short opmBuf[DSOUND_MAX_FRAMES * 2];
 
-   // Update write pointer atomically at the end
-   pbwp += total_bytes;
-	if (pbwp >= pbep) {
-      pbwp = pbsp + (pbwp - pbep);
-	}
+        memset(adpcmBuf, 0, bufBytes);
+        memset(opmBuf, 0, bufBytes);
+
+        ADPCM_Update(adpcmBuf, frames, rate,
+                     (BYTE *)adpcmBuf, ((BYTE *)adpcmBuf) + bufBytes);
+        OPM_Update(opmBuf, frames, rate,
+                   (BYTE *)opmBuf, ((BYTE *)opmBuf) + bufBytes);
+
+        // Mix into ring buffer with wrap handling
+        int samples = frames * 2; // stereo samples
+        int writtenSamples = 0;
+        while (writtenSamples < samples) {
+            BYTE *writePtr = pbwp;
+            int bytesToEnd = (int)(pbep - writePtr);
+            int samplesToEnd = bytesToEnd / sizeof(short);
+            int chunkSamples = samples - writtenSamples;
+            if (chunkSamples > samplesToEnd) {
+                chunkSamples = samplesToEnd;
+            }
+
+            short *out = (short *)writePtr;
+            int mixStart = writtenSamples;
+            for (int i = 0; i < chunkSamples; i++) {
+                int v = (int)adpcmBuf[mixStart + i] + (int)opmBuf[mixStart + i];
+                if (v > 32767) v = 32767; else if (v < -32768) v = -32768;
+                out[i] = (short)v;
+            }
+
+            int bytesWritten = chunkSamples * (int)sizeof(short);
+            pbwp += bytesWritten;
+            if (pbwp >= pbep) {
+                pbwp = pbsp + (pbwp - pbep);
+            }
+            writtenSamples += chunkSamples;
+        }
+
+        remain -= frames;
+    }
  #endif
 }
 
