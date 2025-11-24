@@ -32,7 +32,8 @@ static void ADPCM_WriteOne_Optimized(int val);
 
 // Optional: use XEiJ-style PCM repeat / interval timer instead of legacy PreUpdate logic
 // 0 = keep existing behavior, 1 = drive DMA channel 3 with a dedicated PCM ticker
-#define ADPCM_USE_PCM_TICKER 1
+// 現状は安全のためデフォルトで無効化しておく
+#define ADPCM_USE_PCM_TICKER 0
 
 #define INTERPOLATE(y, x)	\
 	(((((((-y[0]+3*y[1]-3*y[2]+y[3]) * x + FM_IPSCALE/2) / FM_IPSCALE \
