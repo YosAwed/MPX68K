@@ -49,6 +49,7 @@ int SASI_IsReady(void)
 #define File_Seek	Sasi_Seek
 #define File_Write	Sasi_Write
 extern BYTE* s_disk_image_buffer[5];
+extern long s_disk_image_buffer_size[5];
 
 static int s_Sasi_pos;
 static DWORD s_Sasi_image_size[5] = {0}; // Track HDD image sizes for capacity reporting
@@ -180,26 +181,16 @@ void SASI_Init(void)
 		s_Sasi_image_size[i] = 0;
 		s_Sasi_dirty_flag[i] = 0;
 	}
-	// printf("SASI_Init: Initialized image size and dirty flag arrays\n");
-	
-	// Restore HDD size if already loaded (after reset)
-	if (Config.HDImage[0][0] != '\0') {
-		// HDD is already loaded, restore size information
-		FILE* fp = fopen(Config.HDImage[0], "rb");
-		if (fp) {
-			fseek(fp, 0, SEEK_END);
-			DWORD size = (DWORD)ftell(fp);
-			fclose(fp);
-			
-			// Restore size for all drive indices
-			for (int i = 0; i < 5; i++) {
-				s_Sasi_image_size[i] = size;
-			}
-			printf("SASI_Init: Restored HDD size after reset: %d bytes (%d MB)\n", 
-			       size, size / (1024*1024));
-		} else {
-			printf("SASI_Init: Warning - Could not access HDD file after reset: %s\n", Config.HDImage[0]);
+
+	// Restore HDD size from memory buffer (set by Swift side)
+	// This avoids file access which may fail in sandboxed environment
+	if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
+		DWORD size = (DWORD)s_disk_image_buffer_size[4];
+		for (int i = 0; i < 5; i++) {
+			s_Sasi_image_size[i] = size;
 		}
+		printf("SASI_Init: Restored HDD size from buffer: %ld bytes (%ld MB)\n",
+		       s_disk_image_buffer_size[4], s_disk_image_buffer_size[4] / (1024*1024));
 	}
 }
 
@@ -209,8 +200,8 @@ void SASI_Init(void)
 // -----------------------------------------------------------------------
 short SASI_Seek(void)
 {
-	// Direct file I/O - bypass SASI macros to read from actual file
-	FILE* fp;
+	// Read from memory buffer instead of file (sandbox-safe)
+	DWORD offset = SASI_Sector << 8;  // sector * 256
 
 if (hddtrace) {
 FILE *fp_trace;
@@ -219,24 +210,24 @@ fprintf(fp_trace, "Seek  - Sector:%d  (Time:%08X)\n", SASI_Sector, timeGetTime()
 fclose(fp_trace);
 }
 	ZeroMemory(SASI_Buf, 256);
-	fp = fopen(Config.HDImage[SASI_Device*2+SASI_Unit], "rb");
-	if (!fp)
-	{
-		ZeroMemory(SASI_Buf, 256);
-		return -1;
-	}
-	if (fseek(fp, SASI_Sector<<8, SEEK_SET) != 0) 
-	{
-		fclose(fp);
-		return 0;
-	}
-	if (fread(SASI_Buf, 1, 256, fp) != 256)
-	{
-		fclose(fp);
-		return 0;
-	}
-	fclose(fp);
 
+	// Check if HDD buffer is valid
+	if (s_disk_image_buffer[4] == NULL) {
+		return -1;  // No HDD loaded
+	}
+
+	// Check if we have valid size info
+	if (s_disk_image_buffer_size[4] <= 0) {
+		return -1;  // No size info
+	}
+
+	// Check bounds
+	if (offset + 256 > (DWORD)s_disk_image_buffer_size[4]) {
+		return 0;  // Beyond image size
+	}
+
+	// Read from memory buffer
+	memcpy(SASI_Buf, s_disk_image_buffer[4] + offset, 256);
 	return 1;
 }
 
@@ -246,26 +237,30 @@ fclose(fp_trace);
 // -----------------------------------------------------------------------
 short SASI_Flush(void)
 {
-	// Direct file I/O - bypass SASI macros to write to actual file
-	FILE* fp;
+	// Write to memory buffer (sandbox-safe)
+	// Swift side saves the buffer to file when needed
+	DWORD offset = SASI_Sector << 8;  // sector * 256
 
-	fp = fopen(Config.HDImage[SASI_Device*2+SASI_Unit], "r+b");
-	if (!fp) return -1;
-	if (fseek(fp, SASI_Sector<<8, SEEK_SET) != 0)
-	{
-		fclose(fp);
-		return 0;
+	// Check if HDD buffer is valid
+	if (s_disk_image_buffer[4] == NULL) {
+		return -1;  // No HDD loaded
 	}
-	if (fwrite(SASI_Buf, 1, 256, fp) != 256)
-	{
-		fclose(fp);
-		return 0;
+
+	// Check if we have valid size info
+	if (s_disk_image_buffer_size[4] <= 0) {
+		return -1;  // No size info
 	}
-	fflush(fp);  // Ensure data is written to disk immediately
-	fclose(fp);
-	
-	// Data successfully written to file - no longer needs dirty flag tracking
-	// printf("SASI: Sector %d written directly to file (Device:%d Unit:%d)\n", SASI_Sector, SASI_Device, SASI_Unit);
+
+	// Check bounds
+	if (offset + 256 > (DWORD)s_disk_image_buffer_size[4]) {
+		return 0;  // Beyond image size
+	}
+
+	// Write to memory buffer
+	memcpy(s_disk_image_buffer[4] + offset, SASI_Buf, 256);
+
+	// Mark as dirty for Swift-side saving
+	s_Sasi_dirty_flag[0] = 1;
 
 if (hddtrace) {
 FILE *fp;

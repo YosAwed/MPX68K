@@ -410,11 +410,25 @@ public class DiskStateManager {
                 url.stopAccessingSecurityScopedResource()
             }
         }
-        
-        // ハードディスクイメージをロード
-        X68000_LoadHDD(hddState.filePath)
-        infoLog("Restored HDD: \(hddState.fileName)", category: .fileSystem)
-        return true
+
+        // ハードディスクイメージをメモリバッファに読み込んでからロード
+        do {
+            let imageData = try Data(contentsOf: url)
+
+            // バッファを確保してデータをコピー
+            if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
+                imageData.copyBytes(to: p, count: imageData.count)
+                X68000_LoadHDD(hddState.filePath)
+                infoLog("Restored HDD: \(hddState.fileName) (\(imageData.count) bytes)", category: .fileSystem)
+                return true
+            } else {
+                errorLog("Failed to get HDD buffer pointer for restore", category: .fileSystem)
+                return false
+            }
+        } catch {
+            errorLog("Failed to read HDD file for restore: \(error)", category: .fileSystem)
+            return false
+        }
     }
     
     // ファイル整合性検証
@@ -1175,7 +1189,7 @@ class FileSystem {
                 if extname?.lowercased() == "hdf" {
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.absoluteString)
+                        X68000_LoadHDD(url.path)
                         infoLog("HDD loaded successfully - no automatic reset", category: .fileSystem)
                     }
                 } else {
@@ -1640,7 +1654,7 @@ class FileSystem {
                     debugLog("Loading as HDD image", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.absoluteString)
+                        X68000_LoadHDD(url.path)
                         infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
                         
                         // Save current disk state after successful HDD load
@@ -1850,7 +1864,7 @@ class FileSystem {
                     debugLog("Loading as HDD image", category: .fileSystem)
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.absoluteString)
+                        X68000_LoadHDD(url.path)
                         infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
                         
                         // Save current disk state after successful HDD load
@@ -1907,15 +1921,17 @@ class FileSystem {
     {
         infoLog("==== Load SRAM ====", category: .fileSystem)
         guard let url = findFileInDocuments("SRAM.DAT") else {
-            infoLog("SRAM.DAT not found - starting with blank SRAM", category: .fileSystem)
+            infoLog("SRAM.DAT not found - initializing with default values", category: .fileSystem)
+            initializeDefaultSRAM()
             return
         }
-        
+
         do {
             let data: Data = try Data(contentsOf: url)
             // Security: Validate SRAM file size (should be exactly 0x4000 bytes)
             guard data.count == 0x4000 else {
                 errorLog("Security: Invalid SRAM file size: \(data.count), expected 0x4000", category: .fileSystem)
+                initializeDefaultSRAM()
                 return
             }
             if let p = X68000_GetSRAMPointer() {
@@ -1926,7 +1942,48 @@ class FileSystem {
             }
         } catch let error as NSError {
             errorLog("Error loading SRAM.DAT", error: error, category: .fileSystem)
+            initializeDefaultSRAM()
         }
+    }
+
+    /// Initialize SRAM with factory default values for X68000
+    private func initializeDefaultSRAM() {
+        guard let p = X68000_GetSRAMPointer() else {
+            errorLog("Failed to get SRAM pointer for initialization", category: .fileSystem)
+            return
+        }
+
+        // Initialize SRAM with 0x00 (factory default state)
+        // 0xFF means uninitialized, which can cause boot issues
+        for i in 0..<0x4000 {
+            p[i] = 0x00
+        }
+
+        // Set essential boot parameters (X68000 SRAM structure)
+        // $ED0000-$ED0001: Boot device (0x0000 = standard boot from ROM/FDD)
+        p[0x00] = 0x00
+        p[0x01] = 0x00
+
+        // $ED0008-$ED000B: Main RAM size (12MB = 0x00C00000)
+        p[0x09] = 0x00  // Note: SRAM uses byte-swapped addressing (adr ^= 1)
+        p[0x08] = 0xC0
+        p[0x0B] = 0x00
+        p[0x0A] = 0x00
+
+        // $ED0010-$ED0013: SRAM work area pointer (0x00ED0100 = standard)
+        p[0x11] = 0x00
+        p[0x10] = 0xED
+        p[0x13] = 0x01
+        p[0x12] = 0x00
+
+        // $ED0018: Boot mode (0x00 = standard boot, not SRAM boot)
+        p[0x19] = 0x00
+        p[0x18] = 0x00
+
+        infoLog("SRAM initialized with factory default values", category: .fileSystem)
+
+        // Save the initialized SRAM
+        saveSRAM()
     }
     // Added by Awed 2023/10/7
     func loadCGROM() -> Bool

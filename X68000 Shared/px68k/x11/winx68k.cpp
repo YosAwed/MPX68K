@@ -856,35 +856,38 @@ BYTE* X68000_GetHDDImageBufferPointer( const long size ){
 void X68000_LoadHDD( const char* filename )
 {
 	printf("X68000_LoadHDD( \"%s\" )\n", filename);
-	strncpy( Config.HDImage[0], filename , MAX_PATH);
-	
-	// Get HDD image file size and report it to SASI for capacity reporting
-	FILE* fp = fopen(filename, "rb");
-	if (fp) {
-		fseek(fp, 0, SEEK_END);
-		DWORD size = (DWORD)ftell(fp);
-		fclose(fp);
-		
-		// Report size to SASI for multiple drive indices to ensure compatibility
-		// Set size for drive 0 (common case) and other potential indices
-		SASI_SetImageSize(0, size);  // Primary HDD typically maps to drive 0
-		
-		// Also set for other potential drive indices that SASI might use
-		// depending on SASI_Device*2+SASI_Unit calculation
-		for (int i = 1; i < 5; i++) {
+
+	// Set HDD image path for all SASI device indices
+	// SASI uses Config.HDImage[SASI_Device*2+SASI_Unit] for access
+	// Human68k may use different SASI IDs, so set all indices
+	for (int i = 0; i < 16; i++) {
+		strncpy(Config.HDImage[i], filename, MAX_PATH);
+	}
+
+	// Get HDD image size from memory buffer (set by Swift side)
+	// This avoids file access issues in sandboxed environment
+	if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
+		DWORD size = (DWORD)s_disk_image_buffer_size[4];
+
+		// Report size to SASI for all drive indices
+		for (int i = 0; i < 5; i++) {
 			SASI_SetImageSize(i, size);
 		}
-		
-		printf("HDD image size: %d bytes (%d MB) - set for all drive indices\n", size, size / (1024*1024));
+
+		printf("HDD image size: %ld bytes (%ld MB) - from memory buffer\n",
+		       s_disk_image_buffer_size[4], s_disk_image_buffer_size[4] / (1024*1024));
 	} else {
-		printf("Warning: Could not determine HDD image size for: %s\n", filename);
+		printf("Warning: HDD buffer not initialized for: %s\n", filename);
 	}
 }
 
 void X68000_EjectHDD()
 {
 	printf("X68000_EjectHDD()\n");
-	Config.HDImage[0][0] = '\0';
+	// Clear all SASI device indices
+	for (int i = 0; i < 16; i++) {
+		Config.HDImage[i][0] = '\0';
+	}
 }
 
 const int X68000_IsHDDReady()
@@ -899,10 +902,32 @@ const char* X68000_GetHDDFilename()
 
 void X68000_SaveHDD()
 {
-	// Direct file writes implemented - this function is now legacy
-	// SASI_Flush() writes sectors directly to files as they are modified
-	printf("X68000_SaveHDD: Direct file writes enabled - no bulk save needed\n");
-	printf("X68000_SaveHDD: Data is written to disk immediately via SASI_Flush()\n");
+	// Save memory buffer to file
+	if (Config.HDImage[0][0] == '\0') {
+		printf("X68000_SaveHDD: No HDD image path set\n");
+		return;
+	}
+
+	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+		printf("X68000_SaveHDD: No HDD data in buffer\n");
+		return;
+	}
+
+	FILE* fp = fopen(Config.HDImage[0], "wb");
+	if (!fp) {
+		printf("X68000_SaveHDD: Failed to open file for writing: %s\n", Config.HDImage[0]);
+		return;
+	}
+
+	size_t written = fwrite(s_disk_image_buffer[4], 1, s_disk_image_buffer_size[4], fp);
+	fclose(fp);
+
+	if (written == (size_t)s_disk_image_buffer_size[4]) {
+		printf("X68000_SaveHDD: Saved %ld bytes to %s\n", s_disk_image_buffer_size[4], Config.HDImage[0]);
+		SASI_ClearDirtyFlag(0);
+	} else {
+		printf("X68000_SaveHDD: Write error - only %zu of %ld bytes written\n", written, s_disk_image_buffer_size[4]);
+	}
 }
 
 const int X68000_IsHDDDirty()
