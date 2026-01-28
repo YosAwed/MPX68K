@@ -62,20 +62,27 @@ FILEH Sasi_Open(const char* filename) {
 
 int Sasi_Read( HANDLE fp, void* buf, int size ) {
 //	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
+	if (s_disk_image_buffer[4] == NULL) {
+		ZeroMemory(buf, size);
+		return 0;
+	}
 	BYTE* pos = s_disk_image_buffer[4];
 	pos += s_Sasi_pos;
 	memcpy( buf, pos, size );
 	s_Sasi_pos += size;
-	
+
 	return size;
 }
 int Sasi_Write( HANDLE fp, void* buf, int size ) {
 //	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
+	if (s_disk_image_buffer[4] == NULL) {
+		return 0;
+	}
 	BYTE* pos = s_disk_image_buffer[4];
 	pos += s_Sasi_pos;
 	memcpy( pos, buf, size );
 	s_Sasi_pos += size;
-	
+
 	return size;
 }
 
@@ -378,6 +385,14 @@ void SASI_CheckCmd(void)
 	short result;
 	SASI_Unit = (SASI_Cmd[1]>>5)&1;			// X68kでは、ユニット番号は0か1しか取れない
 
+	// Validate SASI_Device before accessing Config.HDImage[16] array
+	if (SASI_Device >= 8) {
+		SASI_Stat = 0x02;
+		SASI_Error = 0x7f;
+		SASI_Phase += 2;
+		return;
+	}
+
 	switch(SASI_Cmd[0])
 	{
 	case 0x00:					// Test Drive Ready
@@ -556,7 +571,9 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 				}
 			}
 		}
-		if ( (Config.HDImage[SASI_Device*2][0])||(Config.HDImage[SASI_Device*2+1][0]) )
+		// Check valid device range (0-7) before accessing Config.HDImage[16]
+		if ( (SASI_Device < 8) &&
+		     ((Config.HDImage[SASI_Device*2][0])||(Config.HDImage[SASI_Device*2+1][0])) )
 		{
 			SASI_Phase++;
 			SASI_CmdPtr = 0;

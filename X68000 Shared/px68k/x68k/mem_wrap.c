@@ -483,10 +483,13 @@ rm_e82(DWORD addr)
 	return 0;
 }
 
-static BYTE 
+static BYTE
 rm_buserr(DWORD addr)
 {
-    p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+	// Suppress frequent SCSI-related BusError logs
+	if (!((addr >= 0xe9a000 && addr < 0xe9c000) || (addr >= 0xea0000 && addr < 0xeb0000))) {
+		p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+	}
 
 	BusErrFlag = 1;
 	BusErrAdr = addr;
@@ -607,7 +610,11 @@ BusError(DWORD adr, DWORD unknown)
 	(void)adr;
 	(void)unknown;
 
-	p6logd("BusError: %x\n", adr);
+	// Suppress frequent SCSI-related BusError logs (normal when SCSI not connected)
+	// 0xe9a000-0xe9bfff: SCSI I/O, 0xea0000-0xeaffff: SCSI IPL
+	if (!((adr >= 0xe9a000 && adr < 0xe9c000) || (adr >= 0xea0000 && adr < 0xeb0000))) {
+		p6logd("BusError: %x\n", adr);
+	}
 	BusErrHandling = 1;
 	//assert(0);
 }
