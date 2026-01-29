@@ -86,9 +86,9 @@
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
 		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
 		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
-		53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRTSettings.swift */; };
-		53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRTFilterManager.swift */; };
-		53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRTOverlay.swift */; };
+		53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */; };
+		53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */; };
+		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
 		53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1052E50050000AAA001 /* SuperimposeManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -105,6 +105,13 @@
 			containerPortal = 073F76FB24323762005B1F18 /* c68k.xcodeproj */;
 			proxyType = 2;
 			remoteGlobalIDString = 07E2E67824324103007EFB06;
+			remoteInfo = c68k_mac;
+		};
+		53685FBB2F2B8F1E00A86652 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 073F76FB24323762005B1F18 /* c68k.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 07E2E65D24324103007EFB06;
 			remoteInfo = c68k_mac;
 		};
 /* End PBXContainerItemProxy section */
@@ -222,10 +229,6 @@
 		07F86494242F97BC00CBB224 /* windraw.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = windraw.c; sourceTree = "<group>"; };
 		07F86495242F97BC00CBB224 /* cdrom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cdrom.h; sourceTree = "<group>"; };
 		07F86496242F97BC00CBB224 /* winx68k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = winx68k.h; sourceTree = "<group>"; };
-		53C0A0FF2E50000000AAA001 /* CRTSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTSettings.swift"; sourceTree = "<group>"; };
-		53C0A1012E50000000AAA001 /* CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTFilterManager.swift"; sourceTree = "<group>"; };
-		53C0A1032E50010000AAA001 /* CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CRT/CRTOverlay.swift"; sourceTree = "<group>"; };
-		53C0A1052E50050000AAA001 /* SuperimposeManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuperimposeManager.swift; sourceTree = "<group>"; };
 		07F86497242F97BC00CBB224 /* status.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = status.h; sourceTree = "<group>"; };
 		07F86498242F97BC00CBB224 /* timer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = timer.h; sourceTree = "<group>"; };
 		07F86499242F97BC00CBB224 /* joystick.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = joystick.h; sourceTree = "<group>"; };
@@ -261,6 +264,10 @@
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
 		53A861182E4375CA0056E4DE /* X68Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Logger.swift; sourceTree = "<group>"; };
 		53A861192E4375CA0056E4DE /* X68Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Security.swift; sourceTree = "<group>"; };
+		53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTSettings.swift; sourceTree = "<group>"; };
+		53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTFilterManager.swift; sourceTree = "<group>"; };
+		53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTOverlay.swift; sourceTree = "<group>"; };
+		53C0A1052E50050000AAA001 /* SuperimposeManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuperimposeManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -333,19 +340,11 @@
 				53A861192E4375CA0056E4DE /* X68Security.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
 				07F863A5242F93EA00CBB224 /* Assets.xcassets */,
-				53C0A0FF2E50000000AAA001 /* CRTSettings.swift */,
-				53C0A1012E50000000AAA001 /* CRTFilterManager.swift */,
-				53C0A1032E50010000AAA001 /* CRTOverlay.swift */,
+				53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */,
+				53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */,
+				53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */,
 			);
 			path = "X68000 Shared";
-			sourceTree = "<group>";
-		};
-		53C0A1072E50060000AAA001 /* Superimpose */ = {
-			isa = PBXGroup;
-			children = (
-				53C0A1052E50050000AAA001 /* SuperimposeManager.swift */,
-			);
-			path = Superimpose;
 			sourceTree = "<group>";
 		};
 		07F863AB242F93EA00CBB224 /* Products */ = {
@@ -536,6 +535,14 @@
 			path = x11;
 			sourceTree = "<group>";
 		};
+		53C0A1072E50060000AAA001 /* Superimpose */ = {
+			isa = PBXGroup;
+			children = (
+				53C0A1052E50050000AAA001 /* SuperimposeManager.swift */,
+			);
+			path = Superimpose;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -548,6 +555,9 @@
 				07F863BA242F93EA00CBB224 /* Resources */,
 			);
 			buildRules = (
+			);
+			dependencies = (
+				53685FBC2F2B8F1E00A86652 /* PBXTargetDependency */,
 			);
 			name = "X68000 macOS";
 			packageProductDependencies = (
@@ -566,7 +576,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2620;
 				ORGANIZATIONNAME = NANKIN;
 				TargetAttributes = {
 					07F863BB242F93EA00CBB224 = {
@@ -708,13 +718,21 @@
 				07F864C3242F97BE00CBB224 /* keyboard.c in Sources */,
 				07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */,
 				07E6EF302430CC1B0034E485 /* IPLROM_DAT.c in Sources */,
-				53C0A1002E50000000AAA001 /* CRTSettings.swift in Sources */,
-				53C0A1022E50000000AAA001 /* CRTFilterManager.swift in Sources */,
+				53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */,
+				53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */,
 				53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */,
-				53C0A1042E50010000AAA001 /* CRTOverlay.swift in Sources */,
+				53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		53685FBC2F2B8F1E00A86652 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = c68k_mac;
+			targetProxy = 53685FBB2F2B8F1E00A86652 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		07F863C2242F93EA00CBB224 /* Main.storyboard */ = {
