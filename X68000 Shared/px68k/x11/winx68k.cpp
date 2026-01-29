@@ -246,8 +246,36 @@ WinX68k_Reset(void)
     C68k_Set_Reg(&C68K, C68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
     C68k_Set_Reg(&C68K, C68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
 */
-    C68k_Set_AReg(&C68K, 7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
-    C68k_Set_PC(&C68K, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
+    // Safety check: Ensure IPL ROM is loaded before setting CPU registers
+    if (IPL != NULL) {
+        // Extract reset vectors from IPL ROM
+        DWORD stack_pointer = (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002];
+        DWORD program_counter = (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006];
+
+
+        // Validate reset vectors are reasonable for X68000 architecture
+        // Stack pointer should be in RAM (0x000000-0x00BFFFFF) or high memory (0x00ED0000+)
+        // Program counter should be in ROM area (0x00FE0000-0x00FFFFFF)
+        bool valid_stack = (stack_pointer >= 0x00000000 && stack_pointer <= 0x00BFFFFF) ||
+                          (stack_pointer >= 0x00ED0000 && stack_pointer <= 0x01000000);
+        bool valid_pc = (program_counter >= 0x00FE0000 && program_counter <= 0x01000000);
+
+        if (valid_stack && valid_pc) {
+            C68k_Set_AReg(&C68K, 7, stack_pointer);
+            C68k_Set_PC(&C68K, program_counter);
+        } else {
+            // IPL vectors seem invalid - use safe defaults
+            printf("WARNING: IPL vectors invalid (SP: 0x%08X, PC: 0x%08X) - using safe defaults\n",
+                   stack_pointer, program_counter);
+            C68k_Set_AReg(&C68K, 7, 0x00002000);  // Safe stack pointer in RAM
+            C68k_Set_PC(&C68K, 0x00FE0000);       // Safe program counter in IPL ROM
+        }
+    } else {
+        // IPL ROM not loaded - set safe default values to prevent bus error
+        printf("WARNING: IPL ROM not loaded during reset - using safe defaults\n");
+        C68k_Set_AReg(&C68K, 7, 0x00002000);  // Safe stack pointer
+        C68k_Set_PC(&C68K, 0x00FE0000);       // Safe program counter
+    }
 #endif /* HAVE_C68K */
 
     Memory_Init();
@@ -332,6 +360,9 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
     int KeyIntCnt = 0, MouseIntCnt = 0;
     DWORD t_start = timeGetTime(), t_end;
+
+    // Minimal debug for now
+    (void)clockMHz; // suppress unused warning
 
     if ( Config.FrameRate != 7 ) {
         DispFrame = (DispFrame+1)%Config.FrameRate;

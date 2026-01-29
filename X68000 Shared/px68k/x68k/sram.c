@@ -52,9 +52,31 @@ void SRAM_VirusCheck(void)
 // -----------------------------------------------------------------------
 void SRAM_Init(void)
 {
+    // Initialize SRAM with 0x00 (X68000 default)
     for (int i=0; i<0x4000; i++) {
-        SRAM[i] = 0xFF;
+        SRAM[i] = 0x00;
     }
+
+    // Set up basic SRAM configuration for X68000
+    // SRAM is accessed with byte-swap (addr^1), so values need to be swapped
+
+    // $ED0008-$ED000B: Main memory size (12MB = 0x00C00000)
+    SRAM[0x08^1] = 0x00; SRAM[0x09^1] = 0xC0;
+    SRAM[0x0A^1] = 0x00; SRAM[0x0B^1] = 0x00;
+
+    // $ED0010-$ED0013: SRAM signature (0x0001ED00 indicates valid SRAM)
+    SRAM[0x10^1] = 0x00; SRAM[0x11^1] = 0x01;
+    SRAM[0x12^1] = 0xED; SRAM[0x13^1] = 0x00;
+
+    // $ED0018-$ED001B: RAM size for BASIC (default 0)
+    SRAM[0x18^1] = 0x00; SRAM[0x19^1] = 0x00;
+    SRAM[0x1A^1] = 0x00; SRAM[0x1B^1] = 0x00;
+
+    // $ED0070: Boot device setting (0x00 = standard boot sequence)
+    SRAM[0x70^1] = 0x00;
+
+    // $ED0072-$ED0073: ROM start mode (0x0000 = normal)
+    SRAM[0x72^1] = 0x00; SRAM[0x73^1] = 0x00;
 
 #if 0 // X68iOS
     BYTE tmp;

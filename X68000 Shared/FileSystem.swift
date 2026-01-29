@@ -1937,6 +1937,10 @@ class FileSystem {
             if let p = X68000_GetSRAMPointer() {
                 data.copyBytes(to: p, count: data.count)
                 infoLog("SRAM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
+                if !isSRAMSignatureValid(p) {
+                    warningLog("SRAM signature invalid - reinitializing to defaults", category: .fileSystem)
+                    initializeDefaultSRAM()
+                }
             } else {
                 errorLog("Failed to get SRAM pointer", category: .fileSystem)
             }
@@ -1953,38 +1957,84 @@ class FileSystem {
             return
         }
 
-        // Initialize SRAM with 0x00 (factory default state)
-        // 0xFF means uninitialized, which can cause boot issues
+        // Initialize SRAM with 0x00 (X68000 factory default)
         for i in 0..<0x4000 {
             p[i] = 0x00
         }
 
-        // Set essential boot parameters (X68000 SRAM structure)
-        // $ED0000-$ED0001: Boot device (0x0000 = standard boot from ROM/FDD)
-        p[0x00] = 0x00
-        p[0x01] = 0x00
+        func setSRAM(_ addr: Int, _ value: UInt8) {
+            p[addr ^ 1] = value
+        }
 
         // $ED0008-$ED000B: Main RAM size (12MB = 0x00C00000)
-        p[0x09] = 0x00  // Note: SRAM uses byte-swapped addressing (adr ^= 1)
-        p[0x08] = 0xC0
-        p[0x0B] = 0x00
-        p[0x0A] = 0x00
+        setSRAM(0x08, 0x00)
+        setSRAM(0x09, 0xC0)
+        setSRAM(0x0A, 0x00)
+        setSRAM(0x0B, 0x00)
 
-        // $ED0010-$ED0013: SRAM work area pointer (0x00ED0100 = standard)
-        p[0x11] = 0x00
-        p[0x10] = 0xED
-        p[0x13] = 0x01
-        p[0x12] = 0x00
+        // $ED0010-$ED0013: SRAM signature (0x0001ED00 indicates valid SRAM)
+        setSRAM(0x10, 0x00)
+        setSRAM(0x11, 0x01)
+        setSRAM(0x12, 0xED)
+        setSRAM(0x13, 0x00)
 
-        // $ED0018: Boot mode (0x00 = standard boot, not SRAM boot)
-        p[0x19] = 0x00
-        p[0x18] = 0x00
+        // $ED0018-$ED001B: RAM size for BASIC (default 0)
+        setSRAM(0x18, 0x00)
+        setSRAM(0x19, 0x00)
+        setSRAM(0x1A, 0x00)
+        setSRAM(0x1B, 0x00)
+
+        // $ED0070: Boot device setting (0x00 = standard boot sequence)
+        setSRAM(0x70, 0x00)
+
+        // $ED0072-$ED0073: ROM start mode (0x0000 = normal)
+        setSRAM(0x72, 0x00)
+        setSRAM(0x73, 0x00)
 
         infoLog("SRAM initialized with factory default values", category: .fileSystem)
 
         // Save the initialized SRAM
         saveSRAM()
     }
+
+    private func isSRAMSignatureValid(_ p: UnsafeMutablePointer<UInt8>) -> Bool {
+        return p[0x10 ^ 1] == 0x00 &&
+               p[0x11 ^ 1] == 0x01 &&
+               p[0x12 ^ 1] == 0xED &&
+               p[0x13 ^ 1] == 0x00
+    }
+
+    // MARK: - ROM Management
+    func missingROMFilenames() -> [String] {
+        let required = ["IPLROM.DAT", "CGROM.DAT"]
+        return required.filter { findFileInDocuments($0) == nil }
+    }
+
+    func importROMFiles(_ urls: [URL], requiredFilenames: [String]) throws -> Set<String> {
+        let requiredSet = Set(requiredFilenames.map { $0.uppercased() })
+        var imported: Set<String> = []
+
+        for url in urls {
+            let filename = url.lastPathComponent.uppercased()
+            guard requiredSet.contains(filename) else { continue }
+            _ = try X68Security.validateROMFile(url)
+
+            guard let destination = getDocumentsPath(filename) else {
+                throw X68MacError.invalidConfiguration("Documents path unavailable for \(filename)")
+            }
+
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: url, to: destination)
+            imported.insert(filename)
+            infoLog("Imported ROM file \(filename) to \(destination.path)", category: .fileSystem)
+        }
+
+        FileSystem.clearFileSearchCache()
+        return imported
+    }
+
     // Added by Awed 2023/10/7
     func loadCGROM() -> Bool
     {

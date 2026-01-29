@@ -255,7 +255,8 @@ class GameScene: SKScene {
         let extname = url.pathExtension.lowercased()
         
         // Check if this is a valid HDD file
-        if extname == "hdf" {
+        let allowedExtensions: Set<String> = ["hdf", "hdm", "hds"]
+        if allowedExtensions.contains(extname) {
             infoLog("Loading HDD file directly: \(extname.uppercased())", category: .fileSystem)
             
             do {
@@ -293,7 +294,7 @@ class GameScene: SKScene {
             }
         } else {
             errorLog("Invalid HDD file extension: \(extname)", category: .fileSystem)
-            errorLog("Expected: hdf", category: .fileSystem)
+            errorLog("Expected: hdf, hdm, hds", category: .fileSystem)
         }
     }
     
@@ -710,75 +711,102 @@ class GameScene: SKScene {
         
         self.fileSystem = FileSystem()
         self.fileSystem?.gameScene = self  // Set reference for timer management
-        // Load ROM files FIRST, before any emulator initialization
         guard let fileSystem = self.fileSystem else {
             fatalError("FileSystem not available")
         }
-        
+#if os(macOS)
+        let missingROMs = fileSystem.missingROMFilenames()
+        if !missingROMs.isEmpty {
+            if let controller = GameViewController.shared {
+                controller.promptForMissingROMFiles(missingROMs) { [weak self] success in
+                    guard let self = self else { return }
+                    guard success else {
+                        errorLog("Required ROM files are still missing - emulator initialization aborted", category: .emulation)
+                        return
+                    }
+                    self.startEmulator(with: fileSystem)
+                }
+            } else {
+                errorLog("GameViewController unavailable for ROM selection", category: .ui)
+            }
+            return
+        }
+#endif
+
+        startEmulator(with: fileSystem)
+    }
+
+    private func startEmulator(with fileSystem: FileSystem) {
+        // Load ROM files FIRST, before any emulator initialization
         guard fileSystem.loadIPLROM() && fileSystem.loadCGROM() else {
             errorLog("CRITICAL: Required ROM files not found - stopping emulator initialization", category: .emulation)
             return
         }
-        
+
         // Initialize emulator AFTER ROM files are loaded
         X68000_Init(samplingRate)
-        
-        self.fileSystem?.loadSRAM()
-        
+
+        fileSystem.loadSRAM()
+
         // Use new state restore system for auto-mounting
         debugLog("GameScene: Calling bootWithStateRestore()", category: .fileSystem)
-        self.fileSystem?.bootWithStateRestore()
+        fileSystem.bootWithStateRestore()
 
         guard let joyCardSprite = self.childNode(withName: "//JoyCard") as? SKSpriteNode else {
             fatalError("JoyCard sprite node not found in scene")
         }
         joycard = X68JoyCard(id: 0, scene: self, sprite: joyCardSprite)
         devices.append(joycard!)
-        
+
         for device in devices {
             device.Reset()
         }
-        
+
         // Mark emulator as initialized with a small delay to ensure stability
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.isEmulatorInitialized = true
             infoLog("Emulator initialization complete - using SpriteKit update", category: .emulation)
-            
+
             // Apply saved screen rotation after emulator is fully initialized
             self.applyScreenRotation()
+#if os(macOS)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                GameViewController.shared?.promptForBootMediaIfNeeded()
+            }
+#endif
         }
-        
+
         mouseController = X68MouseController()
         self.joycontroller = JoyController()
         self.joycontroller?.setup(callback: controller_event(status:))
-        
+
         let sample = self.samplingRate
         if view?.preferredFramesPerSecond == 120 && self.vsync == false {
             // sample *= 2
         }
         self.audioStream = AudioStream(samplingrate: sample)
         self.audioStream?.play()
-        
+
         self.mouseSprite = self.childNode(withName: "//Mouse") as? SKSpriteNode
-        
+
         self.labelStatus = self.childNode(withName: "//labelStatus") as? SKLabelNode
         self.labelMIDI = self.childNode(withName: "//labelMIDI") as? SKLabelNode
-        
+
         // Adjust MIDI label position to avoid overlap with input mode button
         adjustMIDILabelPosition()
-        
+
         // Setup input mode toggle button
         setupInputModeButton()
-        
+
         // Set unique zPosition values for all UI layers
         setupLayerZPositions()
-        
+
         self.label = self.childNode(withName: "//helloLabel") as? SKLabelNode
         if let label = self.label {
             label.alpha = 0.0
             label.zPosition = 3.0
             label.blendMode = .add
-            
+
             // Fade in the label
             let fadeInAction = SKAction.fadeIn(withDuration: 2.0)
             let waitAction = SKAction.wait(forDuration: 4.0)
@@ -786,14 +814,14 @@ class GameScene: SKScene {
             let sequence = SKAction.sequence([fadeInAction, waitAction, fadeOutAction])
             label.run(sequence)
         }
-        
+
         self.titleSprite = SKSpriteNode(imageNamed: "X68000LogoW.png")
         self.titleSprite?.zPosition = 3.0
         self.titleSprite?.alpha = 0.0
         self.titleSprite?.blendMode = .add
         self.titleSprite?.setScale(1.0)
         self.addChild(titleSprite!)
-        
+
         // Title sprite animation
         if let titleSprite = self.titleSprite {
             let fadeInAction = SKAction.fadeIn(withDuration: 2.0)
@@ -805,15 +833,15 @@ class GameScene: SKScene {
             let sequence = SKAction.sequence([fadeInAction, waitAction, fadeOutAction, removeAction])
             titleSprite.run(sequence)
         }
-        
+
         // Spinny node creation removed to eliminate green square at startup
-        
+
         #if os(iOS)
         let tapGes = UITapGestureRecognizer(target: self, action: #selector(self.tapped(_:)))
         tapGes.numberOfTapsRequired = 1
         tapGes.numberOfTouchesRequired = 1
         self.view?.addGestureRecognizer(tapGes)
-        
+
         let hover = UIHoverGestureRecognizer(target: self, action: #selector(hovering(_:)))
         self.view?.addGestureRecognizer(hover)
         #endif
@@ -1220,7 +1248,8 @@ class GameScene: SKScene {
             DiskStateManager.shared.tickFDDReinsertProtection()
             
             // Step emulator forward one frame
-            X68000_Update(self.clockMHz, self.vsync ? 1 : 0)
+            // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
+            X68000_Update(self.clockMHz, 0)
             
             fixedStepAccumulator -= targetFrameTime
             newFrameReady = true

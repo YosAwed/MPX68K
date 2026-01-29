@@ -36,6 +36,7 @@ static void wm_buserr(DWORD addr, BYTE val);
 static void wm_opm(DWORD addr, BYTE val);
 static void wm_e82(DWORD addr, BYTE val);
 static void wm_nop(DWORD addr, BYTE val);
+static void wm_scsi_dummy(DWORD addr, BYTE val);
 
 static BYTE rm_main(DWORD addr);
 static BYTE rm_font(DWORD addr);
@@ -44,6 +45,7 @@ static BYTE rm_nop(DWORD addr);
 static BYTE rm_opm(DWORD addr);
 static BYTE rm_e82(DWORD addr);
 static BYTE rm_buserr(DWORD addr);
+static BYTE rm_scsi_dummy(DWORD addr);
 
 void cpu_setOPbase24(DWORD addr);
 void Memory_ErrTrace(void);
@@ -59,7 +61,7 @@ BYTE (*MemReadTable[])(DWORD) = {
 	TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read,
 	CRTC_Read, rm_e82, DMA_Read, rm_nop, MFP_Read, RTC_Read, rm_nop, SysPort_Read,
 	rm_opm, ADPCM_Read, FDC_Read, SASI_Read, SCC_Read, PIA_Read, IOC_Read, rm_nop,
-	SCSI_Read, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, MIDI_Read,
+	SCSI_Read, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy,
 	BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read,
 	rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr,
 	SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read,
@@ -95,7 +97,7 @@ void (*MemWriteTable[])(DWORD, BYTE) = {
 	TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write,
 	CRTC_Write, wm_e82, DMA_Write, wm_nop, MFP_Write, RTC_Write, wm_nop, SysPort_Write,
 	wm_opm, ADPCM_Write, FDC_Write, SASI_Write, SCC_Write, PIA_Write, IOC_Write, wm_nop,
-	SCSI_Write, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, MIDI_Write,
+	SCSI_Write, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy,
 	BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write,
 	wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr,
 	SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write,
@@ -348,14 +350,20 @@ dma_readmem24_dword(DWORD addr)
 	return v;
 }
 
-BYTE 
+BYTE
 cpu_readmem24(DWORD addr)
 {
 	BYTE v;
 
+	BusErrFlag = 0;
+	BusErrAdr = 0;
+
 	v = rm_main(addr);
 	if (BusErrFlag & 1) {
-		p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+		// Suppress SCSI-related logs (normal when SCSI not connected)
+		if (!((addr >= 0xe9a000 && addr < 0xe9c000) || (addr >= 0xea0000 && addr < 0xeb0000))) {
+			p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+		}
 		Memory_ErrTrace();
 		BusError(addr, 0);
 	}
@@ -373,11 +381,15 @@ cpu_readmem24_word(DWORD addr)
 	}
 
 	BusErrFlag = 0;
+	BusErrAdr = 0;
 
 	v = rm_main(addr++) << 8;
 	v |= rm_main(addr);
 	if (BusErrFlag & 1) {
-		p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+		// Suppress SCSI-related logs
+		if (!((addr >= 0xe9a000 && addr < 0xe9c000) || (addr >= 0xea0000 && addr < 0xeb0000))) {
+			p6logd("func = %s addr = %x flag = %d\n", __func__, addr, BusErrFlag);
+		}
 		Memory_ErrTrace();
 		BusError(addr, 0);
 	}
@@ -398,6 +410,7 @@ cpu_readmem24_dword(DWORD addr)
 	}
 
 	BusErrFlag = 0;
+	BusErrAdr = 0;
 
 	v = rm_main(addr++) << 24;
 	v |= rm_main(addr++) << 16;
@@ -495,6 +508,25 @@ rm_buserr(DWORD addr)
 	BusErrAdr = addr;
 
 	return 0;
+}
+
+// Dummy read for SCSI-related address range (0xea2000-0xeaffff)
+// Returns 0xFF to indicate device not present, without triggering BusError
+// This allows IPL to detect that SCSI is not available and proceed to FDD
+static BYTE
+rm_scsi_dummy(DWORD addr)
+{
+	(void)addr;
+	return 0xff;
+}
+
+// Dummy write for SCSI-related address range (0xea2000-0xeaffff)
+// Silently ignores writes without triggering BusError
+static void
+wm_scsi_dummy(DWORD addr, BYTE val)
+{
+	(void)addr;
+	(void)val;
 }
 
 /*
@@ -612,8 +644,9 @@ BusError(DWORD adr, DWORD unknown)
 
 	// Suppress frequent SCSI-related BusError logs (normal when SCSI not connected)
 	// 0xe9a000-0xe9bfff: SCSI I/O, 0xea0000-0xeaffff: SCSI IPL
-	if (!((adr >= 0xe9a000 && adr < 0xe9c000) || (adr >= 0xea0000 && adr < 0xeb0000))) {
-		p6logd("BusError: %x\n", adr);
+	DWORD logAddr = (BusErrAdr != 0) ? BusErrAdr : adr;
+	if (!((logAddr >= 0xe9a000 && logAddr < 0xe9c000) || (logAddr >= 0xea0000 && logAddr < 0xeb0000))) {
+		p6logd("BusError: %x (flag=%d)\n", logAddr, BusErrFlag);
 	}
 	BusErrHandling = 1;
 	//assert(0);

@@ -104,6 +104,8 @@ class GameViewController: NSViewController {
     private var discardDeltaCount: Int = 0
     // Swallow initial noisy deltas after enabling capture
     private var captureSettleUntil: TimeInterval? = nil
+    private var didShowInitialDiskPrompt = false
+    
     
     
     func load(_ url: URL) {
@@ -111,6 +113,129 @@ class GameViewController: NSViewController {
         // print("🐛 GameViewController.load() called with: \(url.lastPathComponent)")
         // print("🐛 Full path: \(url.path)")
         gameScene?.load(url: url)
+    }
+
+    // MARK: - ROM Management
+    func promptForMissingROMFiles(_ missing: [String], completion: @escaping (Bool) -> Void) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.promptForMissingROMFiles(missing, completion: completion)
+            }
+            return
+        }
+        guard let fileSystem = gameScene?.fileSystem else {
+            errorLog("ROM import failed: FileSystem not available", category: .fileSystem)
+            completion(false)
+            return
+        }
+
+        guard !missing.isEmpty else {
+            completion(true)
+            return
+        }
+
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select X68000 ROM Files"
+        openPanel.message = "Select \(missing.joined(separator: " and ")) to import into Documents/X68000."
+        if #available(macOS 11.0, *) {
+            openPanel.allowedContentTypes = [UTType(filenameExtension: "dat") ?? .data]
+        } else {
+            openPanel.allowedFileTypes = ["dat"]
+        }
+        openPanel.allowsMultipleSelection = true
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+
+        var defaultDirectory: URL?
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+        } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+            }
+        } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+        }
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK else {
+                warningLog("ROM selection cancelled or failed", category: .ui)
+                completion(false)
+                return
+            }
+
+            let urls = openPanel.urls
+            var accessed: [URL] = []
+            for url in urls {
+                if url.startAccessingSecurityScopedResource() {
+                    accessed.append(url)
+                }
+            }
+            defer {
+                for url in accessed {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                let imported = try fileSystem.importROMFiles(urls, requiredFilenames: missing)
+                let requiredSet = Set(missing.map { $0.uppercased() })
+                let remaining = requiredSet.subtracting(imported)
+                if !remaining.isEmpty {
+                    let remainingList = remaining.sorted().joined(separator: ", ")
+                    self?.showROMMissingAlert(remainingList: remainingList) { [weak self] in
+                        self?.promptForMissingROMFiles(Array(remaining), completion: completion)
+                    }
+                    return
+                }
+                completion(true)
+            } catch {
+                self?.handleError(error, context: "ROM import")
+                completion(false)
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            openPanel.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let window = self?.view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+                    openPanel.beginSheetModal(for: window, completionHandler: handleResponse)
+                } else {
+                    let response = openPanel.runModal()
+                    handleResponse(response)
+                }
+            }
+        }
+    }
+
+    private func showROMMissingAlert(remainingList: String, completion: @escaping () -> Void) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.showROMMissingAlert(remainingList: remainingList, completion: completion)
+            }
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "ROM Files Required"
+        alert.informativeText = "ROM files still missing: \(remainingList)."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window) { _ in
+                completion()
+            }
+        } else {
+            alert.runModal()
+            completion()
+        }
     }
     
     // MARK: - FDD Management
@@ -130,7 +255,7 @@ class GameViewController: NSViewController {
         ejectFDDFromDrive(1)
     }
     
-    private func openFDDForDrive(_ drive: Int) {
+    private func openFDDForDrive(_ drive: Int, completion: ((Bool) -> Void)? = nil) {
         // Reduced logging for performance
         // print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
         
@@ -197,9 +322,11 @@ class GameViewController: NSViewController {
                     if accessible {
                         url.stopAccessingSecurityScopedResource()
                     }
+                    completion?(true)
                 }
             } else {
                 warningLog("NSOpenPanel cancelled or failed", category: .ui)
+                completion?(false)
             }
         }
     }
@@ -210,92 +337,123 @@ class GameViewController: NSViewController {
     
     // MARK: - HDD Management
     @IBAction func openHDD(_ sender: Any) {
-        // debugLog("Opening HDD dialog", category: .ui)
-        
+        openHDDWithCompletion()
+    }
+
+    private func openHDDWithCompletion(_ completion: ((Bool) -> Void)? = nil) {
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
         
-        // Create UTTypes for HDF file extension with fallback
         var allowedTypes: [UTType] = []
-        
-        if let hdfType = UTType(filenameExtension: "hdf") {
-            allowedTypes.append(hdfType)
-            // debugLog("Added HDF UTType successfully", category: .fileSystem)
-        } else {
-            warningLog("Failed to create HDF UTType, using fallback", category: .fileSystem)
-            // Fallback for unknown extensions - use exported type or data type
+        if let hdfType = UTType(filenameExtension: "hdf") { allowedTypes.append(hdfType) }
+        if let hdmType = UTType(filenameExtension: "hdm") { allowedTypes.append(hdmType) }
+        if let hdsType = UTType(filenameExtension: "hds") { allowedTypes.append(hdsType) }
+        if allowedTypes.isEmpty {
             let exportedType = UTType(exportedAs: "NANKIN.X68000.1.HDD")
             allowedTypes.append(exportedType)
         }
-        
-        
-        // Add generic data type as additional fallback
         allowedTypes.append(.data)
         
-        // For older macOS versions, also set allowedFileTypes as fallback
         if #available(macOS 11.0, *) {
             openPanel.allowedContentTypes = allowedTypes
         } else {
-            openPanel.allowedFileTypes = ["hdf"]
-            // debugLog("Using legacy allowedFileTypes for older macOS", category: .ui)
+            openPanel.allowedFileTypes = ["hdf", "hdm", "hds"]
         }
         
-        // Allow all files as emergency fallback (user can still filter manually)
         openPanel.allowsOtherFileTypes = true
-        
-        // debugLog("HDD NSOpenPanel configured with \(allowedTypes.count) content types, allowsOtherFileTypes: true", category: .ui)
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
         openPanel.treatsFilePackagesAsDirectories = false
         
-        // Set default directory using same logic as FDD
         var defaultDirectory: URL?
-        
-        // Priority 1: User's actual Documents/X68000 folder
         let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
         if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
             defaultDirectory = userDocumentsX68000
-            // Reduced logging for performance
-            // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
-        }
-        // Priority 2: User's Documents folder
-        else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            if FileManager.default.fileExists(atPath: userDocuments.path) {
-                defaultDirectory = userDocuments
-                // Reduced logging for performance
-                // print("🔧 Using user Documents as default: \(userDocuments.path)")
-            }
-        }
-        // Priority 3: Sandboxed Documents folder
-        else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+        } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                  FileManager.default.fileExists(atPath: userDocuments.path) {
+            defaultDirectory = userDocuments
+        } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             defaultDirectory = documentsURL
-            // Reduced logging for performance
-            // print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
         }
         
         if let defaultDir = defaultDirectory {
             openPanel.directoryURL = defaultDir
         }
         
-        // debugLog("NSOpenPanel configured for HDD, showing dialog...", category: .ui)
-        
         openPanel.begin { [weak self] response in
-            // debugLog("HDD NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")", category: .ui)
             if response == .OK, let url = openPanel.url {
                 infoLog("NSOpenPanel selected HDD file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
-                // debugLog("HDD Security-scoped resource access: \(accessible)", category: .fileSystem)
-                
                 DispatchQueue.main.async {
                     self?.gameScene?.loadHDD(url: url)
                     if accessible {
                         url.stopAccessingSecurityScopedResource()
                     }
+                    completion?(true)
                 }
             } else {
                 warningLog("HDD NSOpenPanel cancelled or failed", category: .ui)
+                completion?(false)
             }
+        }
+    }
+
+    func promptForBootMediaIfNeeded() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.promptForBootMediaIfNeeded()
+            }
+            return
+        }
+
+        guard !didShowInitialDiskPrompt else { return }
+        let hasFDD0 = X68000_IsFDDReady(0) != 0
+        let hasFDD1 = X68000_IsFDDReady(1) != 0
+        let hasHDD = X68000_IsHDDReady() != 0
+        guard !hasFDD0 && !hasFDD1 && !hasHDD else { return }
+
+        didShowInitialDiskPrompt = true
+
+        let alert = NSAlert()
+        alert.messageText = "起動ディスクを選択してください"
+        alert.informativeText = "記録メディアがマウントされていません。FDD 0/1 または HDD を選んでください。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "FDD 0")
+        alert.addButton(withTitle: "FDD 1")
+        alert.addButton(withTitle: "HDD")
+        alert.addButton(withTitle: "キャンセル")
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            switch response {
+            case .alertFirstButtonReturn:
+                self?.openFDDForDrive(0) { success in
+                    if success { self?.resetAfterBootMediaInsert() }
+                }
+            case .alertSecondButtonReturn:
+                self?.openFDDForDrive(1) { success in
+                    if success { self?.resetAfterBootMediaInsert() }
+                }
+            case .alertThirdButtonReturn:
+                self?.openHDDWithCompletion { success in
+                    if success { self?.resetAfterBootMediaInsert() }
+                }
+            default:
+                break
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            let response = alert.runModal()
+            handleResponse(response)
+        }
+    }
+
+    private func resetAfterBootMediaInsert() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.gameScene?.resetSystem()
         }
     }
     
