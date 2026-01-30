@@ -357,6 +357,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         resetItem.target = self
         systemMenu.addItem(resetItem)
 
+        let midiDelayItem = NSMenuItem(title: "MIDI Output Delay...", action: #selector(setMIDIDelay(_:)), keyEquivalent: "")
+        midiDelayItem.target = self
+        systemMenu.addItem(midiDelayItem)
+
+        let deleteIplItem = NSMenuItem(title: "Delete IPLROM.DAT...", action: #selector(deleteIPLROM(_:)), keyEquivalent: "")
+        deleteIplItem.target = self
+        deleteIplItem.identifier = NSUserInterfaceItemIdentifier("ROM-delete-IPL")
+        systemMenu.addItem(deleteIplItem)
+
         // Serial Communication submenu
         systemMenu.addItem(NSMenuItem.separator())
         let serialMenuItem = NSMenuItem(title: "Serial Communication", action: nil, keyEquivalent: "")
@@ -1104,6 +1113,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         scene.osdUpdateSuperimpose()
         updateCRTMenuCheckmarks()
     }
+
+    private func romFileURL(_ filename: String) -> URL? {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return documentsURL.appendingPathComponent("X68000").appendingPathComponent(filename)
+    }
+
+    private func showSimpleAlert(title: String, message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            if let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+                alert.beginSheetModal(for: window) { _ in }
+            } else {
+                alert.runModal()
+            }
+        }
+    }
     @objc func adjustBGVideoAlpha(_ sender: Any?) {
         guard let scene = gameViewController?.gameScene else { return }
         let cur = scene.getSuperimposeAlpha()
@@ -1629,6 +1660,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @IBAction func resetSystem(_ sender: Any) {
         print("🐛 AppDelegate.resetSystem called")
         gameViewController?.resetSystem(sender)
+    }
+
+    @IBAction func setMIDIDelay(_ sender: Any) {
+        let current = gameViewController?.gameScene?.getMIDIOutputDelayMs()
+            ?? UserDefaults.standard.double(forKey: "MIDIOutputDelayMs")
+
+        let alert = NSAlert()
+        alert.messageText = "MIDI Output Delay (ms)"
+        alert.informativeText = "内蔵FMとのタイミング調整用。0で遅延なし。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+
+        let inputField = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 24))
+        inputField.stringValue = String(format: "%.0f", current)
+        alert.accessoryView = inputField
+
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+
+        let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(text) else {
+            showSimpleAlert(title: "MIDI Output Delay", message: "数値を入力してください。")
+            return
+        }
+
+        let clamped = max(0.0, value)
+        if let scene = gameViewController?.gameScene {
+            scene.setMIDIOutputDelayMs(clamped)
+        } else {
+            UserDefaults.standard.set(clamped, forKey: "MIDIOutputDelayMs")
+        }
+    }
+
+    @IBAction func deleteIPLROM(_ sender: Any) {
+        guard let romURL = romFileURL("IPLROM.DAT") else {
+            showSimpleAlert(title: "Delete IPLROM.DAT", message: "Documents/X68000 の場所を取得できませんでした。")
+            return
+        }
+
+        if !FileManager.default.fileExists(atPath: romURL.path) {
+            showSimpleAlert(title: "Delete IPLROM.DAT", message: "IPLROM.DAT が見つかりません。")
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Delete IPLROM.DAT?"
+        alert.informativeText = "削除すると次回起動時にROMの再指定が必要です。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .alertFirstButtonReturn else { return }
+            do {
+                try FileManager.default.removeItem(at: romURL)
+                FileSystem.clearFileSearchCache()
+                infoLog("Deleted IPLROM.DAT at \(romURL.path)", category: .fileSystem)
+                self.showSimpleAlert(title: "Delete IPLROM.DAT", message: "IPLROM.DAT を削除しました。再起動時にROMを再指定してください。")
+            } catch {
+                errorLog("Failed to delete IPLROM.DAT", error: error, category: .fileSystem)
+                self.showSimpleAlert(title: "Delete IPLROM.DAT", message: "削除に失敗しました。")
+            }
+        }
+
+        if let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            let response = alert.runModal()
+            handleResponse(response)
+        }
     }
     
     // MARK: - Mouse Mode Actions

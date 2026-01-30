@@ -37,6 +37,7 @@ static void wm_opm(DWORD addr, BYTE val);
 static void wm_e82(DWORD addr, BYTE val);
 static void wm_nop(DWORD addr, BYTE val);
 static void wm_scsi_dummy(DWORD addr, BYTE val);
+static void wm_midi(DWORD addr, BYTE val);
 
 static BYTE rm_main(DWORD addr);
 static BYTE rm_font(DWORD addr);
@@ -46,6 +47,7 @@ static BYTE rm_opm(DWORD addr);
 static BYTE rm_e82(DWORD addr);
 static BYTE rm_buserr(DWORD addr);
 static BYTE rm_scsi_dummy(DWORD addr);
+static BYTE rm_midi(DWORD addr);
 
 void cpu_setOPbase24(DWORD addr);
 void Memory_ErrTrace(void);
@@ -61,7 +63,7 @@ BYTE (*MemReadTable[])(DWORD) = {
 	TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read,
 	CRTC_Read, rm_e82, DMA_Read, rm_nop, MFP_Read, RTC_Read, rm_nop, SysPort_Read,
 	rm_opm, ADPCM_Read, FDC_Read, SASI_Read, SCC_Read, PIA_Read, IOC_Read, rm_nop,
-	SCSI_Read, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy,
+	SCSI_Read, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_scsi_dummy, rm_midi,
 	BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read, BG_Read,
 	rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr, rm_buserr,
 	SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read, SRAM_Read,
@@ -97,7 +99,7 @@ void (*MemWriteTable[])(DWORD, BYTE) = {
 	TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write, TVRAM_Write,
 	CRTC_Write, wm_e82, DMA_Write, wm_nop, MFP_Write, RTC_Write, wm_nop, SysPort_Write,
 	wm_opm, ADPCM_Write, FDC_Write, SASI_Write, SCC_Write, PIA_Write, IOC_Write, wm_nop,
-	SCSI_Write, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy,
+	SCSI_Write, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_scsi_dummy, wm_midi,
 	BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write, BG_Write,
 	wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr, wm_buserr,
 	SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write, SRAM_Write,
@@ -518,6 +520,28 @@ rm_scsi_dummy(DWORD addr)
 {
 	(void)addr;
 	return 0xff;
+}
+
+// MIDI board (CZ-6BM1) registers live at 0xEAF A01-0xEAF A0F.
+// Keep other addresses in this block as dummy reads to preserve SCSI probing behavior.
+static BYTE
+rm_midi(DWORD addr)
+{
+	if (addr >= 0x00eafa01 && addr < 0x00eafa10) {
+		return MIDI_Read(addr);
+	}
+	return 0xff;
+}
+
+static void
+wm_midi(DWORD addr, BYTE val)
+{
+	if (addr >= 0x00eafa01 && addr < 0x00eafa10) {
+		MIDI_Write(addr, val);
+		return;
+	}
+	(void)addr;
+	(void)val;
 }
 
 // Dummy write for SCSI-related address range (0xea2000-0xeaffff)

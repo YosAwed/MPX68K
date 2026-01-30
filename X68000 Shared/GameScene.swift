@@ -116,6 +116,9 @@ class GameScene: SKScene {
     
     // HDD auto-save removed - direct writes implemented
     private var midiController: MIDIController = MIDIController()
+    private let midiDelayDefaultsKey = "MIDIOutputDelayMs"
+    private let midiDefaultDelayMs: Double = 300.0
+    private var midiOutputDelayMs: Double = 0.0
     
     private var devices: [X68Device] = []
     var fileSystem: FileSystem?
@@ -437,6 +440,8 @@ class GameScene: SKScene {
     // MARK: - System Management
     func resetSystem() {
         infoLog("GameScene.resetSystem() called - performing manual reset", category: .emulation)
+        // Persist SRAM before reset so SWITCH changes survive disk swaps/resets.
+        fileSystem?.saveSRAM()
         X68000_Reset()
         infoLog("System reset completed", category: .emulation)
     }
@@ -937,6 +942,7 @@ class GameScene: SKScene {
         view.preferredFramesPerSecond = 60  // Fixed frame rate for emulator pacing
         
         self.setUpScene()
+        loadMIDIOutputDelay()
         
         // Screen rotation will be applied after emulator initialization in setUpScene()
         
@@ -1207,6 +1213,7 @@ class GameScene: SKScene {
     }
     
     var d = [UInt8](repeating: 0xff, count: 768 * 512 * 4)
+    private var frameBufferByteCount: Int = 768 * 512 * 4
     var w: Int = 1
     var h: Int = 1
     
@@ -1250,6 +1257,9 @@ class GameScene: SKScene {
             // Step emulator forward one frame
             // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
             X68000_Update(self.clockMHz, 0)
+
+            flushMIDIBuffer()
+            midiController.flushDelayedEvents()
             
             fixedStepAccumulator -= targetFrameTime
             newFrameReady = true
@@ -1261,10 +1271,23 @@ class GameScene: SKScene {
             guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
                 return
             }
-            
+
+            let requiredBytes = w * h * 4
+            if requiredBytes > d.count {
+                d = [UInt8](repeating: 0x00, count: requiredBytes)
+            }
+            frameBufferByteCount = requiredBytes
+
             X68000_GetImage(&d)
             updateScreenTexture()
         }
+    }
+
+    private func flushMIDIBuffer() {
+        let size = X68000_GetMIDIBufferSize()
+        guard size > 0 else { return }
+        guard let buffer = X68000_GetMIDIBuffer() else { return }
+        midiController.Send(buffer, Int(size))
     }
     
     private func updateScreenTexture() {
@@ -1274,10 +1297,33 @@ class GameScene: SKScene {
         // Fall back to standard texture creation (SpriteKit doesn't expose Metal device directly)
         fallbackTextureUpdate(cgsize)
     }
+
+    func setMIDIOutputDelayMs(_ ms: Double, persist: Bool = true) {
+        let clamped = max(0.0, ms)
+        midiOutputDelayMs = clamped
+        midiController.setOutputDelayMs(clamped)
+        if persist {
+            userDefaults.set(clamped, forKey: midiDelayDefaultsKey)
+        }
+        infoLog("MIDI output delay set to \(clamped) ms", category: .audio)
+    }
+
+    func getMIDIOutputDelayMs() -> Double {
+        return midiOutputDelayMs
+    }
+
+    private func loadMIDIOutputDelay() {
+        if let value = userDefaults.object(forKey: midiDelayDefaultsKey) as? NSNumber {
+            setMIDIOutputDelayMs(value.doubleValue, persist: false)
+        } else {
+            setMIDIOutputDelayMs(midiDefaultDelayMs, persist: false)
+        }
+    }
     
     private func fallbackTextureUpdate(_ cgsize: CGSize) {
         // Fallback to old method if Metal fails
-        let tex = SKTexture(data: Data(d), size: cgsize, flipped: true)
+        let byteCount = min(frameBufferByteCount, d.count)
+        let tex = SKTexture(data: Data(d.prefix(byteCount)), size: cgsize, flipped: true)
         tex.filteringMode = .nearest  // Pixel art filtering
         updateSpriteWithTexture(tex, size: cgsize)
     }

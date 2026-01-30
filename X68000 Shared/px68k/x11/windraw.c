@@ -155,6 +155,13 @@ void WinDraw_ChangeSize(void)
 	WinDraw_InitWindowSize((WORD)WindowX, (WORD)WindowY);
 	StatBar_Show(Config.WindowFDDStat);
 	Mouse_ChangePos();
+
+	// Clear render buffer on mode/size change to avoid stale garbage frames.
+	if (ScrBuf) {
+		memset(ScrBuf, 0, 800 * 600 * 2);
+	}
+	Draw_DrawFlag = 1;
+	TVRAM_SetAllDirty();
 }
 
 //static int dispflag = 0;
@@ -906,5 +913,4 @@ void WinDraw_DrawLine(void)
 		bzero(&ScrBuf[adr], TextDotX * 2);
 	}
 }
-
 

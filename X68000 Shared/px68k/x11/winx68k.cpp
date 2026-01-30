@@ -754,7 +754,8 @@ void X68000_Quit(){
 }
 
 void X68000_GetImage( unsigned char* data ) {
-    if ( !DispFrame ) {
+    // Draw when frame is not skipped, or when something actually changed.
+    if ( !DispFrame || Draw_DrawFlag ) {
         WinDraw_Draw(data);
     } else {
         // printf("DispFrame\n");

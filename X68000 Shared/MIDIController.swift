@@ -26,7 +26,7 @@ extension MIDIPacketList {
         // CoreMIDI supports up to 65536 bytes, but in practical tests it seems
         // certain devices accept much less than that at a time. Unless you're
         // turning on / off ALL notes at once, 256 bytes should be plenty.
-        assert(totalBytesInAllEvents < 256,
+        assert(totalBytesInAllEvents <= 256,
                "The packet list was too long! Split your data into multiple lists.")
         
         // Allocate space for a certain number of bytes
@@ -57,6 +57,22 @@ class MIDIController {
     var midiDst0 : MIDIEndpointRef = 0
     var midiDst1 : MIDIEndpointRef = 0
     var midiDst2 : MIDIEndpointRef = 0
+    private var midiDests: [MIDIEndpointRef] = []
+    private var outputDelayMs: Double = 0.0
+
+    private struct PendingEvent {
+        let dueTime: CFTimeInterval
+        let data: [UInt8]
+    }
+    private var pendingEvents: [PendingEvent] = []
+    private var pendingIndex: Int = 0
+
+    private var runningStatus: UInt8? = nil
+    private var pendingStatus: UInt8? = nil
+    private var pendingExpected: Int = 0
+    private var pendingData: [UInt8] = []
+    private var inSysEx: Bool = false
+    private var sysExBuffer: [UInt8] = []
     
     
     init() {
@@ -135,68 +151,183 @@ class MIDIController {
         self.GetSource()
     }
     
-    func Send(_ buffer : UnsafeMutablePointer<UInt8>?, _ count : Int  )
-    {
-        var i = 0
-        while ( i < count ) {
-#if false
-        var packets = MIDIPacketList(midiEvents: [[buffer![i]]])
-MIDISend(outPortRef, midiDst0, &packets)
-MIDISend(outPortRef2, midiDst1, &packets)
-            
-#else
-            let cmd : UInt8 = buffer![i] & 0xf0;
-//            print("SEND \(cmd) \(outPortRef) \(midiDst0) \(outPortRef2) \(midiDst1)")
-            switch(cmd) {
-            case 0xC0...0xD0:   // 2bytes
-                var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1]]])
-                if ( midiDst0 != 0 ) {
-                    MIDISend(outPortRef, midiDst0, &packets)
+    func Send(_ buffer: UnsafeMutablePointer<UInt8>?, _ count: Int) {
+        sendStream(buffer, count)
+    }
+
+    func sendStream(_ buffer: UnsafePointer<UInt8>?, _ count: Int) {
+        guard let buffer, count > 0 else { return }
+        for i in 0..<count {
+            handleIncomingByte(buffer[i])
+        }
+    }
+
+    private func handleIncomingByte(_ byte: UInt8) {
+        if inSysEx {
+            if byte >= 0xF8 { // realtime can interleave with SysEx
+                sendEvent([byte])
+                return
+            }
+            sysExBuffer.append(byte)
+            if byte == 0xF7 {
+                sendEvent(sysExBuffer)
+                sysExBuffer.removeAll(keepingCapacity: true)
+                inSysEx = false
+            }
+            return
+        }
+
+        if byte >= 0x80 {
+            if byte == 0xF0 {
+                inSysEx = true
+                sysExBuffer.removeAll(keepingCapacity: true)
+                sysExBuffer.append(byte)
+                pendingStatus = nil
+                pendingExpected = 0
+                pendingData.removeAll(keepingCapacity: true)
+                return
+            }
+            if byte >= 0xF8 {
+                sendEvent([byte])
+                return
+            }
+            if byte >= 0xF0 {
+                runningStatus = nil
+                pendingStatus = byte
+                pendingExpected = expectedDataLength(for: byte)
+                pendingData.removeAll(keepingCapacity: true)
+                if pendingExpected == 0 {
+                    sendEvent([byte])
+                    pendingStatus = nil
+                    pendingExpected = 0
                 }
-                if ( midiDst1 != 0 ) {
-                    MIDISend(outPortRef2, midiDst1, &packets)
-                }
-                i += 1
-            case 0x80...0xB0:   // 3bytes
-                //                if ( cmd == 0x90 ) && ( buffer![i+2] == 0x00) {
-                //                    // patch!
-                //                    var packets = MIDIPacketList(midiEvents: [[0x80,buffer![i+1],buffer![i+2]]])
-                //                    MIDISend(outPortRef, midiDst0, &packets)
-                //                } else {
-                
-                var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1],buffer![i+2]]])
-                if ( midiDst0 != 0 ) {
-                    MIDISend(outPortRef, midiDst0, &packets)
-                }
-                if ( midiDst1 != 0 ) {
-                    MIDISend(outPortRef2, midiDst1, &packets)
-                }
-                //                }
-                i += 2
-            case 0xE0:
-                var packets = MIDIPacketList(midiEvents: [[buffer![i],buffer![i+1],buffer![i+2]]])
-                if ( midiDst0 != 0 ) {
-                    MIDISend(outPortRef, midiDst0, &packets)
-                }
-                if ( midiDst1 != 0 ) {
-                    MIDISend(outPortRef2, midiDst1, &packets)
-                }
-                i += 2
-            default:
-                var packets = MIDIPacketList(midiEvents: [[buffer![i]]])
-                if ( midiDst0 != 0 ) {
-                    MIDISend(outPortRef, midiDst0, &packets)
-                }
-                if ( midiDst1 != 0 ) {
-                    MIDISend(outPortRef2, midiDst1, &packets)
+                return
+            }
+            runningStatus = byte
+            pendingStatus = byte
+            pendingExpected = expectedDataLength(for: byte)
+            pendingData.removeAll(keepingCapacity: true)
+            return
+        }
+
+        if pendingStatus == nil {
+            if let running = runningStatus {
+                pendingStatus = running
+                pendingExpected = expectedDataLength(for: running)
+                pendingData.removeAll(keepingCapacity: true)
+            } else {
+                return
+            }
+        }
+
+        pendingData.append(byte)
+        if pendingData.count >= pendingExpected {
+            if let status = pendingStatus {
+                var event = [status]
+                event.append(contentsOf: pendingData.prefix(pendingExpected))
+                sendEvent(event)
+                if status >= 0xF0 {
+                    runningStatus = nil
                 }
             }
-#endif
-            i += 1
+            pendingStatus = nil
+            pendingExpected = 0
+            pendingData.removeAll(keepingCapacity: true)
         }
-        //var packets = MIDIPacketList(midiEvents: [[0x90, 0x3f, 0x78]])
-        
-        //    MIDIReceived(midiDst, &packets)
+    }
+
+    private func expectedDataLength(for status: UInt8) -> Int {
+        if status >= 0xF0 {
+            switch status {
+            case 0xF1: return 1
+            case 0xF2: return 2
+            case 0xF3: return 1
+            case 0xF6: return 0
+            default: return 0
+            }
+        }
+        let upper = status & 0xF0
+        if upper == 0xC0 || upper == 0xD0 {
+            return 1
+        }
+        return 2
+    }
+
+    private func sendEvent(_ event: [UInt8]) {
+        guard !event.isEmpty else { return }
+
+        if outputDelayMs > 0.0 {
+            let due = CFAbsoluteTimeGetCurrent() + (outputDelayMs / 1000.0)
+            pendingEvents.append(PendingEvent(dueTime: due, data: event))
+            return
+        }
+
+        if event.count <= 255 {
+            var packets = MIDIPacketList(midiEvents: [event])
+            sendPackets(&packets)
+            return
+        }
+
+        var offset = 0
+        while offset < event.count {
+            let end = min(offset + 255, event.count)
+            let slice = Array(event[offset..<end])
+            var packets = MIDIPacketList(midiEvents: [slice])
+            sendPackets(&packets)
+            offset = end
+        }
+    }
+
+    private func sendPackets(_ packets: inout MIDIPacketList) {
+        if !midiDests.isEmpty {
+            for dest in midiDests {
+                MIDISend(outPortRef, dest, &packets)
+            }
+            return
+        }
+        if midiDst0 != 0 {
+            MIDISend(outPortRef, midiDst0, &packets)
+        }
+        if midiDst1 != 0 {
+            MIDISend(outPortRef2, midiDst1, &packets)
+        }
+    }
+
+    func setOutputDelayMs(_ ms: Double) {
+        outputDelayMs = max(0.0, ms)
+    }
+
+    func flushDelayedEvents(_ now: CFTimeInterval = CFAbsoluteTimeGetCurrent()) {
+        guard pendingIndex < pendingEvents.count else { return }
+        while pendingIndex < pendingEvents.count {
+            let item = pendingEvents[pendingIndex]
+            if item.dueTime > now {
+                break
+            }
+            sendEventImmediate(item.data)
+            pendingIndex += 1
+        }
+        if pendingIndex > 256 {
+            pendingEvents.removeFirst(pendingIndex)
+            pendingIndex = 0
+        }
+    }
+
+    private func sendEventImmediate(_ event: [UInt8]) {
+        guard !event.isEmpty else { return }
+        if event.count <= 255 {
+            var packets = MIDIPacketList(midiEvents: [event])
+            sendPackets(&packets)
+            return
+        }
+        var offset = 0
+        while offset < event.count {
+            let end = min(offset + 255, event.count)
+            let slice = Array(event[offset..<end])
+            var packets = MIDIPacketList(midiEvents: [slice])
+            sendPackets(&packets)
+            offset = end
+        }
     }
     
     func MIDINotifyBlock(midiNotification: UnsafePointer<MIDINotification>) {
@@ -253,6 +384,7 @@ MIDISend(outPortRef2, midiDst1, &packets)
         midiDst0 = 0
         midiDst1 = 0
         midiDst2 = 0
+        midiDests.removeAll(keepingCapacity: true)
 
         let n = MIDIGetNumberOfDestinations()
         for  i in 0..<n {
@@ -267,6 +399,7 @@ MIDISend(outPortRef2, midiDst1, &packets)
                 text += str!.takeUnretainedValue() as String
                 str!.release()
                 debugLog("MIDI device: \(text)", category: .network)
+                midiDests.append(endPointRef)
                 if ( i == 0 ) {
                     debugLog("Set! 0", category: .network)
                     midiDst0 = endPointRef
@@ -281,6 +414,10 @@ MIDISend(outPortRef2, midiDst1, &packets)
                     MIDISend(outPortRef2, endPointRef, &packets)
                 }
             }
+        }
+
+        if midiDests.isEmpty {
+            warningLog("No MIDI destinations found", category: .network)
         }
         
     }
