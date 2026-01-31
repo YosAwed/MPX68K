@@ -262,16 +262,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         displayMenu.addItem(NSMenuItem.separator())
 
-        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "m")
-        mouseToggleItem.keyEquivalentModifierMask = [.command, .shift]
-        mouseToggleItem.target = self
-        mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
-        displayMenu.addItem(mouseToggleItem)
-
-        let inputToggleItem = NSMenuItem(title: "Toggle Input Mode", action: #selector(toggleInputMode(_:)), keyEquivalent: "")
-        inputToggleItem.target = self
-        displayMenu.addItem(inputToggleItem)
-
         let crtSettingsItem = NSMenuItem(title: "CRT Settings...", action: #selector(showCRTSettings(_:)), keyEquivalent: ",")
         crtSettingsItem.keyEquivalentModifierMask = [.command, .shift]
         crtSettingsItem.target = self
@@ -356,6 +346,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let resetItem = NSMenuItem(title: "Reset System", action: #selector(resetSystem(_:)), keyEquivalent: "")
         resetItem.target = self
         systemMenu.addItem(resetItem)
+
+        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "m")
+        mouseToggleItem.keyEquivalentModifierMask = [.command, .shift]
+        mouseToggleItem.target = self
+        mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
+        systemMenu.addItem(mouseToggleItem)
+
+        let inputToggleItem = NSMenuItem(title: "Toggle Input Mode", action: #selector(toggleInputMode(_:)), keyEquivalent: "")
+        inputToggleItem.target = self
+        systemMenu.addItem(inputToggleItem)
 
         let midiDelayItem = NSMenuItem(title: "MIDI Output Delay...", action: #selector(setMIDIDelay(_:)), keyEquivalent: "")
         midiDelayItem.target = self
@@ -1779,17 +1779,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func updateMouseMenuCheckmark() {
         guard let mainMenu = NSApplication.shared.mainMenu else { return }
         
-        // Find Display menu and update mouse menu item
         for menuItem in mainMenu.items {
-            if let submenu = menuItem.submenu, submenu.title == "Display" {
-                for item in submenu.items {
-                    if item.identifier?.rawValue == "Display-mouse-mode" || item.title.contains("Use X68000 Mouse") {
-                        item.state = isMouseCaptureEnabled ? .on : .off
-                        debugLog("Updated mouse menu checkmark: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
-                        break
-                    }
+            guard let submenu = menuItem.submenu else { continue }
+            for item in submenu.items {
+                if item.identifier?.rawValue == "Display-mouse-mode" || item.title.contains("Use X68000 Mouse") {
+                    item.state = isMouseCaptureEnabled ? .on : .off
+                    debugLog("Updated mouse menu checkmark: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+                    return
                 }
-                break
             }
         }
     }
