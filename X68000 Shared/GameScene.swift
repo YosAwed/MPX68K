@@ -1272,14 +1272,22 @@ class GameScene: SKScene {
                 return
             }
 
+            let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
+            let frameDirty = (X68000_IsFrameDirty() != 0)
+            let needsTextureUpdate = screenSizeChanged || frameDirty || spr.parent == nil
+
             let requiredBytes = w * h * 4
             if requiredBytes > d.count {
                 d = [UInt8](repeating: 0x00, count: requiredBytes)
             }
             frameBufferByteCount = requiredBytes
 
-            X68000_GetImage(&d)
-            updateScreenTexture()
+            if needsTextureUpdate {
+                X68000_GetImage(&d)
+                updateScreenTexture()
+            } else {
+                updateScreenEffectsWithoutNewTexture()
+            }
         }
     }
 
@@ -1408,6 +1416,19 @@ class GameScene: SKScene {
         spr.colorBlendFactor = 0.0
 
         // Update overlays content when enabled
+        updateNoiseOverlay()
+    }
+
+    private func updateScreenEffectsWithoutNewTexture() {
+        guard let texture = spr.texture else { return }
+        let res = vector_float2(Float(w), Float(h))
+        crtFilter.frameDidUpdate(with: texture, resolution: res, dt: Float(targetFrameTime))
+        syncOverlaysTransformToSprite()
+        syncChromaticTransforms()
+        updatePersistenceOverlay(with: texture)
+        updateChromaticOverlayTextures(texture)
+        applySuperimposeUniforms()
+        spr.colorBlendFactor = 0.0
         updateNoiseOverlay()
     }
 

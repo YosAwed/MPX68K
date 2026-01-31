@@ -762,6 +762,11 @@ void X68000_GetImage( unsigned char* data ) {
     }
 }
 
+const int X68000_IsFrameDirty()
+{
+    return Draw_DrawFlag ? 1 : 0;
+}
+
 // Accumulators for sub-pixel mouse deltas routed via X68000_Mouse_Set
 static float s_mouseAccX = 0.0f;
 static float s_mouseAccY = 0.0f;

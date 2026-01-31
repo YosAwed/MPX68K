@@ -225,6 +225,11 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 		p6logd("TextDotY: %d\n", TextDotY);
 	}
 
+	// Skip expensive conversion when nothing changed.
+	if (!Draw_DrawFlag) {
+		return;
+	}
+
 
 
 
@@ -913,4 +918,3 @@ void WinDraw_DrawLine(void)
 		bzero(&ScrBuf[adr], TextDotX * 2);
 	}
 }
-

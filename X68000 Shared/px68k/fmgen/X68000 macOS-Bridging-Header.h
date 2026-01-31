@@ -10,6 +10,7 @@ unsigned char* X68000_GetDiskImageBufferPointer( const long drive, const long si
 void X68000_Reset();
 void X68000_Quit();
 void X68000_GetImage( unsigned char* data );
+const int X68000_IsFrameDirty(void);
 void X68000_AudioCallBack(void* buffer, const unsigned int sample);
 void X68000_Key_Down( unsigned int vkcode );
 void X68000_Key_Up( unsigned int vkcode );
