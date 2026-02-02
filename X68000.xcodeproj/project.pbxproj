@@ -86,6 +86,7 @@
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
 		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
 		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
+		53D1C1A72F1B7E2C00BEEF01 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */; };
 		53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */; };
 		53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */; };
 		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
@@ -276,6 +277,7 @@
 			files = (
 				53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */,
 				53A861212E4376CB0056E4DE /* Crypto in Frameworks */,
+				53D1C1A72F1B7E2C00BEEF01 /* YouTubeKit in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -563,6 +565,7 @@
 			packageProductDependencies = (
 				53A861202E4376CB0056E4DE /* Crypto */,
 				53A861222E4376CB0056E4DE /* _CryptoExtras */,
+				53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */,
 			);
 			productName = "X68000 macOS";
 			productReference = 07F863BC242F93EA00CBB224 /* X68000.app */;
@@ -595,6 +598,7 @@
 			mainGroup = 07F8639C242F93E800CBB224;
 			packageReferences = (
 				53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */,
+				53D1C1A52F1B7E2C00BEEF01 /* XCRemoteSwiftPackageReference "YouTubeKit" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 07F863AB242F93EA00CBB224 /* Products */;
@@ -1005,6 +1009,14 @@
 				minimumVersion = 3.14.0;
 			};
 		};
+		53D1C1A52F1B7E2C00BEEF01 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alexeichhorn/YouTubeKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1017,6 +1029,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */;
 			productName = _CryptoExtras;
+		};
+		53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 53D1C1A52F1B7E2C00BEEF01 /* XCRemoteSwiftPackageReference "YouTubeKit" */;
+			productName = YouTubeKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

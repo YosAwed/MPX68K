@@ -1864,6 +1864,18 @@ class GameScene: SKScene {
             errorLog("Failed to load background video", error: error, category: .ui)
         }
     }
+    func loadBackgroundVideoFromYouTube(url: URL) async {
+        errorLog("GameScene: Loading YouTube video from \(url.absoluteString)", category: .ui)
+        do {
+            try await superManager.loadVideoFromYouTube(url: url)
+            errorLog("GameScene: YouTube video loading initiated successfully", category: .ui)
+        } catch {
+            errorLog("Failed to load YouTube video", error: error, category: .ui)
+            await MainActor.run {
+                self.showOSD("YouTube video load failed")
+            }
+        }
+    }
     func removeBackgroundVideo() { superManager.removeVideo() }
     func setSuperimposeEnabled(_ on: Bool) {
         superManager.setEnabled(on)

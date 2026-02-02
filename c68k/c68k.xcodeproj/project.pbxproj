@@ -179,7 +179,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2620;
 				ORGANIZATIONNAME = GOROman;
 				TargetAttributes = {
 					073F76F024323762005B1F18 = {
@@ -403,8 +403,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
-				ARCHS = "arm64 x86_64";
-                MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)_DEBUG";
 				SDKROOT = macosx;
@@ -424,8 +423,7 @@
 					HAVE_C68K,
 					C68K_NO_JUMP_TABLE,
 				);
-				ARCHS = "arm64 x86_64";
-                MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
