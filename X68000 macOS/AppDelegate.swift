@@ -9,6 +9,7 @@
 import Cocoa
 import UniformTypeIdentifiers
 import os.log
+import SwiftUI
 
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -589,9 +590,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: - Show CRT Settings Panel
     @objc func showCRTSettings(_ sender: Any?) {
-        if let scene = gameViewController?.gameScene {
-            scene.toggleCRTSettingsPanel()
+        guard let scene = gameViewController?.gameScene else { return }
+
+        // Check if settings window is already open
+        if let windowController = scene.crtSettingsWindowController as? CRTSettingsWindowController {
+            windowController.window?.makeKeyAndOrderFront(nil)
+            return
         }
+
+        // Create new SwiftUI settings window
+        let current = scene.currentCRTSettings()
+        let preset = scene.crtPreset
+        let windowController = CRTSettingsWindowController(
+            gameScene: scene,
+            settings: current,
+            preset: preset
+        )
+        scene.crtSettingsWindowController = windowController
+        windowController.show()
     }
 
     // Debug toggle handlers removed

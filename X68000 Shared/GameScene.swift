@@ -132,8 +132,11 @@ class GameScene: SKScene {
 
     // CRT display filter manager
     private let crtFilter = CRTFilterManager()
-    private var crtPreset: CRTPreset = .off
+    internal var crtPreset: CRTPreset = .off  // Made internal for AppDelegate access
     var crtOverlay: CRTOverlay?
+    #if os(macOS)
+    var crtSettingsWindowController: AnyObject?  // NSWindowController for SwiftUI CRT settings
+    #endif
     // Superimpose (background video)
     private let superManager = SuperimposeManager()
     
@@ -505,6 +508,13 @@ class GameScene: SKScene {
     }
 
     func toggleCRTSettingsPanel() {
+        #if os(macOS)
+        // On macOS, delegate to AppDelegate which has access to CRTSettingsWindowController
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.showCRTSettings(nil)
+        }
+        #else
+        // Use legacy SpriteKit overlay on iOS
         if let overlay = crtOverlay {
             overlay.removeFromParent()
             crtOverlay = nil
@@ -513,7 +523,6 @@ class GameScene: SKScene {
         let overlay = CRTOverlay()
         overlay.position = CGPoint(x: 0, y: 0)
         overlay.zPosition = 999
-        // Collect current settings (from preset applied in filter)
         let current = currentCRTSettings()
         overlay.configure(with: current)
         overlay.onValueChanged = { [weak self] key, value in
@@ -537,9 +546,10 @@ class GameScene: SKScene {
         }
         addChild(overlay)
         crtOverlay = overlay
+        #endif
     }
 
-    private func currentCRTSettings() -> CRTSettings {
+    func currentCRTSettings() -> CRTSettings {
         // Try to return current filter settings if available; otherwise from preset
         if crtPreset == .custom {
             return crtFilter.settings
