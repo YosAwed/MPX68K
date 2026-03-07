@@ -11,6 +11,7 @@ void SASI_SetImageSize(int drive, DWORD size_bytes);
 DWORD SASI_GetImageSize(int drive);
 BYTE SASI_IsDirty(int drive);
 void SASI_ClearDirtyFlag(int drive);
+void SASI_SetDirtyFlag(int drive);
 
 extern char SASI_Name[16][MAX_PATH];
 

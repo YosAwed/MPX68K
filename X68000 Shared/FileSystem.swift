@@ -74,7 +74,9 @@ public class DiskStateManager {
     
     // Swift側でマウント情報を記録（C関数からファイル名が取得できない場合の代替）
     private var mountedFDDFiles: [Int: URL] = [:]  // drive -> URL
+    private var mountedFDDBookmarks: [Int: Data] = [:]
     private var mountedHDDFile: URL? = nil
+    private var mountedHDDBookmark: Data? = nil
 
     // Program-driven eject guard: briefly reinsert restored FDDs if ejected at boot
     private var fddReinsertProtection: [Int: (path: String, attempts: Int)] = [:]
@@ -127,9 +129,8 @@ public class DiskStateManager {
     
     // 現在の状態をUserDefaultsに永続保存
     func saveCurrentState() {
-        // 内部で現在の状態をキャプチャして保存
-        // このメソッドは内部使用のため、GameSceneが不要
-        infoLog("saveCurrentState called - needs GameScene context", category: .fileSystem)
+        let state = createCurrentState()
+        saveState(state)
     }
     
     // 指定された状態をUserDefaultsに保存
@@ -187,23 +188,35 @@ public class DiskStateManager {
     }
     
     // Swift側でのマウント情報記録
-    public func recordFDDMount(_ url: URL, drive: Int) {
+    public func recordFDDMount(_ url: URL, drive: Int, bookmarkData: Data? = nil) {
         mountedFDDFiles[drive] = url
+        if let bookmarkData = bookmarkData {
+            mountedFDDBookmarks[drive] = bookmarkData
+        } else if let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            mountedFDDBookmarks[drive] = data
+        }
         debugLog("Recorded FDD mount: drive \(drive) -> \(url.lastPathComponent)", category: .fileSystem)
     }
     
-    public func recordHDDMount(_ url: URL) {
+    public func recordHDDMount(_ url: URL, bookmarkData: Data? = nil) {
         mountedHDDFile = url
+        if let bookmarkData = bookmarkData {
+            mountedHDDBookmark = bookmarkData
+        } else if let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            mountedHDDBookmark = data
+        }
         debugLog("Recorded HDD mount: \(url.lastPathComponent)", category: .fileSystem)
     }
     
     public func recordFDDEject(_ drive: Int) {
         mountedFDDFiles.removeValue(forKey: drive)
+        mountedFDDBookmarks.removeValue(forKey: drive)
         debugLog("Recorded FDD eject: drive \(drive)", category: .fileSystem)
     }
     
     public func recordHDDEject() {
         mountedHDDFile = nil
+        mountedHDDBookmark = nil
         debugLog("Recorded HDD eject", category: .fileSystem)
     }
     
@@ -243,11 +256,11 @@ public class DiskStateManager {
                    let fileSize = attributes[.size] as? Int64,
                    let modDate = attributes[.modificationDate] as? Date {
                     
-                    let bookmarkData = try? finalUrl.bookmarkData(
+                    let bookmarkData = (try? finalUrl.bookmarkData(
                         options: .withSecurityScope,
                         includingResourceValuesForKeys: nil,
                         relativeTo: nil
-                    )
+                    )) ?? mountedFDDBookmarks[drive]
                     
                     let fddState = DiskMountState.FDDState(
                         drive: drive,
@@ -275,11 +288,11 @@ public class DiskStateManager {
                let fileSize = attributes[.size] as? Int64,
                let modDate = attributes[.modificationDate] as? Date {
                 
-                let bookmarkData = try? url.bookmarkData(
+                let bookmarkData = (try? url.bookmarkData(
                     options: .withSecurityScope,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
-                )
+                )) ?? mountedHDDBookmark
                 
                 hddState = DiskMountState.HDDState(
                     filePath: path,
@@ -414,10 +427,32 @@ public class DiskStateManager {
         // ハードディスクイメージをメモリバッファに読み込んでからロード
         do {
             let imageData = try Data(contentsOf: url)
+            let extname = url.pathExtension.lowercased()
 
             // バッファを確保してデータをコピー
             if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                 imageData.copyBytes(to: p, count: imageData.count)
+
+                if extname == "hds" {
+                    X68000_SetStorageBusMode(1)
+                    let mounted = X68000_SCSI_Mount(0, 0, hddState.filePath, 0) != 0
+                    if mounted {
+                        #if os(macOS)
+                        UserDefaults.standard.set(1, forKey: "StorageBusMode")
+                        UserDefaults.standard.set(true, forKey: "SCSI0Ready")
+                        UserDefaults.standard.set(hddState.filePath, forKey: "SCSI0Filename")
+                        #endif
+                        infoLog("Restored SCSI HDD: \(hddState.fileName) (\(imageData.count) bytes)", category: .fileSystem)
+                        return true
+                    }
+
+                    warningLog("Failed to restore as SCSI HDD, falling back to SASI: \(hddState.fileName)", category: .fileSystem)
+                    X68000_SetStorageBusMode(0)
+                    #if os(macOS)
+                    UserDefaults.standard.set(0, forKey: "StorageBusMode")
+                    #endif
+                }
+
                 X68000_LoadHDD(hddState.filePath)
                 infoLog("Restored HDD: \(hddState.fileName) (\(imageData.count) bytes)", category: .fileSystem)
                 return true
@@ -1915,38 +1950,56 @@ class FileSystem {
         } catch let error as NSError {
             errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
         }
+
+        if let backupURL = getDocumentsPath("SRAM.BAK") {
+            do {
+                try data.write(to: backupURL)
+                infoLog("SRAM.BAK saved successfully (\(data.count) bytes) to: \(backupURL.path)", category: .fileSystem)
+            } catch let error as NSError {
+                errorLog("Failed to save SRAM.BAK", error: error, category: .fileSystem)
+            }
+        }
     }
     
     func loadSRAM()
     {
         infoLog("==== Load SRAM ====", category: .fileSystem)
-        guard let url = findFileInDocuments("SRAM.DAT") else {
-            infoLog("SRAM.DAT not found - initializing with default values", category: .fileSystem)
+
+        func loadSRAMData(from filename: String) -> Data? {
+            guard let url = findFileInDocuments(filename) else { return nil }
+            do {
+                let data: Data = try Data(contentsOf: url)
+                guard data.count == 0x4000 else {
+                    errorLog("Security: Invalid \(filename) size: \(data.count), expected 0x4000", category: .fileSystem)
+                    return nil
+                }
+                return data
+            } catch let error as NSError {
+                errorLog("Error loading \(filename)", error: error, category: .fileSystem)
+                return nil
+            }
+        }
+
+        let data = loadSRAMData(from: "SRAM.DAT") ?? loadSRAMData(from: "SRAM.BAK")
+        guard let sramData = data else {
+            infoLog("SRAM data not found - initializing with default values", category: .fileSystem)
             initializeDefaultSRAM()
             return
         }
 
-        do {
-            let data: Data = try Data(contentsOf: url)
-            // Security: Validate SRAM file size (should be exactly 0x4000 bytes)
-            guard data.count == 0x4000 else {
-                errorLog("Security: Invalid SRAM file size: \(data.count), expected 0x4000", category: .fileSystem)
-                initializeDefaultSRAM()
-                return
+        if let p = X68000_GetSRAMPointer() {
+            sramData.copyBytes(to: p, count: sramData.count)
+            infoLog("SRAM loaded successfully (\(sramData.count) bytes)", category: .fileSystem)
+            if !isSRAMSignatureValid(p) {
+                warningLog("SRAM signature invalid - repairing signature and preserving data", category: .fileSystem)
+                p[0x10 ^ 1] = 0x00
+                p[0x11 ^ 1] = 0x01
+                p[0x12 ^ 1] = 0xED
+                p[0x13 ^ 1] = 0x00
+                saveSRAM()
             }
-            if let p = X68000_GetSRAMPointer() {
-                data.copyBytes(to: p, count: data.count)
-                infoLog("SRAM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
-                if !isSRAMSignatureValid(p) {
-                    warningLog("SRAM signature invalid - reinitializing to defaults", category: .fileSystem)
-                    initializeDefaultSRAM()
-                }
-            } else {
-                errorLog("Failed to get SRAM pointer", category: .fileSystem)
-            }
-        } catch let error as NSError {
-            errorLog("Error loading SRAM.DAT", error: error, category: .fileSystem)
-            initializeDefaultSRAM()
+        } else {
+            errorLog("Failed to get SRAM pointer", category: .fileSystem)
         }
     }
 
@@ -2068,22 +2121,25 @@ class FileSystem {
     func loadIPLROM() -> Bool
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
-        guard let url = findFileInDocuments("IPLROM.DAT") else {
+
+        let storageBusMode = UserDefaults.standard.integer(forKey: "StorageBusMode")
+        let iplRomURL = findFileInDocuments("IPLROM.DAT")
+        guard let url = iplRomURL else {
             errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
             return false
         }
-        
+
         do {
             let data: Data = try Data(contentsOf: url)
-            // Security: Validate IPLROM file size (typical size is 0x40000 bytes)
-            guard data.count > 0 && data.count <= 0x40000 else {
-                errorLog("Security: IPLROM file invalid size: \(data.count)", category: .fileSystem)
+            // Security: Validate IPLROM file size (expected size is 0x20000 bytes)
+            let maxRomSize = 0x20000
+            guard data.count > 0 && data.count <= maxRomSize else {
+                errorLog("Security: IPLROM.DAT invalid size: \(data.count)", category: .fileSystem)
                 return false
             }
             if let p = X68000_GetIPLROMPointer() {
-                data.copyBytes(to: p, count: data.count)
+                data.copyBytes(to: p, count: min(data.count, maxRomSize))
                 infoLog("IPLROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
-                return true
             } else {
                 errorLog("Failed to get IPLROM pointer", category: .fileSystem)
                 return false
@@ -2092,6 +2148,28 @@ class FileSystem {
             errorLog("Error loading IPLROM.DAT", error: error, category: .fileSystem)
             return false
         }
+
+        // Optional: Load SCSI IPL ROM (8KB) for SCSI mode
+        if storageBusMode == 1, let scsiRomURL = findFileInDocuments("SCSIINROM.DAT") {
+            do {
+                let scsiData: Data = try Data(contentsOf: scsiRomURL)
+                let maxScsiSize = 0x2000
+                guard scsiData.count > 0 && scsiData.count <= maxScsiSize else {
+                    errorLog("Security: SCSIINROM.DAT invalid size: \(scsiData.count)", category: .fileSystem)
+                    return true
+                }
+                if let scsiPtr = X68000_GetSCSIIPLPointer() {
+                    scsiData.copyBytes(to: scsiPtr, count: min(scsiData.count, maxScsiSize))
+                    infoLog("SCSIINROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
+                } else {
+                    errorLog("Failed to get SCSI IPL pointer", category: .fileSystem)
+                }
+            } catch let error as NSError {
+                errorLog("Error loading SCSIINROM.DAT", error: error, category: .fileSystem)
+            }
+        }
+
+        return true
     }
     
     // MARK: - Explicit FDD Drive Loading
@@ -2112,7 +2190,8 @@ class FileSystem {
                 X68000_LoadFDD(drive, url.path)
                 
                 // Record mount in Swift side for state management
-                DiskStateManager.shared.recordFDDMount(url, drive: drive)
+                let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                DiskStateManager.shared.recordFDDMount(url, drive: drive, bookmarkData: bookmarkData)
                 
                 infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
                 

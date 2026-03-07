@@ -54,6 +54,15 @@ extern long s_disk_image_buffer_size[5];
 static int s_Sasi_pos;
 static DWORD s_Sasi_image_size[5] = {0}; // Track HDD image sizes for capacity reporting
 static BYTE s_Sasi_dirty_flag[5] = {0}; // Track if HDD data has been modified
+
+static int SASI_IsDriveReady(int index)
+{
+	if (index < 0 || index >= 16) {
+		return 0;
+	}
+	return (Config.HDImage[index][0] != '\0') ? 1 : 0;
+}
+
 FILEH Sasi_Open(const char* filename) {
 //	printf( "%s( \"%s\" )\n", __FUNCTION__, filename );
 	s_Sasi_pos = 0;
@@ -143,6 +152,13 @@ BYTE SASI_IsDirty(int drive) {
 void SASI_ClearDirtyFlag(int drive) {
 	if (drive >= 0 && drive < 5) {
 		s_Sasi_dirty_flag[drive] = 0;
+	}
+}
+
+// Set dirty flag (called from SCSI IOCS write handler)
+void SASI_SetDirtyFlag(int drive) {
+	if (drive >= 0 && drive < 5) {
+		s_Sasi_dirty_flag[drive] = 1;
 	}
 }
 
@@ -396,7 +412,7 @@ void SASI_CheckCmd(void)
 	switch(SASI_Cmd[0])
 	{
 	case 0x00:					// Test Drive Ready
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 			SASI_Stat = 0;
 		else
 		{
@@ -406,7 +422,7 @@ void SASI_CheckCmd(void)
 		SASI_Phase += 2;
 		break;
 	case 0x01:					// Recalibrate
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			SASI_Sector = 0;
 			SASI_Stat = 0;
@@ -443,7 +459,7 @@ void SASI_CheckCmd(void)
 		result = SASI_Seek();
 		if ( (result==0)||(result==-1) )
 		{
-//			SASI_Phase++;
+			SASI_Phase++;
 			SASI_Error = 0x0f;
 		}
 		break;
@@ -459,12 +475,12 @@ void SASI_CheckCmd(void)
 		result = SASI_Seek();
 		if ( (result==0)||(result==-1) )
 		{
-//			SASI_Phase++;
+			SASI_Phase++;
 			SASI_Error = 0x0f;
 		}
 		break;
 	case 0x0b:					// Seek
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			SASI_Stat = 0;
 		}
@@ -477,7 +493,7 @@ void SASI_CheckCmd(void)
 //		SASI_Phase = 9;
 		break;
 	case 0x25:					// Read Capacity (SCSI command for HDD capacity)
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			DWORD sectorCount = SASI_GetSectorCount(SASI_Device*2+SASI_Unit);
 			if (sectorCount > 0) {
@@ -515,7 +531,7 @@ void SASI_CheckCmd(void)
 	case 0xc2:
 		SASI_Phase = 10;
 		SASI_SenseStatPtr = 0;
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 			SASI_Stat = 0;
 		else
 		{
@@ -573,7 +589,7 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 		}
 		// Check valid device range (0-7) before accessing Config.HDImage[16]
 		if ( (SASI_Device < 8) &&
-		     ((Config.HDImage[SASI_Device*2][0])||(Config.HDImage[SASI_Device*2+1][0])) )
+		     (SASI_IsDriveReady(SASI_Device*2) || SASI_IsDriveReady(SASI_Device*2+1)) )
 		{
 			SASI_Phase++;
 			SASI_CmdPtr = 0;

@@ -13,6 +13,9 @@
 #include "fileio.h"
 #include "winx68k.h"
 
+int X68000_GetStorageBusMode(void);
+int X68000_SCSI_IsMounted(int host, int id);
+
 static const BYTE CMD_TABLE[32] = {0, 0, 8, 2, 1, 8, 8, 1, 0, 8, 1, 0, 8, 5, 0, 2,
                                    0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0};
 static const BYTE DAT_TABLE[32] = {0, 0, 7, 0, 1, 7, 7, 0, 2, 7, 7, 0, 7, 7, 0, 0,
@@ -118,6 +121,18 @@ void FDC_Init(void)
 void FDC_SetForceReady(int n)
 {
 	fdc.ready = n;
+}
+
+void FDC_ClearPendingState(void)
+{
+	fdc.rdptr = 0;
+	fdc.wrptr = 0;
+	fdc.rdnum = 0;
+	fdc.wrnum = 0;
+	fdc.bufnum = 0;
+	fdc.wexec = 0;
+	fdc.st1 = 0;
+	fdc.st2 = 0;
 }
 
 
@@ -459,6 +474,8 @@ BYTE FASTCALL FDC_Read(DWORD adr)
 		ret |= ((fdc.rdnum)&&(!fdc.wexec))?0x40:0;
 		ret |= ((fdc.wrnum)||(fdc.rdnum))?0x10:0;
 		ret &= ((fdc.rdnum==1)&&(fdc.cmd==8))?0xaf:0xff;
+		/* keep raw FDC status semantics; SCSI boot specific unblocks are handled
+		   from the execution loop with PC-aware guards */
 	} else if ( adr==0xe94003 ) {           /* Read data */
 		if ( fdc.bufnum ) {
 			ret = fdc.DataBuf[fdc.rdptr++];
