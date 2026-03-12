@@ -2149,23 +2149,27 @@ class FileSystem {
             return false
         }
 
-        // Optional: Load SCSI IPL ROM (8KB) for SCSI mode
-        if storageBusMode == 1, let scsiRomURL = findFileInDocuments("SCSIINROM.DAT") {
+        // Optional: Load SCSI external ROM (8KB) for SCSI mode.
+        // SCSIEXROM.DAT (external SCSI, SCSIEX type) is required — its layout
+        // matches the IPL ROM IOCS table.  SCSIINROM.DAT is an internal SCSI
+        // ROM (SCSIIN type) with an incompatible layout and cannot be used.
+        if storageBusMode == 1,
+           let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") {
             do {
                 let scsiData: Data = try Data(contentsOf: scsiRomURL)
                 let maxScsiSize = 0x2000
                 guard scsiData.count > 0 && scsiData.count <= maxScsiSize else {
-                    errorLog("Security: SCSIINROM.DAT invalid size: \(scsiData.count)", category: .fileSystem)
+                    errorLog("Security: SCSIEXROM.DAT invalid size: \(scsiData.count)", category: .fileSystem)
                     return true
                 }
                 if let scsiPtr = X68000_GetSCSIIPLPointer() {
                     scsiData.copyBytes(to: scsiPtr, count: min(scsiData.count, maxScsiSize))
-                    infoLog("SCSIINROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
+                    infoLog("SCSIEXROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
                 } else {
                     errorLog("Failed to get SCSI IPL pointer", category: .fileSystem)
                 }
             } catch let error as NSError {
-                errorLog("Error loading SCSIINROM.DAT", error: error, category: .fileSystem)
+                errorLog("Error loading SCSIEXROM.DAT", error: error, category: .fileSystem)
             }
         }
 

@@ -19,8 +19,11 @@ extern	BYTE	SCSIROM_DAT[0x2000];
 #define SCSI_SYNTH_IOCS_FN32_OK 0x00fc00e6
 #define SCSI_SYNTH_IOCS_FN10_OK 0x00fc00ea
 #define SCSI_SYNTH_IOCS_FNAF_OK 0x00fc00ee
+#define SCSI_SYNTH_IOCS_DISPLAY 0x00fc00c2
 #define SCSI_SYNTH_IOCS_DIRECT 0x00fc00f2
-#define SCSI_SYNTH_IOCS_FF_FALLBACK 0x00ff06a2
+// Keep fn=$FF on a synthetic no-op success stub. Native IPL fn=$FF can
+// transition through low-memory vectors during forced boot and destabilize.
+#define SCSI_SYNTH_IOCS_FF_FALLBACK SCSI_SYNTH_IOCS_FN10_OK
 #define SCSI_SYNTH_DEVHDR_ADDR  0x00fc0100
 
 int SCSI_IsROMPresent(void);

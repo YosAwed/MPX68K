@@ -105,7 +105,7 @@ static int g_use_synthetic_scsi_hooks = 0;
 static int g_enable_scsi_dev_driver = 0;
 static int g_scsi_iocs_rehook_logs = 0;
 static int g_scsi_iocs_check_counter = 0;
-static const int kScsiIocsRuntimeCheckInterval = 256;
+static const int kScsiIocsRuntimeCheckInterval = 32;
 static DWORD g_last_scsi_iocs_vector = 0xffffffff;
 static int g_scsi_iocs_fix_logs = 0;
 static int g_scsi_iocs_default_hit_logs = 0;
@@ -113,6 +113,11 @@ static int g_scsi_lowpc_logs = 0;
 static int g_scsi_fnff_entry_logs = 0;
 static int g_scsi_iocs_shadow_valid = 0;
 static DWORD g_scsi_iocs_shadow[256];
+static int g_scsi_postlink_iocs_restore_done = 0;
+static int g_scsi_postlink_iocs_restore_logs = 0;
+static DWORD g_scsi_saved_native_2e = 0;     // last kernel-set handler for fn=$2E
+static DWORD g_scsi_saved_native_2f = 0;     // last kernel-set handler for fn=$2F
+static int g_scsi_native_2e2f_restored = 0;  // one-shot restore flag
 static DWORD g_scsi_native_trap15_vector = 0;
 static int g_scsi_trap15_rehook_logs = 0;
 static int g_scsi_trap15_pc_logs = 0;
@@ -129,8 +134,15 @@ static int g_scsi_qtrace_logs = 0;
 static int g_scsi_native_iocs_entry_logs = 0;
 static int g_scsi_qcode_dumped = 0;
 static int g_scsi_qstr_logs = 0;
+static int g_scsi_stack_restore_fix_logs = 0;
 static int g_scsi_low_rts_logs = 0;
 static int g_scsi_low_rte_logs = 0;
+// IPL ROM scan results (populated during LoadROMs, logged during Reset)
+static DWORD g_ipl_scan_alt_fn20 = 0;
+static int g_ipl_scan_alt_hits = 0;
+static int g_ipl_scan_scsi_hits = 0;
+static DWORD g_ipl_scan_scsi_fn20 = 0;
+static DWORD g_ipl_scan_scsi_fn21 = 0;
 static int g_scsi_lowf75_logs = 0;
 static int g_scsi_jmpa0_logs = 0;
 static int g_scsi_jmpa0_fix_logs = 0;
@@ -141,6 +153,14 @@ static DWORD g_scsi_last_sys_ptr_1c98 = 0;
 static int g_scsi_jmpa0_repair_logs = 0;
 static int g_scsi_f75_code_dumped = 0;
 static int g_scsi_fa_code_dumped = 0;
+static int g_scsi_lowf70_logs = 0;
+static int g_scsi_f70_code_dumped = 0;
+static DWORD g_scsi_last_fline_vec = 0xFFFFFFFFU;  // track F-line vector changes
+static int g_scsi_fline_zero_logged = 0;
+static DWORD g_scsi_saved_exc_vectors[48];  // saved exception vectors 2-47
+static int g_scsi_exc_vectors_saved = 0;
+static int g_scsi_exc_restore_logs = 0;
+static int g_scsi_overlay_partial_restored = 0;  // 1=SCSIIMG $FC0000-$FC00FF restored to IPL ROM
 static DWORD g_scsi_pc_trace_ring[64];
 static DWORD g_scsi_sp_trace_ring[64];
 static DWORD g_scsi_d0_trace_ring[64];
@@ -148,6 +168,9 @@ static DWORD g_scsi_a0_trace_ring[64];
 static int g_scsi_pc_trace_pos = 0;
 static int g_scsi_pc_trace_filled = 0;
 static int g_scsi_pc_trace_dumped = 0;
+static int g_scsi_postlink_pin_logs = 0;
+static int g_scsi_display_check_counter = 0;
+static int g_scsi_display_fix_logs = 0;
 
 static int
 X68000_IsScsiFdcWaitPc(DWORD pc)
@@ -240,9 +263,18 @@ X68000_IsValidIocsHandler(DWORD eff)
 static int
 X68000_IsSyntheticIocsPadding(DWORD eff)
 {
+    // Synthetic SCSI ROM pre-IOCS area ($FC0000-$FC007F) is header/boot data,
+    // not IOCS handlers. Treat it as non-executable for IOCS table validation.
+    if (eff >= 0x00fc0000U && eff < SCSI_SYNTH_IOCS_ENTRY) {
+        return 1;
+    }
     // Synthetic SCSI ROM embeds zero-filled padding only in these ranges.
-    // Keep synthetic helper stubs ($FC00D2-$FC00F9) usable.
-    if (eff >= 0x00fc009eU && eff < 0x00fc00d2U) {
+    // Keep synthetic helper stubs ($FC00C2+, $FC00D2-$FC00F9) usable.
+    // $FC00C2-$FC00C9: display IOCS stub (SCSI_SYNTH_IOCS_DISPLAY)
+    if (eff >= 0x00fc009eU && eff < SCSI_SYNTH_IOCS_DISPLAY) {
+        return 1;
+    }
+    if (eff >= (SCSI_SYNTH_IOCS_DISPLAY + 8U) && eff < 0x00fc00d2U) {
         return 1;
     }
     if (eff >= 0x00fc00feU && eff < 0x00fc0100U) {
@@ -280,65 +312,120 @@ X68000_IsExecutableIocsHandler(DWORD eff)
 static DWORD
 X68000_GetSyntheticIocsFallback(BYTE fn)
 {
-		    switch (fn) {
-	    case 0x00:
-	        return SCSI_SYNTH_IOCS_DIRECT;
-	    case 0x01:
-	        return SCSI_SYNTH_IOCS_FN10_OK;
+    switch (fn) {
+    case 0x00:
+        // fn=$00 (_B_KEYINP): native IPL ROM handler reads keyboard hardware
+        // registers ($E88xxx) and does NOT reference $FC0000+ subroutines.
+        return SCSI_SYNTH_IOCS_DEFAULT;
+    case 0x01:
+        // fn=$01 (_B_KEYSNS): route through C-side handler to check KeyBuf
+        // for key availability (non-destructive sense).
+        return SCSI_SYNTH_IOCS_DIRECT;
 		    case 0x02:
 		        return SCSI_SYNTH_IOCS_FN32_OK;
+		    case 0x32:
+		        return SCSI_SYNTH_IOCS_DIRECT;
+		    case 0x0c:
+	        // fn=$0C (_CRTMOD): route through C-side handler for CRTC init.
+	        // Native ROM handler reads CRT mode table from $FCxxxx which is
+	        // overlaid by SCSIIMG, returning garbage → CRTC registers all zero.
+	        return SCSI_SYNTH_IOCS_DIRECT;
 	    case 0x04:
-	    case 0x17:
-	    case 0x18:
-	    case 0x1e:
-	    case 0x1f:
-	    case 0x3c:
-	    case 0x46:
-	    case 0x47:
-    case 0x4f:
-    case 0x54:
-    case 0x55:
-    case 0x56:
-    case 0x57:
-    case 0x8e:
+	        // fn=$04 (_B_BITSNS): route through C-side handler.
+	        return SCSI_SYNTH_IOCS_DIRECT;
+	    case 0x08:
+		    case 0x17:
+		    case 0x18:
+		    case 0x1e:
+		    case 0x1f:
+	    case 0x3d:
+		    case 0x3c:
+		    case 0x46:
+		    case 0x47:
+	    case 0x4f:
+	    case 0x58:
+	    case 0x61:
+	    case 0x6a:
+	    case 0x73:
+	    case 0x54:
+	    case 0x55:
+	    case 0x56:
+	    case 0x57:
+	    case 0x8e:
         return SCSI_SYNTH_IOCS_FN04_OK;
 	    case 0x10:
-	        return SCSI_SYNTH_IOCS_FN10_OK;
+	        return SCSI_SYNTH_IOCS_DIRECT;
+	    case 0x40:
+	        return SCSI_SYNTH_IOCS_DIRECT;
+    case 0x2e:
+    case 0x2f:
+        // Route SCSI data read paths through synthetic direct dispatch.
+        // Native fn=$2E/$2F can fall into monitor-side fallback loops on
+        // forced-boot images before/around storage stack handoff.
+        return SCSI_SYNTH_IOCS_DIRECT;
+	    case 0x23:
+	    case 0x2a:
+	    case 0x2b:
+	    case 0x2c:
+	    case 0x2d:
+	    case 0x30:
+	    case 0x31:
+	        // SCSI maintenance/control IOCS should stay on synthetic C-side.
+	        // Native ROM paths can drop into monitor handlers during forced boot.
+	        return SCSI_SYNTH_IOCS_DIRECT;
 	    case 0x11:
 	        // _B_SUPER fallback: keep boot path moving without trapping into
 	        // synthetic C-side SR/USP manipulation.
-	        return SCSI_SYNTH_IOCS_FN10_OK;
-    case 0x20:
-    case 0x21:
-    case 0x22:
-    case 0x23:
-    case 0x24:
-    case 0x25:
-    case 0x26:
-    case 0x27:
-    case 0x28:
-    case 0x29:
-    case 0x2a:
-    case 0x2b:
-    case 0x2c:
-    case 0x2d:
-    case 0x2e:
-    case 0x2f:
-        // Route SCSI IOCS through synthetic direct trap so C-side emulation
-        // handles SPC-less environments consistently.
-        return SCSI_SYNTH_IOCS_DIRECT;
-    case 0x34:
-        return SCSI_SYNTH_IOCS_FN34_OK;
-    case 0x33:
-        return SCSI_SYNTH_IOCS_FN33_OK;
-    case 0xaf:
-        return SCSI_SYNTH_IOCS_FNAF_OK;
+	        return SCSI_SYNTH_IOCS_DIRECT;
+		case 0x20:
+		case 0x21:
+		    // fn=$20 (_B_PUTC), fn=$21 (_B_PRINT): ネイティブROMハンドラは
+		    // $FC0000+ のサブルーチン/データを参照するためSCSIIMG上書き時に動作しない。
+		    // 表示IOCS専用ディスパッチ ($E9F804) に迂回してSCSI disk IOCS
+		    // (fn=$20=_S_INQUIRY, fn=$21=_S_READ) との衝突を回避する。
+		    return SCSI_SYNTH_IOCS_DISPLAY;
+		    case 0x33:
+		        // fn=$33 (_B_KEYSNS): keep synthetic. Native handler at $FE221E
+		        // causes side effects in the console subsystem during forced boot,
+		        // leading to recursive re-entry into the output loop (70 bytes
+		        // stack per fn=$35 call). C handler returns 0 (no key ready).
+		        return SCSI_SYNTH_IOCS_DIRECT;
+		    case 0xae:
+		        // IOCS $AE is used as a continuation/query hook on some boot paths.
+		        // Route to C-side emulation instead of returning default error.
+		        return SCSI_SYNTH_IOCS_DIRECT;
+		    case 0xaf:
+		        return SCSI_SYNTH_IOCS_FNAF_OK;
+		    case 0x34:
+		        // fn=$34 (_B_SFTSNS): keep synthetic. Native handler at $FE2230
+		        // calls internal console routines that re-enter COMMAND.X output
+		        // loop recursively, consuming 44 bytes of stack per iteration.
+		        return SCSI_SYNTH_IOCS_DIRECT;
+		    case 0x35:
+		        // fn=$35 (_B_PUTC): keep synthetic. Native handler at $FE2258
+		        // calls fn=$34 internally in a loop that never returns, consuming
+		        // 36 bytes of stack per iteration → stack overflow → crash.
+		        // C handler implements direct TVRAM character rendering.
+		        return SCSI_SYNTH_IOCS_DIRECT;
+		    case 0x36:
+		    case 0x37:
+		    case 0x38:
+		    case 0x39:
+		        // Keep monitor-side disk utility IOCS on C-side during forced boot.
+		        // Native handlers here can divert to IPL monitor paths.
+		        return SCSI_SYNTH_IOCS_DIRECT;
 	    case 0xfd:
 	        return SCSI_SYNTH_IOCS_FN04_OK;
-    case 0xfc:
-        return SCSI_SYNTH_IOCS_FN10_OK;
-    case 0xff:
-        return SCSI_SYNTH_IOCS_FF_FALLBACK;
+	    case 0xfc:
+	        return SCSI_SYNTH_IOCS_DIRECT;
+	    case 0xf0:
+	        return SCSI_SYNTH_IOCS_DIRECT;
+	    case 0xf5:
+	        return SCSI_SYNTH_IOCS_ENTRY;
+	    case 0xff:
+	        // fn=$FF: kernel handler ($86F2) calls ROM subroutines in $FC0000+
+	        // overlaid by SCSIIMG → stack corruption → crash.  Use no-op stub.
+	        return SCSI_SYNTH_IOCS_FF_FALLBACK;
     default:
         return SCSI_SYNTH_IOCS_DEFAULT;
     }
@@ -347,10 +434,15 @@ X68000_GetSyntheticIocsFallback(BYTE fn)
 extern BYTE* s_disk_image_buffer[5];
 extern long s_disk_image_buffer_size[5];
 
+static int s_appendlog_total = 0;
+#define APPENDLOG_LIMIT 5000
+
 static void
 X68000_AppendSCSILog(const char* message)
 {
 #ifdef __APPLE__
+    if (s_appendlog_total >= APPENDLOG_LIMIT) return;
+    s_appendlog_total++;
     const char* home = getenv("HOME");
     char path[512];
     if (home && home[0] != '\0') {
@@ -359,6 +451,11 @@ X68000_AppendSCSILog(const char* message)
         snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
     }
     FILE* fp = fopen(path, "a");
+    if (fp) {
+        fprintf(fp, "%s\n", message);
+        fclose(fp);
+    }
+    fp = fopen("/tmp/x68000_scsi_iocs.txt", "a");
     if (fp) {
         fprintf(fp, "%s\n", message);
         fclose(fp);
@@ -379,7 +476,13 @@ X68000_ResetSCSILog(void)
     } else {
         snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
     }
+    remove(path);
     FILE* fp = fopen(path, "w");
+    if (fp) {
+        fclose(fp);
+    }
+    remove("/tmp/x68000_scsi_iocs.txt");
+    fp = fopen("/tmp/x68000_scsi_iocs.txt", "w");
     if (fp) {
         fclose(fp);
     }
@@ -619,6 +722,63 @@ WinX68k_LoadROMs(void)
         IPL[i] = IPL[i + 1];
         IPL[i + 1] = tmp;
     }
+
+    // Lightweight IPL ROM IOCS table scan — no Memory subsystem dependency.
+    // Scan for fn=$20 (B_PUTC) pointing to $FE_xxxx (IPL ROM native).
+    // Strategy: for each offset, quickly check fn=$20 + fn=$21 only.
+    {
+        int altHits = 0;
+        DWORD altFn20Best = 0;
+        int scsiHits = 0;
+        DWORD scsiFn20 = 0, scsiFn21 = 0;
+        DWORD scsiOff = 0;
+        int scsiUd = 0;
+        for (int ud = 0; ud <= 1; ++ud) {
+            for (DWORD off = 0; off + 256*4 <= 0x40000; off += 4) {
+                DWORD raw20 = X68000_ReadIplLong(off + 0x20*4, ud);
+                DWORD eff20 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw20), raw20, NULL);
+                DWORD raw21 = X68000_ReadIplLong(off + 0x21*4, ud);
+                DWORD eff21 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw21), raw21, NULL);
+                // Both must be in ROM range
+                if ((eff21 < 0x00fe0000U || eff21 > 0x00ffffffU) || (eff21 & 1))
+                    continue;
+                // Validate: also check fn=$04 and fn=$25 for table plausibility
+                DWORD raw04 = X68000_ReadIplLong(off + 0x04*4, ud);
+                DWORD eff04 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw04), raw04, NULL);
+                DWORD raw25 = X68000_ReadIplLong(off + 0x25*4, ud);
+                DWORD eff25 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw25), raw25, NULL);
+                int plausible = 0;
+                if (eff04 >= 0x00fc0000U && eff04 <= 0x00ffffffU && (eff04 & 1) == 0)
+                    plausible++;
+                if (eff25 >= 0x00fc0000U && eff25 <= 0x00ffffffU && (eff25 & 1) == 0)
+                    plausible++;
+                if (plausible < 2)
+                    continue;
+
+                if (eff20 >= 0x00fe0000U && eff20 <= 0x00ffffffU && (eff20 & 1) == 0) {
+                    if (altHits < 4)
+                        p6logd("IPL_SCAN_ALT: off=$%05X ud=%d fn20=$%08X fn21=$%08X\n",
+                               (unsigned int)off, ud, (unsigned int)eff20, (unsigned int)eff21);
+                    if (altFn20Best == 0) altFn20Best = eff20;
+                    altHits++;
+                } else if (eff20 >= 0x00fc0000U && eff20 < 0x00fc2000U) {
+                    if (scsiHits == 0) {
+                        scsiFn20 = eff20; scsiFn21 = eff21;
+                        scsiOff = off; scsiUd = ud;
+                    }
+                    scsiHits++;
+                }
+            }
+        }
+        p6logd("IPL_SCAN: scsiHits=%d scsiOff=$%05X fn20=$%08X fn21=$%08X | altHits=%d altFn20=$%08X\n",
+               scsiHits, (unsigned int)scsiOff, (unsigned int)scsiFn20, (unsigned int)scsiFn21,
+               altHits, (unsigned int)altFn20Best);
+    }
+
 #if 0
     fp = File_OpenCurDir((char *)FONTFILE);
     if (fp == 0) {
@@ -735,10 +895,22 @@ WinX68k_Reset(void)
 	// Some IPL variants never jump into the internal SCSI entry on their own.
 	// If SCSI is explicitly selected and a disk is mounted, force entry to
 	// the synthetic SCSI boot entry.
-		g_use_synthetic_scsi_hooks = (g_storage_bus_mode == 1 && g_scsi0_mounted);
-		g_scsi_iocs_shadow_valid = 0;
-		memset(g_scsi_iocs_shadow, 0, sizeof(g_scsi_iocs_shadow));
-		g_scsi_native_trap15_vector = 0;
+			g_use_synthetic_scsi_hooks = (g_storage_bus_mode == 1 && g_scsi0_mounted);
+			g_scsi_iocs_shadow_valid = 0;
+			memset(g_scsi_iocs_shadow, 0, sizeof(g_scsi_iocs_shadow));
+			g_scsi_postlink_iocs_restore_done = 0;
+			g_scsi_postlink_iocs_restore_logs = 0;
+			g_scsi_overlay_partial_restored = 0;
+			g_scsi_native_trap15_vector = 0;
+			g_scsi_postlink_pin_logs = 0;
+			g_scsi_display_check_counter = 0;
+			g_scsi_display_fix_logs = 0;
+			// Clear lingering SCSI overlay from a previous session when not
+			// booting SCSI.  Must happen AFTER SCSI_Init() (line 879) so the
+			// overlay state is consistent.
+			if (!g_use_synthetic_scsi_hooks) {
+				Memory_ClearSCSIMode();
+			}
 		// Enable synthetic block-driver chaining for SCSI boot. It is now
 	// registered as a true block device (not a remote device), so Human68k
 	// should issue normal block request packets instead of CR_* extensions.
@@ -912,25 +1084,17 @@ WinX68k_Reset(void)
 							int iocsFallbackCount = 0;
 							int iocsFallbackLogs = 0;
 								for (int fn = 0; fn < 256; ++fn) {
-									DWORD addr = 0x00000400 + (DWORD)fn * 4;
-									DWORD entry = Memory_ReadD(addr);
-									if (fn == 0xFF) {
-										Memory_WriteD(addr, SCSI_SYNTH_IOCS_FF_FALLBACK);
-									iocsFallbackCount++;
-									if (iocsFallbackLogs < 12) {
-										char fallbackLog[112];
-										snprintf(fallbackLog, sizeof(fallbackLog),
-										         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
-										         (unsigned int)fn,
-										         (unsigned int)entry,
-										         (unsigned int)SCSI_SYNTH_IOCS_FF_FALLBACK);
-										X68000_AppendSCSILog(fallbackLog);
-										iocsFallbackLogs++;
+										DWORD addr = 0x00000400 + (DWORD)fn * 4;
+										DWORD entry = Memory_ReadD(addr);
+										DWORD preEff = X68000_NormalizeIocsHandler(entry, NULL);
+										if (fn != 0xf5 &&
+										    fn != 0xff &&
+										    preEff != SCSI_SYNTH_IOCS_DEFAULT &&
+										    X68000_IsExecutableIocsHandler(preEff)) {
+											continue;
 										}
-										continue;
-									}
 											if (fn == 0x00) {
-												Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+												Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN00_CR);
 												iocsFallbackCount++;
 												if (iocsFallbackLogs < 12) {
 													char fallbackLog[112];
@@ -938,14 +1102,14 @@ WinX68k_Reset(void)
 													         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 													         (unsigned int)fn,
 													         (unsigned int)entry,
-													         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+													         (unsigned int)SCSI_SYNTH_IOCS_FN00_CR);
 													X68000_AppendSCSILog(fallbackLog);
 													iocsFallbackLogs++;
 												}
 											continue;
 										}
 										if (fn == 0x01) {
-											Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN10_OK);
+											Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
 											iocsFallbackCount++;
 											if (iocsFallbackLogs < 12) {
 												char fallbackLog[112];
@@ -953,14 +1117,14 @@ WinX68k_Reset(void)
 												         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 												         (unsigned int)fn,
 												         (unsigned int)entry,
-												         (unsigned int)SCSI_SYNTH_IOCS_FN10_OK);
+												         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
 												X68000_AppendSCSILog(fallbackLog);
 												iocsFallbackLogs++;
 											}
 											continue;
 										}
 											if (fn == 0x04) {
-												Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN04_OK);
+												Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
 											iocsFallbackCount++;
 											if (iocsFallbackLogs < 12) {
 											char fallbackLog[112];
@@ -968,7 +1132,7 @@ WinX68k_Reset(void)
 											         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 											         (unsigned int)fn,
 											         (unsigned int)entry,
-											         (unsigned int)SCSI_SYNTH_IOCS_FN04_OK);
+											         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
 											X68000_AppendSCSILog(fallbackLog);
 											iocsFallbackLogs++;
 										}
@@ -990,7 +1154,7 @@ WinX68k_Reset(void)
 											continue;
 										}
 											if (fn == 0x10) {
-												Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN10_OK);
+												Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
 												iocsFallbackCount++;
 											if (iocsFallbackLogs < 12) {
 												char fallbackLog[112];
@@ -998,14 +1162,32 @@ WinX68k_Reset(void)
 												         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 												         (unsigned int)fn,
 												         (unsigned int)entry,
-												         (unsigned int)SCSI_SYNTH_IOCS_FN10_OK);
+												         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
 												X68000_AppendSCSILog(fallbackLog);
 												iocsFallbackLogs++;
 											}
 													continue;
 												}
-											if (fn == 0x11) {
-												Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN10_OK);
+												if (fn == 0x11) {
+													Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+													iocsFallbackCount++;
+													if (iocsFallbackLogs < 12) {
+													char fallbackLog[112];
+													snprintf(fallbackLog, sizeof(fallbackLog),
+													         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
+													         (unsigned int)fn,
+													         (unsigned int)entry,
+													         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+													X68000_AppendSCSILog(fallbackLog);
+													iocsFallbackLogs++;
+													}
+													continue;
+												}
+											// fn=$33/$34/$35: keep synthetic. Native handlers cause
+											// recursion, stack overflow, or console re-entry during
+											// forced SCSI boot.
+											if (fn == 0x33 || fn == 0x34 || fn == 0x35) {
+												Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
 												iocsFallbackCount++;
 												if (iocsFallbackLogs < 12) {
 													char fallbackLog[112];
@@ -1013,30 +1195,15 @@ WinX68k_Reset(void)
 													         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 													         (unsigned int)fn,
 													         (unsigned int)entry,
-													         (unsigned int)SCSI_SYNTH_IOCS_FN10_OK);
+													         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
 													X68000_AppendSCSILog(fallbackLog);
 													iocsFallbackLogs++;
 												}
 												continue;
 											}
-	                                            if (fn >= 0x20 && fn <= 0x2F) {
-	                                                Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
-	                                                iocsFallbackCount++;
-	                                                if (iocsFallbackLogs < 12) {
-	                                                    char fallbackLog[112];
-	                                                    snprintf(fallbackLog, sizeof(fallbackLog),
-	                                                             "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
-	                                                             (unsigned int)fn,
-	                                                             (unsigned int)entry,
-	                                                             (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
-	                                                    X68000_AppendSCSILog(fallbackLog);
-	                                                    iocsFallbackLogs++;
-	                                                }
-	                                                continue;
-	                                            }
-	                                            if (fn == 0xFD) {
-	                                                Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN04_OK);
-	                                                iocsFallbackCount++;
+		                                            if (fn == 0xFD) {
+		                                                Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN04_OK);
+		                                                iocsFallbackCount++;
 												if (iocsFallbackLogs < 12) {
 												char fallbackLog[112];
 												snprintf(fallbackLog, sizeof(fallbackLog),
@@ -1046,36 +1213,6 @@ WinX68k_Reset(void)
 												         (unsigned int)SCSI_SYNTH_IOCS_FN04_OK);
 												X68000_AppendSCSILog(fallbackLog);
 												iocsFallbackLogs++;
-                                                }
-                                                continue;
-                                            }
-                                            if (fn == 0x34) {
-                                                Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN34_OK);
-                                                iocsFallbackCount++;
-                                                if (iocsFallbackLogs < 12) {
-                                                    char fallbackLog[112];
-                                                    snprintf(fallbackLog, sizeof(fallbackLog),
-                                                             "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
-                                                             (unsigned int)fn,
-                                                             (unsigned int)entry,
-                                                             (unsigned int)SCSI_SYNTH_IOCS_FN34_OK);
-                                                    X68000_AppendSCSILog(fallbackLog);
-                                                    iocsFallbackLogs++;
-                                                }
-                                                continue;
-                                            }
-                                            if (fn == 0x33) {
-                                                Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN33_OK);
-                                                iocsFallbackCount++;
-                                                if (iocsFallbackLogs < 12) {
-                                                    char fallbackLog[112];
-                                                    snprintf(fallbackLog, sizeof(fallbackLog),
-                                                             "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
-                                                             (unsigned int)fn,
-                                                             (unsigned int)entry,
-                                                             (unsigned int)SCSI_SYNTH_IOCS_FN33_OK);
-                                                    X68000_AppendSCSILog(fallbackLog);
-                                                    iocsFallbackLogs++;
                                                 }
                                                 continue;
                                             }
@@ -1099,6 +1236,21 @@ WinX68k_Reset(void)
 											}
 											continue;
 										}
+											if (fn == 0xAE) {
+												Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+												iocsFallbackCount++;
+												if (iocsFallbackLogs < 12) {
+													char fallbackLog[112];
+													snprintf(fallbackLog, sizeof(fallbackLog),
+													         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
+													         (unsigned int)fn,
+													         (unsigned int)entry,
+													         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+													X68000_AppendSCSILog(fallbackLog);
+													iocsFallbackLogs++;
+												}
+												continue;
+											}
 											if (fn == 0xAF) {
 												Memory_WriteD(addr, SCSI_SYNTH_IOCS_FNAF_OK);
 											iocsFallbackCount++;
@@ -1115,7 +1267,7 @@ WinX68k_Reset(void)
 												continue;
 											}
 										if (fn == 0xfc) {
-											Memory_WriteD(addr, SCSI_SYNTH_IOCS_FN10_OK);
+											Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
 											iocsFallbackCount++;
 											if (iocsFallbackLogs < 12) {
 												char fallbackLog[112];
@@ -1123,7 +1275,22 @@ WinX68k_Reset(void)
 												         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
 												         (unsigned int)fn,
 												         (unsigned int)entry,
-												         (unsigned int)SCSI_SYNTH_IOCS_FN10_OK);
+												         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+												X68000_AppendSCSILog(fallbackLog);
+												iocsFallbackLogs++;
+											}
+											continue;
+										}
+										if (fn == 0xFF) {
+											Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+											iocsFallbackCount++;
+											if (iocsFallbackLogs < 12) {
+												char fallbackLog[112];
+												snprintf(fallbackLog, sizeof(fallbackLog),
+												         "FORCE BOOT IOCS fallback fn=$%02X old=$%08X new=$%08X",
+												         (unsigned int)fn,
+												         (unsigned int)entry,
+												         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
 												X68000_AppendSCSILog(fallbackLog);
 												iocsFallbackLogs++;
 											}
@@ -1149,33 +1316,40 @@ WinX68k_Reset(void)
 										isValid = 0;
 									}
 								}
-										if (!isValid) {
-											DWORD repair = SCSI_SYNTH_IOCS_DEFAULT;
-											if (fn == 0xFF) {
-												repair = SCSI_SYNTH_IOCS_FF_FALLBACK;
-											} else if (fn == 0x00) {
-												repair = SCSI_SYNTH_IOCS_DIRECT;
-											} else if (fn == 0x01) {
-												repair = SCSI_SYNTH_IOCS_FN10_OK;
-											} else if (fn == 0x11) {
-                                                repair = SCSI_SYNTH_IOCS_FN10_OK;
-                                            } else if (fn == 0xFD) {
-                                                repair = SCSI_SYNTH_IOCS_FN04_OK;
-                                            } else if (fn == 0x34) {
-                                                repair = SCSI_SYNTH_IOCS_FN34_OK;
-                                            } else if (fn == 0x33) {
-                                                repair = SCSI_SYNTH_IOCS_FN33_OK;
-                                            } else if (fn == 0x02) {
-                                                repair = SCSI_SYNTH_IOCS_FN32_OK;
-                                                    } else if (fn == 0x17 || fn == 0x18 ||
-                                                               fn == 0x1e || fn == 0x1f ||
-                                                               fn == 0x3c || fn == 0x8e ||
+											if (!isValid) {
+												DWORD repair = SCSI_SYNTH_IOCS_DEFAULT;
+												if (fn == 0x00) {
+													// Keyboard: native ROM handles these
+													continue;
+											} else if (fn == 0x01 || fn == 0x04) {
+                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            } else if (fn == 0x11 || fn == 0x40) {
+                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            } else if (fn == 0x2e) {
+	                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            } else if (fn == 0xAE) {
+	                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            } else if (fn == 0xFD) {
+	                                                repair = SCSI_SYNTH_IOCS_FN04_OK;
+	                                            } else if (fn == 0x02) {
+	                                                repair = SCSI_SYNTH_IOCS_FN32_OK;
+	                                            } else if (fn == 0x32) {
+	                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            // fn=$33/$35: keep native IPL ROM handlers.
+	                                            // fn=$34: keep synthetic (native causes recursion).
+	                                            } else if (fn == 0x34) {
+	                                                repair = SCSI_SYNTH_IOCS_DIRECT;
+	                                            } else if (fn == 0x17 || fn == 0x18 ||
+	                                                               fn == 0x1e || fn == 0x1f ||
+	                                                               fn == 0x3c || fn == 0x8e ||
                                                        fn == 0x46 ||
 											           fn == 0x47 || fn == 0x4f ||
 											           fn == 0x54 || fn == 0x55 ||
 											           fn == 0x56 ||
 											           fn == 0x57) {
 												repair = SCSI_SYNTH_IOCS_FN04_OK;
+                                            } else if (fn == 0xFF) {
+                                                repair = SCSI_SYNTH_IOCS_DIRECT;
                                             }
 									Memory_WriteD(addr, repair);
 									iocsFallbackCount++;
@@ -1191,28 +1365,10 @@ WinX68k_Reset(void)
 										}
 								}
 							}
-							// Final forced pass: SCSI IOCS functions ($20-$2F) and
-							// extended SCSI-area functions ($30-$39) MUST route through
-							// synthetic handlers.  The seed phase can incorrectly map
-							// IPL ROM SCSI handler addresses to system function slots
-							// ($32-$38 etc.), causing B_xPEEK/B_xPOKE to execute SPC
-							// code and enter the IPL error console.
-							for (int fn = 0x20; fn <= 0x2F; ++fn) {
-								Memory_WriteD(0x00000400 + (DWORD)fn * 4, SCSI_SYNTH_IOCS_DIRECT);
-							}
-							for (int fn = 0x30; fn <= 0x39; ++fn) {
-								// fn=$33 (B_WPEEK) and fn=$34 (B_LPEEK) keep their
-								// dedicated synthetic stubs; others route to C handler.
-								if (fn == 0x33) {
-									Memory_WriteD(0x00000400 + (DWORD)fn * 4, SCSI_SYNTH_IOCS_FN33_OK);
-								} else if (fn == 0x34) {
-									Memory_WriteD(0x00000400 + (DWORD)fn * 4, SCSI_SYNTH_IOCS_FN34_OK);
-								} else if (fn == 0x35) {
-									Memory_WriteD(0x00000400 + (DWORD)fn * 4, SCSI_SYNTH_IOCS_FN35_OK);
-								} else {
-									Memory_WriteD(0x00000400 + (DWORD)fn * 4, SCSI_SYNTH_IOCS_DIRECT);
-								}
-							}
+								// Do not force-map broad IOCS ranges ($20-$39) to synthetic
+								// direct handlers here. Those slots are heavily reused by
+								// Human68k startup; overriding them can route non-SCSI IOCS
+								// through the SCSI trap path and corrupt state.
 							// Save a known-good IOCS table snapshot. Runtime monitor can restore
 							// critical entries if kernels partially clobber them later.
 							for (int fn = 0; fn < 256; ++fn) {
@@ -1221,7 +1377,7 @@ WinX68k_Reset(void)
 						g_scsi_iocs_shadow_valid = 1;
 					// Debug: verify a few IOCS table entries used during forced boot.
 							{
-								static const int s_probeFns[] = { 0x00, 0x01, 0x04, 0x10, 0x17, 0x1E, 0x1F, 0x21, 0x23, 0x25, 0x26, 0x2F, 0x32, 0x33, 0x34, 0x35, 0x46, 0x47, 0x4F, 0x54, 0x55, 0x56, 0x57, 0x8E, 0xAE, 0xAF, 0xF0, 0xFC, 0xFF, 0xF5 };
+								static const int s_probeFns[] = { 0x00, 0x01, 0x04, 0x10, 0x17, 0x1E, 0x1F, 0x21, 0x23, 0x25, 0x26, 0x2E, 0x2F, 0x32, 0x33, 0x34, 0x35, 0x40, 0x46, 0x47, 0x4F, 0x54, 0x55, 0x56, 0x57, 0x8E, 0xAE, 0xAF, 0xF0, 0xFC, 0xFF, 0xF5 };
 							for (int pi = 0; pi < (int)(sizeof(s_probeFns) / sizeof(s_probeFns[0])); ++pi) {
 								int fn = s_probeFns[pi];
 							DWORD raw = X68000_ReadIplLong(iocsTableOffset + (DWORD)fn * 4, iocsUseDirect);
@@ -1237,10 +1393,10 @@ WinX68k_Reset(void)
 						X68000_AppendSCSILog(dbgLog);
 					}
 				}
-									// Keep forced-boot trap #15 on synthetic dispatcher. We rely on
-									// forced IOCS table patching above, including direct C-side routes
-									// for SCSI IOCS functions.
-									Memory_WriteD(47 * 4, SCSI_SYNTH_TRAP15_ENTRY);
+										// Keep forced-boot trap #15 on synthetic dispatcher. We rely on
+										// forced IOCS table patching above, including direct C-side routes
+										// for SCSI IOCS functions.
+										Memory_WriteD(47 * 4, SCSI_SYNTH_TRAP15_ENTRY);
 									Memory_WriteD(0x000007d4, SCSI_SYNTH_IOCS_ENTRY);
 									// Forced boot can start with stale MFP timer state and trigger
 									// continuous level-6 interrupts before OS handlers are installed.
@@ -1282,11 +1438,11 @@ WinX68k_Reset(void)
 						         (unsigned int)forcedSsp);
 					snprintf(iocsLog, sizeof(iocsLog), "FORCE BOOT INIT IOCS $0007D4=$%08X",
 					         (unsigned int)SCSI_SYNTH_IOCS_ENTRY);
-						snprintf(trap15Log, sizeof(trap15Log),
-						         "FORCE BOOT INIT TRAP15 $0000BC=$%08X (force synth ram=$%08X ipl=$%08X)",
-						         (unsigned int)SCSI_SYNTH_TRAP15_ENTRY,
-						         (unsigned int)trap15_ram,
-						         (unsigned int)trap15_effective);
+							snprintf(trap15Log, sizeof(trap15Log),
+							         "FORCE BOOT INIT TRAP15 $0000BC=$%08X (force synth ram=$%08X ipl=$%08X)",
+							         (unsigned int)SCSI_SYNTH_TRAP15_ENTRY,
+							         (unsigned int)trap15_ram,
+							         (unsigned int)trap15_effective);
 								X68000_AppendSCSILog("FORCE BOOT INIT VECTORS $000008-$0000FC (from IPL)");
 								if (iocsSeedReady) {
 									char iocsTblLog[192];
@@ -1353,11 +1509,14 @@ WinX68k_Reset(void)
 	                            g_scsi_qloop_fe4c_logs = 0;
 	                                    g_scsi_qtrace_logs = 0;
 	                                    g_scsi_native_iocs_entry_logs = 0;
-		                                    g_scsi_low_rts_logs = 0;
-		                                    g_scsi_low_rte_logs = 0;
-		                                    g_scsi_lowf75_logs = 0;
+	                                    g_scsi_stack_restore_fix_logs = 0;
+			                                    g_scsi_low_rts_logs = 0;
+			                                    g_scsi_low_rte_logs = 0;
+			                                    g_scsi_lowf75_logs = 0;
 		                                    g_scsi_f75_code_dumped = 0;
 		                                    g_scsi_fa_code_dumped = 0;
+		                                    g_scsi_lowf70_logs = 0;
+		                                    g_scsi_f70_code_dumped = 0;
 		                                    g_scsi_trap_special_logs = 0;
 	                                    memset(g_scsi_pc_trace_ring, 0, sizeof(g_scsi_pc_trace_ring));
 	                                    memset(g_scsi_sp_trace_ring, 0, sizeof(g_scsi_sp_trace_ring));
@@ -1473,7 +1632,12 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     ICount += clk_total;
     clk_next = (clk_total/VLINE_TOTAL);
     hsync = 1;
-    const int execSlice = g_use_synthetic_scsi_hooks ? 32 : CLOCK_SLICE;
+    // Keep IOCS pin/rehook checks effectively per-instruction while synthetic
+    // SCSI hooks are active AND device driver is not yet linked, so fn=$34/$35
+    // overwrite races cannot slip through.  After link, post-link pin guards
+    // run at normal slice intervals which is sufficient and much faster.
+    const int execSlice = (g_use_synthetic_scsi_hooks && !SCSI_IsDeviceLinked())
+                          ? 1 : CLOCK_SLICE;
 
     do {
         int m, n = (ICount > execSlice) ? execSlice : ICount;
@@ -1793,6 +1957,38 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 			                                             (unsigned int)b7);
 			                                    X68000_AppendSCSILog(rtsLog);
 			                                    g_scsi_low_rts_logs++;
+			                                    // One-time loop detection: dump code at stuck addresses
+			                                    if (g_scsi_low_rts_logs == 190) {
+			                                        // Dump machine code at key loop addresses + callers
+			                                        static const DWORD dumpAddrs[] = {
+			                                            0xFAC0, 0xFAD0, 0xFAE0, 0xFB30, 0xFB70,
+			                                            0xDF40, 0xDF50, 0xCBA0
+			                                        };
+			                                        for (int da = 0; da < 8; da++) {
+			                                            DWORD base = dumpAddrs[da];
+			                                            char dmp[256];
+			                                            int dl = snprintf(dmp, sizeof(dmp),
+			                                                "MEMDUMP $%05X:", (unsigned)base);
+			                                            for (int db = 0; db < 32 && dl < 240; db++) {
+			                                                dl += snprintf(dmp + dl, sizeof(dmp) - dl,
+			                                                    " %02X", (unsigned)Memory_ReadB(base + db));
+			                                            }
+			                                            X68000_AppendSCSILog(dmp);
+			                                        }
+			                                        // Also dump SR and key system variables
+			                                        {
+			                                            char srdmp[256];
+			                                            DWORD sr = C68k_Get_SR(&C68K);
+			                                            DWORD vec45 = Memory_ReadD(0x114); // MFP Timer-C vector
+			                                            DWORD vec01 = Memory_ReadD(0x404); // IOCS fn=$01
+			                                            DWORD vec20 = Memory_ReadD(0x480); // IOCS fn=$20
+			                                            snprintf(srdmp, sizeof(srdmp),
+			                                                "LOOPDIAG SR=$%04X vec_timerC=$%08X iocs01=$%08X iocs20=$%08X",
+			                                                (unsigned)sr, (unsigned)vec45,
+			                                                (unsigned)vec01, (unsigned)vec20);
+			                                            X68000_AppendSCSILog(srdmp);
+			                                        }
+			                                    }
 			                                } else if (op0 == 0x4e73U && g_scsi_low_rte_logs < 96) {
 			                                    DWORD a7Reg = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
 			                                    WORD frameSr = Memory_ReadW(a7Reg + 0);
@@ -1831,6 +2027,91 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 			                                    X68000_AppendSCSILog(rteLog);
 			                                    g_scsi_low_rte_logs++;
 			                                }
+			                            }
+			                            if (curPc >= 0x0000f6e0U &&
+			                                curPc < 0x0000f740U &&
+			                                g_scsi_lowf70_logs < 384) {
+			                                WORD op0 = Memory_ReadW(curPc);
+			                                DWORD a7Reg = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
+			                                DWORD d0Reg = C68k_Get_DReg(&C68K, 0);
+			                                DWORD d1Reg = C68k_Get_DReg(&C68K, 1);
+			                                DWORD d2Reg = C68k_Get_DReg(&C68K, 2);
+			                                DWORD d7Reg = C68k_Get_DReg(&C68K, 7);
+			                                DWORD a0Reg = C68k_Get_AReg(&C68K, 0) & 0x00ffffffU;
+			                                DWORD a1Reg = C68k_Get_AReg(&C68K, 1) & 0x00ffffffU;
+			                                char f70Log[256];
+			                                snprintf(f70Log, sizeof(f70Log),
+			                                         "CPU_F70_TRACE pc=$%08X op=%04X a7=%08X d0=%08X d1=%08X d2=%08X d7=%08X a0=%08X a1=%08X",
+			                                         (unsigned int)curPc,
+			                                         (unsigned int)op0,
+			                                         (unsigned int)a7Reg,
+			                                         (unsigned int)d0Reg,
+			                                         (unsigned int)d1Reg,
+			                                         (unsigned int)d2Reg,
+			                                         (unsigned int)d7Reg,
+			                                         (unsigned int)a0Reg,
+			                                         (unsigned int)a1Reg);
+			                                X68000_AppendSCSILog(f70Log);
+			                                if (curPc == 0x0000f6f4U) {
+			                                    // TRAP例外フレーム解析: SP+0=SR(2), SP+2=PC(4)
+			                                    WORD trapSR = Memory_ReadW(a7Reg);
+			                                    DWORD trapPC = Memory_ReadD(a7Reg + 2) & 0x00FFFFFFU;
+			                                    char callerLog[256];
+			                                    snprintf(callerLog, sizeof(callerLog),
+			                                             "CPU_F6F4_CALLER trapSR=%04X trapPC=%06X a7=%08X d0=%08X d7=%08X",
+			                                             (unsigned int)trapSR,
+			                                             (unsigned int)trapPC,
+			                                             (unsigned int)a7Reg,
+			                                             (unsigned int)d0Reg,
+			                                             (unsigned int)d7Reg);
+			                                    X68000_AppendSCSILog(callerLog);
+			                                    // TRAP呼び出し元コードダンプ ($CBD0周辺 = trapPC - 0x20 to trapPC + 0x10)
+			                                    if (trapPC >= 0x30U && trapPC < 0x01000000U) {
+			                                        DWORD dumpStart = (trapPC - 0x20U) & ~0x0FU;
+			                                        DWORD dumpEnd = (trapPC + 0x10U) | 0x0FU;
+			                                        char cc[256];
+			                                        DWORD cb;
+			                                        for (cb = dumpStart; cb <= dumpEnd; cb += 16) {
+			                                            BYTE cx[16];
+			                                            int cj;
+			                                            for (cj = 0; cj < 16; cj++) cx[cj] = Memory_ReadB(cb + cj);
+			                                            snprintf(cc, sizeof(cc),
+			                                                     "CPU_TRAP_CALLER_%06X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			                                                     (unsigned int)cb,
+			                                                     cx[0],cx[1],cx[2],cx[3],cx[4],cx[5],cx[6],cx[7],
+			                                                     cx[8],cx[9],cx[10],cx[11],cx[12],cx[13],cx[14],cx[15]);
+			                                            X68000_AppendSCSILog(cc);
+			                                        }
+			                                    }
+			                                }
+			                                if (!g_scsi_f70_code_dumped) {
+			                                    char cd[256];
+			                                    int k;
+			                                    DWORD base;
+			                                    for (base = 0xf6e0U; base <= 0xf740U; base += 0x10U) {
+			                                        BYTE bx[16];
+			                                        for (k = 0; k < 16; k++) bx[k] = Memory_ReadB(base + k);
+			                                        snprintf(cd, sizeof(cd),
+			                                                 "CPU_CODE_%04X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			                                                 (unsigned int)base,
+			                                                 bx[0],bx[1],bx[2],bx[3],bx[4],bx[5],bx[6],bx[7],
+			                                                 bx[8],bx[9],bx[10],bx[11],bx[12],bx[13],bx[14],bx[15]);
+			                                        X68000_AppendSCSILog(cd);
+			                                    }
+			                                    // $F8D0-$F910: セクタ読み込みサブルーチン (TRAP後分岐を含む)
+			                                    for (base = 0xf8d0U; base <= 0xf910U; base += 0x10U) {
+			                                        BYTE bx[16];
+			                                        for (k = 0; k < 16; k++) bx[k] = Memory_ReadB(base + k);
+			                                        snprintf(cd, sizeof(cd),
+			                                                 "CPU_CODE_%04X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			                                                 (unsigned int)base,
+			                                                 bx[0],bx[1],bx[2],bx[3],bx[4],bx[5],bx[6],bx[7],
+			                                                 bx[8],bx[9],bx[10],bx[11],bx[12],bx[13],bx[14],bx[15]);
+			                                        X68000_AppendSCSILog(cd);
+			                                    }
+			                                    g_scsi_f70_code_dumped = 1;
+			                                }
+			                                g_scsi_lowf70_logs++;
 			                            }
 			                            if (curPc >= 0x0000f740U &&
 			                                curPc <= 0x0000f76aU &&
@@ -2359,20 +2640,81 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 			                                g_scsi_lowpc_logs++;
 			                            }
 		                            int isScsiFdcWaitPc = X68000_IsScsiFdcWaitPc(curPc);
-	                            g_scsi_iocs_check_counter++;
+			                            // Keep keyboard/console IOCS mostly native.
+		                            // Pin a minimal fallback set only in known SCSI/FDC wait
+		                            // PCs during pre-link bootstrap.
+			                            if (g_use_synthetic_scsi_hooks &&
+			                                g_scsi_lowpc_logs > 0 &&
+			                                isScsiFdcWaitPc &&
+			                                !SCSI_IsDeviceLinked()) {
+		                                DWORD addr2e = 0x00000400 + (DWORD)0x2e * 4;
+		                                DWORD cur2e = Memory_ReadD(addr2e) & 0x00ffffffU;
+		                                if (cur2e != SCSI_SYNTH_IOCS_DIRECT) {
+		                                    Memory_WriteD(addr2e, SCSI_SYNTH_IOCS_DIRECT);
+	                                    if (g_scsi_iocs_fix_logs < 64) {
+	                                        char pinLog[160];
+	                                        snprintf(pinLog, sizeof(pinLog),
+	                                                 "SCSI_IOCS_PIN fn=$2E old=$%08X new=$%08X",
+	                                                 (unsigned int)cur2e,
+	                                                 (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+		                                        X68000_AppendSCSILog(pinLog);
+		                                        g_scsi_iocs_fix_logs++;
+		                                    }
+		                                }
+		                                // During pre-link bootstrap, some native keyboard/console
+		                                // IOCS paths (notably fn=$34/$35) can consume stack frames
+		                                // continuously on emulated timing. Keep these on synthetic
+		                                // stubs until the block driver is linked.
+		                                static const BYTE s_prelinkPins[] = { 0x32, 0x33, 0x34, 0x35 };
+		                                for (int pi = 0; pi < (int)(sizeof(s_prelinkPins) / sizeof(s_prelinkPins[0])); ++pi) {
+		                                    BYTE fn = s_prelinkPins[pi];
+		                                    DWORD addr = 0x00000400 + (DWORD)fn * 4;
+		                                    DWORD cur = Memory_ReadD(addr) & 0x00ffffffU;
+		                                    DWORD pin = X68000_GetSyntheticIocsFallback(fn);
+		                                    if (cur != pin) {
+		                                        Memory_WriteD(addr, pin);
+		                                        if (g_scsi_iocs_fix_logs < 64) {
+		                                            char pinLog[160];
+		                                            snprintf(pinLog, sizeof(pinLog),
+		                                                     "SCSI_IOCS_PIN fn=$%02X old=$%08X new=$%08X",
+		                                                     (unsigned int)fn,
+		                                                     (unsigned int)cur,
+		                                                     (unsigned int)pin);
+		                                            X68000_AppendSCSILog(pinLog);
+		                                            g_scsi_iocs_fix_logs++;
+		                                        }
+		                                    }
+		                                }
+		                            }
+		                            g_scsi_iocs_check_counter++;
 	                            // Full IOCS table repair on every instruction is too heavy
 	                            // in DBRA wait loops (for example around $0000884E).
 	                            // Keep repair active, but run it at a fixed interval.
-	                            if (g_scsi_iocs_check_counter >= kScsiIocsRuntimeCheckInterval) {
+	                            {
+	                                int iocsRuntimeCheckInterval = kScsiIocsRuntimeCheckInterval;
+		                                if (g_use_synthetic_scsi_hooks &&
+		                                    g_scsi_lowpc_logs > 0 &&
+		                                    isScsiFdcWaitPc) {
+	                                    iocsRuntimeCheckInterval = 1;
+	                                }
+	                                if (g_enable_scsi_dev_driver &&
+	                                    !SCSI_IsDeviceLinked()) {
+	                                    // Device-driver link timing is sensitive during
+	                                    // forced boot. Poll every instruction until linked.
+	                                    iocsRuntimeCheckInterval = 1;
+	                                }
+	                                if (g_scsi_iocs_check_counter >= iocsRuntimeCheckInterval) {
 	                                DWORD iocsVector;
 	                                DWORD trap15Vector;
+	                                int linked;
 		                                g_scsi_iocs_check_counter = 0;
 		                                iocsVector = Memory_ReadD(0x000007d4) & 0x00ffffff;
 		                                trap15Vector = Memory_ReadD(47 * 4) & 0x00ffffff;
+	                                linked = SCSI_IsDeviceLinked() ? 1 : 0;
                                 g_last_scsi_iocs_vector = iocsVector;
-                                if (!SCSI_IsDeviceLinked() &&
-                                    iocsVector != 0 &&
-                                    iocsVector != SCSI_SYNTH_IOCS_ENTRY) {
+	                                if (!linked &&
+	                                    iocsVector != 0 &&
+	                                    iocsVector != SCSI_SYNTH_IOCS_ENTRY) {
                                     Memory_WriteD(0x000007d4, SCSI_SYNTH_IOCS_ENTRY);
                                     if (g_scsi_iocs_rehook_logs < 64) {
                                         char rehookLog[128];
@@ -2380,176 +2722,515 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                                                  "SCSI_IOCS_REHOOK $0007D4 old=$%08X new=$%08X linked=%d",
                                                  (unsigned int)iocsVector,
                                                  (unsigned int)SCSI_SYNTH_IOCS_ENTRY,
-                                                 SCSI_IsDeviceLinked() ? 1 : 0);
+                                                 linked);
                                         X68000_AppendSCSILog(rehookLog);
                                         g_scsi_iocs_rehook_logs++;
                                     }
                                 }
-                                if (trap15Vector != 0 &&
-                                    trap15Vector != SCSI_SYNTH_TRAP15_ENTRY) {
-                                    Memory_WriteD(47 * 4, SCSI_SYNTH_TRAP15_ENTRY);
-                                    if (g_scsi_trap15_rehook_logs < 64) {
-                                        char rehookLog[128];
-                                        snprintf(rehookLog, sizeof(rehookLog),
-                                                 "SCSI_TRAP15_REHOOK $0000BC old=$%08X new=$%08X",
-                                                 (unsigned int)trap15Vector,
-                                                 (unsigned int)SCSI_SYNTH_TRAP15_ENTRY);
-                                        X68000_AppendSCSILog(rehookLog);
-                                        g_scsi_trap15_rehook_logs++;
-                                    }
+	                                if (!linked &&
+	                                    trap15Vector != 0 &&
+	                                    trap15Vector != SCSI_SYNTH_TRAP15_ENTRY) {
+	                                    Memory_WriteD(47 * 4, SCSI_SYNTH_TRAP15_ENTRY);
+	                                    if (g_scsi_trap15_rehook_logs < 64) {
+	                                        char rehookLog[128];
+	                                        snprintf(rehookLog, sizeof(rehookLog),
+	                                                 "SCSI_TRAP15_REHOOK $0000BC old=$%08X new=$%08X",
+	                                                 (unsigned int)trap15Vector,
+	                                                 (unsigned int)SCSI_SYNTH_TRAP15_ENTRY);
+	                                        X68000_AppendSCSILog(rehookLog);
+	                                        g_scsi_trap15_rehook_logs++;
+	                                    }
                                 }
-                                // Runtime IOCS guard:
-                                // validate all entries and repair broken pointers before dispatch.
-	                                {
-	                                    for (int fn = 0; fn < 256; ++fn) {
-	                                        DWORD addr = 0x00000400 + (DWORD)fn * 4;
-	                                        DWORD curRaw = Memory_ReadD(addr);
-	                                        DWORD curEff = X68000_NormalizeIocsHandler(curRaw, NULL);
-		                                        if (fn == 0xff) {
-		                                            // Human68k installs IOCS $FF to RAM handlers (for example $000086F2).
-		                                            // Keep RAM hooks, but reject broken targets (opcode 0000/FFFF) so
-		                                            // we don't spin on corrupted handlers such as $0000859C.
-		                                            if (!X68000_IsExecutableIocsHandler(curEff)) {
-		                                                DWORD repair = SCSI_SYNTH_IOCS_FF_FALLBACK;
-		                                                Memory_WriteD(addr, repair);
-	                                                if (g_scsi_iocs_fix_logs < 64) {
-	                                                    char fixLog[160];
-	                                                    snprintf(fixLog, sizeof(fixLog),
-	                                                             "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X",
-	                                                             (unsigned int)fn,
-	                                                             (unsigned int)(curRaw & 0x00ffffffU),
-	                                                             (unsigned int)repair);
-	                                                    X68000_AppendSCSILog(fixLog);
-	                                                    g_scsi_iocs_fix_logs++;
-	                                                }
-	                                            }
-	                                            continue;
-	                                        }
-	                                        if (!X68000_IsExecutableIocsHandler(curEff)) {
-	                                            DWORD repair = 0;
-	                                            if (g_scsi_iocs_shadow_valid) {
-	                                                DWORD shadowRaw = g_scsi_iocs_shadow[fn] & 0x00ffffffU;
-	                                                DWORD shadowEff = X68000_NormalizeIocsHandler(shadowRaw, NULL);
-	                                                if (X68000_IsExecutableIocsHandler(shadowEff)) {
-	                                                    repair = shadowRaw;
+                                // Protect M68000 exception vectors (2-47) from being
+                                // zeroed after device link. Some programs or drivers
+                                // bulk-clear the $00-$3FF area; if the critical
+                                // vectors (bus error, address error, F-line for DOS
+                                // calls, TRAP vectors, etc.) are zeroed, the OS crashes.
+                                // We must wait until the KERNEL has set up its own
+                                // handlers (F-line vector is NOT the ROM value $FF0654)
+                                // before saving the snapshot.
+                                if (linked) {
+                                    DWORD flineVec = Memory_ReadD(0x2C) & 0x00ffffffU;
+                                    // Save vectors only after kernel installs its own
+                                    // F-line handler (ROM value is $00FF0654; kernel
+                                    // handler will be in low memory like $0000xxxx).
+                                    if (!g_scsi_exc_vectors_saved) {
+                                        if (flineVec != 0 && flineVec < 0x100000U) {
+                                            // Kernel F-line handler is installed - save all
+                                            for (int ev = 2; ev <= 47; ev++) {
+                                                g_scsi_saved_exc_vectors[ev] =
+                                                    Memory_ReadD((DWORD)ev * 4) & 0x00ffffffU;
+                                            }
+                                            g_scsi_exc_vectors_saved = 1;
+                                            char slog[256];
+                                            snprintf(slog, sizeof(slog),
+                                                     "EXCVEC_SAVED v11=$%08X v46=$%08X v47=$%08X",
+                                                     (unsigned int)g_scsi_saved_exc_vectors[11],
+                                                     (unsigned int)g_scsi_saved_exc_vectors[46],
+                                                     (unsigned int)g_scsi_saved_exc_vectors[47]);
+                                            X68000_AppendSCSILog(slog);
+                                        }
+                                    }
+                                    // Detect and restore zeroed vectors
+                                    if (flineVec == 0 && g_scsi_exc_vectors_saved) {
+                                        if (!g_scsi_fline_zero_logged) {
+                                            g_scsi_fline_zero_logged = 1;
+                                            DWORD curPcF = C68k_Get_PC(&C68K) & 0x00ffffffU;
+                                            char flog[256];
+                                            snprintf(flog, sizeof(flog),
+                                                     "FLINE_VEC_ZEROED pc=$%08X a7=$%08X d0=$%08X - restoring",
+                                                     (unsigned int)curPcF,
+                                                     (unsigned int)C68k_Get_AReg(&C68K, 7),
+                                                     (unsigned int)C68k_Get_DReg(&C68K, 0));
+                                            X68000_AppendSCSILog(flog);
+                                        }
+                                        for (int ev = 2; ev <= 47; ev++) {
+                                            DWORD cur = Memory_ReadD((DWORD)ev * 4) & 0x00ffffffU;
+                                            if (cur == 0 && g_scsi_saved_exc_vectors[ev] != 0) {
+                                                Memory_WriteD((DWORD)ev * 4,
+                                                              g_scsi_saved_exc_vectors[ev]);
+                                                if (g_scsi_exc_restore_logs < 64) {
+                                                    char rlog[128];
+                                                    snprintf(rlog, sizeof(rlog),
+                                                             "EXCVEC_RESTORE vec=$%02X val=$%08X",
+                                                             (unsigned int)ev,
+                                                             (unsigned int)g_scsi_saved_exc_vectors[ev]);
+                                                    X68000_AppendSCSILog(rlog);
+                                                    g_scsi_exc_restore_logs++;
                                                 }
-                                            }
-                                            if (repair == 0) {
-                                                repair = X68000_GetSyntheticIocsFallback((BYTE)fn);
-                                            }
-                                            Memory_WriteD(addr, repair);
-                                            if (g_scsi_iocs_fix_logs < 64) {
-                                                char fixLog[160];
-                                                snprintf(fixLog, sizeof(fixLog),
-                                                         "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X",
-                                                         (unsigned int)fn,
-                                                         (unsigned int)(curRaw & 0x00ffffffU),
-                                                         (unsigned int)repair);
-                                                X68000_AppendSCSILog(fixLog);
-                                                g_scsi_iocs_fix_logs++;
                                             }
                                         }
                                     }
+                                    g_scsi_last_fline_vec = flineVec;
                                 }
-	                                // Keep runtime IOCS handlers selected by IPL/OS.
-	                                // The generic IOCS repair path above already patches
-	                                // clearly invalid entries to safe synthetic fallbacks.
-	                                // Exceptions:
-	                                //   - SCSI IOCS fn=$20-$2F stay on synthetic direct handlers.
-	                                //   - fn=$33/$34 and fn=$3C remain pinned to safe synthetic stubs.
-	                                {
-	                                    for (int fn = 0x20; fn <= 0x2f; ++fn) {
+                                // After device link, restore IOCS fns whose shadow values
+                                // point OUTSIDE the SCSIIMG overlay ($FC0000-$FC1FFF).
+                                // fn=$20 (B_PUTC) stays on synthetic $FC00C2 — C-side handler
+                                // processes ESC sequences.  IPL ROM native B_PUTC at $FF7654
+                                // requires console RAM state ($944/$974/$994) that may not
+                                // be initialized during forced SCSI boot.
+                                if (linked &&
+                                    !g_scsi_overlay_partial_restored &&
+                                    g_scsi_iocs_shadow_valid) {
+                                    DWORD fn20old = Memory_ReadD(0x480) & 0x00ffffffU;
+                                    DWORD fn21old = Memory_ReadD(0x484) & 0x00ffffffU;
+
+                                    // Restore other IOCS fns with shadow outside SCSIIMG
+                                    {
+                                        static const BYTE s_restoreFns[] = {
+                                            0x04, 0x08, 0x10, 0x23, 0x40
+                                        };
+                                        for (int ri = 0; ri < (int)(sizeof(s_restoreFns) / sizeof(s_restoreFns[0])); ++ri) {
+                                            BYTE fn = s_restoreFns[ri];
+                                            DWORD shadow = g_scsi_iocs_shadow[fn];
+                                            if (shadow >= 0x00fc0000U && shadow < 0x00fc2000U)
+                                                continue;
+                                            DWORD addr = 0x400 + (DWORD)fn * 4;
+                                            DWORD cur = Memory_ReadD(addr) & 0x00ffffffU;
+                                            if (cur >= 0x00fc0000U && cur < 0x00fc0100U &&
+                                                shadow != 0 &&
+                                                X68000_IsRomIocsHandler(shadow)) {
+                                                Memory_WriteD(addr, shadow);
+                                            }
+                                        }
+                                    }
+
+                                    g_scsi_overlay_partial_restored = 1;
+                                    {
+                                        char rlog[256];
+                                        snprintf(rlog, sizeof(rlog),
+                                                 "SCSI_POSTLINK_IOCS fn20=$%08X fn21=$%08X",
+                                                 (unsigned int)fn20old,
+                                                 (unsigned int)fn21old);
+                                        X68000_AppendSCSILog(rlog);
+                                    }
+                                }
+                                // NOTE: SCSIINROM.DAT is a SCSIIN (internal SCSI, MB89352)
+                                // ROM with a completely different layout from the SCSIEX
+                                // (external SCSI, MB87030) that the IPL ROM IOCS table
+                                // expects.  Cannot use it as a SCSIIPL replacement.
+	                                // Pre-link bootstrap pins some keyboard/console IOCS slots to
+	                                // synthetic handlers. Once the block driver is linked, restore
+	                                // those slots from the forced-boot IOCS shadow when possible.
+	                                if (linked &&
+	                                    !g_scsi_postlink_iocs_restore_done &&
+	                                    g_scsi_iocs_shadow_valid) {
+	                                    // Keep fn=$32/$33/$34/$35 pinned on synthetic stubs even after
+	                                    // link. Restoring keyboard/console handlers too early can drop
+	                                    // forced boot into monitor input loops before OS handoff.
+	                                    static const BYTE s_restoreFns[] = { 0x40 };
+	                                    for (int ri = 0; ri < (int)(sizeof(s_restoreFns) / sizeof(s_restoreFns[0])); ++ri) {
+	                                        BYTE fn = s_restoreFns[ri];
 	                                        DWORD addr = 0x00000400 + (DWORD)fn * 4;
-	                                        DWORD cur = Memory_ReadD(addr);
-	                                        if ((cur & 0x00ffffffU) != SCSI_SYNTH_IOCS_DIRECT) {
-	                                            Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+	                                        DWORD curRaw = Memory_ReadD(addr) & 0x00ffffffU;
+	                                        DWORD curEff = X68000_NormalizeIocsHandler(curRaw, NULL);
+	                                        DWORD shadowRaw = g_scsi_iocs_shadow[fn] & 0x00ffffffU;
+	                                        DWORD shadowEff = X68000_NormalizeIocsHandler(shadowRaw, NULL);
+	                                        DWORD pinEff = X68000_GetSyntheticIocsFallback(fn);
+	                                        if (!X68000_IsExecutableIocsHandler(shadowEff) ||
+	                                            X68000_IsSyntheticIocsPadding(shadowEff) ||
+	                                            shadowEff == SCSI_SYNTH_IOCS_DEFAULT) {
+	                                            continue;
+	                                        }
+	                                        // Do not override an already-live non-synthetic handler.
+	                                        if (curEff != pinEff &&
+	                                            curEff != SCSI_SYNTH_IOCS_DEFAULT &&
+	                                            X68000_IsExecutableIocsHandler(curEff)) {
+	                                            continue;
+	                                        }
+	                                        if (curRaw != shadowRaw) {
+	                                            Memory_WriteD(addr, shadowRaw);
+	                                            if (g_scsi_postlink_iocs_restore_logs < 24) {
+	                                                char restoreLog[160];
+	                                                snprintf(restoreLog, sizeof(restoreLog),
+	                                                         "SCSI_IOCS_POSTLINK_RESTORE fn=$%02X old=$%08X new=$%08X",
+	                                                         (unsigned int)fn,
+	                                                         (unsigned int)curRaw,
+	                                                         (unsigned int)shadowRaw);
+	                                                X68000_AppendSCSILog(restoreLog);
+	                                                g_scsi_postlink_iocs_restore_logs++;
+	                                            }
 	                                        }
 	                                    }
-	                                    DWORD addr17 = 0x00000400 + (DWORD)0x17 * 4;
-	                                    DWORD addr18 = 0x00000400 + (DWORD)0x18 * 4;
-	                                    DWORD addr1e = 0x00000400 + (DWORD)0x1e * 4;
-                                    DWORD addr1f = 0x00000400 + (DWORD)0x1f * 4;
-                                    DWORD addr33 = 0x00000400 + (DWORD)0x33 * 4;
-                                    DWORD addr34 = 0x00000400 + (DWORD)0x34 * 4;
-                                    DWORD addr3c = 0x00000400 + (DWORD)0x3c * 4;
-	                                    DWORD addr46 = 0x00000400 + (DWORD)0x46 * 4;
-	                                    DWORD addr47 = 0x00000400 + (DWORD)0x47 * 4;
-	                                    DWORD addr4f = 0x00000400 + (DWORD)0x4f * 4;
-	                                    DWORD addr54 = 0x00000400 + (DWORD)0x54 * 4;
-	                                    DWORD addr55 = 0x00000400 + (DWORD)0x55 * 4;
-	                                    DWORD addr56 = 0x00000400 + (DWORD)0x56 * 4;
-	                                    DWORD addr57 = 0x00000400 + (DWORD)0x57 * 4;
-	                                    DWORD addr8e = 0x00000400 + (DWORD)0x8e * 4;
-	                                    DWORD cur17 = Memory_ReadD(addr17);
-                                    DWORD cur18 = Memory_ReadD(addr18);
-                                    DWORD cur1e = Memory_ReadD(addr1e);
-                                    DWORD cur1f = Memory_ReadD(addr1f);
-                                    DWORD cur33 = Memory_ReadD(addr33);
-                                    DWORD cur34 = Memory_ReadD(addr34);
-                                    DWORD cur3c = Memory_ReadD(addr3c);
-	                                    DWORD cur46 = Memory_ReadD(addr46);
-	                                    DWORD cur47 = Memory_ReadD(addr47);
-	                                    DWORD cur4f = Memory_ReadD(addr4f);
-	                                    DWORD cur54 = Memory_ReadD(addr54);
-	                                    DWORD cur55 = Memory_ReadD(addr55);
-	                                    DWORD cur56 = Memory_ReadD(addr56);
-	                                    DWORD cur57 = Memory_ReadD(addr57);
-	                                    DWORD cur8e = Memory_ReadD(addr8e);
-	                                    if ((cur17 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr17, SCSI_SYNTH_IOCS_FN04_OK);
+	                                    g_scsi_postlink_iocs_restore_done = 1;
+	                                }
+                                // Keep fn=$2E/$2F on synthetic direct dispatch ONLY
+                                // before device-driver link. fn=$2E/_B_MEMSET and
+                                // fn=$2F/_DMAMOVE are standard system IOCS functions
+                                // that the OS needs after boot. Pinning them post-link
+                                // causes DMAMOVE calls to be misrouted to the SCSI
+                                // handler, which reads disk sectors into the DMA buffer
+                                // and corrupts memory.
+                                if (g_use_synthetic_scsi_hooks && !linked) {
+                                    static const BYTE s_directPinFns[] = { 0x2e, 0x2f };
+	                                    for (int pi = 0; pi < (int)(sizeof(s_directPinFns) / sizeof(s_directPinFns[0])); ++pi) {
+	                                        BYTE fn = s_directPinFns[pi];
+	                                        DWORD addr = 0x00000400 + (DWORD)fn * 4;
+	                                        DWORD cur = Memory_ReadD(addr) & 0x00ffffffU;
+	                                        if (cur == SCSI_SYNTH_IOCS_DIRECT) {
+	                                            continue;
+	                                        }
+	                                        // Save the native handler before overwriting.
+	                                        // The kernel will write its own handler here;
+	                                        // we always capture the latest non-synthetic value
+	                                        // so we can restore it after device-driver link.
+	                                        if (cur >= 0x1000U &&
+	                                            cur != SCSI_SYNTH_IOCS_DIRECT &&
+	                                            cur != SCSI_SYNTH_IOCS_DEFAULT) {
+	                                            if (fn == 0x2e) g_scsi_saved_native_2e = cur;
+	                                            if (fn == 0x2f) g_scsi_saved_native_2f = cur;
+	                                        }
+	                                        Memory_WriteD(addr, SCSI_SYNTH_IOCS_DIRECT);
+	                                        if (g_scsi_iocs_fix_logs < 64) {
+	                                            char pinLog[160];
+	                                            snprintf(pinLog, sizeof(pinLog),
+	                                                     "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X reason=direct-pin",
+	                                                     (unsigned int)fn,
+	                                                     (unsigned int)cur,
+	                                                     (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+	                                            X68000_AppendSCSILog(pinLog);
+	                                            g_scsi_iocs_fix_logs++;
+	                                        }
 	                                    }
-	                                    if ((cur18 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr18, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur1e & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr1e, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-                                    if ((cur1f & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-                                        Memory_WriteD(addr1f, SCSI_SYNTH_IOCS_FN04_OK);
-                                    }
-                                    if ((cur33 & 0x00ffffffU) != SCSI_SYNTH_IOCS_FN33_OK) {
-                                        Memory_WriteD(addr33, SCSI_SYNTH_IOCS_FN33_OK);
-                                    }
-                                    if ((cur34 & 0x00ffffffU) != SCSI_SYNTH_IOCS_FN34_OK) {
-                                        Memory_WriteD(addr34, SCSI_SYNTH_IOCS_FN34_OK);
-                                    }
-                                    if ((cur3c & 0x00ffffffU) != SCSI_SYNTH_IOCS_FN04_OK) {
-                                        Memory_WriteD(addr3c, SCSI_SYNTH_IOCS_FN04_OK);
-                                    }
-	                                    if ((cur46 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr46, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur47 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr47, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur4f & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr4f, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur54 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr54, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur55 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr55, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur56 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr56, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur57 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr57, SCSI_SYNTH_IOCS_FN04_OK);
-	                                    }
-	                                    if ((cur8e & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
-	                                        Memory_WriteD(addr8e, SCSI_SYNTH_IOCS_FN04_OK);
+	                                    // Keep fn=$FF on synthetic no-op stub across the full
+	                                    // lifecycle.  Kernel-installed fn=$FF handler ($86F2)
+	                                    // references ROM subroutines in $FC0000+ which are
+	                                    // overlaid by SCSIIMG, causing ADR_ERROR at odd addresses.
+	                                    {
+	                                        DWORD ffAddr = 0x00000400 + 0xFFU * 4;
+	                                        DWORD ffCur = Memory_ReadD(ffAddr) & 0x00ffffffU;
+	                                        if (ffCur != SCSI_SYNTH_IOCS_FF_FALLBACK) {
+	                                            Memory_WriteD(ffAddr, SCSI_SYNTH_IOCS_FF_FALLBACK);
+	                                            if (g_scsi_iocs_fix_logs < 64) {
+	                                                char pinLog[160];
+	                                                snprintf(pinLog, sizeof(pinLog),
+	                                                         "SCSI_IOCS_REPAIR fn=$FF old=$%08X new=$%08X reason=ff-pin",
+	                                                         (unsigned int)ffCur,
+	                                                         (unsigned int)SCSI_SYNTH_IOCS_FF_FALLBACK);
+	                                                X68000_AppendSCSILog(pinLog);
+	                                                g_scsi_iocs_fix_logs++;
+	                                            }
+	                                        }
 	                                    }
 	                                }
+                                // NOTE: Do NOT restore fn=$2E/_B_CONSOL or fn=$2F/_B_PUTMES
+                                // to native ROM handlers.  Native handlers at $FExxxx call
+                                // subroutines in $FC0000+ which is overlaid by SCSIIMG during
+                                // SCSI boot → wrong code executed → immediate boot failure ("??").
+                                // fn=$2E/$2F stay on SCSI_SYNTH_IOCS_DIRECT (C-side no-op).
+                                if (linked && !g_scsi_native_2e2f_restored) {
+                                    g_scsi_native_2e2f_restored = 1;
+                                    {
+                                        DWORD fn2e = Memory_ReadD(0x400 + 0x2EU * 4) & 0x00ffffffU;
+                                        DWORD fn2f = Memory_ReadD(0x400 + 0x2FU * 4) & 0x00ffffffU;
+                                        char vlog[256];
+                                        snprintf(vlog, sizeof(vlog),
+                                                 "SCSI_POSTLINK_IOCS fn2e=$%08X fn2f=$%08X (kept on synthetic)",
+                                                 (unsigned int)fn2e, (unsigned int)fn2f);
+                                        X68000_AppendSCSILog(vlog);
+                                    }
+                                }
+                                // Post-link: pin fn=$0C and fn=$FF to synthetic handlers.
+                                // Their kernel-installed handlers reference subroutines/tables
+                                // in $FC0000+ which is overlaid by SCSIIMG → crash or corruption.
+                                if (linked && g_use_synthetic_scsi_hooks) {
+                                    // fn=$0C (_CRTMOD): native ROM reads CRT mode table from
+                                    // $FC0000+, now SCSIIMG garbage → CRTC regs zeroed → no display.
+                                    {
+                                        DWORD fn0cAddr = 0x400 + 0x0CU * 4;
+                                        DWORD fn0cCur = Memory_ReadD(fn0cAddr) & 0x00ffffffU;
+                                        if (fn0cCur != SCSI_SYNTH_IOCS_DIRECT) {
+                                            Memory_WriteD(fn0cAddr, SCSI_SYNTH_IOCS_DIRECT);
+                                            if (g_scsi_postlink_pin_logs < 16) {
+                                                char pinLog[160];
+                                                snprintf(pinLog, sizeof(pinLog),
+                                                         "SCSI_POSTLINK_PIN fn=$0C old=$%08X new=$%08X",
+                                                         (unsigned int)fn0cCur,
+                                                         (unsigned int)SCSI_SYNTH_IOCS_DIRECT);
+                                                X68000_AppendSCSILog(pinLog);
+                                                g_scsi_postlink_pin_logs++;
+                                            }
+                                        }
+                                    }
+                                    // fn=$FF: kernel handler ($86F2) calls ROM subroutines in
+                                    // $FC0000+ overlaid by SCSIIMG → stack corruption → crash.
+                                    {
+                                        DWORD ffAddr = 0x400 + 0xFFU * 4;
+                                        DWORD ffCur = Memory_ReadD(ffAddr) & 0x00ffffffU;
+                                        if (ffCur != SCSI_SYNTH_IOCS_FF_FALLBACK) {
+                                            Memory_WriteD(ffAddr, SCSI_SYNTH_IOCS_FF_FALLBACK);
+                                            if (g_scsi_postlink_pin_logs < 16) {
+                                                char pinLog[160];
+                                                snprintf(pinLog, sizeof(pinLog),
+                                                         "SCSI_POSTLINK_PIN fn=$FF old=$%08X new=$%08X",
+                                                         (unsigned int)ffCur,
+                                                         (unsigned int)SCSI_SYNTH_IOCS_FF_FALLBACK);
+                                                X68000_AppendSCSILog(pinLog);
+                                                g_scsi_postlink_pin_logs++;
+                                            }
+                                        }
+                                    }
+                                    // Display state monitor: detect if VCReg2[1] text enable
+                                    // bit (0x20) was cleared or CRTC dimensions became invalid.
+                                    // Human68k may call _CRTMOD via native ROM or directly write
+                                    // to CRTC/VCtrl registers, corrupting the display state.
+                                    if (g_scsi_display_check_counter++ >= 256) {
+                                        g_scsi_display_check_counter = 0;
+                                        if (!(VCReg2[1] & 0x20) || TextDotX == 0 || TextDotY == 0) {
+                                            if (g_scsi_display_fix_logs < 16) {
+                                                char fixLog[192];
+                                                snprintf(fixLog, sizeof(fixLog),
+                                                         "SCSI_DISPLAY_FIX vc2=%02X tdx=%u tdy=%u hs=%u he=%u vs=%u ve=%u",
+                                                         (unsigned int)VCReg2[1],
+                                                         (unsigned int)TextDotX, (unsigned int)TextDotY,
+                                                         (unsigned int)CRTC_HSTART, (unsigned int)CRTC_HEND,
+                                                         (unsigned int)CRTC_VSTART, (unsigned int)CRTC_VEND);
+                                                X68000_AppendSCSILog(fixLog);
+                                                g_scsi_display_fix_logs++;
+                                            }
+                                            // Reinitialize CRTC for 768x512 31kHz text mode
+                                            CRTC_Write(0xE80000, 0x00); CRTC_Write(0xE80001, 0x89);
+                                            CRTC_Write(0xE80002, 0x00); CRTC_Write(0xE80003, 0x0E);
+                                            CRTC_Write(0xE80006, 0x00); CRTC_Write(0xE80007, 0x7C);
+                                            CRTC_Write(0xE80004, 0x00); CRTC_Write(0xE80005, 0x1C);
+                                            CRTC_Write(0xE80008, 0x02); CRTC_Write(0xE80009, 0x37);
+                                            CRTC_Write(0xE8000A, 0x00); CRTC_Write(0xE8000B, 0x05);
+                                            CRTC_Write(0xE8000E, 0x02); CRTC_Write(0xE8000F, 0x28);
+                                            CRTC_Write(0xE8000C, 0x00); CRTC_Write(0xE8000D, 0x28);
+                                            CRTC_Write(0xE80010, 0x00); CRTC_Write(0xE80011, 0x1B);
+                                            CRTC_Write(0xE80028, 0x00); CRTC_Write(0xE80029, 0x16);
+                                            VCtrl_Write(0xE82601, 0x20);
+                                            Pal_Regs[0x200] = 0x00; Pal_Regs[0x201] = 0x00;
+                                            TextPal[0] = Pal16[0x0000];
+                                            Pal_Regs[0x202] = 0xFF; Pal_Regs[0x203] = 0xFE;
+                                            TextPal[1] = Pal16[0xFFFE];
+                                            TVRAM_SetAllDirty();
+                                        }
+                                    }
+                                }
+                                // Runtime IOCS guard:
+                                // keep synthetic repair active only before block-driver link.
+                                // After link, allow OS-installed IOCS handlers to own the table.
+			                                if (!linked) {
+			                                    static const BYTE s_guardFns[] = {
+			                                        /* 0x00, 0x01 removed: keyboard uses native ROM */
+			                                        0x04, 0x08, 0x0c, 0x10, 0x17, 0x1e, 0x1f,
+			                                        0x20, 0x21, 0x23, 0x25, 0x26, 0x2a, 0x2b, 0x2c, 0x2d,
+			                                        0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33,
+			                                        0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3c, 0x3d,
+			                                        0x46, 0x47, 0x4f, 0x54,
+			                                        0x55, 0x56, 0x57, 0x58, 0x61, 0x6a, 0x73, 0x8e,
+			                                        0xae, 0xaf,
+			                                        0xf0, 0xf5, 0xfc, 0xff
+			                                    };
+				                                    for (int idx = 0; idx < (int)(sizeof(s_guardFns) / sizeof(s_guardFns[0])); ++idx) {
+				                                        int fn = s_guardFns[idx];
+				                                        DWORD addr = 0x00000400 + (DWORD)fn * 4;
+				                                        DWORD curRaw = Memory_ReadD(addr);
+				                                        DWORD curEff = X68000_NormalizeIocsHandler(curRaw, NULL);
+					                                        {
+					                                            DWORD preferredPrelink = X68000_GetSyntheticIocsFallback((BYTE)fn);
+					                                            if (fn != 0xf5 &&
+					                                                preferredPrelink != SCSI_SYNTH_IOCS_DEFAULT &&
+					                                                curEff != preferredPrelink) {
+					                                                Memory_WriteD(addr, preferredPrelink);
+					                                                if (g_scsi_iocs_fix_logs < 64) {
+					                                                    char fixLog[160];
+					                                                    snprintf(fixLog, sizeof(fixLog),
+					                                                             "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X reason=prelink-pin",
+					                                                             (unsigned int)fn,
+					                                                             (unsigned int)(curRaw & 0x00ffffffU),
+					                                                             (unsigned int)preferredPrelink);
+					                                                    X68000_AppendSCSILog(fixLog);
+					                                                    g_scsi_iocs_fix_logs++;
+					                                                }
+					                                                continue;
+					                                            }
+					                                        }
+					                                        if (fn == 0xf5 &&
+					                                            curEff >= 0x00fc0000U &&
+					                                            curEff < 0x00fc0100U &&
+				                                            curEff != SCSI_SYNTH_IOCS_ENTRY) {
+			                                            Memory_WriteD(addr, SCSI_SYNTH_IOCS_ENTRY);
+			                                            if (g_scsi_iocs_fix_logs < 64) {
+			                                                char fixLog[160];
+			                                                snprintf(fixLog, sizeof(fixLog),
+			                                                         "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X",
+			                                                         (unsigned int)fn,
+			                                                         (unsigned int)(curRaw & 0x00ffffffU),
+			                                                         (unsigned int)SCSI_SYNTH_IOCS_ENTRY);
+			                                                X68000_AppendSCSILog(fixLog);
+			                                                g_scsi_iocs_fix_logs++;
+			                                            }
+			                                            continue;
+			                                        }
+			                                        if (curEff == SCSI_SYNTH_IOCS_DEFAULT) {
+			                                            DWORD repair = X68000_GetSyntheticIocsFallback((BYTE)fn);
+			                                            if (repair != curEff) {
+			                                                Memory_WriteD(addr, repair);
+			                                                if (g_scsi_iocs_fix_logs < 64) {
+			                                                    char fixLog[160];
+			                                                    snprintf(fixLog, sizeof(fixLog),
+			                                                             "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X",
+			                                                             (unsigned int)fn,
+			                                                             (unsigned int)(curRaw & 0x00ffffffU),
+			                                                             (unsigned int)repair);
+			                                                    X68000_AppendSCSILog(fixLog);
+			                                                    g_scsi_iocs_fix_logs++;
+			                                                }
+			                                            }
+			                                            continue;
+			                                        }
+				                                        if (!X68000_IsExecutableIocsHandler(curEff)) {
+				                                            DWORD repair = 0;
+			                                            if (fn == 0xff || fn == 0xf0 || fn == 0xfc || fn == 0xfd) {
+			                                                repair = X68000_GetSyntheticIocsFallback((BYTE)fn);
+			                                            }
+			                                            if (g_scsi_iocs_shadow_valid) {
+			                                                DWORD shadowRaw = g_scsi_iocs_shadow[fn] & 0x00ffffffU;
+			                                                DWORD shadowEff = X68000_NormalizeIocsHandler(shadowRaw, NULL);
+			                                                if (repair == 0 && X68000_IsExecutableIocsHandler(shadowEff)) {
+			                                                    repair = shadowRaw;
+		                                                }
+		                                            }
+	                                            if (repair == 0) {
+	                                                repair = X68000_GetSyntheticIocsFallback((BYTE)fn);
+	                                            }
+	                                            Memory_WriteD(addr, repair);
+	                                            if (g_scsi_iocs_fix_logs < 64) {
+	                                                char fixLog[160];
+	                                                snprintf(fixLog, sizeof(fixLog),
+	                                                         "SCSI_IOCS_REPAIR fn=$%02X old=$%08X new=$%08X",
+	                                                         (unsigned int)fn,
+	                                                         (unsigned int)(curRaw & 0x00ffffffU),
+	                                                         (unsigned int)repair);
+	                                                X68000_AppendSCSILog(fixLog);
+	                                                g_scsi_iocs_fix_logs++;
+	                                            }
+	                                            continue;
+	                                        }
+		                                    }
+		                                }
+		                                // Only during pre-link bootstrap, keep select IOCS slots
+		                                // on synthetic handlers. After the kernel links devices,
+		                                // stop pinning so OS-installed IOCS handlers can run.
+		                                if (!linked) {
+		                                    DWORD addr17 = 0x00000400 + (DWORD)0x17 * 4;
+		                                    DWORD addr18 = 0x00000400 + (DWORD)0x18 * 4;
+		                                    DWORD addr1e = 0x00000400 + (DWORD)0x1e * 4;
+	                                    DWORD addr1f = 0x00000400 + (DWORD)0x1f * 4;
+	                                    DWORD addr3c = 0x00000400 + (DWORD)0x3c * 4;
+		                                    DWORD addr46 = 0x00000400 + (DWORD)0x46 * 4;
+		                                    DWORD addr47 = 0x00000400 + (DWORD)0x47 * 4;
+		                                    DWORD addr4f = 0x00000400 + (DWORD)0x4f * 4;
+		                                    DWORD addr54 = 0x00000400 + (DWORD)0x54 * 4;
+		                                    DWORD addr55 = 0x00000400 + (DWORD)0x55 * 4;
+		                                    DWORD addr56 = 0x00000400 + (DWORD)0x56 * 4;
+		                                    DWORD addr57 = 0x00000400 + (DWORD)0x57 * 4;
+		                                    DWORD addr8e = 0x00000400 + (DWORD)0x8e * 4;
+		                                    DWORD cur17 = Memory_ReadD(addr17);
+	                                    DWORD cur18 = Memory_ReadD(addr18);
+	                                    DWORD cur1e = Memory_ReadD(addr1e);
+	                                    DWORD cur1f = Memory_ReadD(addr1f);
+	                                    DWORD cur3c = Memory_ReadD(addr3c);
+		                                    DWORD cur46 = Memory_ReadD(addr46);
+		                                    DWORD cur47 = Memory_ReadD(addr47);
+		                                    DWORD cur4f = Memory_ReadD(addr4f);
+		                                    DWORD cur54 = Memory_ReadD(addr54);
+		                                    DWORD cur55 = Memory_ReadD(addr55);
+		                                    DWORD cur56 = Memory_ReadD(addr56);
+		                                    DWORD cur57 = Memory_ReadD(addr57);
+		                                    DWORD cur8e = Memory_ReadD(addr8e);
+		                                    if ((cur17 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr17, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur18 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr18, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur1e & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr1e, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+	                                    if ((cur1f & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+	                                        Memory_WriteD(addr1f, SCSI_SYNTH_IOCS_FN04_OK);
+	                                    }
+											if ((cur3c & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+												Memory_WriteD(addr3c, SCSI_SYNTH_IOCS_FN04_OK);
+											}
+		                                    if ((cur46 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr46, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur47 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr47, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur4f & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr4f, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur54 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr54, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur55 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr55, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur56 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr56, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur57 & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr57, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                    if ((cur8e & 0x00ffffffU) == SCSI_SYNTH_IOCS_DEFAULT) {
+		                                        Memory_WriteD(addr8e, SCSI_SYNTH_IOCS_FN04_OK);
+		                                    }
+		                                }
                                 // Synthetic block driver chaining is still experimental.
                                 // Enable only when explicitly requested.
-	                                if (g_enable_scsi_dev_driver &&
-	                                    !SCSI_IsDeviceLinked()) {
-	                                    SCSI_LinkDeviceDriver();
-	                                }
+		                                if (g_enable_scsi_dev_driver &&
+		                                    !SCSI_IsDeviceLinked()) {
+		                                    SCSI_LinkDeviceDriver();
+		                                }
+		                            }
 	                            }
-                                if ((curPc == 0x00fe2230U || curPc == 0x00fe2258U) &&
-                                    g_scsi_native_iocs_entry_logs < 96) {
+	                                if ((curPc == 0x00fe2230U || curPc == 0x00fe2258U) &&
+	                                    g_scsi_native_iocs_entry_logs < 96) {
                                     char nativeIocsLog[224];
                                     snprintf(nativeIocsLog, sizeof(nativeIocsLog),
                                              "SCSI_IOCS_NATIVE_ENTRY pc=$%08X d0=%08X d1=%08X d2=%08X d3=%08X d4=%08X d5=%08X a0=%08X a1=%08X a2=%08X a7=%08X",
@@ -2567,9 +3248,9 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                                     X68000_AppendSCSILog(nativeIocsLog);
                                     g_scsi_native_iocs_entry_logs++;
                                 }
-	                                if (curPc >= 0x00fe4ca8U &&
-	                                    curPc <= 0x00fe4cc0U &&
-	                                    g_scsi_qloop_fe4c_logs < 256) {
+		                                if (curPc >= 0x00fe4ca8U &&
+		                                    curPc <= 0x00fe4cc0U &&
+		                                    g_scsi_qloop_fe4c_logs < 256) {
                                     DWORD a5 = C68k_Get_AReg(&C68K, 5) & 0x00ffffffU;
                                     DWORD a6 = C68k_Get_AReg(&C68K, 6) & 0x00ffffffU;
                                     DWORD a7 = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
@@ -2603,12 +3284,87 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                                              (unsigned int)qbc8,
                                              (unsigned int)qbca,
                                              (unsigned int)qbcc);
-		                                    X68000_AppendSCSILog(qLoopLog);
-		                                    g_scsi_qloop_fe4c_logs++;
-		                                }
-	                                if (!g_scsi_qcode_dumped &&
-	                                    curPc >= 0x00fe4b6eU &&
-	                                    curPc <= 0x00fe4cc0U) {
+			                                    X68000_AppendSCSILog(qLoopLog);
+			                                    g_scsi_qloop_fe4c_logs++;
+			                                }
+		                                if ((curPc == 0x00fe1840U || curPc == 0x00fe1844U) &&
+		                                    g_scsi_stack_restore_fix_logs < 64) {
+	                                    DWORD a6 = C68k_Get_AReg(&C68K, 6) & 0x00ffffffU;
+	                                    DWORD a7 = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
+	                                    DWORD slot = (a6 + 0x136U) & 0x00ffffffU;
+	                                    DWORD saved = Memory_ReadD(slot) & 0x00ffffffU;
+	                                    DWORD prev = Memory_ReadD((slot - 4U) & 0x00ffffffU) & 0x00ffffffU;
+	                                    DWORD repair = a7;
+		                                    auto isPlausibleSavedSp = [&](DWORD sp) -> int {
+		                                        DWORD top;
+		                                        if ((sp & 1U) != 0U ||
+		                                            sp < 0x00000400U ||
+		                                            sp >= 0x00c00000U) {
+		                                            return 0;
+		                                        }
+		                                        top = Memory_ReadD(sp) & 0x00ffffffU;
+		                                        if ((top & 1U) != 0U || top == 0U || top == 0x00ffffffU) {
+		                                            return 0;
+		                                        }
+		                                        if (X68000_IsRomIocsHandler(top)) {
+		                                            return 1;
+		                                        }
+		                                        if (top >= 0x00000400U && top < 0x00c00000U) {
+		                                            WORD op0 = Memory_ReadW(top);
+		                                            if (op0 != 0x0000U && op0 != 0xffffU) {
+		                                                return 1;
+		                                            }
+		                                        }
+		                                        return 0;
+		                                    };
+	                                    int invalidSaved = !isPlausibleSavedSp(saved);
+	                                    int validPrev = isPlausibleSavedSp(prev);
+	                                    if (validPrev) {
+	                                        repair = prev;
+	                                    }
+	                                    if (invalidSaved) {
+	                                        // FE1840/FE1844 expects the slot to point at an outer
+	                                        // return-frame, not the current top where sentinel
+	                                        // values (for example $FFFFFFFF) may sit.
+	                                        DWORD scanBase = a7 & 0x00ffffffU;
+	                                        DWORD deepest = repair;
+	                                        int found = 0;
+	                                        for (int off = 4; off <= 0x40; off += 4) {
+	                                            if (scanBase < (DWORD)off) {
+	                                                break;
+	                                            }
+	                                            DWORD candSp = (scanBase - (DWORD)off) & 0x00ffffffU;
+	                                            if (isPlausibleSavedSp(candSp)) {
+	                                                deepest = candSp;
+	                                                found = 1;
+	                                                continue;
+	                                            }
+	                                            break;
+	                                        }
+	                                        if (found) {
+	                                            repair = deepest;
+	                                        }
+	                                    }
+	                                    if (invalidSaved && slot < 0x00c00000U) {
+	                                        Memory_WriteD(slot, repair);
+	                                        if (g_scsi_stack_restore_fix_logs < 64) {
+	                                            char stackFixLog[224];
+	                                            snprintf(stackFixLog, sizeof(stackFixLog),
+	                                                     "SCSI_STACK_REPAIR pc=$%08X a6=%08X slot=%08X old=%08X prev=%08X new=%08X",
+	                                                     (unsigned int)curPc,
+	                                                     (unsigned int)a6,
+	                                                     (unsigned int)slot,
+	                                                     (unsigned int)saved,
+	                                                     (unsigned int)prev,
+	                                                     (unsigned int)repair);
+	                                            X68000_AppendSCSILog(stackFixLog);
+	                                            g_scsi_stack_restore_fix_logs++;
+	                                        }
+	                                    }
+	                                }
+		                                if (!g_scsi_qcode_dumped &&
+		                                    curPc >= 0x00fe4b6eU &&
+		                                    curPc <= 0x00fe4cc0U) {
 	                                    for (DWORD dumpPc = 0x00fe4b60U; dumpPc <= 0x00fe4cd0U; dumpPc += 16U) {
 	                                        WORD w0 = Memory_ReadW(dumpPc + 0);
 	                                        WORD w1 = Memory_ReadW(dumpPc + 2);
@@ -2844,6 +3600,8 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 					                            g_scsi_dbg_27c0_last = 0xffffffffU;
 					                            g_scsi_f75_code_dumped = 0;
 					                            g_scsi_fa_code_dumped = 0;
+					                            g_scsi_lowf70_logs = 0;
+					                            g_scsi_f70_code_dumped = 0;
 					                            g_scsi_trap_special_logs = 0;
 				                            memset(g_scsi_a0_trace_ring, 0, sizeof(g_scsi_a0_trace_ring));
 				                            g_scsi_pc_trace_pos = 0;

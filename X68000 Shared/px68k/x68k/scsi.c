@@ -11,6 +11,10 @@
 #include	"scsi.h"
 #include	"sasi.h"
 #include	"x68kmemory.h"
+#include	"crtc.h"
+#include	"palette.h"
+#include	"tvram.h"
+#include	"../x11/keyboard.h"
 #include	<stdlib.h>
 #include	<sys/stat.h>
 #include	<sys/types.h>
@@ -39,6 +43,509 @@ static DWORD s_last_iocs_sig_d5 = 0;
 static DWORD s_last_iocs_sig_a1 = 0;
 static int s_fn00_boot_count = 0;
 static int s_fn00_ari_count = 0;
+static int s_fn33_log_count = 0;
+static int s_fn34_log_count = 0;
+static int s_fn35_log_count = 0;
+static int s_fn32_script_pos = 0;
+static int s_boot_ff_ignored_logs = 0;
+static int s_scsi_log_total = 0;        // global log line counter
+#define SCSI_LOG_LIMIT 5000              // stop logging after this many lines
+
+// TVRAM cursor state for synthetic _B_PUTC (fn=$20)
+static int s_tvram_cx = 0;   // character column (0-based)
+static int s_tvram_cy = 0;   // character row (0-based)
+#define SCSI_TVRAM_COLS  96  // 768 / 8 = 96 columns
+#define SCSI_TVRAM_ROWS  31  // 512 / 16 = 32 rows (use 31 for safety)
+#define SCSI_TVRAM_BASE  0xE00000U
+#define SCSI_TVRAM_STRIDE 128  // bytes per scanline
+
+// ESC sequence state machine for synthetic B_PUTC
+#define ESC_STATE_NORMAL 0
+#define ESC_STATE_ESC    1   // received ESC, waiting for '['
+#define ESC_STATE_CSI    2   // received ESC[, accumulating params
+static int s_esc_state = 0;
+#define ESC_MAX_PARAMS 8
+static int s_esc_params[ESC_MAX_PARAMS];
+static int s_esc_param_count = 0;
+static int s_esc_current_param = -1;  // -1 = no digit yet for current param
+
+// Shift-JIS lead byte state for multi-byte character rendering
+static BYTE s_sjis_lead = 0;  // 0 = no lead byte pending
+
+// Forward declarations
+static void SCSI_LogText(const char* text);
+static void SCSI_ScrollTVRAMUp(void);
+
+// ANK font offset in CGROM (auto-detected at first fn=$35 call)
+static DWORD s_cgrom_ank_base = 0xFFFFFFFFU;  // 0xFFFFFFFF = not yet detected
+
+// Auto-detect ANK (8x16 half-width) font offset in CGROM.
+// Returns offset into FONT[] array, or 0 on failure.
+static DWORD SCSI_DetectAnkFontOffset(void)
+{
+	// Standard X68000 CGROM candidate offsets for ANK 8x16 fonts
+	static const DWORD candidates[] = {
+		0x3A800, 0x3A000, 0xBE000, 0xBF000, 0x3AC00, 0xBC000
+	};
+	int i, r;
+	if (FONT == NULL) return 0;
+
+	for (i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++) {
+		DWORD base = candidates[i];
+		if (base + 0x80 * 16 > 0xC0000) continue;
+
+		// Space (0x20) should be all zeros
+		DWORD spOfs = base + 0x20U * 16;
+		int spNz = 0;
+		for (r = 0; r < 16; r++) {
+			if (FONT[spOfs + r] != 0) spNz++;
+		}
+		if (spNz > 0) continue;
+
+		// 'A' (0x41) should have 4-14 non-zero rows
+		DWORD aOfs = base + 0x41U * 16;
+		int aNz = 0;
+		for (r = 0; r < 16; r++) {
+			if (FONT[aOfs + r] != 0) aNz++;
+		}
+		if (aNz >= 4 && aNz <= 14) return base;
+	}
+	return 0;  // not found
+}
+
+// Read 8x16 glyph for a character into buf[16].
+// Uses auto-detected ANK offset, or JIS row-3 left-half fallback.
+static void SCSI_GetCharFont(BYTE ch, BYTE buf[16])
+{
+	int r;
+	if (FONT == NULL || ch < 0x20) {
+		memset(buf, 0, 16);
+		return;
+	}
+	if (s_cgrom_ank_base != 0) {
+		// Direct ANK font access
+		DWORD ofs = s_cgrom_ank_base + (DWORD)ch * 16;
+		if (ofs + 16 <= 0xC0000U) {
+			for (r = 0; r < 16; r++) buf[r] = FONT[ofs + r];
+			return;
+		}
+	}
+	// JIS fallback: full-width ASCII in row $23, use left 8 pixels
+	if (ch >= 0x21 && ch <= 0x7E) {
+		int col = ch - 0x21;
+		DWORD ofs = (DWORD)(2 * 94 + col) * 32;
+		if (ofs + 31 < 0xC0000U) {
+			for (r = 0; r < 16; r++) buf[r] = FONT[ofs + r * 2];
+			return;
+		}
+	}
+	// Blank
+	memset(buf, 0, 16);
+}
+
+// Ensure display is initialized for text output (CRTC, palette, etc.)
+// Called once before the first character is rendered.
+static void SCSI_EnsureDisplayInit(void)
+{
+	static int s_display_fix_done = 0;
+	char logLine[256];
+
+	// Auto-detect ANK font offset on first call
+	if (s_cgrom_ank_base == 0xFFFFFFFFU) {
+		s_cgrom_ank_base = SCSI_DetectAnkFontOffset();
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_FN35_FONT_DETECT base=$%05X",
+		         (unsigned int)s_cgrom_ank_base);
+		SCSI_LogText(logLine);
+	}
+
+	if (s_display_fix_done) return;
+	s_display_fix_done = 1;
+
+	snprintf(logLine, sizeof(logLine),
+	         "SCSI_FN35_DISPLAY_STATE VCReg2={$%02X,$%02X} TextPal[0]=$%04X TextPal[1]=$%04X",
+	         (unsigned)VCReg2[0], (unsigned)VCReg2[1],
+	         (unsigned)TextPal[0], (unsigned)TextPal[1]);
+	SCSI_LogText(logLine);
+	snprintf(logLine, sizeof(logLine),
+	         "SCSI_FN35_CRTC VSTART=%u VEND=%u TextDotX=%u TextDotY=%u R29=$%02X",
+	         (unsigned)CRTC_VSTART, (unsigned)CRTC_VEND,
+	         (unsigned)TextDotX, (unsigned)TextDotY,
+	         (unsigned)CRTC_Regs[0x29]);
+	SCSI_LogText(logLine);
+
+	// Initialize CRTC for 768x512 31kHz mode if registers are blank
+	if (CRTC_VSTART == 0 && CRTC_VEND == 0) {
+		SCSI_LogText("SCSI_FN35_CRTC_INIT setting 768x512 31kHz mode");
+		CRTC_Write(0xE80000, 0x00); CRTC_Write(0xE80001, 0x89);
+		CRTC_Write(0xE80002, 0x00); CRTC_Write(0xE80003, 0x0E);
+		CRTC_Write(0xE80006, 0x00); CRTC_Write(0xE80007, 0x7C);
+		CRTC_Write(0xE80004, 0x00); CRTC_Write(0xE80005, 0x1C);
+		CRTC_Write(0xE80008, 0x02); CRTC_Write(0xE80009, 0x37);
+		CRTC_Write(0xE8000A, 0x00); CRTC_Write(0xE8000B, 0x05);
+		CRTC_Write(0xE8000E, 0x02); CRTC_Write(0xE8000F, 0x28);
+		CRTC_Write(0xE8000C, 0x00); CRTC_Write(0xE8000D, 0x28);
+		CRTC_Write(0xE80010, 0x00); CRTC_Write(0xE80011, 0x1B);
+		CRTC_Write(0xE80028, 0x00); CRTC_Write(0xE80029, 0x16);
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_FN35_CRTC_DONE VSTART=%u VEND=%u TextDotX=%u TextDotY=%u",
+		         (unsigned)CRTC_VSTART, (unsigned)CRTC_VEND,
+		         (unsigned)TextDotX, (unsigned)TextDotY);
+		SCSI_LogText(logLine);
+	}
+
+	// VCReg2: enable text layer
+	VCtrl_Write(0xE82601, 0x20);
+	SCSI_LogText("SCSI_FN35_DISPLAY_FIX VCReg2[1] text layer ON");
+
+	// Fix text palette: black background + white foreground
+	Pal_Regs[0x200] = 0x00; Pal_Regs[0x201] = 0x00;
+	TextPal[0] = Pal16[0x0000];
+	Pal_Regs[0x202] = 0xFF; Pal_Regs[0x203] = 0xFE;
+	TextPal[1] = Pal16[0xFFFE];
+	snprintf(logLine, sizeof(logLine),
+	         "SCSI_FN35_PALETTE_FIX TextPal[0]=$%04X(blk) TextPal[1]=$%04X(wht)",
+	         (unsigned)TextPal[0], (unsigned)TextPal[1]);
+	SCSI_LogText(logLine);
+	TVRAM_SetAllDirty();
+}
+
+// Render a single visible character to TVRAM at current cursor position.
+static void SCSI_RenderVisible(BYTE ch)
+{
+	BYTE fontBuf[16];
+	int r;
+	SCSI_GetCharFont(ch, fontBuf);
+	for (r = 0; r < 16; r++) {
+		DWORD tvAddr = SCSI_TVRAM_BASE
+		    + (DWORD)(s_tvram_cy * 16 + r) * SCSI_TVRAM_STRIDE
+		    + (DWORD)s_tvram_cx;
+		Memory_WriteB(tvAddr, fontBuf[r]);
+		Memory_WriteB(tvAddr + 0x20000U, 0);
+		Memory_WriteB(tvAddr + 0x40000U, 0);
+		Memory_WriteB(tvAddr + 0x60000U, 0);
+	}
+	s_tvram_cx++;
+	if (s_tvram_cx >= SCSI_TVRAM_COLS) {
+		s_tvram_cx = 0;
+		s_tvram_cy++;
+		if (s_tvram_cy >= SCSI_TVRAM_ROWS) {
+			SCSI_ScrollTVRAMUp();
+			s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+		}
+	}
+}
+
+// Check if byte is a Shift-JIS lead byte ($81-$9F, $E0-$EF).
+static int SCSI_IsSjisLead(BYTE b)
+{
+	return (b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xEF);
+}
+
+// Render a 16x16 kanji glyph to TVRAM at current cursor position (2 cells wide).
+// hi/lo are Shift-JIS encoded bytes, converted to JIS for CGROM lookup.
+static void SCSI_RenderKanji(BYTE hi, BYTE lo)
+{
+	int ku, ten;
+	DWORD ofs;
+	int r;
+
+	// Shift-JIS to JIS conversion
+	if (hi >= 0xE0) hi -= 0x40;
+	hi -= 0x81;
+	hi = hi * 2 + 0x21;
+	if (lo >= 0x80) lo--;
+	if (lo >= 0x9E) {
+		hi++;
+		lo = lo - 0x9E + 0x21;
+	} else {
+		lo = lo - 0x40 + 0x21;
+	}
+	ku = hi;
+	ten = lo;
+
+	// Validate JIS range
+	if (ku < 0x21 || ku > 0x7E || ten < 0x21 || ten > 0x7E) {
+		SCSI_RenderVisible('?');
+		SCSI_RenderVisible('?');
+		return;
+	}
+
+	// CGROM gap compression: rows $30+ skip undefined rows $29-$2F
+	// (X68000 IOCS _FNTADR adjusts ku by -7 for ku >= $30)
+	{
+		int adj_ku = ku;
+		if (adj_ku >= 0x30) adj_ku -= 7;
+		ofs = (DWORD)((adj_ku - 0x21) * 94 + (ten - 0x21)) * 32;
+	}
+	if (FONT == NULL || ofs + 31 >= 0x39480U) {
+		SCSI_RenderVisible('?');
+		SCSI_RenderVisible('?');
+		return;
+	}
+
+	// Render 16x16 glyph: left 8 pixels + right 8 pixels
+	for (r = 0; r < 16; r++) {
+		DWORD tvAddr = SCSI_TVRAM_BASE
+		    + (DWORD)(s_tvram_cy * 16 + r) * SCSI_TVRAM_STRIDE
+		    + (DWORD)s_tvram_cx;
+		// Left 8 pixels
+		Memory_WriteB(tvAddr, FONT[ofs + r * 2]);
+		Memory_WriteB(tvAddr + 0x20000U, 0);
+		Memory_WriteB(tvAddr + 0x40000U, 0);
+		Memory_WriteB(tvAddr + 0x60000U, 0);
+		// Right 8 pixels
+		Memory_WriteB(tvAddr + 1, FONT[ofs + r * 2 + 1]);
+		Memory_WriteB(tvAddr + 1 + 0x20000U, 0);
+		Memory_WriteB(tvAddr + 1 + 0x40000U, 0);
+		Memory_WriteB(tvAddr + 1 + 0x60000U, 0);
+	}
+	s_tvram_cx += 2;  // kanji takes 2 cells
+	if (s_tvram_cx >= SCSI_TVRAM_COLS) {
+		s_tvram_cx = 0;
+		s_tvram_cy++;
+		if (s_tvram_cy >= SCSI_TVRAM_ROWS) {
+			SCSI_ScrollTVRAMUp();
+			s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+		}
+	}
+}
+
+// Clear N character cells from current position.
+static void SCSI_ClearCells(int startX, int startY, int count)
+{
+	int x = startX, y = startY;
+	int i, r;
+	for (i = 0; i < count && y < SCSI_TVRAM_ROWS; i++) {
+		for (r = 0; r < 16; r++) {
+			DWORD tvAddr = SCSI_TVRAM_BASE
+			    + (DWORD)(y * 16 + r) * SCSI_TVRAM_STRIDE
+			    + (DWORD)x;
+			Memory_WriteB(tvAddr, 0);
+			Memory_WriteB(tvAddr + 0x20000U, 0);
+			Memory_WriteB(tvAddr + 0x40000U, 0);
+			Memory_WriteB(tvAddr + 0x60000U, 0);
+		}
+		x++;
+		if (x >= SCSI_TVRAM_COLS) { x = 0; y++; }
+	}
+}
+
+// Scroll TVRAM up by one text row (16 scanlines).
+// Copies rows 1..ROWS-1 to rows 0..ROWS-2, clears the last row.
+static void SCSI_ScrollTVRAMUp(void)
+{
+	int row, r, x;
+	for (row = 0; row < SCSI_TVRAM_ROWS - 1; row++) {
+		for (r = 0; r < 16; r++) {
+			DWORD srcLine = (DWORD)((row + 1) * 16 + r) * SCSI_TVRAM_STRIDE;
+			DWORD dstLine = (DWORD)(row * 16 + r) * SCSI_TVRAM_STRIDE;
+			for (x = 0; x < SCSI_TVRAM_COLS; x++) {
+				DWORD src = SCSI_TVRAM_BASE + srcLine + (DWORD)x;
+				DWORD dst = SCSI_TVRAM_BASE + dstLine + (DWORD)x;
+				Memory_WriteB(dst, Memory_ReadB(src));
+				Memory_WriteB(dst + 0x20000U, Memory_ReadB(src + 0x20000U));
+				Memory_WriteB(dst + 0x40000U, Memory_ReadB(src + 0x40000U));
+				Memory_WriteB(dst + 0x60000U, Memory_ReadB(src + 0x60000U));
+			}
+		}
+	}
+	// Clear last row
+	{
+		int lastRow = SCSI_TVRAM_ROWS - 1;
+		for (r = 0; r < 16; r++) {
+			for (x = 0; x < SCSI_TVRAM_COLS; x++) {
+				DWORD addr = SCSI_TVRAM_BASE
+				    + (DWORD)(lastRow * 16 + r) * SCSI_TVRAM_STRIDE
+				    + (DWORD)x;
+				Memory_WriteB(addr, 0);
+				Memory_WriteB(addr + 0x20000U, 0);
+				Memory_WriteB(addr + 0x40000U, 0);
+				Memory_WriteB(addr + 0x60000U, 0);
+			}
+		}
+	}
+	TVRAM_SetAllDirty();
+}
+
+// Execute a CSI (ESC[) sequence final character.
+static void SCSI_ExecCSI(BYTE finalCh)
+{
+	int p0 = (s_esc_param_count >= 1) ? s_esc_params[0] : 0;
+	int p1 = (s_esc_param_count >= 2) ? s_esc_params[1] : 0;
+
+	switch (finalCh) {
+	case 'A':  // cursor up
+		s_tvram_cy -= (p0 > 0) ? p0 : 1;
+		if (s_tvram_cy < 0) s_tvram_cy = 0;
+		break;
+	case 'B':  // cursor down
+		s_tvram_cy += (p0 > 0) ? p0 : 1;
+		if (s_tvram_cy >= SCSI_TVRAM_ROWS) s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+		break;
+	case 'C':  // cursor right
+		s_tvram_cx += (p0 > 0) ? p0 : 1;
+		if (s_tvram_cx >= SCSI_TVRAM_COLS) s_tvram_cx = SCSI_TVRAM_COLS - 1;
+		break;
+	case 'D':  // cursor left
+		s_tvram_cx -= (p0 > 0) ? p0 : 1;
+		if (s_tvram_cx < 0) s_tvram_cx = 0;
+		break;
+	case 'H':  // cursor position (row;col)
+	case 'f':  // same
+		s_tvram_cy = (p0 > 0) ? p0 - 1 : 0;
+		s_tvram_cx = (p1 > 0) ? p1 - 1 : 0;
+		if (s_tvram_cy >= SCSI_TVRAM_ROWS) s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+		if (s_tvram_cx >= SCSI_TVRAM_COLS) s_tvram_cx = SCSI_TVRAM_COLS - 1;
+		break;
+	case 'J':  // erase display
+		if (p0 == 2) {
+			SCSI_ClearCells(0, 0, SCSI_TVRAM_COLS * SCSI_TVRAM_ROWS);
+			s_tvram_cx = 0;
+			s_tvram_cy = 0;
+		} else if (p0 == 0) {
+			// clear from cursor to end
+			SCSI_ClearCells(s_tvram_cx, s_tvram_cy,
+			    (SCSI_TVRAM_ROWS - s_tvram_cy) * SCSI_TVRAM_COLS - s_tvram_cx);
+		}
+		break;
+	case 'K':  // erase line
+		if (p0 == 0) {
+			SCSI_ClearCells(s_tvram_cx, s_tvram_cy,
+			    SCSI_TVRAM_COLS - s_tvram_cx);
+		} else if (p0 == 2) {
+			SCSI_ClearCells(0, s_tvram_cy, SCSI_TVRAM_COLS);
+		}
+		break;
+	case 'm':  // SGR - select graphic rendition
+		// Ignore color/attribute changes (text is always plane 0)
+		break;
+	case 'h':  // set mode - ignore
+	case 'l':  // reset mode - ignore
+	case 's':  // save cursor - ignore
+	case 'u':  // restore cursor - ignore
+		break;
+	default:
+		break;
+	}
+}
+
+// Render a single character to TVRAM at the current cursor position.
+// Handles ESC sequences, CR, LF, BS, TAB, and printable characters.
+static void SCSI_RenderChar(BYTE ch)
+{
+	// ESC sequence state machine
+	if (s_esc_state == ESC_STATE_ESC) {
+		if (ch == '[') {
+			s_esc_state = ESC_STATE_CSI;
+			s_esc_param_count = 0;
+			s_esc_current_param = -1;
+			return;
+		}
+		// Non-CSI ESC sequence (e.g. ESC*) — discard
+		s_esc_state = ESC_STATE_NORMAL;
+		return;
+	}
+	if (s_esc_state == ESC_STATE_CSI) {
+		if (ch >= '0' && ch <= '9') {
+			if (s_esc_current_param < 0) {
+				s_esc_current_param = 0;
+			}
+			s_esc_current_param = s_esc_current_param * 10 + (ch - '0');
+			return;
+		}
+		if (ch == ';') {
+			if (s_esc_param_count < ESC_MAX_PARAMS) {
+				s_esc_params[s_esc_param_count++] =
+				    (s_esc_current_param >= 0) ? s_esc_current_param : 0;
+			}
+			s_esc_current_param = -1;
+			return;
+		}
+		if (ch >= 0x40 && ch <= 0x7E) {
+			// Final character — flush last param and execute
+			if (s_esc_current_param >= 0 && s_esc_param_count < ESC_MAX_PARAMS) {
+				s_esc_params[s_esc_param_count++] = s_esc_current_param;
+			}
+			SCSI_ExecCSI(ch);
+			s_esc_state = ESC_STATE_NORMAL;
+			return;
+		}
+		// Intermediate bytes (0x20-0x2F) — ignore but stay in CSI
+		if (ch >= 0x20 && ch <= 0x2F) {
+			return;
+		}
+		// Unexpected character — abort sequence
+		s_esc_state = ESC_STATE_NORMAL;
+		return;
+	}
+
+	// Shift-JIS trail byte handling (pending lead byte)
+	if (s_sjis_lead != 0) {
+		BYTE lead = s_sjis_lead;
+		s_sjis_lead = 0;
+		// Valid trail byte range: $40-$7E, $80-$FC
+		if ((ch >= 0x40 && ch <= 0x7E) || (ch >= 0x80 && ch <= 0xFC)) {
+			SCSI_RenderKanji(lead, ch);
+			return;
+		}
+		// Invalid trail byte — render '?' for the lost lead, fall through for ch
+		SCSI_RenderVisible('?');
+	}
+
+	// Normal character processing
+	if (ch == 0x1B) {
+		s_esc_state = ESC_STATE_ESC;
+		return;
+	}
+	if (ch == 0x0D) {
+		s_tvram_cx = 0;
+	} else if (ch == 0x0A) {
+		s_tvram_cy++;
+		if (s_tvram_cy >= SCSI_TVRAM_ROWS) {
+			SCSI_ScrollTVRAMUp();
+			s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+		}
+	} else if (ch == 0x08) {
+		if (s_tvram_cx > 0) s_tvram_cx--;
+	} else if (ch == 0x09) {
+		s_tvram_cx = (s_tvram_cx + 8) & ~7;
+		if (s_tvram_cx >= SCSI_TVRAM_COLS) {
+			s_tvram_cx = 0;
+			s_tvram_cy++;
+			if (s_tvram_cy >= SCSI_TVRAM_ROWS) {
+				SCSI_ScrollTVRAMUp();
+				s_tvram_cy = SCSI_TVRAM_ROWS - 1;
+			}
+		}
+	} else if (SCSI_IsSjisLead(ch)) {
+		// Shift-JIS lead byte — store and wait for trail byte
+		s_sjis_lead = ch;
+	} else if (ch >= 0x20) {
+		// Single-byte printable (ASCII + half-width katakana $A1-$DF)
+		SCSI_RenderVisible(ch);
+	}
+}
+
+// Minimal X68000 scan code → ASCII conversion (unshifted)
+static const BYTE s_scan_to_ascii[128] = {
+	0,    0x1B, '1',  '2',  '3',  '4',  '5',  '6',   // 00-07
+	'7',  '8',  '9',  '0',  '-',  '^',  '\\', 0x08,  // 08-0F
+	0x09, 'q',  'w',  'e',  'r',  't',  'y',  'u',   // 10-17
+	'i',  'o',  'p',  '@',  '[',  0x0D, 'a',  's',   // 18-1F
+	'd',  'f',  'g',  'h',  'j',  'k',  'l',  ';',   // 20-27
+	':',  ']',  'z',  'x',  'c',  'v',  'b',  'n',   // 28-2F
+	'm',  ',',  '.',  '/',  '_',  0x20, 0,    0,     // 30-37
+	0,    0,    0,    0,    0,    0,    0,    0,     // 38-3F (F keys)
+	0,    0,    0,    0,    0,    0,    0,    0,     // 40-47
+	0,    0,    0,    0,    0,    0,    0,    0,     // 48-4F
+	0,    0,    0,    0,    0,    0,    0,    0,     // 50-57
+	0,    0,    0,    0,    0,    0,    0,    0,     // 58-5F
+	0,    0,    0,    0,    0,    0,    0,    0,     // 60-67
+	0,    0,    0,    0,    0,    0,    0,    0,     // 68-6F
+	0,    0,    0,    0,    0,    0,    0,    0,     // 70-77
+	0,    0,    0,    0,    0,    0,    0,    0,     // 78-7F
+};
 
 // Minimal SPC (MB89352) register state for driver initialization.
 // Human68k's SCSI driver writes to SCTL/BDID and reads back to verify
@@ -66,6 +573,7 @@ static void SCSI_LogInit(void);
 static int SCSI_HasExternalROM(void);
 static void SCSI_HandleBoot(void);
 static void SCSI_HandleIOCS(BYTE cmd);
+static void SCSI_HandleDisplayIOCS(BYTE cmd);
 static void SCSI_HandleDeviceCommand(void);
 static void SCSI_LogDevicePacket(DWORD reqpkt, BYTE len);
 static DWORD SCSI_FindPartitionBootOffset(void);
@@ -121,10 +629,10 @@ static BYTE SCSIIMG[] = {
 	0x70, 0xff,                                     // fail: moveq #-1,d0
 	0x4e, 0x75,                                     // rts
 
-	// $FC0046-$FC0057: 予約
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	// $FC0046-$FC0057: reserved (18 bytes)
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00,
 
 	// $FC0058: "SCSI" / $FC005C: init / $FC0060: iocs
 	// $FC0068: "Human68k"（実機互換位置）
@@ -140,9 +648,9 @@ static BYTE SCSIIMG[] = {
 	0x74, 0x01,                                                   // moveq #1,d2
 	0x4e, 0x75,                                                   // rts
 
-	// $FC0080: SCSI IOCSハンドラ
-	0x13, 0xc1, 0x00, 0xe9, 0xf8, 0x00, // move.b d1,$e9f800
-	0x4e, 0x75,                         // rts
+			// $FC0080: SCSI IOCSハンドラ (trap #15経由用: RTSで復帰)
+			0x13, 0xc1, 0x00, 0xe9, 0xf8, 0x00, // move.b d1,$e9f800
+			0x4e, 0x75,                         // rts
 
 			// $FC0088: trap #15 ディスパッチャ (58 bytes)
 			// d0.b のファンクション番号で $400+(d0&0xFF)*4 のハンドラを JSR→RTE
@@ -171,57 +679,65 @@ static BYTE SCSIIMG[] = {
 			0x70, 0xFF,                         // moveq #-1,d0
 			0x4E, 0x73,                         // rte
 
-			// $FC00C2-$FC00D1: パディング (16 bytes)
-			0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,   // $C2-$D1
+			// $FC00C2: 表示IOCS ラッパー (8 bytes)
+			// d0.b をそのまま $E9F804 に出して C 側 SCSI_HandleDisplayIOCS へ渡す
+			// SCSI disk IOCS ($E9F800) との番号衝突を回避するための別パス
+			0x13, 0xC0, 0x00, 0xE9, 0xF8, 0x04, // move.b d0,$E9F804
+			0x4E, 0x75,                           // rts
+			// $FC00CA-$FC00D1: パディング (8 bytes)
+			0,0,0,0,0,0,0,0,
 
 			// $FC00D2: デフォルト IOCS ハンドラ (4 bytes)
-		// 未実装 IOCS を安全に失敗させる（JSR 経由で呼ばれ RTS で返る）
-		0x70, 0xff,                         // moveq #-1,d0
-		0x4e, 0x75,                         // rts
-
-		// $FC00D6: fn=$04 互換スタブ (4 bytes)
-		// ブートセクタが期待する初期IOCS呼び出しを成功扱いで通す
-		0x70, 0x00,                         // moveq #0,d0
-		0x4e, 0x75,                         // rts
-
-			// $FC00DA: fn=$34 互換スタブ (4 bytes)
-			// 送信可として ready(1) を返す
-			0x70, 0x01,                         // moveq #1,d0
+			// 未実装 IOCS を安全に失敗させる（JSR 経由で RTS で返る）
+			0x70, 0xff,                         // moveq #-1,d0
 			0x4e, 0x75,                         // rts
 
-			// $FC00DE: fn=$35 互換スタブ (4 bytes)
-			// 送信処理を成功扱いで通す
-			0x70, 0x01,                         // moveq #1,d0
-			0x4e, 0x75,                         // rts
-
-			// $FC00E2: fn=$33 互換スタブ (4 bytes)
-			// 無入力待ちに合わせて not-ready(0) を返す
+			// $FC00D6: fn=$04 互換スタブ (4 bytes)
+			// ブートセクタが期待する初期IOCS呼び出しを成功扱いで通す
 			0x70, 0x00,                         // moveq #0,d0
 			0x4e, 0x75,                         // rts
 
-			// $FC00E6: fn=$32 互換スタブ (4 bytes)
-			// 無入力扱い(0)を返して、キーボード待ち分岐を安定化
+					// $FC00DA: fn=$34 互換スタブ (4 bytes)
+					// 送信可として ready(1) を返す
+						0x70, 0x01,                         // moveq #1,d0
+						0x4e, 0x75,                         // rts
+
+					// $FC00DE: fn=$35 互換スタブ (4 bytes)
+					// 送信対象の文字(d1.w)を返す。0固定だと一部IPLが
+					// 「入力なし」と誤判定してコンソールループに滞留する。
+						0x30, 0x01,                         // move.w d1,d0
+						0x4e, 0x75,                         // rts
+
+				// $FC00E2: fn=$33 互換スタブ (4 bytes)
+				// _B_KEYSNS 相当: キーあり(1)として返す
+					0x70, 0x01,                         // moveq #1,d0
+					0x4e, 0x75,                         // rts
+
+				// $FC00E6: fn=$32 互換スタブ (4 bytes)
+				// _B_KEYINP 相当: Enter(0x0D) を返して先へ進める
+					0x70, 0x0D,                         // moveq #$0D,d0
+					0x4e, 0x75,                         // rts
+
+			// $FC00EA: fn=$10 互換スタブ (4 bytes)
+			// カーネル初期化が期待する成功返却を返す
 			0x70, 0x00,                         // moveq #0,d0
 			0x4e, 0x75,                         // rts
 
-		// $FC00EA: fn=$10 互換スタブ (4 bytes)
-		// カーネル初期化が期待する成功返却を返す
-		0x70, 0x00,                         // moveq #0,d0
-		0x4e, 0x75,                         // rts
+			// $FC00EE: fn=$AF 互換スタブ (4 bytes)
+			// 初期化時の拡張IOCS呼び出しを成功扱いで通す
+			0x70, 0x00,                         // moveq #0,d0
+			0x4e, 0x75,                         // rts
 
-		// $FC00EE: fn=$AF 互換スタブ (4 bytes)
-		// 初期化時の拡張IOCS呼び出しを成功扱いで通す
-		0x70, 0x00,                         // moveq #0,d0
-		0x4e, 0x75,                         // rts
-
-		// $FC00F2: 直接IOCSラッパー (8 bytes)
-		// d0.b をそのまま $E9F800 に出して C 側 SCSI_HandleIOCS へ渡す
-		0x13, 0xC0, 0x00, 0xE9, 0xF8, 0x00, // move.b d0,$E9F800
-		0x4E, 0x75,                         // rts
+			// $FC00F2: 直接IOCSラッパー (8 bytes, trap #15経由で RTS)
+			// d0.b をそのまま $E9F800 に出して C 側 SCSI_HandleIOCS へ渡す
+			0x13, 0xC0, 0x00, 0xE9, 0xF8, 0x00, // move.b d0,$E9F800
+			0x4E, 0x75,                         // rts
 
 		// $FC00FA: fn=$00 互換スタブ (4 bytes)
-		// ブート時の A/R/I 分岐待ちで従来互換の 'R'(0x52) を返す
-		0x70, 0x52,                         // moveq #$52,d0
+		// A/R/I 分岐待ちで即 Abort させないため 0 を返す。
+		// 実機では fn=$00 はブロッキング待ち。0 = キー無しで
+		// 呼び出し側が再ポーリングする。
+		0x70, 0x00,                         // moveq #0,d0
 		0x4E, 0x75,                         // rts
 
 		// $FC00FE-$FC00FF: パディング (2 bytes, 総サイズ不変)
@@ -272,7 +788,7 @@ void SCSI_Init(void)
 	BYTE tmp;
 	ZeroMemory(SCSIIPL, 0x2000);
 	if (SCSI_HasExternalROM()) {
-		p6logd("SCSI_Init: external SCSI ROM detected, using synthetic trap ROM\n");
+		p6logd("SCSI_Init: SCSIEXROM.DAT detected, will activate after kernel boot\n");
 	}
 	memcpy(SCSIIPL, SCSIIMG, sizeof(SCSIIMG));
 	for (i=0; i<0x2000; i+=2)
@@ -302,6 +818,8 @@ void SCSI_Init(void)
 	s_last_iocs_sig_valid = 0;
 	s_fn00_boot_count = 0;
 	s_fn00_ari_count = 0;
+	s_boot_ff_ignored_logs = 0;
+	s_scsi_log_total = 0;
 	{
 		char buildTag[96];
 		snprintf(buildTag, sizeof(buildTag),
@@ -341,6 +859,16 @@ static void SCSI_GetLogPath(char* outPath, size_t outSize)
 	snprintf(outPath, outSize, "X68000/_scsi_iocs.txt");
 }
 
+static FILE* SCSI_OpenMirrorLog(const char* mode)
+{
+#ifdef __APPLE__
+	return fopen("/tmp/x68000_scsi_iocs.txt", mode);
+#else
+	(void)mode;
+	return NULL;
+#endif
+}
+
 static void SCSI_EnsureLogDir(void)
 {
 #ifdef __APPLE__
@@ -372,6 +900,7 @@ static int SCSI_HasExternalROM(void)
 static void SCSI_LogInit(void)
 {
 	char logPath[512];
+	FILE* mirror;
 	SCSI_GetLogPath(logPath, sizeof(logPath));
 	SCSI_EnsureLogDir();
 	FILE *fp = fopen(logPath, "w");
@@ -379,11 +908,19 @@ static void SCSI_LogInit(void)
 		fprintf(fp, "--- SCSI log start ---\n");
 		fclose(fp);
 	}
+	mirror = SCSI_OpenMirrorLog("w");
+	if (mirror) {
+		fprintf(mirror, "--- SCSI log start ---\n");
+		fclose(mirror);
+	}
 }
 
 static void SCSI_LogIO(DWORD adr, const char* op, BYTE data)
 {
 	char logPath[512];
+	FILE* mirror;
+	if (s_scsi_log_total >= SCSI_LOG_LIMIT) return;
+	s_scsi_log_total++;
 	SCSI_GetLogPath(logPath, sizeof(logPath));
 	SCSI_EnsureLogDir();
 	FILE *fp = fopen(logPath, "a");
@@ -395,17 +932,34 @@ static void SCSI_LogIO(DWORD adr, const char* op, BYTE data)
 		}
 		fclose(fp);
 	}
+	mirror = SCSI_OpenMirrorLog("a");
+	if (mirror) {
+		if (op[0] == 'R') {
+			fprintf(mirror, "SCSI %s @ 0x%06X\n", op, (unsigned int)adr);
+		} else {
+			fprintf(mirror, "SCSI %s @ 0x%06X = 0x%02X\n", op, (unsigned int)adr, data);
+		}
+		fclose(mirror);
+	}
 }
 
 static void SCSI_LogText(const char* text)
 {
 	char logPath[512];
+	FILE* mirror;
+	if (s_scsi_log_total >= SCSI_LOG_LIMIT) return;
+	s_scsi_log_total++;
 	SCSI_GetLogPath(logPath, sizeof(logPath));
 	SCSI_EnsureLogDir();
 	FILE *fp = fopen(logPath, "a");
 	if (fp) {
 		fprintf(fp, "%s\n", text);
 		fclose(fp);
+	}
+	mirror = SCSI_OpenMirrorLog("a");
+	if (mirror) {
+		fprintf(mirror, "%s\n", text);
+		fclose(mirror);
 	}
 }
 
@@ -472,6 +1026,41 @@ static DWORD SCSI_GetBlockSizeFromCode(DWORD sizeCode)
 	}
 }
 
+static int SCSI_HasHumanPartitionTable(BYTE* buf, long size, DWORD physSectorSize)
+{
+	DWORD partTableOffset;
+	DWORD i;
+
+	if (buf == NULL || size <= 0) {
+		return 0;
+	}
+	if (physSectorSize != 256 && physSectorSize != 512 && physSectorSize != 1024) {
+		return 0;
+	}
+	partTableOffset = physSectorSize * 4U;
+	if (partTableOffset + physSectorSize > (DWORD)size || partTableOffset + 16U > (DWORD)size) {
+		return 0;
+	}
+	if (memcmp(buf + partTableOffset, "X68K", 4) != 0) {
+		return 0;
+	}
+	for (i = partTableOffset + 4U;
+	     i + 16U <= partTableOffset + physSectorSize && i + 16U <= (DWORD)size;
+	     i += 2U) {
+		if (buf[i] == 'H' && memcmp(buf + i, "Human68k", 8) == 0) {
+			DWORD startSec = ((DWORD)buf[i + 8] << 24) |
+			                 ((DWORD)buf[i + 9] << 16) |
+			                 ((DWORD)buf[i + 10] << 8) |
+			                 ((DWORD)buf[i + 11]);
+			unsigned long long bootOffset = (unsigned long long)startSec * 1024ULL;
+			if (startSec != 0U && bootOffset + 16ULL <= (unsigned long long)size) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
 static DWORD SCSI_GetImageBlockSize(void)
 {
 	BYTE* buf;
@@ -479,6 +1068,8 @@ static DWORD SCSI_GetImageBlockSize(void)
 	long size;
 	DWORD cand512;
 	DWORD cand1024;
+	int hasPart512;
+	int hasPart1024;
 
 	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] < 16) {
 		return 512;
@@ -493,15 +1084,29 @@ static DWORD SCSI_GetImageBlockSize(void)
 		}
 	}
 
-	// Headerless raw images are typically 512B or 1024B sectors.
-	// Prefer a signature-based guess from the partition table at LBA4.
-	cand512 = 4U * 512U;
-	if ((long)(cand512 + 4) <= size && memcmp(buf + cand512, "X68K", 4) == 0) {
+	// Prefer a physically consistent partition-table decode over raw signature
+	// hits. Some 1024-byte images can contain a coincidental "X68K" at 0x800.
+	hasPart1024 = SCSI_HasHumanPartitionTable(buf, size, 1024);
+	hasPart512 = SCSI_HasHumanPartitionTable(buf, size, 512);
+	if (hasPart1024 && !hasPart512) {
+		return 1024;
+	}
+	if (hasPart512 && !hasPart1024) {
 		return 512;
 	}
+	if (hasPart1024 && hasPart512) {
+		return 1024;
+	}
+
+	// Headerless raw images are typically 512B or 1024B sectors.
+	// Prefer a signature-based guess from the partition table at LBA4.
 	cand1024 = 4U * 1024U;
 	if ((long)(cand1024 + 4) <= size && memcmp(buf + cand1024, "X68K", 4) == 0) {
 		return 1024;
+	}
+	cand512 = 4U * 512U;
+	if ((long)(cand512 + 4) <= size && memcmp(buf + cand512, "X68K", 4) == 0) {
+		return 512;
 	}
 
 	return 512;
@@ -621,16 +1226,26 @@ static DWORD SCSI_Mask24(DWORD addr)
 
 static void SCSI_SetReqStatus(DWORD reqpkt, int ok, BYTE errCode)
 {
-	// Human68k request status word at offset +3/+4 (big-endian):
-	//   Bit 15 (byte+3 bit 7): Done (command completed)
-	//   Bit  8 (byte+3 bit 0): Error flag
-	//   Bits 7-0 (byte+4):     Error code
+	// Human68k device driver request status word at reqpkt +3/+4.
+	//
+	// Kernel dispatch ($CBB8-$CBD0) loads:
+	//   d7.b = byte+4 (errcode)  → asl.w #8 → d7.w = errcode<<8
+	//   d7.b = byte+3 (flags)    → d7.w = (errcode<<8) | flags
+	//   TRAP #14                 → A/R/I dispatcher
+	//
+	// TRAP #14 dispatcher checks d7.b (= byte+3).
+	// If byte+3 == $00: success → RTE (skip A/R/I handler at $F6F4)
+	// If byte+3 != $00: error  → enter $F6F4 for Abort/Retry/Ignore
+	//
+	// byte+3 = $80 (Done bit) is WRONG: the byte is negative (bit 7 set),
+	// causing the dispatcher to treat it as an error.
 	if (ok) {
-		Memory_WriteB(reqpkt + 3, 0x80);  // Done=1, Error=0
-		Memory_WriteB(reqpkt + 4, 0x00);
+		Memory_WriteB(reqpkt + 3, 0x00);  // success: error code = 0
+		Memory_WriteB(reqpkt + 4, 0x00);  // no A/R/I flags
 	} else {
-		Memory_WriteB(reqpkt + 3, 0x81);  // Done=1, Error=1
-		Memory_WriteB(reqpkt + 4, errCode);
+		// Error: byte+3 = error code, byte+4 = A/R/I flags
+		Memory_WriteB(reqpkt + 3, errCode ? errCode : 0x02);
+		Memory_WriteB(reqpkt + 4, 0x30);  // Abort+Retry
 	}
 }
 
@@ -946,10 +1561,152 @@ static void SCSI_HandleBoot(void)
 
 	printf("SCSI_HandleBoot: Loaded %d bytes from +0x%X to $%06X (d5=%u)\n",
 	       (int)bootSize, (int)bootOffset, (int)destAddr, (unsigned int)d5Exp);
+
+	// Initialize CRTC and text palette for SCSI boot.
+	// The IPL ROM's _CRTMOD reads its CRT mode table from $FC0000+ which is
+	// now overlaid by SCSIIMG, so CRTC registers remain zero → nothing renders.
+	// Set up a standard 768x512 31kHz text mode so native ROM display handlers
+	// (especially fn=$21 _B_PRINT for boot messages) produce visible output.
+	{
+		SCSI_LogText("SCSI_BOOT_CRTC_INIT setting 768x512 31kHz mode");
+		CRTC_Write(0xE80000, 0x00); CRTC_Write(0xE80001, 0x89);  // R0
+		CRTC_Write(0xE80002, 0x00); CRTC_Write(0xE80003, 0x0E);  // R1
+		CRTC_Write(0xE80006, 0x00); CRTC_Write(0xE80007, 0x7C);  // R3
+		CRTC_Write(0xE80004, 0x00); CRTC_Write(0xE80005, 0x1C);  // R2
+		CRTC_Write(0xE80008, 0x02); CRTC_Write(0xE80009, 0x37);  // R4
+		CRTC_Write(0xE8000A, 0x00); CRTC_Write(0xE8000B, 0x05);  // R5
+		CRTC_Write(0xE8000E, 0x02); CRTC_Write(0xE8000F, 0x28);  // R7
+		CRTC_Write(0xE8000C, 0x00); CRTC_Write(0xE8000D, 0x28);  // R6
+		CRTC_Write(0xE80010, 0x00); CRTC_Write(0xE80011, 0x1B);  // R8
+		CRTC_Write(0xE80028, 0x00); CRTC_Write(0xE80029, 0x16);  // R20
+		VCtrl_Write(0xE82601, 0x20);  // text layer ON
+		Pal_Regs[0x200] = 0x00; Pal_Regs[0x201] = 0x00;
+		TextPal[0] = Pal16[0x0000];  // black background
+		Pal_Regs[0x202] = 0xFF; Pal_Regs[0x203] = 0xFE;
+		TextPal[1] = Pal16[0xFFFE];  // white foreground
+		TVRAM_SetAllDirty();
+		snprintf(bootLog, sizeof(bootLog),
+		         "SCSI_BOOT_CRTC_DONE VSTART=%u VEND=%u",
+		         (unsigned)CRTC_VSTART, (unsigned)CRTC_VEND);
+		SCSI_LogText(bootLog);
+	}
+
+	// Lower IPL level to allow interrupts (timer, keyboard, VSync).
+	// Real IPL ROM enables interrupts before jumping to boot code.
+	// Without this, SR=$2700 (IPL=7) masks ALL interrupts and
+	// Human68k hangs in polling loops that expect timer interrupts.
+	C68k_Set_SR(&C68K, 0x2000);  // supervisor mode, IPL=0
+	SCSI_LogText("SCSI_BOOT_SR_FIX set SR=$2000 (IPL=0, interrupts enabled)");
+
 	C68k_Set_DReg(&C68K, 0, 0);  // d0 = 0 (成功)
 #endif
 }
 
+
+// -----------------------------------------------------------------------
+//   表示 IOCS トラップハンドラ ($E9F804 経由)
+//   SCSI disk IOCS (fn=$20=_S_INQUIRY, fn=$21=_S_READ) との番号衝突を
+//   回避するため、表示系 IOCS を別ディスパッチパスで処理する。
+//   ネイティブ ROM ハンドラ ($FExxxx) は $FC0000-$FC1FFF のサブルーチンを
+//   呼ぶ可能性があり、SCSIIMG 上書きにより動作しない。
+// -----------------------------------------------------------------------
+static void SCSI_HandleDisplayIOCS(BYTE cmd)
+{
+#if defined(HAVE_C68K)
+	DWORD d1 = C68k_Get_DReg(&C68K, 1);
+	DWORD d2 = C68k_Get_DReg(&C68K, 2);
+	DWORD result = 0;
+	char logLine[256];
+
+	switch (cmd) {
+	case 0x20: {  // _B_PUTC: 1文字出力
+		BYTE ch = (BYTE)(d1 & 0xffU);
+		result = d1 & 0x0000ffffU;
+
+		SCSI_EnsureDisplayInit();
+		SCSI_RenderChar(ch);
+
+		if (s_fn35_log_count < 512) {
+			char shown = (ch >= 0x20U && ch <= 0x7eU) ? (char)ch : '.';
+			snprintf(logLine, sizeof(logLine),
+			         "SCSI_DISP_FN20 ch=$%02X('%c') cx=%d cy=%d d0=%08X",
+			         (unsigned int)ch, shown,
+			         s_tvram_cx, s_tvram_cy,
+			         (unsigned int)result);
+			SCSI_LogText(logLine);
+			s_fn35_log_count++;
+		}
+		break;
+	}
+
+	case 0x21: {  // _B_PRINT: 文字列出力
+		DWORD a1 = C68k_Get_AReg(&C68K, 1);
+		int count = 0;
+		result = 0;
+
+		SCSI_EnsureDisplayInit();
+
+		// NUL終端文字列を M68000 メモリから読んでレンダリング
+		while (count < 4096) {
+			BYTE ch = Memory_ReadB(a1 + (DWORD)count);
+			if (ch == 0) break;
+			SCSI_RenderChar(ch);
+			count++;
+		}
+
+		if (s_fn35_log_count < 512) {
+			// 先頭 40 文字をログ
+			char strBuf[44];
+			int i;
+			for (i = 0; i < 40 && i < count; i++) {
+				BYTE c = Memory_ReadB(a1 + (DWORD)i);
+				strBuf[i] = (c >= 0x20 && c <= 0x7e) ? (char)c : '.';
+			}
+			strBuf[i] = '\0';
+			snprintf(logLine, sizeof(logLine),
+			         "SCSI_DISP_FN21 a1=$%08X len=%d str=\"%s\" cx=%d cy=%d",
+			         (unsigned int)a1, count, strBuf,
+			         s_tvram_cx, s_tvram_cy);
+			SCSI_LogText(logLine);
+
+			// 最初の3回は hexdump をログ
+			if (s_fn35_log_count < 3) {
+				char hexBuf[200];
+				int hlen = 0;
+				int hmax = (count < 64) ? count : 64;
+				for (i = 0; i < hmax && hlen < 190; i++) {
+					BYTE c = Memory_ReadB(a1 + (DWORD)i);
+					hlen += snprintf(hexBuf + hlen, sizeof(hexBuf) - (size_t)hlen,
+					                 "%02X ", (unsigned int)c);
+				}
+				hexBuf[hlen] = '\0';
+				snprintf(logLine, sizeof(logLine),
+				         "SCSI_DISP_FN21_HEX a1=$%08X: %s",
+				         (unsigned int)a1, hexBuf);
+				SCSI_LogText(logLine);
+			}
+			s_fn35_log_count++;
+		}
+		break;
+	}
+
+	default:
+		// 未処理の表示 IOCS は成功(0)を返す
+		result = 0;
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_DISP_DEFAULT fn=$%02X d1=%08X d2=%08X -> d0=0",
+		         (unsigned int)cmd,
+		         (unsigned int)d1,
+		         (unsigned int)d2);
+		SCSI_LogText(logLine);
+		break;
+	}
+
+	C68k_Set_DReg(&C68K, 0, result);
+#else
+	(void)cmd;
+#endif
+}
 
 // -----------------------------------------------------------------------
 //   SCSI IOCS トラップハンドラ
@@ -970,21 +1727,95 @@ static void SCSI_HandleIOCS(BYTE cmd)
 	DWORD i;
 	char logLine[192];
 
-	snprintf(logLine, sizeof(logLine),
-	         "SCSI_IOCS_BEGIN cmd=$%02X d1=%08X d2=%08X d3=%08X d4=%08X d5=%08X a1=%08X",
-	         cmd, (unsigned int)d1, (unsigned int)d2, (unsigned int)d3, (unsigned int)d4,
-	         (unsigned int)d5, (unsigned int)a1);
-	SCSI_LogText(logLine);
+	// Note: s_fn00_ari_count is NOT reset here.  It persists across IOCS
+	// calls so that the single-shot CR injection (ari==1) fires only once
+	// per boot phase, not every time a disk-read/cursor IOCS intervenes.
+
+	// Rate-limit BEGIN logging for keyboard polling (fn=$00/$01/$04)
+	if (cmd != 0x00 && cmd != 0x01 && cmd != 0x04) {
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS_BEGIN cmd=$%02X d1=%08X d2=%08X d3=%08X d4=%08X d5=%08X a1=%08X",
+		         cmd, (unsigned int)d1, (unsigned int)d2, (unsigned int)d3, (unsigned int)d4,
+		         (unsigned int)d5, (unsigned int)a1);
+		SCSI_LogText(logLine);
+	}
 
 		switch (cmd) {
-			case 0x00: {  // synthetic fallback for IOCS fn=$00 (_B_KEYINP)
-				// d7 contains random register values from the caller, NOT keyboard
-				// state.  The old d7-flag logic falsely returned 'A' (Abort) when
-				// d7 bit 4 happened to be set, derailing the boot sequence.
-				if (d1 == 0x00000640U) {
-					// Boot manager loop at $86F2: loops S_READ + fn=$00.
-					// On real hardware fn=$00 blocks; simulate Enter press.
-					s_fn00_boot_count++;
+	case 0x0C: {  // _CRTMOD: set CRT display mode
+		// Native ROM handler reads mode table from $FC0000+ which is overlaid
+		// by SCSIIMG → garbage values → CRTC registers all zero → black screen.
+		// We implement a minimal 768x512 31kHz text mode setup.
+		WORD mode = (WORD)(d1 & 0xFFFFU);
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS_FN0C _CRTMOD mode=$%04X", (unsigned)mode);
+		SCSI_LogText(logLine);
+
+		// Set CRTC registers for 768x512 31kHz mode (standard Human68k text mode)
+		// R0: H-total = $0089
+		CRTC_Write(0xE80000, 0x00); CRTC_Write(0xE80001, 0x89);
+		// R1: H-sync = $000E
+		CRTC_Write(0xE80002, 0x00); CRTC_Write(0xE80003, 0x0E);
+		// R3: H-disp end = $007C (set before R2 for correct TextDotX calc)
+		CRTC_Write(0xE80006, 0x00); CRTC_Write(0xE80007, 0x7C);
+		// R2: H-disp start = $001C
+		CRTC_Write(0xE80004, 0x00); CRTC_Write(0xE80005, 0x1C);
+		// R4: V-total = $0237
+		CRTC_Write(0xE80008, 0x02); CRTC_Write(0xE80009, 0x37);
+		// R5: V-sync = $0005
+		CRTC_Write(0xE8000A, 0x00); CRTC_Write(0xE8000B, 0x05);
+		// R7: V-disp end = $0228 (set before R6 for correct TextDotY calc)
+		CRTC_Write(0xE8000E, 0x02); CRTC_Write(0xE8000F, 0x28);
+		// R6: V-disp start = $0028
+		CRTC_Write(0xE8000C, 0x00); CRTC_Write(0xE8000D, 0x28);
+		// R8: Adjust = $001B
+		CRTC_Write(0xE80010, 0x00); CRTC_Write(0xE80011, 0x1B);
+		// R20: Screen mode (31kHz, standard flags)
+		CRTC_Write(0xE80028, 0x00); CRTC_Write(0xE80029, 0x16);
+
+		// VCReg2: enable text layer
+		VCtrl_Write(0xE82601, 0x20);
+
+		// Text palette: black background, white foreground
+		Pal_Regs[0x200] = 0x00; Pal_Regs[0x201] = 0x00;
+		TextPal[0] = Pal16[0x0000];
+		Pal_Regs[0x202] = 0xFF; Pal_Regs[0x203] = 0xFE;
+		TextPal[1] = Pal16[0xFFFE];
+
+		TVRAM_SetAllDirty();
+
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS_FN0C done VSTART=%u VEND=%u TextDotX=%u TextDotY=%u",
+		         (unsigned)CRTC_VSTART, (unsigned)CRTC_VEND,
+		         (unsigned)TextDotX, (unsigned)TextDotY);
+		SCSI_LogText(logLine);
+		result = mode;  // return previous mode (simplified: return requested mode)
+		break;
+	}
+
+				case 0x00: {  // synthetic fallback for IOCS fn=$00 (_B_KEYINP)
+					// d7 contains random register values from the caller, NOT keyboard
+					// state.  The old d7-flag logic falsely returned 'A' (Abort) when
+					// d7 bit 4 happened to be set, derailing the boot sequence.
+					if ((d1 & 0x0FFFU) == 0x0640U) {
+						// Boot manager loop detection.
+						// d1=$0640 or $1640 (bit 12 varies by kernel version).
+						// When caller is looping on end-of-chain (d2=$FFFF), return Abort
+						// once so it can escape retry-only paths.
+						if (d2 == 0x0000FFFFU) {
+								result = (DWORD)'I';
+							s_fn00_boot_count = 0;
+							s_fn00_ari_count = 0;
+							snprintf(logLine, sizeof(logLine),
+							         "SCSI_IOCS_FN00 d1=%08X d2=%08X force-abort -> d0=%08X",
+							         (unsigned int)d1,
+							         (unsigned int)d2,
+							         (unsigned int)result);
+							SCSI_LogText(logLine);
+							break;
+						}
+						// Boot manager loop at $86F2: loops S_READ + fn=$00.
+						// On real hardware fn=$00 blocks; simulate Enter press.
+						s_fn00_boot_count++;
 					if (s_fn00_boot_count >= 2) {
 						result = 0x0DU;  // CR = Enter key
 						s_fn00_boot_count = 0;
@@ -993,31 +1824,78 @@ static void SCSI_HandleIOCS(BYTE cmd)
 					}
 					s_fn00_ari_count = 0;
 				} else if (d1 == 0x0000000DU) {
-					// A/R/I error handler context (d1=$0D = CR from prompt).
-					// The handler at $F774 checks BTST #6,D7 before accepting
-					// 'I', and BTST #5,D7 for 'R'.  When d7.b only has bit 4
-					// (Abort-only), both are rejected and it loops forever.
-					// Force bits 5+6 so 'I' is accepted.
+					// d1=$0D: key-wait context (splash screen or A/R/I).
+					// Real fn=$00 blocks until key press; we return immediately.
+					// Return CR on first call to break key wait.  If the
+					// caller loops back (CR wasn't accepted), try 'A' (Abort)
+					// at call 50.  Otherwise return 0 (no key).
+					s_fn00_ari_count++;
+					if (s_fn00_ari_count == 1) {
+						result = 0x0DU;  // CR = Enter
+					} else if (s_fn00_ari_count == 50) {
+						result = (DWORD)'A';
+					} else {
+						result = 0;
+					}
+				} else {
+					// General keyboard input: try real key from KeyBuf
 					{
-						DWORD curD7 = C68k_Get_DReg(&C68K, 7);
-						if ((curD7 & 0x60U) == 0 && (curD7 & 0x10U) != 0) {
-							C68k_Set_DReg(&C68K, 7, curD7 | 0x70U);
+						BYTE rp = KeyBufRP;
+						result = 0;
+						while (rp != KeyBufWP) {
+							BYTE code = KeyBuf[rp];
+							rp = (rp + 1) & (KeyBufSize - 1);
+							if ((code & 0x80) == 0) {
+								BYTE ascii = s_scan_to_ascii[code & 0x7F];
+								if (ascii != 0) {
+									KeyBufRP = rp;
+									result = ((DWORD)(code & 0x7F) << 8) | (DWORD)ascii;
+									break;
+								}
+							}
 						}
 					}
-					result = (DWORD)'I';  // Always Ignore
-					s_fn00_ari_count++;
-				} else {
-					// General keyboard input: return 0 (no key)
-					result = 0;
 				}
-				snprintf(logLine, sizeof(logLine),
-				         "SCSI_IOCS_FN00 d1=%08X d7=%08X ari=%d bcnt=%d -> d0=%08X",
-				         (unsigned int)d1,
-				         (unsigned int)d7,
-				         s_fn00_ari_count,
-				         s_fn00_boot_count,
-				         (unsigned int)result);
-				SCSI_LogText(logLine);
+				// Rate-limit logging: first 5 calls, then every 500th
+				if (s_fn00_ari_count <= 5 ||
+				    s_fn00_ari_count == 50 ||
+				    (s_fn00_ari_count % 500) == 0) {
+					snprintf(logLine, sizeof(logLine),
+					         "SCSI_IOCS_FN00 d1=%08X d7=%08X ari=%d bcnt=%d -> d0=%08X",
+					         (unsigned int)d1,
+					         (unsigned int)d7,
+					         s_fn00_ari_count,
+					         s_fn00_boot_count,
+					         (unsigned int)result);
+					SCSI_LogText(logLine);
+				}
+				break;
+			}
+
+			case 0x01: {  // _B_KEYSNS: non-destructive key sense
+				BYTE rp = KeyBufRP;
+				result = 0;
+				while (rp != KeyBufWP) {
+					BYTE code = KeyBuf[rp];
+					if ((code & 0x80) == 0) {
+						BYTE ascii = s_scan_to_ascii[code & 0x7F];
+						if (ascii != 0) {
+							result = ((DWORD)(code & 0x7F) << 8) | (DWORD)ascii;
+							break;
+						}
+					}
+					rp = (rp + 1) & (KeyBufSize - 1);
+				}
+				break;
+			}
+
+			case 0x04: {  // _B_BITSNS: key bit sense (d1.b = group)
+				result = 0;
+				break;
+			}
+
+			case 0x10: {  // _B_SET: set cursor / scroll parameters
+				result = 0;
 				break;
 			}
 
@@ -1103,6 +1981,12 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		case 0x21:  // _S_READ
 		case 0x26:  // _S_READEXT
 		case 0x2e: {  // _S_READI
+			// fn=$2E conflicts with system IOCS _B_MEMSET after device link.
+			// If called post-link, it's the OS memset, not a SCSI read.
+			if (cmd == 0x2e && s_scsi_dev_linked) {
+				result = 0;
+				break;
+			}
 			DWORD lba;
 			DWORD blocks;
 			DWORD blockSize = SCSI_GetBlockSizeFromCode(d5);
@@ -1122,9 +2006,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				// plus the partition base, and block count comes from d4.
 				if (cmd == 0x21 &&
 				    d1 == 0x00000640U &&
-				    (d2 & 0xffff0000U) == 0 &&
-				    (d2 & 0x0000ff00U) != 0 &&
-				    (d2 & 0x0000ff00U) == (d1 & 0x0000ff00U)) {
+				    (d2 & 0xffff0000U) == 0U) {
 					DWORD packedLba = d2 & 0x000000ffU;
 					if (partBaseLba != 0) {
 						packedLba += partBaseLba;
@@ -1149,11 +2031,50 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				         cmd, (unsigned int)d2, (unsigned int)d4, (unsigned int)lba);
 				SCSI_LogText(logLine);
 			}
+			if (cmd == 0x2e && d1 == 0xffffffffU) {
+				// Some forced-boot IPL paths use _S_READI with d1=-1 as a probe
+				// before full SCSI stack handoff. Treat it as success no-op.
+				snprintf(logLine, sizeof(logLine),
+				         "SCSI_XFER_READI_PROBE d2=%08X d3=%08X d4=%08X d5=%08X",
+				         (unsigned int)d2,
+				         (unsigned int)d3,
+				         (unsigned int)d4,
+				         (unsigned int)d5);
+				SCSI_LogText(logLine);
+				C68k_Set_DReg(&C68K, 2, 0);
+				result = 0;
+				break;
+			}
 			blocks = d3;
 			if (cmd == 0x21) {
 				blocks &= 0xff;
 				if (blocks == 0) {
 					blocks = 256;
+				}
+				// Some legacy boot paths pack non-count metadata into d3 and carry
+				// transfer byte size in d4 (for example d3=$40020800, d4=$00000400).
+				// Interpreting d3.b==0 as 256 blocks in that case over-reads and
+				// clobbers boot code. Prefer a sane d4-derived count when available.
+				if (!usePackedLegacy &&
+				    (d3 & 0xffffff00U) != 0 &&
+				    d4 != 0 &&
+				    blockSize != 0) {
+					DWORD bytesHint = d4 & 0x00ffffffU;
+					DWORD hintedBlocks = bytesHint / blockSize;
+					if (bytesHint != 0 && hintedBlocks == 0) {
+						hintedBlocks = 1;
+					}
+					if (hintedBlocks > 0 && hintedBlocks <= 256 && hintedBlocks < blocks) {
+						snprintf(logLine, sizeof(logLine),
+						         "SCSI_XFER_BLK_HINT cmd=$%02X d3=%08X d4=%08X blocks=%u->%u",
+						         (unsigned int)cmd,
+						         (unsigned int)d3,
+						         (unsigned int)d4,
+						         (unsigned int)blocks,
+						         (unsigned int)hintedBlocks);
+						SCSI_LogText(logLine);
+						blocks = hintedBlocks;
+					}
 				}
 				if (usePackedLegacy) {
 					DWORD packedBlocks = d4 & 0x0000ffffU;
@@ -1169,11 +2090,35 @@ static void SCSI_HandleIOCS(BYTE cmd)
 					SCSI_LogText(logLine);
 					blocks = packedBlocks;
 				}
+			} else if (cmd == 0x26) {
+				// _S_READEXT: some boot sectors pass packed metadata in d3
+				// (for example d3=$40020800) and effective transfer bytes in d4.
+				// Prefer a sane d4-derived block count when present.
+				if ((d3 & 0xffff0000U) != 0 &&
+				    d4 != 0 &&
+				    blockSize != 0) {
+					DWORD bytesHint = d4 & 0x00ffffffU;
+					DWORD hintedBlocks = bytesHint / blockSize;
+					if (bytesHint != 0 && hintedBlocks == 0) {
+						hintedBlocks = 1;
+					}
+					if (hintedBlocks > 0 && hintedBlocks < blocks) {
+						snprintf(logLine, sizeof(logLine),
+						         "SCSI_XFER_BLK_HINT cmd=$%02X d3=%08X d4=%08X blocks=%u->%u",
+						         (unsigned int)cmd,
+						         (unsigned int)d3,
+						         (unsigned int)d4,
+						         (unsigned int)blocks,
+						         (unsigned int)hintedBlocks);
+						SCSI_LogText(logLine);
+						blocks = hintedBlocks;
+					}
+				}
 			} else if (cmd == 0x2e) {
 			// _S_READI uses its own parameter semantics; d3=0 appears as a probe/no-op
 			// in this boot path, so do not force a sector transfer here.
-			blocks &= 0xffff;
-			if (blocks == 0) {
+				blocks &= 0xffff;
+				if (blocks == 0) {
 				snprintf(logLine, sizeof(logLine),
 				         "SCSI_XFER_READI_NOOP d2=%08X d3=%08X d4=%08X d5=%08X",
 				         (unsigned int)d2,
@@ -1181,31 +2126,15 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				         (unsigned int)d4,
 				         (unsigned int)d5);
 				SCSI_LogText(logLine);
+				C68k_Set_DReg(&C68K, 2, 0);
 				result = 0;
 				break;
 			}
 		}
-		// d2=$FFFF in boot context = FAT end-of-chain marker.
-		// Zero-fill ONE block only — d3 carries packed struct data (67),
-		// not a real block count; using it would overwrite code at $86F2+.
-		if (d1 == 0x00000640U && d2 == 0x0000FFFFU) {
-			DWORD zeroBytes = blockSize;  // 1 block (512 bytes)
-			if (zeroBytes > 0 && SCSI_IsLinearRamRange(a1, zeroBytes)) {
-				for (i = 0; i < zeroBytes; i++) {
-					Memory_WriteB(a1 + i, 0);
-				}
+			if (!SCSI_ResolveTransfer(lba, blocks, blockSize, &imageOffset, &transferBytes)) {
+				result = 0xFFFFFFFF;
+				break;
 			}
-			snprintf(logLine, sizeof(logLine),
-			         "SCSI_XFER_READ_CHAIN_END cmd=$%02X zeroed %u bytes at %08X",
-			         cmd, (unsigned int)zeroBytes, (unsigned int)a1);
-			SCSI_LogText(logLine);
-			result = 0;
-			break;
-		}
-		if (!SCSI_ResolveTransfer(lba, blocks, blockSize, &imageOffset, &transferBytes)) {
-			result = 0xFFFFFFFF;
-			break;
-		}
 		if (!SCSI_IsLinearRamRange(a1, transferBytes)) {
 			result = 0xFFFFFFFF;
 			break;
@@ -1269,26 +2198,67 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			usePackedLegacy = 1;
 		}
 		blocks = d3;
-		if (cmd == 0x22) {
-			blocks &= 0xff;
-			if (blocks == 0) {
-				blocks = 256;
-			}
-			if (usePackedLegacy) {
-				DWORD packedBlocks = d4 & 0x0000ffffU;
-				if (packedBlocks == 0) {
-					packedBlocks = 1;
+			if (cmd == 0x22) {
+				blocks &= 0xff;
+				if (blocks == 0) {
+					blocks = 256;
 				}
+				if ((d3 & 0xffffff00U) != 0 &&
+				    d4 != 0 &&
+				    blockSize != 0) {
+					DWORD bytesHint = d4 & 0x00ffffffU;
+					DWORD hintedBlocks = bytesHint / blockSize;
+					if (bytesHint != 0 && hintedBlocks == 0) {
+						hintedBlocks = 1;
+					}
+					if (hintedBlocks > 0 && hintedBlocks <= 256 && hintedBlocks < blocks) {
+						snprintf(logLine, sizeof(logLine),
+						         "SCSI_XFER_BLK_HINT cmd=$%02X d3=%08X d4=%08X blocks=%u->%u",
+						         (unsigned int)cmd,
+						         (unsigned int)d3,
+						         (unsigned int)d4,
+						         (unsigned int)blocks,
+						         (unsigned int)hintedBlocks);
+						SCSI_LogText(logLine);
+						blocks = hintedBlocks;
+					}
+				}
+				if (usePackedLegacy) {
+					DWORD packedBlocks = d4 & 0x0000ffffU;
+					if (packedBlocks == 0) {
+						packedBlocks = 1;
+					}
 				snprintf(logLine, sizeof(logLine),
 				         "SCSI_XFER_BLK_PACKED cmd=$%02X d4=%08X blocks=%u->%u",
 				         (unsigned int)cmd,
 				         (unsigned int)d4,
 				         (unsigned int)blocks,
 				         (unsigned int)packedBlocks);
-				SCSI_LogText(logLine);
-				blocks = packedBlocks;
+					SCSI_LogText(logLine);
+					blocks = packedBlocks;
+				}
+			} else if (cmd == 0x27) {
+				if ((d3 & 0xffff0000U) != 0 &&
+				    d4 != 0 &&
+				    blockSize != 0) {
+					DWORD bytesHint = d4 & 0x00ffffffU;
+					DWORD hintedBlocks = bytesHint / blockSize;
+					if (bytesHint != 0 && hintedBlocks == 0) {
+						hintedBlocks = 1;
+					}
+					if (hintedBlocks > 0 && hintedBlocks < blocks) {
+						snprintf(logLine, sizeof(logLine),
+						         "SCSI_XFER_BLK_HINT cmd=$%02X d3=%08X d4=%08X blocks=%u->%u",
+						         (unsigned int)cmd,
+						         (unsigned int)d3,
+						         (unsigned int)d4,
+						         (unsigned int)blocks,
+						         (unsigned int)hintedBlocks);
+						SCSI_LogText(logLine);
+						blocks = hintedBlocks;
+					}
+				}
 			}
-		}
 		if (!SCSI_ResolveTransfer(lba, blocks, blockSize, &imageOffset, &transferBytes)) {
 			result = 0xFFFFFFFF;
 			break;
@@ -1314,7 +2284,14 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		break;
 	}
 
-	case 0x2f: {  // _S_STARTSTOP (boot-path quirk: used as data read on some images)
+	case 0x2f: {  // _S_STARTSTOP / SCSI read (pre-link boot only)
+		// After device-driver link, fn=$2F is the system IOCS _DMAMOVE.
+		// If the vector wasn't unpinned in time, bail out to avoid
+		// misinterpreting DMA parameters as sector read requests.
+		if (s_scsi_dev_linked) {
+			result = 0;
+			break;
+		}
 		DWORD rawLba = d2 & 0x00ffffffU;
 		DWORD lba = rawLba;
 		DWORD blocks = d4 & 0x0000ffffU;
@@ -1377,13 +2354,81 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		break;
 	}
 
-	case 0x23:  // _S_FORMAT
+	case 0x32:  // _B_KEYINP (keyboard input)
+		// Return CR ($0D) to match ROM stub at $FC00E6.
+		// ESC ($1B) causes recursive BSR in IPL ROM console code at $FE4BB8,
+		// leaking 8 bytes of stack per iteration → stack overflow → crash.
+		// CR follows a flat loop path (BSR output → CLR → BRA) with no leak.
+		result = 0x0000000DU;
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS_FN32 d1=%08X -> d0=%08X",
+		         (unsigned int)d1, (unsigned int)result);
+		SCSI_LogText(logLine);
+		break;
+
+	case 0x33:  // _B_KEYSNS / monitor key-ready probe
+		// Return 0 (no key ready) to prevent COMMAND.X from entering
+		// an infinite keyboard polling loop (fn=$33 → fn=$32 → fn=$33...).
+		result = 0;
+		if (s_fn33_log_count < 128) {
+			snprintf(logLine, sizeof(logLine),
+			         "SCSI_IOCS_FN33 d1=%08X -> d0=%08X",
+			         (unsigned int)d1, (unsigned int)result);
+			SCSI_LogText(logLine);
+			s_fn33_log_count++;
+		}
+		break;
+
+	case 0x34:  // monitor/console transmitter-ready probe
+		// Match previous ROM-stub behavior: always ready.
+		result = 1;
+		if (s_fn34_log_count < 128) {
+			snprintf(logLine, sizeof(logLine),
+			         "SCSI_IOCS_FN34 d1=%08X -> d0=%08X",
+			         (unsigned int)d1, (unsigned int)result);
+			SCSI_LogText(logLine);
+			s_fn34_log_count++;
+		}
+		break;
+
+	case 0x35: { // _B_PUTC (SCSI context): console character output
+		BYTE ch = (BYTE)(d1 & 0xffU);
+		result = d1 & 0x0000ffffU;
+
+		SCSI_EnsureDisplayInit();
+		SCSI_RenderChar(ch);
+
+		if (s_fn35_log_count < 512) {
+			char shown = (ch >= 0x20U && ch <= 0x7eU) ? (char)ch : '.';
+			snprintf(logLine, sizeof(logLine),
+			         "SCSI_IOCS_FN%02X ch=$%02X('%c') cx=%d cy=%d d0=%08X",
+			         (unsigned int)cmd, (unsigned int)ch, shown,
+			         s_tvram_cx, s_tvram_cy,
+			         (unsigned int)result);
+			SCSI_LogText(logLine);
+			s_fn35_log_count++;
+		}
+		break;
+	}
+
+	case 0x23: {  // _B_LOCATE: set cursor position
+		int x = (int)(d1 & 0xFF);
+		int y = (int)(d2 & 0xFF);
+		if (x < SCSI_TVRAM_COLS) s_tvram_cx = x;
+		if (y < SCSI_TVRAM_ROWS) s_tvram_cy = y;
+		result = 0;
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS_FN23 x=%d y=%d cx=%d cy=%d",
+		         x, y, s_tvram_cx, s_tvram_cy);
+		SCSI_LogText(logLine);
+		break;
+	}
+
 	case 0x2a:  // _S_MODESELECT
 	case 0x2b:  // _S_REZEROUNIT
 	case 0x2d:  // _S_SEEK
 	case 0x30:  // _S_EJECT6MO1
 	case 0x31:  // _S_REASSIGN
-	case 0x32:  // _S_PAMEDIUM
 	case 0x36:  // _b_dskini
 	case 0x37:  // _b_format
 	case 0x38:  // _b_badfmt
@@ -1495,6 +2540,11 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		// Treat as a successful no-op so the caller can continue probing.
 		result = 0;
 		break;
+	case 0x3f:  // observed after device-link on some Human68k boot paths
+		// Compatibility no-op: returning -1 here can divert the caller into
+		// fragile fallback code paths that corrupt the IOCS work stack.
+		result = 0;
+		break;
 
 	case 0xae: {  // observed in forced-boot path before RAM callback jump
 		// Human68k requests a continuation vector with d1=$0640.  Returning a
@@ -1527,11 +2577,14 @@ static void SCSI_HandleIOCS(BYTE cmd)
 	}
 
 	C68k_Set_DReg(&C68K, 0, result);
-	snprintf(logLine, sizeof(logLine),
-	         "SCSI_IOCS cmd=$%02X d2=%08X d3=%08X d4=%08X d5=%08X a1=%08X d0=%08X",
-	         cmd, (unsigned int)d2, (unsigned int)d3, (unsigned int)d4,
-	         (unsigned int)d5, (unsigned int)a1, (unsigned int)result);
-	SCSI_LogText(logLine);
+	// Skip summary log for keyboard polling (fn=$00/$01/$04)
+	if (cmd != 0x00 && cmd != 0x01 && cmd != 0x04) {
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS cmd=$%02X d2=%08X d3=%08X d4=%08X d5=%08X a1=%08X d0=%08X",
+		         cmd, (unsigned int)d2, (unsigned int)d3, (unsigned int)d4,
+		         (unsigned int)d5, (unsigned int)a1, (unsigned int)result);
+		SCSI_LogText(logLine);
+	}
 #endif
 }
 
@@ -1671,10 +2724,66 @@ void FASTCALL SCSI_Write(DWORD adr, BYTE data)
 #endif
 		SCSI_LogIO(adr, "TRAP", data);
 		if (data == 0xff) {
+			// cmd=$FF is valid for initial SCSI boot, but once the synthetic
+			// block driver is linked, stray $FF writes from corrupted state can
+			// repeatedly re-enter boot and destroy IOCS/stack state.
+			if (s_scsi_dev_linked) {
+				if (s_boot_ff_ignored_logs < 16) {
+					char bootIgnoreLog[128];
+					DWORD pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
+					snprintf(bootIgnoreLog, sizeof(bootIgnoreLog),
+					         "SCSI_BOOT_CMD_IGNORED linked=1 pc=$%08X adr=$%06X",
+					         (unsigned int)pc,
+					         (unsigned int)(adr & 0x00ffffffU));
+					SCSI_LogText(bootIgnoreLog);
+					s_boot_ff_ignored_logs++;
+				}
+				return;
+			}
 			SCSI_HandleBoot();
 		} else {
 			SCSI_HandleIOCS(data);
+#if defined(HAVE_C68K)
+			// ── TRAP #15 条件コード修正 ──
+			// TRAP #15 ディスパッチャ ($FC0088) は RTE で復帰するため、
+			// IOCS ハンドラが設定した d0 の結果が条件コードに反映されない。
+			// 呼び出し元が TRAP #15 後に tst.l d0 なしで bmi/beq 等を使う場合、
+			// 古い CC で分岐してしまう。
+			// 対策: TRAP コンテキスト (JSR 戻りアドレス=$FC00B4) なら
+			// 例外フレームの保存 SR の CC ビットを d0 に基づいて更新する。
+			//
+			// スタックレイアウト (ハンドラ $FC00F2 内):
+			//   SP+0:  JSR 戻りアドレス ($FC00B4)
+			//   SP+4:  保存 a0
+			//   SP+8:  保存 d0
+			//   SP+12: 例外 SR (2 bytes)
+			//   SP+14: 例外 PC (4 bytes)
+			{
+				DWORD sp = C68k_Get_AReg(&C68K, 7);
+				DWORD retAddr = Memory_ReadD(sp) & 0x00FFFFFFU;
+				if (retAddr == 0x00FC00B4U) {
+					DWORD d0 = C68k_Get_DReg(&C68K, 0);
+					WORD savedSR = Memory_ReadW(sp + 12);
+					// CC ビットをクリア (N=3, Z=2, V=1, C=0)
+					savedSR &= ~0x000FU;
+					// d0 == 0 → Z=1 (成功)
+					if (d0 == 0) savedSR |= 0x0004U;
+					// d0 < 0 (bit31) → N=1 (エラー)
+					if (d0 & 0x80000000U) savedSR |= 0x0008U;
+					Memory_WriteW(sp + 12, savedSR);
+				}
+			}
+#endif
 		}
+		return;
+	}
+
+	// 表示IOCSトラップ: $E9F804
+	// SCSI disk IOCS ($E9F800) との fn=$20/$21 番号衝突を回避する別パス
+	if (adr == 0x00e9f804) {
+#if defined(HAVE_C68K)
+		SCSI_HandleDisplayIOCS(data);
+#endif
 		return;
 	}
 
@@ -2360,7 +3469,13 @@ static void SCSI_HandleDeviceCommand(void)
 		Memory_WriteB(reqpkt + 0x13, (BYTE)((bpbAddr >> 16) & 0xff));
 		Memory_WriteB(reqpkt + 0x14, (BYTE)((bpbAddr >> 8) & 0xff));
 		Memory_WriteB(reqpkt + 0x15, (BYTE)(bpbAddr & 0xff));
-		SCSI_SetReqStatus(reqpkt, 1, 0x00);
+		// BUILD BPB は IPL ROM のディスパッチ ($FF069A) を経由する。
+		// ROM は tst.b byte+3 / bne success で非ゼロ=成功を期待する。
+		// カーネルの $CBA6 ディスパッチ (byte+3==$00 → success) とは逆。
+		// byte+3=$80 (bit7 set) は有効なエラーコードではないため A/R/I は
+		// トリガされず、ROM の非ゼロチェックをパスする。
+		Memory_WriteB(reqpkt + 3, 0x80);
+		Memory_WriteB(reqpkt + 4, 0x00);
 		break;
 	}
 

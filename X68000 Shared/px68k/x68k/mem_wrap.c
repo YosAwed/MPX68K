@@ -61,6 +61,7 @@ static unsigned int s_adr_error_count = 0;
 static unsigned int s_queue_watch_count = 0;
 static unsigned int s_rom_write_ignored_count = 0;
 static unsigned int s_sysptr_watch_count = 0;
+static unsigned int s_stackslot_watch_count = 0;
 
 BYTE (*MemReadTable[])(DWORD) = {
 	TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read, TVRAM_Read,
@@ -317,6 +318,63 @@ Memory_LogSysPtrWriteWatch(DWORD addr, BYTE oldVal, BYTE newVal)
 }
 
 static void
+Memory_LogStackSlotWriteWatch(DWORD addr, BYTE oldVal, BYTE newVal)
+{
+#if defined(HAVE_C68K)
+	DWORD pc;
+	DWORD d0;
+	DWORD d1;
+	DWORD d2;
+	DWORD a0;
+	DWORD a1;
+	DWORD a6;
+	DWORD a7;
+	DWORD m692a;
+	DWORD m692e;
+
+	if (s_stackslot_watch_count >= 1024) {
+		return;
+	}
+	addr &= 0x00ffffffU;
+	if (addr < 0x00006920U || addr > 0x0000693fU) {
+		return;
+	}
+
+	pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
+	d0 = C68k_Get_DReg(&C68K, 0);
+	d1 = C68k_Get_DReg(&C68K, 1);
+	d2 = C68k_Get_DReg(&C68K, 2);
+	a0 = C68k_Get_AReg(&C68K, 0) & 0x00ffffffU;
+	a1 = C68k_Get_AReg(&C68K, 1) & 0x00ffffffU;
+	a6 = C68k_Get_AReg(&C68K, 6) & 0x00ffffffU;
+	a7 = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
+	m692a = Memory_LogReadLong24(0x0000692aU);
+	m692e = Memory_LogReadLong24(0x0000692eU);
+
+	Memory_LogRuntimeEvent(
+	    "STACK_SLOT_WRITE adr=%06X old=%02X new=%02X pc=%08X d0=%08X d1=%08X d2=%08X a0=%08X a1=%08X a6=%08X a7=%08X m692a=%08X m692e=%08X",
+	    (unsigned int)addr,
+	    (unsigned int)oldVal,
+	    (unsigned int)newVal,
+	    (unsigned int)pc,
+	    (unsigned int)d0,
+	    (unsigned int)d1,
+	    (unsigned int)d2,
+	    (unsigned int)a0,
+	    (unsigned int)a1,
+	    (unsigned int)a6,
+	    (unsigned int)a7,
+	    (unsigned int)m692a,
+	    (unsigned int)m692e);
+	s_stackslot_watch_count++;
+#else
+	(void)addr;
+	(void)oldVal;
+	(void)newVal;
+#endif
+}
+
+static void
 Memory_ApplySCSIRomOverlay(void)
 {
 	if (IPL == NULL) {
@@ -331,7 +389,6 @@ Memory_RemoveSCSIRomOverlay(void)
 	if (IPL == NULL) {
 		return;
 	}
-	// Restore the original IPL window from the immutable mirror at +0x20000.
 	memcpy(IPL, IPL + 0x20000, 0x2000);
 }
 
@@ -457,6 +514,7 @@ wm_cnt(DWORD addr, BYTE val)
 		MEM[addr ^ 1] = val;
 		Memory_LogQueueWriteWatch(addr, oldVal, val);
 		Memory_LogSysPtrWriteWatch(addr, oldVal, val);
+		Memory_LogStackSlotWriteWatch(addr, oldVal, val);
 	} else if (addr < 0x00e00000) {
 		GVRAM_Write(addr, val);
 	} else {
@@ -816,7 +874,7 @@ cpu_setOPbase24(DWORD addr)
 
 	case 0xf:
 		if (addr >= 0x00fe0000)
-			OP_ROM = IPL - 0x00fe0000;
+			OP_ROM = (SCSIModeEnabled ? (IPL + 0x20000) : IPL) - 0x00fe0000;
 		else if ((addr >= 0x00fc0000) && (addr < 0x00fc2000) && SCSIModeEnabled)
 			OP_ROM = SCSIIPL - 0x00fc0000;
 		else {

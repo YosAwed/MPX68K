@@ -76,6 +76,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let storageRestoreRetryDelay: TimeInterval = 0.6
 
     // MARK: - Core Bridge Helpers
+    private func resetSCSILogs() {
+        let home = NSHomeDirectory()
+        let logDir = "\(home)/Documents/X68000"
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(atPath: logDir, withIntermediateDirectories: true)
+
+        let logPaths = [
+            "\(logDir)/_scsi_iocs.txt",
+            "/tmp/x68000_scsi_iocs.txt",
+            "/tmp/x68_restore_trace.log"
+        ]
+
+        for logPath in logPaths {
+            // Remove old file first, then recreate as empty.
+            if fileManager.fileExists(atPath: logPath) {
+                try? fileManager.removeItem(atPath: logPath)
+            }
+            try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
+        }
+    }
+
     private func appendSCSILog(_ message: String) {
         guard let data = "\(message)\n".data(using: .utf8) else { return }
         let home = NSHomeDirectory()
@@ -169,9 +190,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         _ = stateManager.loadLastState()
 
         let defaults = UserDefaults.standard
-        let desiredBusMode = defaults.storageBusMode
-        let savedPath = defaults.scsi0Filename ?? "<nil>"
-        appendSCSILog("MAC_RESTORE_STATE desiredBus=\(desiredBusMode.rawValue) scsiReady=\(defaults.scsi0Ready) path=\(savedPath)")
+        var desiredBusMode = defaults.storageBusMode
+        var desiredScsiPath = defaults.scsi0Filename
+
+        // Debug override for automated boot-loop analysis.
+        if let debugPath = ProcessInfo.processInfo.environment["X68_DEBUG_SCSI0_PATH"],
+           !debugPath.isEmpty {
+            if FileManager.default.fileExists(atPath: debugPath) {
+                desiredBusMode = .scsi
+                desiredScsiPath = debugPath
+                defaults.storageBusMode = .scsi
+                defaults.scsi0Ready = true
+                defaults.scsi0Filename = debugPath
+                appendSCSILog("MAC_RESTORE_DEBUG path=\(debugPath)")
+            } else {
+                appendSCSILog("MAC_RESTORE_DEBUG_MISSING path=\(debugPath)")
+            }
+        }
+
+        let savedPath = desiredScsiPath ?? "<nil>"
+        let scsiReady = defaults.scsi0Ready || (desiredScsiPath != nil)
+        appendSCSILog("MAC_RESTORE_STATE desiredBus=\(desiredBusMode.rawValue) scsiReady=\(scsiReady) path=\(savedPath)")
 
         if coreGetStorageBusMode() != desiredBusMode {
             coreSetStorageBusMode(desiredBusMode)
@@ -179,7 +218,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         cachedStorageBusMode = desiredBusMode.rawValue
 
         if desiredBusMode == .scsi {
-            if let path = defaults.scsi0Filename, !path.isEmpty {
+            if let path = desiredScsiPath, !path.isEmpty {
                 appendSCSILog("MAC_RESTORE_TRY path=\(path) exists=\(FileManager.default.fileExists(atPath: path) ? 1 : 0)")
                 if !coreGetSCSI0State().ready {
                     if coreMountSCSI0(path: path) {
@@ -239,6 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
+        resetSCSILogs()
         appendSCSILog("MAC_APP_DID_FINISH")
         // Enable verbose logs for troubleshooting
         X68LogConfig.enableInfoLogs = true
@@ -1709,6 +1749,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+
+    // Prevent modal "restore windows after crash?" prompts from blocking boot.
+    // This app's runtime state is reconstructed by our own disk-state logic.
+    func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
+        return false
+    }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        return false
+    }
     
     func applicationWillHide(_ notification: Notification) {
         // debugLog("AppDelegate.applicationWillHide - saving data", category: .x68mac)
@@ -2460,6 +2510,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // Disable AppKit persistent UI restore prompts after crash.
+        // Those modal dialogs can block core execution and appear as a black screen.
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        UserDefaults.standard.set(true, forKey: "ApplePersistenceIgnoreState")
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let savedStatePath = ("~/Library/Saved Application State/\(bundleID).savedState" as NSString).expandingTildeInPath
+            if FileManager.default.fileExists(atPath: savedStatePath) {
+                try? FileManager.default.removeItem(atPath: savedStatePath)
+            }
+        }
         // Build menu as early as possible to avoid transient storyboard inconsistencies.
         rebuildMenuSystem()
     }
