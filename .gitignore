@@ -94,3 +94,19 @@ iOSInjectionProject/
 
 # External emulator sources
 zsrc/
+
+# Local Xcode derived data checked in by accident on a feature branch
+.derivedData/
+
+# Local editor / agent state
+.claude/
+
+# Ad-hoc build logs
+build_x86.log
+
+# WIP backups from earlier debug sessions
+_wip_save_*/
+_wip_save_*.tar.gz
+
+# Node tooling (if any auxiliary scripts add package.json)
+package-lock.json
