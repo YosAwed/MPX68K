@@ -86,11 +86,11 @@
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
 		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
 		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
-		53D1C1A72F1B7E2C00BEEF01 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */; };
 		53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */; };
 		53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */; };
 		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
 		53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1052E50050000AAA001 /* SuperimposeManager.swift */; };
+		53D1C1A72F1B7E2C00BEEF01 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -579,7 +579,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1140;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				ORGANIZATIONNAME = NANKIN;
 				TargetAttributes = {
 					07F863BB242F93EA00CBB224 = {
@@ -754,6 +754,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -818,6 +819,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -913,7 +915,7 @@
 					"$(BUILD_DIR)/Debug",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 4.1.2;
+				MARKETING_VERSION = 4.2;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
@@ -966,7 +968,7 @@
 					"$(BUILD_DIR)/Release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 4.1.2;
+				MARKETING_VERSION = 4.2;
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
