@@ -5,32 +5,48 @@ This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.co
 
 ## Overview
 
-MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on Apple silicon platforms.
+MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks, bridging low-level C emulation code with SpriteKit for an optimal user experience on both Apple Silicon and Intel Macs.
 
 ## Features
 
 ### Core Emulation
 - **X68000 Hardware Emulation**: CPU, sound, graphics, and I/O
 - **M68000 CPU**: Powered by C68K emulator core
-- **FM Sound Synthesis**: High-quality audio via fmgen
-- **Multiple Disk Formats**: Support for .dim, .xdf, .hdf files
+- **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz
+- **FM Sound Synthesis**: High-quality audio via fmgen (OPM + ADPCM)
+- **MIDI Output**: External MIDI with configurable output delay and buffering
+- **Multiple Disk Formats**: Floppy (.dim, .xdf, .d88, .hdm) and hard disk (.hdf)
 
-### macOS Enhancements
-- **Dual FDD Support**: Menu-driven management for Drive 0 and Drive 1
-- **Hard Disk Support**: HDD management with dedicated menu
-- **Screen Rotation**: 90-degree rotation support for vertical games (tate mode)
-- **Enhanced Joycard**: Keyboard, mouse input
-- **Native Menu Integration**: Dedicated FDD, HDD, and Display menus with keyboard shortcuts
+### Storage
+- **Dual FDD Drives**: Independent management of Drive 0 and Drive 1
+- **SASI Hard Disk**: Classic internal SASI HDD boot
+- **SCSI Hard Disk**: External CZ-6BS1 compatible SCSI boot with runtime bus switching
+- **HDD Authoring**: Create empty HDD images directly from the app (format with `FORMAT.X` under Human68k)
+- **Disk State Management**: Auto-mount modes (Disabled / Restore Last Session / Smart Load / Manual) with save/restore and session info
 
-### Platform
-- **macOS Support**: Native menu bar and keyboard/mouse input
-- **iCloud Integration**: Seamless file sync across devices
+### Display
+- **CRT Display Pipeline**: Scanlines, bloom, vignette, noise, curvature, chromatic aberration, and persistence
+  - Presets: Off / Subtle / Standard / Enhanced
+  - Dedicated SwiftUI settings panel (⌘,)
+- **Screen Rotation**: 90-degree rotation for vertical games (tate mode)
+- **Background Video Superimpose**: Overlay a local video file or a YouTube URL as a luma-keyed background, with adjustable threshold / softness / intensity
+
+### Input
+- **Keyboard & Mouse**: Full macOS-native input with SCC compatibility mode for VS.X double-click reliability
+- **X68000 Mouse Capture**: Toggle with ⇧⌘M, pointer warping disabled for clean capture behavior
+- **JoyportU Integration**: ATARI-style joystick support with Notify / Command modes
+- **GameController Framework**: External MFi / Xbox / PlayStation controllers
+
+### System & Connectivity
+- **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, TCP server
+- **Session State**: Secure restorable state on macOS
+- **iCloud Document Sync**: ROM and disk images sync across your devices
 
 ## System Requirements
 
 ### macOS
-- macOS 15.0 or later
-- Apple Silicon Mac
+- macOS 12.0 (Monterey) or later
+- Apple Silicon or Intel Mac
 - Minimum 4GB RAM
 - 1GB free disk space for ROM and disk images
 
@@ -100,22 +116,42 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ## Usage
 
-### macOS Controls
+### macOS Menu Reference
 
-#### FDD Management
-- **FDD → Open Drive 0...** (⌘1): Insert disk into Drive 0
-- **FDD → Open Drive 1...** (⌘2): Insert disk into Drive 1
-- **FDD → Eject Drive 0** (⇧⌘1): Eject disk from Drive 0
-- **FDD → Eject Drive 1** (⇧⌘2): Eject disk from Drive 1
+#### FDD Menu
+- **Open Drive 0…** / **Open Drive 1…**: Insert a floppy image
+- **Eject Drive 0** / **Eject Drive 1**: Eject the inserted floppy
 
-#### HDD Management
-- **HDD → Open Hard Disk...** (⌘H): Insert hard disk image
-- **HDD → Eject Hard Disk** (⇧⌘H): Eject hard disk image
+#### HDD Menu
+- **Open Hard Disk…** / **Eject Hard Disk**: Mount or eject an HDD image
+- **Create Empty HDD…**: Generate a new empty `.hdf` image (format later with `FORMAT.X` under Human68k)
+- **Save HDD** (⌘S): Persist the current HDD state
+- **Storage Bus Mode → SASI / SCSI**: Switch the hard disk bus at runtime
+- **SCSI Devices → Open SCSI (ID 0)… / Eject SCSI (ID 0)**: Manage the external SCSI device
 
-#### Display Management
-- **Display → Rotate Screen** (⌘R): Rotate screen between landscape and portrait modes
-- **Display → Landscape Mode**: Set to standard horizontal orientation
-- **Display → Portrait Mode (90°)**: Set to vertical orientation for tate games
+#### Clock Menu
+- **1 / 10 / 16 / 24 (Default) / 40 / 50 MHz** (keys 1-6): Change CPU clock speed
+
+#### Display Menu
+- **Rotate Screen** (⌘R): Toggle between landscape and portrait
+- **Landscape Mode** / **Portrait Mode**: Set orientation directly
+- **CRT Settings…** (⌘,): Open the SwiftUI CRT configuration panel
+- **CRT Display Mode → Off / Subtle / Standard / Enhanced**: Quick CRT preset selection
+- **Background Video → Set Video File… / Set YouTube URL…**: Pick a background source
+- **Background Video → Superimpose**: Toggle luma-key overlay on/off
+- **Background Video → Threshold / Softness / Intensity**: Fine-tune the luma key
+
+#### System Menu
+- **Reset System**: Hard-reset the emulator
+- **Use X68000 Mouse** (⇧⌘M): Toggle X68000 mouse capture
+- **Toggle Input Mode**: Switch between input modes
+- **MIDI Output Delay…**: Configure MIDI output delay
+- **Delete IPLROM.DAT…**: Remove a cached IPL ROM
+- **Serial Communication → Mouse Only / PTY / TCP Connection… / TCP Server… / Disconnect**: Select serial backend
+- **Serial Communication → Original Mouse SCC (Compat)**: Enable SCC compatibility mode for VS.X double-click
+- **Disk State Management → Auto-Mount Mode**: Disabled / Restore Last Session / Smart Load / Manual Selection
+- **Disk State Management → Save Current State / Clear Saved State / Show State Information**
+- **JoyportU Settings → Disabled / Notify Mode / Command Mode**
 
 #### Joycard Input
 - **Arrow Keys** or **WASD**: 8-direction movement
@@ -124,11 +160,13 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ## File Formats
 
-| Extension | Description | Type | Platform Support | Security |
-|-----------|-------------|------|-------------------|----------|
-| .dim | Standard disk image | Floppy | macOS | Validated |
-| .xdf | Extended disk format | Floppy | macOS | Validated |
-| .hdf | Hard disk format | Hard Disk | macOS | Validated |
+| Extension | Description | Type | Notes |
+|-----------|-------------|------|-------|
+| `.dim` | Standard disk image | Floppy | Most common X68000 format |
+| `.xdf` | Extended disk format | Floppy | Extended capacity |
+| `.d88` | D88 disk image | Floppy | Common retro-emulator format |
+| `.hdm` | Human68k disk image | Floppy | Legacy Human68k format |
+| `.hdf` | Hard disk image | Hard Disk | SASI / SCSI HDD |
 
 ### Hard Disk Usage
 
@@ -164,7 +202,7 @@ The X68000 emulator supports 90-degree screen rotation for vertical games, commo
 
 #### Usage
 1. **Rotate Screen**: Use **Display → Rotate Screen** (⌘R) to toggle between orientations
-2. **Direct Selection**: Choose **Display → Portrait Mode (90°)** for vertical games
+2. **Direct Selection**: Choose **Display → Portrait Mode** for vertical games
 3. **Window Adjustment**: macOS automatically resizes the window for optimal display
 4. **Control Consistency**: Joycard controls remain unchanged regardless of rotation
 
@@ -198,30 +236,27 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 
 ## Recent Updates
 
-### Version 4.1.0 (Build 910) - August 2025
+### Version 4.2
 
-#### ✅ New Features
-- **Dual FDD Drive Support**: Independent Drive 0/1 management
-- **Hard Disk Drive Support**: Complete HDD management with menu integration  
-- **Screen Rotation Support**: 90-degree rotation for vertical games (tate mode)
-- **Enhanced macOS Joycard**: Keyboard and mouse input support
-- **Menu Integration**: Native macOS menu bar with FDD, HDD, and Display shortcuts
-- **Window Management**: Automatic window resizing for optimal display
+#### New Features
+- **SASI / SCSI Dual-Boot**: Switch the hard disk bus between SASI and SCSI at runtime. SCSI boot uses an IPL-ROM-first architecture with the external CZ-6BS1 ROM mapped at `$EA0000-$EA1FFF`
+- **CRT Display Pipeline**: Full shader chain with scanlines, bloom, vignette, noise, curvature, chromatic aberration, and persistence — plus a dedicated SwiftUI settings panel (⌘,) and Off / Subtle / Standard / Enhanced presets
+- **Background Video Superimpose**: Overlay a local video file or a YouTube URL as a luma-keyed background, with adjustable threshold / softness / intensity
+- **Adjustable CPU Clock**: 1 / 10 / 16 / 24 / 40 / 50 MHz selection from the Clock menu
+- **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, and TCP server backends
+- **MIDI Output with Delay**: External MIDI output with configurable delay and buffering
+- **JoyportU Support**: ATARI-style joystick integration with Notify / Command modes
+- **Disk State Management**: Auto-mount modes (Disabled / Restore Last Session / Smart Load / Manual) with save/restore and session info
+- **HDD Authoring**: Create empty `.hdf` images from the app, then format under Human68k with `FORMAT.X`
+- **Additional Disk Formats**: Added `.d88` and `.hdm` floppy image support
 
-#### 🔒 Security & Stability Improvements
-- **Memory Safety**: Enhanced buffer bounds checking and validation
-- **Input Validation**: Comprehensive file format validation with security checks
-- **Sandboxed File Access**: Secure file system operations with proper scoping
-
-#### 🛠️ Code Quality & Performance
-- **Professional Logging System**: Replaced 200+ print statements with X68Logger
-  - Categorized logging (FileSystem, UI, Audio, Input, Emulation, Network)
-  - Debug logs automatically excluded from release builds
-  - Apple's unified logging system integration
-  - Performance monitoring and profiling capabilities
-- **Compiler Warnings Eliminated**: Zero warnings in release builds
-- **Memory Management**: Optimized Swift-C interoperability
-- **Build System**: Enhanced Xcode project configuration
+#### Fixes & Improvements
+- **Mouse Reliability**: Capture stability, Y-inversion fix, drift/inertia tuning, and SCC compatibility mode for VS.X double-click
+- **Rendering**: Skip unchanged frames to reduce GPU load
+- **Audio**: ADPCM / OPM ring-buffer mixing rework, ADPCM timing refinement
+- **Build System**: macOS deployment target lowered to 12.0, x86_64 re-enabled for Intel Macs
+- **Secure Restorable State**: Enabled on macOS
+- **Compiler Warnings**: Legacy dead-code SCSI helpers removed, keeping the build warning-free
 
 ## Development
 
@@ -251,8 +286,8 @@ MPX68K/
 ### Building
 
 #### Prerequisites
-- Xcode 15.0 or later
-- macOS 15.0+ SDK
+- Xcode 15.0 or later (with the macOS SDK)
+- macOS 12.0 (Monterey) or later as the deployment target
 - Swift 5.9+
 
 #### Build Commands
