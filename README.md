@@ -179,24 +179,32 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 Hard disk images provide faster access and larger storage capacity compared to floppy disks:
 You can make HDD image using this application, but it requires initialization by using FORMAT.X running by Human68k on the emulator.
 
-1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag .hdf files
-2. **Boot Priority**: When both FDD and HDD are present, X68000 boots from FDD first (if a bootable disk is inserted), then falls back to HDD
-3. **Performance**: HDDs offer significantly faster loading times for large applications
-4. **Capacity**: Support for larger disk images suitable for complex software suites
-5. **Persistence**: Changes to HDD images are automatically saved
+1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag `.hdf` / `.hds` files
+2. **Performance**: HDDs offer significantly faster loading times for large applications
+3. **Capacity**: Support for larger disk images suitable for complex software suites
+4. **Persistence**: Use **HDD → Save HDD** (⌘S) to flush the in-memory HDD image back to disk
 
 #### Boot Order Behavior
-The X68000 follows the authentic boot sequence:
-1. **FDD First**: Always checks Drive 0 for bootable disk
-2. **HDD Fallback**: If no bootable FDD is present, boots from HDD
-3. **System Disk Override**: Insert a system floppy to boot from FDD even with HDD installed
+Unlike many emulators, MPX68K reproduces the authentic X68000 boot sequence, which is **not** simply "FDD always wins." The boot device is selected by the SRAM byte `$ED0018` — the same byte that `SWITCH.X` writes on real hardware — and MPX68K preserves whatever value you last saved. The concrete rules are:
+
+1. **SASI mode, default SRAM (`$ED0018 = $00`, a.k.a. `STD` in SWITCH.X)**:
+   - FDD Drive 0 is checked first. If a bootable floppy is inserted, it boots from FDD.
+   - Otherwise, the system falls back to the SASI HDD.
+2. **SASI mode, SRAM set to HDD boot (`$ED0018 = $80`, e.g. after running `SWITCH.X` → Boot Device = `HD`)**:
+   - The HDD boots first even if a floppy is inserted in Drive 0. This is authentic X68000 behavior — if your HDD isn't booting when you expect the FDD to take over, check `SWITCH.X`.
+   - Safety net: if the SASI image has no valid boot sector, MPX68K automatically falls back to FDD boot for that reset (logged as *"SASI boot bypass"*).
+3. **SCSI mode (Storage Bus Mode → SCSI)**:
+   - On reset, MPX68K forces `$ED0018 = $80` so the SCSI HDD takes priority. The IPL ROM runs its normal init and `SCSI_InjectBoot` intercepts at the right moment to hand off to the SCSI device driver.
+   - If you want to boot a floppy in SCSI mode, you need to switch **Storage Bus Mode → SASI** first (or eject the SCSI device).
+
+MPX68K keeps the SASI-mode SRAM state across resets (`"SASI SRAM restored (SWITCH.X preserved)"` in the log), so you only need to run `SWITCH.X` once to configure boot priority.
 
 #### Recommended Usage
-- **System Boot**: Install X68000 system on HDD for faster startup when no FDD is inserted
+- **System Boot from HDD**: Run `SWITCH.X` once inside Human68k and set the Boot Device to `HD`, then reboot. From that point the HDD will boot automatically.
 - **Applications**: Store large software packages on HDD
 - **Development**: Use HDD for compilers and development tools
 - **Games**: Multi-disk games can be consolidated onto HDD
-- **Boot Override**: Use system floppies to boot specific programs or perform maintenance
+- **Boot Override**: With `$ED0018 = $00` (SWITCH.X = `STD`), insert a system floppy in Drive 0 to boot from FDD even when an HDD is mounted
 
 ### Screen Rotation (Tate Mode)
 
