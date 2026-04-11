@@ -15,7 +15,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz
 - **FM Sound Synthesis**: High-quality audio via fmgen (OPM + ADPCM)
 - **MIDI Output**: External MIDI with configurable output delay and buffering
-- **Multiple Disk Formats**: Floppy (.dim, .xdf, .d88, .hdm) and hard disk (.hdf)
+- **Multiple Disk Formats**: Floppy (.dim, .xdf, .d88, .hdm) and hard disk (.hdf, .hds)
 
 ### Storage
 - **Dual FDD Drives**: Independent management of Drive 0 and Drive 1
@@ -58,28 +58,33 @@ MPX68K requires original SHARP X68000 system ROM files to function properly. The
 
 You need the following ROM files from an original X68000 system:
 
-| File | Description | Size |
-|------|-------------|------|
-| `CGROM.DAT` | Character Generator ROM | 768KB |
-| `IPLROM.DAT` | Initial Program Loader ROM | 128KB |
+| File | Description | Size | Required |
+|------|-------------|------|----------|
+| `CGROM.DAT` | Character Generator ROM | 768KB | Yes |
+| `IPLROM.DAT` | Initial Program Loader ROM | 128KB | Yes |
+| `IPLROM0.DAT` | SASI-era IPL ROM (used when Storage Bus Mode = SASI) | 128KB | Optional |
+| `SCSIEXROM.DAT` | External SCSI ROM (CZ-6BS1 compatible, used when Storage Bus Mode = SCSI) | 8KB | Optional (required for authentic SCSI boot) |
+
+> **Note on SCSI ROM variants**: Only the *external* SCSI ROM (`SCSIEXROM.DAT`, "SCSIEX" type) is supported. The internal SCSI ROM (`SCSIINROM.DAT`, "SCSIIN" type) has an incompatible IOCS table layout and will not work.
 
 ### Installation Locations
 
-Place the ROM files in the location:
+Place the ROM files in the sandboxed Documents folder:
 
-1. **iCloud Document folder**:
-   ```
-   /Users/<username>/Documents/X68000 (/Users/<username>/Library/Containers/NANKIN.X68000/Data/Documents/X68000) for sandbox model
-   ├── README.txt (auto generated proper folder)
-   ├── CGROM.DAT
-   └── IPLROM.DAT
-   ```
+```
+~/Library/Containers/NANKIN.X68000/Data/Documents/X68000/
+├── README.txt          (auto-generated on first launch)
+├── CGROM.DAT           (required)
+├── IPLROM.DAT          (required)
+├── IPLROM0.DAT         (optional — SASI IPL)
+└── SCSIEXROM.DAT       (optional — external SCSI ROM)
+```
 
 ### Important Notes
 
 - **Legal Notice**: ROM files are copyrighted by SHARP CORPORATION. You must own an original X68000 system to legally use these files.
-- **File Names**: ROM file names must be exactly `CGROM.DAT` and `IPLROM.DAT`.
-- **File Integrity**: Ensure ROM files are not corrupted. The emulator will display an error if files are missing or invalid.
+- **File Names**: ROM file names are matched exactly as shown above (case-sensitive on some file systems).
+- **File Integrity**: Ensure ROM files are not corrupted. The emulator will display an error if required files are missing or invalid.
 - **Backup**: Always keep backup copies of your ROM files in a safe location.
 
 ### Verification
@@ -166,7 +171,8 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 | `.xdf` | Extended disk format | Floppy | Extended capacity |
 | `.d88` | D88 disk image | Floppy | Common retro-emulator format |
 | `.hdm` | Human68k disk image | Floppy | Legacy Human68k format |
-| `.hdf` | Hard disk image | Hard Disk | SASI / SCSI HDD |
+| `.hdf` | Generic hard disk image | Hard Disk | SASI / generic HDD |
+| `.hds` | SCSI hard disk image | Hard Disk | SCSI HDD — auto-switches Storage Bus Mode to SCSI on open / drop |
 
 ### Hard Disk Usage
 
