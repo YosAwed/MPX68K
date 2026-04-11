@@ -13,6 +13,16 @@
 #include "fileio.h"
 #include "winx68k.h"
 
+int X68000_GetStorageBusMode(void);
+int X68000_SCSI_IsMounted(int host, int id);
+int X68000_IsSCSIBootPending(void);
+int SCSI_HasBootActivity(void);
+
+#if defined(HAVE_C68K)
+#include "../m68000/c68k/c68k.h"
+extern c68k_struc C68K;
+#endif
+
 static const BYTE CMD_TABLE[32] = {0, 0, 8, 2, 1, 8, 8, 1, 0, 8, 1, 0, 8, 5, 0, 2,
                                    0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0};
 static const BYTE DAT_TABLE[32] = {0, 0, 7, 0, 1, 7, 7, 0, 2, 7, 7, 0, 7, 7, 0, 0,
@@ -118,6 +128,18 @@ void FDC_Init(void)
 void FDC_SetForceReady(int n)
 {
 	fdc.ready = n;
+}
+
+void FDC_ClearPendingState(void)
+{
+	fdc.rdptr = 0;
+	fdc.wrptr = 0;
+	fdc.rdnum = 0;
+	fdc.wrnum = 0;
+	fdc.bufnum = 0;
+	fdc.wexec = 0;
+	fdc.st1 = 0;
+	fdc.st2 = 0;
 }
 
 
@@ -459,6 +481,24 @@ BYTE FASTCALL FDC_Read(DWORD adr)
 		ret |= ((fdc.rdnum)&&(!fdc.wexec))?0x40:0;
 		ret |= ((fdc.wrnum)||(fdc.rdnum))?0x10:0;
 		ret &= ((fdc.rdnum==1)&&(fdc.cmd==8))?0xaf:0xff;
+		if (X68000_GetStorageBusMode() == 1 &&
+		    X68000_SCSI_IsMounted(0, 0) &&
+		    X68000_IsSCSIBootPending() &&
+		    !SCSI_HasBootActivity()) {
+			DWORD pc = 0;
+#if defined(HAVE_C68K)
+			pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
+#endif
+			// IPL fallback code polls $E94001 with different masks.
+			// Feed expected status patterns to avoid dead loops:
+			//   $FF9496/$FF94B0 path expects low 5 bits clear.
+			//   $FF8E3C path expects ($E94001 & $D0) == $D0.
+			if (pc >= 0x00ff9490U && pc <= 0x00ff9500U) {
+				ret = 0x80;
+			} else if (pc >= 0x00ff8e3cU && pc <= 0x00ff8e4cU) {
+				ret = 0xD0;
+			}
+		}
 	} else if ( adr==0xe94003 ) {           /* Read data */
 		if ( fdc.bufnum ) {
 			ret = fdc.DataBuf[fdc.rdptr++];

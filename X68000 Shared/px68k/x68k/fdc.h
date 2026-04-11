@@ -10,6 +10,6 @@ short FDC_Flush(void);
 void FDC_EPhaseEnd(void);
 void FDC_SetForceReady(int n);
 int FDC_IsDataReady(void);
+void FDC_ClearPendingState(void);
 
 #endif //_winx68k_fdc
-

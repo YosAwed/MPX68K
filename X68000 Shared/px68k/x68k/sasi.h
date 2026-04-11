@@ -9,8 +9,10 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data);
 int SASI_IsReady(void);
 void SASI_SetImageSize(int drive, DWORD size_bytes);
 DWORD SASI_GetImageSize(int drive);
+void SASI_ArmSCSIBootIntercept(int arm);
 BYTE SASI_IsDirty(int drive);
 void SASI_ClearDirtyFlag(int drive);
+void SASI_SetDirtyFlag(int drive);
 
 extern char SASI_Name[16][MAX_PATH];
 

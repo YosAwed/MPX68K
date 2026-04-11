@@ -47,5 +47,11 @@ void dma_writemem24_dword(DWORD adr, DWORD data);
 void cpu_setOPbase24(DWORD adr);
 
 void Memory_SetSCSIMode(void);
+void Memory_ClearSCSIMode(void);
+void Memory_SetSASIBootMode(void);
+int Memory_IsSCSIModeEnabled(void);
+void Memory_RefreshSCSIRomOverlay(void);
+void Memory_EnableExcVecGuard(const DWORD *savedVectors, int count);
+void Memory_IOCSHardPin(int fnIdx);
 
 #endif

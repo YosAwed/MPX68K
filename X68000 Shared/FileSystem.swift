@@ -67,6 +67,12 @@ public enum AutoMountMode: String, CaseIterable, Codable {
 public class DiskStateManager {
     public static let shared = DiskStateManager()
     private init() {}
+
+    private struct PreparedHDDRestore {
+        let filePath: String
+        let fileName: String
+        let imageData: Data
+    }
     
     private let userDefaults = UserDefaults.standard
     private let stateKey = "DiskMountState_v1"  // バージョン管理のため
@@ -74,7 +80,9 @@ public class DiskStateManager {
     
     // Swift側でマウント情報を記録（C関数からファイル名が取得できない場合の代替）
     private var mountedFDDFiles: [Int: URL] = [:]  // drive -> URL
+    private var mountedFDDBookmarks: [Int: Data] = [:]
     private var mountedHDDFile: URL? = nil
+    private var mountedHDDBookmark: Data? = nil
 
     // Program-driven eject guard: briefly reinsert restored FDDs if ejected at boot
     private var fddReinsertProtection: [Int: (path: String, attempts: Int)] = [:]
@@ -127,9 +135,8 @@ public class DiskStateManager {
     
     // 現在の状態をUserDefaultsに永続保存
     func saveCurrentState() {
-        // 内部で現在の状態をキャプチャして保存
-        // このメソッドは内部使用のため、GameSceneが不要
-        infoLog("saveCurrentState called - needs GameScene context", category: .fileSystem)
+        let state = createCurrentState()
+        saveState(state)
     }
     
     // 指定された状態をUserDefaultsに保存
@@ -154,6 +161,18 @@ public class DiskStateManager {
         }
         
         return restoreState(state)
+    }
+
+    public func restoreLastStateAsync(completion: ((Bool) -> Void)? = nil) {
+        guard let state = loadSavedState() else {
+            infoLog("No saved disk mount state found", category: .fileSystem)
+            DispatchQueue.main.async {
+                completion?(false)
+            }
+            return
+        }
+
+        restoreStateAsync(state, completion: completion)
     }
     
     // UserDefaultsからデータを読み込み
@@ -187,23 +206,35 @@ public class DiskStateManager {
     }
     
     // Swift側でのマウント情報記録
-    public func recordFDDMount(_ url: URL, drive: Int) {
+    public func recordFDDMount(_ url: URL, drive: Int, bookmarkData: Data? = nil) {
         mountedFDDFiles[drive] = url
+        if let bookmarkData = bookmarkData {
+            mountedFDDBookmarks[drive] = bookmarkData
+        } else if let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            mountedFDDBookmarks[drive] = data
+        }
         debugLog("Recorded FDD mount: drive \(drive) -> \(url.lastPathComponent)", category: .fileSystem)
     }
     
-    public func recordHDDMount(_ url: URL) {
+    public func recordHDDMount(_ url: URL, bookmarkData: Data? = nil) {
         mountedHDDFile = url
+        if let bookmarkData = bookmarkData {
+            mountedHDDBookmark = bookmarkData
+        } else if let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            mountedHDDBookmark = data
+        }
         debugLog("Recorded HDD mount: \(url.lastPathComponent)", category: .fileSystem)
     }
     
     public func recordFDDEject(_ drive: Int) {
         mountedFDDFiles.removeValue(forKey: drive)
+        mountedFDDBookmarks.removeValue(forKey: drive)
         debugLog("Recorded FDD eject: drive \(drive)", category: .fileSystem)
     }
     
     public func recordHDDEject() {
         mountedHDDFile = nil
+        mountedHDDBookmark = nil
         debugLog("Recorded HDD eject", category: .fileSystem)
     }
     
@@ -243,11 +274,11 @@ public class DiskStateManager {
                    let fileSize = attributes[.size] as? Int64,
                    let modDate = attributes[.modificationDate] as? Date {
                     
-                    let bookmarkData = try? finalUrl.bookmarkData(
+                    let bookmarkData = (try? finalUrl.bookmarkData(
                         options: .withSecurityScope,
                         includingResourceValuesForKeys: nil,
                         relativeTo: nil
-                    )
+                    )) ?? mountedFDDBookmarks[drive]
                     
                     let fddState = DiskMountState.FDDState(
                         drive: drive,
@@ -275,11 +306,11 @@ public class DiskStateManager {
                let fileSize = attributes[.size] as? Int64,
                let modDate = attributes[.modificationDate] as? Date {
                 
-                let bookmarkData = try? url.bookmarkData(
+                let bookmarkData = (try? url.bookmarkData(
                     options: .withSecurityScope,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
-                )
+                )) ?? mountedHDDBookmark
                 
                 hddState = DiskMountState.HDDState(
                     filePath: path,
@@ -340,6 +371,48 @@ public class DiskStateManager {
         
         return success
     }
+
+    private func restoreStateAsync(_ state: DiskMountState, completion: ((Bool) -> Void)? = nil) {
+        var successCount = 0
+        var totalCount = 0
+
+        infoLog("Restoring disk mount state asynchronously from \(state.timestamp)", category: .fileSystem)
+
+        for fddState in state.fddStates {
+            totalCount += 1
+            if restoreFDDState(fddState) {
+                successCount += 1
+                DiskStateManager.shared.markFDDReinsertProtection(drive: fddState.drive, path: fddState.filePath)
+            }
+        }
+
+        guard let hddState = state.hddState else {
+            let success = finalizeRestoreState(successCount: successCount, totalCount: totalCount)
+            completion?(success)
+            return
+        }
+
+        totalCount += 1
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion?(successCount > 0)
+                }
+                return
+            }
+
+            let prepared = self.prepareHDDRestore(hddState)
+            DispatchQueue.main.async {
+                var finalSuccessCount = successCount
+                if let prepared = prepared, self.mountPreparedHDDRestore(prepared, hddState: hddState) {
+                    finalSuccessCount += 1
+                }
+
+                let success = self.finalizeRestoreState(successCount: finalSuccessCount, totalCount: totalCount)
+                completion?(success)
+            }
+        }
+    }
     
     // FDD状態の復元
     private func restoreFDDState(_ fddState: DiskMountState.FDDState) -> Bool {
@@ -381,54 +454,126 @@ public class DiskStateManager {
     
     // HDD状態の復元
     private func restoreHDDState(_ hddState: DiskMountState.HDDState) -> Bool {
-        let url = URL(fileURLWithPath: hddState.filePath)
-        
-        // ファイル整合性検証
-        guard validateFileIntegrity(url: url, expectedSize: hddState.fileSize, expectedModDate: hddState.lastModified) else {
-            warningLog("HDD file validation failed: \(hddState.fileName)", category: .fileSystem)
+        guard let prepared = prepareHDDRestore(hddState) else {
             return false
         }
-        
-        // セキュリティスコープブックマークの復元
-        var needsSecurityScope = false
+        return mountPreparedHDDRestore(prepared, hddState: hddState)
+    }
+
+    private func prepareHDDRestore(_ hddState: DiskMountState.HDDState) -> PreparedHDDRestore? {
+        let url = URL(fileURLWithPath: hddState.filePath)
+
+        guard validateFileIntegrity(url: url, expectedSize: hddState.fileSize, expectedModDate: hddState.lastModified) else {
+            warningLog("HDD file validation failed: \(hddState.fileName)", category: .fileSystem)
+            return nil
+        }
+
+        var restoreURL = url
+        var securityScopedURL: URL?
         if let bookmarkData = hddState.bookmarkData {
             do {
                 var isStale = false
-                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
-                
+                let resolvedURL = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+
                 if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
-                    needsSecurityScope = true
+                    restoreURL = resolvedURL
+                    securityScopedURL = resolvedURL
                     infoLog("Security-scoped access restored for HDD", category: .fileSystem)
                 }
             } catch {
                 warningLog("Failed to resolve security bookmark for HDD: \(error)", category: .fileSystem)
             }
         }
-        
+
         defer {
-            if needsSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
+            securityScopedURL?.stopAccessingSecurityScopedResource()
         }
 
-        // ハードディスクイメージをメモリバッファに読み込んでからロード
         do {
-            let imageData = try Data(contentsOf: url)
-
-            // バッファを確保してデータをコピー
-            if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                imageData.copyBytes(to: p, count: imageData.count)
-                X68000_LoadHDD(hddState.filePath)
-                infoLog("Restored HDD: \(hddState.fileName) (\(imageData.count) bytes)", category: .fileSystem)
-                return true
-            } else {
-                errorLog("Failed to get HDD buffer pointer for restore", category: .fileSystem)
-                return false
+            let imageData = try Data(contentsOf: restoreURL)
+            // Reject empty images so we never malloc(0) and end up with
+            // a valid-looking Config.HDImage but a zero-size buffer.
+            // Previously this silently allowed SASI probe to report
+            // ready=1 HDImg='…' size=0, which looked like "HDD set but
+            // won't boot" and wasted a debug session.
+            guard !imageData.isEmpty else {
+                warningLog("HDD restore skipped: image is 0 bytes: \(hddState.filePath)", category: .fileSystem)
+                return nil
             }
+            return PreparedHDDRestore(
+                filePath: hddState.filePath,
+                fileName: hddState.fileName,
+                imageData: imageData
+            )
         } catch {
             errorLog("Failed to read HDD file for restore: \(error)", category: .fileSystem)
+            return nil
+        }
+    }
+
+    private func mountPreparedHDDRestore(_ prepared: PreparedHDDRestore, hddState: DiskMountState.HDDState) -> Bool {
+        let extname = URL(fileURLWithPath: prepared.filePath).pathExtension.lowercased()
+
+        guard let p = X68000_GetDiskImageBufferPointer(4, prepared.imageData.count) else {
+            errorLog("Failed to get HDD buffer pointer for restore", category: .fileSystem)
             return false
         }
+
+        prepared.imageData.copyBytes(to: p, count: prepared.imageData.count)
+
+        if extname == "hds" {
+            X68000_SetStorageBusMode(1)
+            let mounted = X68000_SCSI_Mount(0, 0, prepared.filePath, 0) != 0
+            if mounted {
+                #if os(macOS)
+                UserDefaults.standard.set(1, forKey: "StorageBusMode")
+                UserDefaults.standard.set(true, forKey: "SCSI0Ready")
+                UserDefaults.standard.set(prepared.filePath, forKey: "SCSI0Filename")
+                #endif
+                infoLog("Restored SCSI HDD: \(prepared.fileName) (\(prepared.imageData.count) bytes)", category: .fileSystem)
+                return true
+            }
+
+            warningLog("Failed to restore as SCSI HDD, falling back to SASI: \(prepared.fileName)", category: .fileSystem)
+            X68000_SetStorageBusMode(0)
+            #if os(macOS)
+            UserDefaults.standard.set(0, forKey: "StorageBusMode")
+            UserDefaults.standard.set(false, forKey: "SCSI0Ready")
+            UserDefaults.standard.removeObject(forKey: "SCSI0Filename")
+            #endif
+        } else {
+            X68000_SetStorageBusMode(0)
+            #if os(macOS)
+            UserDefaults.standard.set(0, forKey: "StorageBusMode")
+            UserDefaults.standard.set(false, forKey: "SCSI0Ready")
+            UserDefaults.standard.removeObject(forKey: "SCSI0Filename")
+            #endif
+        }
+
+        X68000_LoadHDD(hddState.filePath)
+        infoLog("Restored HDD: \(prepared.fileName) (\(prepared.imageData.count) bytes)", category: .fileSystem)
+        return true
+    }
+
+    @discardableResult
+    private func finalizeRestoreState(successCount: Int, totalCount: Int) -> Bool {
+        let success = successCount > 0
+        infoLog("State restore completed: \(successCount)/\(totalCount) drives restored", category: .fileSystem)
+
+        if successCount < totalCount {
+            showRestoreWarning(successCount: successCount, totalCount: totalCount)
+        }
+
+        if success {
+            NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+        }
+
+        return success
     }
     
     // ファイル整合性検証
@@ -447,11 +592,9 @@ public class DiskStateManager {
                 return false
             }
             
-            if let currentModDate = attributes[.modificationDate] as? Date,
-               abs(currentModDate.timeIntervalSince(expectedModDate)) > 1.0 {
-                warningLog("File modification date mismatch for \(url.lastPathComponent)", category: .fileSystem)
-                return false
-            }
+            // Note: modification date check removed because HDD images are
+            // saved on exit (X68000_SaveHDD), which updates the mod date.
+            // The saved state's expected date is always stale.
             
             return true
         } catch {
@@ -488,44 +631,137 @@ class FileSystem {
     func saveCurrentDiskState() {
         DiskStateManager.shared.saveCurrentState()
     }
+
+    private func clearLegacyScsiRestoreDefaults() {
+        #if os(macOS)
+        let defaults = UserDefaults.standard
+        defaults.set(0, forKey: "StorageBusMode")
+        defaults.set(false, forKey: "SCSI0Ready")
+        defaults.removeObject(forKey: "SCSI0Filename")
+        #endif
+    }
+
+    private func finishBootStateRestore(_ restored: Bool) {
+        // IMPORTANT: only reset if the user hasn't already manually mounted
+        // a disk. If the user picked a disk via the initial boot prompt
+        // while the async restore was still running, issuing a Reset here
+        // would clobber the freshly-loaded buffer and break boot.
+        let userMountedFDD0 = X68000_IsFDDReady(0) != 0
+        let userMountedFDD1 = X68000_IsFDDReady(1) != 0
+        let scsiMounted = (X68000_GetStorageBusMode() == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
+        let sasiMounted = (X68000_GetStorageBusMode() == 0 && X68000_IsHDDReady() != 0)
+
+        if restored && (scsiMounted || sasiMounted) && !(userMountedFDD0 || userMountedFDD1) {
+            infoLog("FileSystem: HDD ready after async restore (scsi=\(scsiMounted) sasi=\(sasiMounted)), issuing post-restore reset", category: .fileSystem)
+            X68000_Reset()
+        } else if restored {
+            infoLog("FileSystem: skipping post-restore reset (user already mounted media)", category: .fileSystem)
+        }
+
+        #if os(macOS)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.updateMenusAfterStateRestore()
+            }
+            // Now that the async restore is done (success or fail), ask
+            // GameViewController whether the boot-media prompt needs to
+            // appear. It no-ops if a disk is already ready.
+            GameViewController.shared?.promptForBootMediaIfNeeded()
+        }
+        #endif
+    }
     
     /// Boot with state restore based on current auto-mount mode
     func bootWithStateRestore() {
         let autoMountMode = getAutoMountMode()
         debugLog("bootWithStateRestore: Current mode = \(autoMountMode)", category: .fileSystem)
-        
+
         switch autoMountMode {
         case .disabled:
             infoLog("Auto-mount disabled", category: .fileSystem)
+            // Still fire the finish path so the boot-media prompt appears.
+            finishBootStateRestore(false)
             return
-            
+
         case .manual:
             // 手動選択のため何もしない
             infoLog("Manual mode - no auto-mounting", category: .fileSystem)
-            
+            finishBootStateRestore(false)
+            return
+
         case .lastSession:
-            if !DiskStateManager.shared.restoreLastState() {
-                infoLog("State restore failed, falling back to directory scan", category: .fileSystem)
-                scanForNewFiles()
+            let savedState = DiskStateManager.shared.loadSavedState()
+            if savedState?.hddState != nil {
+                clearLegacyScsiRestoreDefaults()
+            }
+            DiskStateManager.shared.restoreLastStateAsync { restored in
+                if !restored {
+                    infoLog("State restore failed, falling back to directory scan", category: .fileSystem)
+                    self.scanForNewFiles()
+                }
+                self.finishBootStateRestore(restored)
             }
             
         case .smartLoad:
             // 状態復元後、新規ファイルをスキャン
-            let restored = DiskStateManager.shared.restoreLastState()
-            scanForNewFiles()
-            if !restored {
-                infoLog("No previous state found for smart load mode", category: .fileSystem)
+            let savedState = DiskStateManager.shared.loadSavedState()
+            if savedState?.hddState != nil {
+                clearLegacyScsiRestoreDefaults()
+            }
+            DiskStateManager.shared.restoreLastStateAsync { restored in
+                self.scanForNewFiles()
+                if !restored {
+                    infoLog("No previous state found for smart load mode", category: .fileSystem)
+                }
+                self.finishBootStateRestore(restored)
             }
         }
-        
-        // Notify AppDelegate to update menus after state restoration
-        #if os(macOS)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                appDelegate.updateMenusAfterStateRestore()
+    }
+
+    func bootWithStateRestoreAsync(completion: ((Bool) -> Void)? = nil) {
+        let autoMountMode = getAutoMountMode()
+        debugLog("bootWithStateRestoreAsync: Current mode = \(autoMountMode)", category: .fileSystem)
+
+        let finish: (Bool) -> Void = { restored in
+            self.finishBootStateRestore(restored)
+            completion?(restored)
+        }
+
+        switch autoMountMode {
+        case .disabled:
+            infoLog("Auto-mount disabled", category: .fileSystem)
+            finish(false)
+
+        case .manual:
+            infoLog("Manual mode - no auto-mounting", category: .fileSystem)
+            finish(false)
+
+        case .lastSession:
+            let savedState = DiskStateManager.shared.loadSavedState()
+            if savedState?.hddState != nil {
+                clearLegacyScsiRestoreDefaults()
+            }
+            DiskStateManager.shared.restoreLastStateAsync { restored in
+                if !restored {
+                    infoLog("State restore failed, falling back to directory scan", category: .fileSystem)
+                    self.scanForNewFiles()
+                }
+                finish(restored)
+            }
+
+        case .smartLoad:
+            let savedState = DiskStateManager.shared.loadSavedState()
+            if savedState?.hddState != nil {
+                clearLegacyScsiRestoreDefaults()
+            }
+            DiskStateManager.shared.restoreLastStateAsync { restored in
+                self.scanForNewFiles()
+                if !restored {
+                    infoLog("No previous state found for smart load mode", category: .fileSystem)
+                }
+                finish(restored)
             }
         }
-        #endif
     }
     
     /// Get current auto-mount mode from UserDefaults
@@ -1915,38 +2151,62 @@ class FileSystem {
         } catch let error as NSError {
             errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
         }
+
+        if let backupURL = getDocumentsPath("SRAM.BAK") {
+            do {
+                try data.write(to: backupURL)
+                infoLog("SRAM.BAK saved successfully (\(data.count) bytes) to: \(backupURL.path)", category: .fileSystem)
+            } catch let error as NSError {
+                errorLog("Failed to save SRAM.BAK", error: error, category: .fileSystem)
+            }
+        }
+
+        // In SASI mode, notify C layer of updated RAM size so it survives the next reset.
+        if X68000_GetStorageBusMode() == 0 {
+            WinX68k_UpdateSASIRamSize()
+        }
     }
     
     func loadSRAM()
     {
         infoLog("==== Load SRAM ====", category: .fileSystem)
-        guard let url = findFileInDocuments("SRAM.DAT") else {
-            infoLog("SRAM.DAT not found - initializing with default values", category: .fileSystem)
+
+        func loadSRAMData(from filename: String) -> Data? {
+            guard let url = findFileInDocuments(filename) else { return nil }
+            do {
+                let data: Data = try Data(contentsOf: url)
+                guard data.count == 0x4000 else {
+                    errorLog("Security: Invalid \(filename) size: \(data.count), expected 0x4000", category: .fileSystem)
+                    return nil
+                }
+                return data
+            } catch let error as NSError {
+                errorLog("Error loading \(filename)", error: error, category: .fileSystem)
+                return nil
+            }
+        }
+
+        let data = loadSRAMData(from: "SRAM.DAT") ?? loadSRAMData(from: "SRAM.BAK")
+        guard let sramData = data else {
+            infoLog("SRAM data not found - initializing with default values", category: .fileSystem)
             initializeDefaultSRAM()
             return
         }
 
-        do {
-            let data: Data = try Data(contentsOf: url)
-            // Security: Validate SRAM file size (should be exactly 0x4000 bytes)
-            guard data.count == 0x4000 else {
-                errorLog("Security: Invalid SRAM file size: \(data.count), expected 0x4000", category: .fileSystem)
-                initializeDefaultSRAM()
-                return
+        if let p = X68000_GetSRAMPointer() {
+            sramData.copyBytes(to: p, count: sramData.count)
+            infoLog("SRAM loaded successfully (\(sramData.count) bytes)", category: .fileSystem)
+            if !isSRAMSignatureValid(p) {
+                warningLog("SRAM signature invalid - repairing signature and preserving data", category: .fileSystem)
+                p[0x10 ^ 1] = 0x00
+                p[0x11 ^ 1] = 0x01
+                p[0x12 ^ 1] = 0xED
+                p[0x13 ^ 1] = 0x00
+                saveSRAM()
             }
-            if let p = X68000_GetSRAMPointer() {
-                data.copyBytes(to: p, count: data.count)
-                infoLog("SRAM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
-                if !isSRAMSignatureValid(p) {
-                    warningLog("SRAM signature invalid - reinitializing to defaults", category: .fileSystem)
-                    initializeDefaultSRAM()
-                }
-            } else {
-                errorLog("Failed to get SRAM pointer", category: .fileSystem)
-            }
-        } catch let error as NSError {
-            errorLog("Error loading SRAM.DAT", error: error, category: .fileSystem)
-            initializeDefaultSRAM()
+            WinX68k_UpdateSASIRamSize()
+        } else {
+            errorLog("Failed to get SRAM pointer", category: .fileSystem)
         }
     }
 
@@ -1957,9 +2217,10 @@ class FileSystem {
             return
         }
 
-        // Initialize SRAM with 0x00 (X68000 factory default)
+        // Initialize SRAM with 0xFF (original px68k factory default).
+        // The IPL ROM expects $FF-filled SRAM; $00 breaks SASI detection.
         for i in 0..<0x4000 {
-            p[i] = 0x00
+            p[i] = 0xFF
         }
 
         func setSRAM(_ addr: Int, _ value: UInt8) {
@@ -1978,13 +2239,16 @@ class FileSystem {
         setSRAM(0x12, 0xED)
         setSRAM(0x13, 0x00)
 
-        // $ED0018-$ED001B: RAM size for BASIC (default 0)
+        // $ED0018-$ED001B: Boot device and related settings
+        // $00 = FDD boot (safe default). SCSI path overrides to $80.
+        // SASI HDD boot requires user to configure via SWITCH.X or SRAM.DAT.
         setSRAM(0x18, 0x00)
         setSRAM(0x19, 0x00)
         setSRAM(0x1A, 0x00)
         setSRAM(0x1B, 0x00)
 
         // $ED0070: Boot device setting (0x00 = standard boot sequence)
+        // Must be $00; $FF causes IPL ROM to crash during SCSI boot.
         setSRAM(0x70, 0x00)
 
         // $ED0072-$ED0073: ROM start mode (0x0000 = normal)
@@ -2068,22 +2332,23 @@ class FileSystem {
     func loadIPLROM() -> Bool
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
+
         guard let url = findFileInDocuments("IPLROM.DAT") else {
             errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
             return false
         }
-        
+
         do {
             let data: Data = try Data(contentsOf: url)
-            // Security: Validate IPLROM file size (typical size is 0x40000 bytes)
-            guard data.count > 0 && data.count <= 0x40000 else {
-                errorLog("Security: IPLROM file invalid size: \(data.count)", category: .fileSystem)
+            // Security: Validate IPLROM file size (expected size is 0x20000 bytes)
+            let maxRomSize = 0x20000
+            guard data.count > 0 && data.count <= maxRomSize else {
+                errorLog("Security: IPLROM.DAT invalid size: \(data.count)", category: .fileSystem)
                 return false
             }
             if let p = X68000_GetIPLROMPointer() {
-                data.copyBytes(to: p, count: data.count)
+                data.copyBytes(to: p, count: min(data.count, maxRomSize))
                 infoLog("IPLROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
-                return true
             } else {
                 errorLog("Failed to get IPLROM pointer", category: .fileSystem)
                 return false
@@ -2092,6 +2357,48 @@ class FileSystem {
             errorLog("Error loading IPLROM.DAT", error: error, category: .fileSystem)
             return false
         }
+
+        // Optional: Load IPLROM0.DAT (SASI-compatible IPL ROM) as secondary.
+        // Used by WinX68k_Reset when bus mode is SASI.
+        if let sasiRomURL = findFileInDocuments("IPLROM0.DAT") {
+            do {
+                let sasiData: Data = try Data(contentsOf: sasiRomURL)
+                if sasiData.count > 0 && sasiData.count <= 0x20000 {
+                    if let p = X68000_GetSASI_IPLROMPointer() {
+                        sasiData.copyBytes(to: p, count: min(sasiData.count, 0x20000))
+                        infoLog("IPLROM0.DAT loaded as SASI IPL (\(sasiData.count) bytes)", category: .fileSystem)
+                    }
+                }
+            } catch {
+                debugLog("IPLROM0.DAT not loaded: \(error)", category: .fileSystem)
+            }
+        }
+
+        // Optional: Load SCSI external ROM (8KB) for SCSI mode.
+        // SCSIEXROM.DAT (external SCSI, SCSIEX type) is required — its layout
+        // matches the IPL ROM IOCS table.  SCSIINROM.DAT is an internal SCSI
+        // ROM (SCSIIN type) with an incompatible layout and cannot be used.
+        if UserDefaults.standard.integer(forKey: "StorageBusMode") == 1,
+           let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") {
+            do {
+                let scsiData: Data = try Data(contentsOf: scsiRomURL)
+                let maxScsiSize = 0x2000
+                guard scsiData.count > 0 && scsiData.count <= maxScsiSize else {
+                    errorLog("Security: SCSIEXROM.DAT invalid size: \(scsiData.count)", category: .fileSystem)
+                    return true
+                }
+                if let scsiPtr = X68000_GetSCSIIPLPointer() {
+                    scsiData.copyBytes(to: scsiPtr, count: min(scsiData.count, maxScsiSize))
+                    infoLog("SCSIEXROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
+                } else {
+                    errorLog("Failed to get SCSI IPL pointer", category: .fileSystem)
+                }
+            } catch let error as NSError {
+                errorLog("Error loading SCSIEXROM.DAT", error: error, category: .fileSystem)
+            }
+        }
+
+        return true
     }
     
     // MARK: - Explicit FDD Drive Loading
@@ -2112,7 +2419,8 @@ class FileSystem {
                 X68000_LoadFDD(drive, url.path)
                 
                 // Record mount in Swift side for state management
-                DiskStateManager.shared.recordFDDMount(url, drive: drive)
+                let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                DiskStateManager.shared.recordFDDMount(url, drive: drive, bookmarkData: bookmarkData)
                 
                 infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
                 

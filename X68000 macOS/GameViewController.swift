@@ -256,10 +256,11 @@ class GameViewController: NSViewController {
     }
     
     private func openFDDForDrive(_ drive: Int, completion: ((Bool) -> Void)? = nil) {
-        // Reduced logging for performance
-        // print("🔧 Opening FDD dialog for Drive \(drive == 0 ? "A" : "B")")
-        
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("FDD_OPEN enter drive=\(drive) thread=\(Thread.isMainThread ? "main" : "bg")")
+        appDelegate?.appendSCSILogPublic("FDD_OPEN before_alloc")
         let openPanel = NSOpenPanel()
+        appDelegate?.appendSCSILogPublic("FDD_OPEN after_alloc")
         openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "0" : "1")"
         if #available(macOS 11.0, *) {
             var types: [UTType] = []
@@ -306,17 +307,13 @@ class GameViewController: NSViewController {
         }
         
         // Reduced logging for performance
-        // print("🔧 NSOpenPanel configured, showing dialog...")
-        
+        appDelegate?.appendSCSILogPublic("FDD_OPEN configured drive=\(drive)")
+        appDelegate?.appendSCSILogPublic("FDD_OPEN begin_call drive=\(drive)")
         openPanel.begin { [weak self] response in
-            // Reduced logging for performance
-            // print("🔧 NSOpenPanel response: \(response == .OK ? "OK" : "Cancel/Error")")
+            appDelegate?.appendSCSILogPublic("FDD_OPEN callback response=\(response.rawValue)")
             if response == .OK, let url = openPanel.url {
                 infoLog("NSOpenPanel selected file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
-                // Reduced logging for performance
-                // print("🔧 Security-scoped resource access: \(accessible)")
-                
                 DispatchQueue.main.async {
                     self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
                     if accessible {
@@ -329,6 +326,7 @@ class GameViewController: NSViewController {
                 completion?(false)
             }
         }
+        appDelegate?.appendSCSILogPublic("FDD_OPEN begin_returned drive=\(drive)")
     }
     
     private func ejectFDDFromDrive(_ drive: Int) {
@@ -347,20 +345,18 @@ class GameViewController: NSViewController {
         var allowedTypes: [UTType] = []
         if let hdfType = UTType(filenameExtension: "hdf") { allowedTypes.append(hdfType) }
         if let hdmType = UTType(filenameExtension: "hdm") { allowedTypes.append(hdmType) }
-        if let hdsType = UTType(filenameExtension: "hds") { allowedTypes.append(hdsType) }
         if allowedTypes.isEmpty {
             let exportedType = UTType(exportedAs: "NANKIN.X68000.1.HDD")
             allowedTypes.append(exportedType)
         }
-        allowedTypes.append(.data)
         
         if #available(macOS 11.0, *) {
             openPanel.allowedContentTypes = allowedTypes
         } else {
-            openPanel.allowedFileTypes = ["hdf", "hdm", "hds"]
+            openPanel.allowedFileTypes = ["hdf", "hdm"]
         }
         
-        openPanel.allowsOtherFileTypes = true
+        openPanel.allowsOtherFileTypes = false
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
@@ -400,6 +396,9 @@ class GameViewController: NSViewController {
     }
 
     func promptForBootMediaIfNeeded() {
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("BOOT_PROMPT enter thread=\(Thread.isMainThread ? "main" : "bg")")
+
         if !Thread.isMainThread {
             DispatchQueue.main.async { [weak self] in
                 self?.promptForBootMediaIfNeeded()
@@ -407,11 +406,18 @@ class GameViewController: NSViewController {
             return
         }
 
-        guard !didShowInitialDiskPrompt else { return }
+        guard !didShowInitialDiskPrompt else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT already_shown")
+            return
+        }
         let hasFDD0 = X68000_IsFDDReady(0) != 0
         let hasFDD1 = X68000_IsFDDReady(1) != 0
         let hasHDD = X68000_IsHDDReady() != 0
-        guard !hasFDD0 && !hasFDD1 && !hasHDD else { return }
+        appDelegate?.appendSCSILogPublic("BOOT_PROMPT ready fdd0=\(hasFDD0) fdd1=\(hasFDD1) hdd=\(hasHDD)")
+        guard !hasFDD0 && !hasFDD1 && !hasHDD else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT skip_has_disk")
+            return
+        }
 
         didShowInitialDiskPrompt = true
 
@@ -425,30 +431,97 @@ class GameViewController: NSViewController {
         alert.addButton(withTitle: "キャンセル")
 
         let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            switch response {
-            case .alertFirstButtonReturn:
-                self?.openFDDForDrive(0) { success in
-                    if success { self?.resetAfterBootMediaInsert() }
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT handleResponse response=\(response.rawValue)")
+            // The alert sheet is still dismissing when this fires. Defer via
+            // main.async so the sheet fully tears down before we allocate
+            // another NSOpenPanel (otherwise the XPC panel service hangs
+            // waiting for the window's sheet slot to free up).
+            DispatchQueue.main.async { [weak self] in
+                appDelegate?.appendSCSILogPublic("BOOT_PROMPT async_tick response=\(response.rawValue)")
+                switch response {
+                case .alertFirstButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(0)")
+                    self?.openFDDForDrive(0) { success in
+                        appDelegate?.appendSCSILogPublic("BOOT_PROMPT openFDDForDrive completion success=\(success)")
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                case .alertSecondButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(1)")
+                    self?.openFDDForDrive(1) { success in
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                case .alertThirdButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openHDDWithCompletion")
+                    self?.openHDDWithCompletion { success in
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                default:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT cancelled")
                 }
-            case .alertSecondButtonReturn:
-                self?.openFDDForDrive(1) { success in
-                    if success { self?.resetAfterBootMediaInsert() }
-                }
-            case .alertThirdButtonReturn:
-                self?.openHDDWithCompletion { success in
-                    if success { self?.resetAfterBootMediaInsert() }
-                }
-            default:
-                break
             }
         }
 
         if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT beginSheetModal window=\(window.title)")
             alert.beginSheetModal(for: window, completionHandler: handleResponse)
         } else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT runModal no_window")
             let response = alert.runModal()
             handleResponse(response)
         }
+    }
+
+    /// Present an NSOpenPanel for picking a SCSI (.hds) image. Called from
+    /// AppDelegate — routed through GameViewController because allocating
+    /// NSOpenPanel directly from an AppDelegate (NSObject without a window
+    /// context) can hang the remote view service on macOS. The FDD open
+    /// panel uses this same pattern and works reliably.
+    func presentSCSIOpenPanel(initialDirectoryURL: URL?, completion: @escaping (URL?) -> Void) {
+        // v12: copy the EXACT pattern the FDD picker uses (which works).
+        // No scene pause, no drain, no skView pause, no sheet modal — just
+        // allocate NSOpenPanel, configure, and call .begin{} with the
+        // completion. The FDD picker is called from the same app, same
+        // SKView, same menu dispatch mechanism; if this hangs, the bug is
+        // not about our ceremony.
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 enter thread=\(Thread.isMainThread ? "main" : "bg")")
+
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 before_alloc")
+        let openPanel = NSOpenPanel()
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 after_alloc")
+        openPanel.title = "Open SCSI (ID 0) Image"
+        if #available(macOS 11.0, *) {
+            var types: [UTType] = []
+            if let hds = UTType(filenameExtension: "hds") { types.append(hds) }
+            if let hdf = UTType(filenameExtension: "hdf") { types.append(hdf) }
+            if types.isEmpty { types = [.data] }
+            openPanel.allowedContentTypes = types
+        } else {
+            openPanel.allowedFileTypes = ["hds", "hdf"]
+        }
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+
+        if let directoryURL = initialDirectoryURL,
+           FileManager.default.fileExists(atPath: directoryURL.path) {
+            openPanel.directoryURL = directoryURL
+        }
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 configured")
+
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 begin_call")
+        openPanel.begin { [weak appDelegate] response in
+            appDelegate?.appendSCSILogPublic("GVC_SCSI v12 callback response=\(response.rawValue)")
+            if response == .OK, let url = openPanel.url {
+                infoLog("NSOpenPanel selected SCSI file: \(url.path)", category: .fileSystem)
+                completion(url)
+            } else {
+                warningLog("SCSI NSOpenPanel cancelled or failed", category: .ui)
+                completion(nil)
+            }
+        }
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 begin_returned")
     }
 
     private func resetAfterBootMediaInsert() {

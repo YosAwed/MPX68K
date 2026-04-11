@@ -912,6 +912,21 @@ void WinDraw_DrawLine(void)
 		}
 
 
+	if (opaq && Debug_Text && ((VCReg2[1] & 0x20) == 0)) {
+		static int s_text_fallback_log_count = 0;
+		// Some SCSI boot paths leave VCReg2 text-enable cleared even though
+		// TVRAM has valid boot text. Render one text layer pass as a fallback.
+		Text_DrawLine_C(1);
+		WinDraw_DrawTextLine(1, 1);
+		opaq = 0;
+		if (s_text_fallback_log_count < 8) {
+			p6logd("DRAW_FALLBACK_TEXT VLINE=%u VCReg2[1]=%02X\n",
+			       (unsigned int)VLINE,
+			       (unsigned int)VCReg2[1]);
+			s_text_fallback_log_count++;
+		}
+	}
+
 	if (opaq)
 	{
 		DWORD adr = VLINE*FULLSCREEN_WIDTH;

@@ -81,6 +81,9 @@ BYTE DispFrame = 0;
 unsigned int hTimerID = 0;
 DWORD TimerICount = 0;
 extern DWORD timertick;
+void Memory_SetSCSIMode(void);
+void Memory_ClearSCSIMode(void);
+void Memory_SetSASIBootMode(void);
 BYTE traceflag = 0;
 
 BYTE ForceDebugMode = 0;
@@ -89,6 +92,431 @@ DWORD skippedframes = 0;
 static int ClkUsed = 0;
 static int FrameSkipCount = 0;
 static int FrameSkipQueue = 0;
+static int g_storage_bus_mode = 0; // 0 = SASI, 1 = SCSI
+static unsigned char SASI_IPLROM[0x20000] = {0};
+static int SASI_IPLROM_loaded = 0;
+static int s_scsi_ipl_needs_restore = 0;  // set when SASI IPLROM0 overrides IPL
+static BYTE s_sram_sasi[0x4000];          // separate SRAM state for SASI mode
+static int s_sram_sasi_valid = 0;         // 1 = s_sram_sasi has been initialized
+extern BYTE* s_disk_image_buffer[5];
+extern long s_disk_image_buffer_size[5];
+
+static int WinX68k_SASIImageHasBootSector(void) {
+	int i;
+	const int bootOffset = 4 * 256;
+	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] < (bootOffset + 256)) {
+		return 0;
+	}
+	for (i = 0; i < 256; ++i) {
+		if (s_disk_image_buffer[4][bootOffset + i] != 0x00) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void WinX68k_SaveSASI_SRAM(void) {
+    memcpy(s_sram_sasi, SRAM, 0x4000);
+    s_sram_sasi_valid = 1;
+}
+
+static void WinX68k_RestoreSASI_SRAM(void) {
+	if (s_sram_sasi_valid) {
+		memcpy(SRAM, s_sram_sasi, 0x4000);
+	}
+}
+static int g_scsi0_mounted = 0;
+static char g_scsi0_path[MAX_PATH] = {0};
+static int g_scsi_boot_pending = 0;
+static int g_enable_scsi_dev_driver = 0;
+static int g_scsi_boot_watchdog_ticks = 0;
+static int g_scsi_boot_forced_once = 0;
+static int g_scsi_boot_handoff_ticks = 0;
+static int g_scsi_post_handoff_ticks = 0;
+static int g_scsi_post_handoff_log_count = 0;
+static int g_scsi_pc_stall_ticks = 0;
+static int g_scsi_pc_stall_log_count = 0;
+static DWORD g_scsi_last_pc = 0xffffffffU;
+static int g_frame_dirty_idle_polls = 0;
+static int g_force_image_readback_pending = 0;
+static int g_image_probe_counter = 0;
+static int g_scsi_saved_iocs_valid = 0;
+static DWORD g_scsi_saved_vec_f5 = 0;
+static DWORD g_scsi_saved_vecs[8] = {0}; // $21-$27, $A0
+static int g_scsi_restore_iocs_pending = 0;
+static int g_scsi_auto_enter_attempts = 0;
+static int g_scsi_auto_key_enabled = 0;
+static int g_scsi_auto_ari_enabled = 0;
+static int g_scsi_auto_ari_index = 0;
+static int g_scsi_force_redraw_attempts = 0;
+static int g_scsi_enable_iocs_restore = 0;
+static int g_native_iocs_table_valid = 0;
+static int g_native_iocs_table_ud = 0;
+static DWORD g_native_iocs_table_off = 0;
+
+static void X68000_AppendSCSILog(const char* message);
+static DWORD X68000_ReadNativeIplIocsHandler(BYTE fn);
+static DWORD X68000_ReadIplLong(DWORD offset, int useDirect);
+static DWORD X68000_DecodeIplVectorAddress(DWORD raw);
+static int X68000_IsValidNativeIocsVector(DWORD vec);
+
+static void
+X68000_LogIocsVectorSnapshot(const char* tag)
+{
+    static const BYTE fnList[] = {
+        0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+        0x2E, 0x2F,
+        0x32, 0x33, 0x34, 0x35, 0xA0
+    };
+    char line[320];
+    size_t i;
+    int pos = 0;
+    if (!tag) {
+        tag = "IOCS_VEC";
+    }
+    pos += snprintf(line + pos, sizeof(line) - (size_t)pos, "%s", tag);
+    for (i = 0; i < sizeof(fnList); i++) {
+        DWORD vecAddr = 0x400U + (DWORD)fnList[i] * 4U;
+        DWORD vec = Memory_ReadD(vecAddr) & 0x00FFFFFFU;
+        if (pos < (int)sizeof(line) - 16) {
+            pos += snprintf(line + pos, sizeof(line) - (size_t)pos,
+                            " f%02X=$%06X",
+                            (unsigned int)fnList[i],
+                            (unsigned int)vec);
+        }
+    }
+    fprintf(stderr, "%s\n", line);
+    X68000_AppendSCSILog(line);
+}
+
+static void
+X68000_SaveSCSIIocsVectorsIfNeeded(void)
+{
+    static const BYTE savedFns[] = {
+        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0xA0
+    };
+    size_t i;
+    char line[512];
+    int pos = 0;
+
+    if (g_scsi_saved_iocs_valid) {
+        return;
+    }
+    g_scsi_saved_vec_f5 = Memory_ReadD(0x7D4) & 0x00FFFFFFU;
+    if (!X68000_IsValidNativeIocsVector(g_scsi_saved_vec_f5)) {
+        DWORD nativeF5 = X68000_ReadNativeIplIocsHandler(0xF5);
+        if (X68000_IsValidNativeIocsVector(nativeF5)) {
+            g_scsi_saved_vec_f5 = nativeF5;
+        }
+    }
+    for (i = 0; i < sizeof(savedFns); i++) {
+        DWORD vecAddr = 0x400U + (DWORD)savedFns[i] * 4U;
+        g_scsi_saved_vecs[i] = Memory_ReadD(vecAddr) & 0x00FFFFFFU;
+        if (!X68000_IsValidNativeIocsVector(g_scsi_saved_vecs[i])) {
+            DWORD nativeVec = X68000_ReadNativeIplIocsHandler(savedFns[i]);
+            if (X68000_IsValidNativeIocsVector(nativeVec)) {
+                g_scsi_saved_vecs[i] = nativeVec;
+            }
+        }
+    }
+    g_scsi_saved_iocs_valid = 1;
+    pos += snprintf(line + pos, sizeof(line) - (size_t)pos,
+                    "SCSI_VEC_SAVE f5=$%06X",
+                    (unsigned int)g_scsi_saved_vec_f5);
+    for (i = 0; i < sizeof(savedFns); i++) {
+        if (pos < (int)sizeof(line) - 16) {
+            pos += snprintf(line + pos, sizeof(line) - (size_t)pos,
+                            " f%02X=$%06X",
+                            (unsigned int)savedFns[i],
+                            (unsigned int)g_scsi_saved_vecs[i]);
+        }
+    }
+    fprintf(stderr, "%s\n", line);
+    X68000_AppendSCSILog(line);
+}
+
+static void
+X68000_RestoreSCSIIocsVectorsAfterHandoff(void)
+{
+    static const BYTE savedFns[] = {
+        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0xA0
+    };
+    size_t i;
+    char line[512];
+    int pos = 0;
+    int restored = 0;
+
+    if (!g_scsi_saved_iocs_valid) {
+        return;
+    }
+    if (!X68000_IsValidNativeIocsVector(g_scsi_saved_vec_f5)) {
+        DWORD nativeF5 = X68000_ReadNativeIplIocsHandler(0xF5);
+        if (X68000_IsValidNativeIocsVector(nativeF5)) {
+            g_scsi_saved_vec_f5 = nativeF5;
+        }
+    }
+    if (X68000_IsValidNativeIocsVector(g_scsi_saved_vec_f5) &&
+        g_scsi_saved_vec_f5 != (SCSI_SYNTH_IOCS_ENTRY & 0x00FFFFFFU)) {
+        Memory_WriteD(0x7D4, g_scsi_saved_vec_f5);
+        restored++;
+    }
+    for (i = 0; i < sizeof(savedFns); i++) {
+        DWORD vec = g_scsi_saved_vecs[i] & 0x00FFFFFFU;
+        DWORD vecAddr = 0x400U + (DWORD)savedFns[i] * 4U;
+        if (!X68000_IsValidNativeIocsVector(vec)) {
+            DWORD nativeVec = X68000_ReadNativeIplIocsHandler(savedFns[i]);
+            if (X68000_IsValidNativeIocsVector(nativeVec)) {
+                vec = nativeVec & 0x00FFFFFFU;
+            }
+        }
+        if (!X68000_IsValidNativeIocsVector(vec) ||
+            vec == (SCSI_SYNTH_IOCS_DIRECT & 0x00FFFFFFU) ||
+            vec == (SCSI_SYNTH_IOCS_ENTRY & 0x00FFFFFFU) ||
+            vec == (SCSI_SYNTH_IOCS_FN32_OK & 0x00FFFFFFU) ||
+            vec == (SCSI_SYNTH_IOCS_FN33_OK & 0x00FFFFFFU) ||
+            vec == (SCSI_SYNTH_IOCS_FN34_OK & 0x00FFFFFFU) ||
+            vec == (SCSI_SYNTH_IOCS_FN35_OK & 0x00FFFFFFU)) {
+            continue;
+        }
+        g_scsi_saved_vecs[i] = vec;
+        Memory_WriteD(vecAddr, vec);
+        restored++;
+    }
+    pos += snprintf(line + pos, sizeof(line) - (size_t)pos,
+                    "SCSI_VEC_RESTORE restored=%d f5=$%06X",
+                    restored, (unsigned int)g_scsi_saved_vec_f5);
+    for (i = 0; i < sizeof(savedFns); i++) {
+        if (pos < (int)sizeof(line) - 16) {
+            pos += snprintf(line + pos, sizeof(line) - (size_t)pos,
+                            " f%02X=$%06X",
+                            (unsigned int)savedFns[i],
+                            (unsigned int)g_scsi_saved_vecs[i]);
+        }
+    }
+    fprintf(stderr, "%s\n", line);
+    X68000_AppendSCSILog(line);
+    g_scsi_saved_iocs_valid = 0;
+}
+
+static DWORD
+X68000_NormalizeDecodedIplIocsHandler(DWORD decoded, DWORD sourceRaw, int* outCanonicalized)
+{
+    DWORD eff = decoded & 0x00ffffffU;
+    int canonicalized = 0;
+    // Some IPL tables encode ROM handlers with bit0 metadata.
+    if ((eff & 1U) != 0U &&
+        (((eff >= 0x00fe0000U && eff <= 0x00ffffffU) ||
+          (eff >= 0x00ea0000U && eff < 0x00ea2000U)))) {
+        eff &= ~1U;
+        canonicalized = 1;
+    }
+    // Do not force-map low decoded addresses to $FFxxxx when the original
+    // table word has a non-zero high byte. Those are often opcodes/data from
+    // a false-positive scan hit (for example 0x610000E8), not truncated vectors.
+    if (eff != 0U &&
+        eff < 0x00000400U &&
+        (eff & 1U) == 0U &&
+        (sourceRaw & 0xff000000U) == 0U) {
+        eff |= 0x00ff0000U;
+        canonicalized = 1;
+    }
+    if (outCanonicalized) {
+        *outCanonicalized = canonicalized;
+    }
+    return eff;
+}
+
+static int
+X68000_IsValidNativeIocsVector(DWORD vec)
+{
+    vec &= 0x00FFFFFFU;
+    if (vec < 0x00FC0000U || vec > 0x00FFFFFFU) {
+        return 0;
+    }
+    if ((vec & 1U) != 0U) {
+        return 0;
+    }
+    return 1;
+}
+
+static int
+X68000_DetectNativeIplIocsTable(int* outUseDirect, DWORD* outOffset)
+{
+    int ud;
+    DWORD off;
+
+    if (g_native_iocs_table_valid) {
+        if (outUseDirect) *outUseDirect = g_native_iocs_table_ud;
+        if (outOffset) *outOffset = g_native_iocs_table_off;
+        return 1;
+    }
+    for (ud = 0; ud <= 1; ud++) {
+        for (off = 0; off + 256 * 4 <= 0x40000; off += 4) {
+            DWORD raw20 = X68000_ReadIplLong(off + 0x20 * 4, ud);
+            DWORD raw21 = X68000_ReadIplLong(off + 0x21 * 4, ud);
+            DWORD raw04 = X68000_ReadIplLong(off + 0x04 * 4, ud);
+            DWORD raw25 = X68000_ReadIplLong(off + 0x25 * 4, ud);
+            DWORD eff20 = X68000_NormalizeDecodedIplIocsHandler(
+                X68000_DecodeIplVectorAddress(raw20), raw20, NULL);
+            DWORD eff21 = X68000_NormalizeDecodedIplIocsHandler(
+                X68000_DecodeIplVectorAddress(raw21), raw21, NULL);
+            DWORD eff04 = X68000_NormalizeDecodedIplIocsHandler(
+                X68000_DecodeIplVectorAddress(raw04), raw04, NULL);
+            DWORD eff25 = X68000_NormalizeDecodedIplIocsHandler(
+                X68000_DecodeIplVectorAddress(raw25), raw25, NULL);
+            if (eff20 < 0x00fc0000U || eff20 > 0x00ffffffU || (eff20 & 1U)) continue;
+            if (eff21 < 0x00fc0000U || eff21 > 0x00ffffffU || (eff21 & 1U)) continue;
+            if (eff20 >= 0x00ea0000U && eff20 < 0x00ea2000U) continue;
+            if (eff21 >= 0x00ea0000U && eff21 < 0x00ea2000U) continue;
+            if (eff04 < 0x00fc0000U || eff04 > 0x00ffffffU || (eff04 & 1U)) continue;
+            if (eff25 < 0x00fc0000U || eff25 > 0x00ffffffU || (eff25 & 1U)) continue;
+            g_native_iocs_table_valid = 1;
+            g_native_iocs_table_ud = ud;
+            g_native_iocs_table_off = off;
+            if (outUseDirect) *outUseDirect = ud;
+            if (outOffset) *outOffset = off;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static DWORD
+X68000_ReadNativeIplIocsHandler(BYTE fn)
+{
+    int ud = 0;
+    DWORD off = 0;
+    DWORD raw;
+    if (!X68000_DetectNativeIplIocsTable(&ud, &off)) {
+        return 0;
+    }
+    raw = X68000_ReadIplLong(off + (DWORD)fn * 4U, ud);
+    return X68000_NormalizeDecodedIplIocsHandler(
+        X68000_DecodeIplVectorAddress(raw), raw, NULL);
+}
+
+extern BYTE* s_disk_image_buffer[5];
+extern long s_disk_image_buffer_size[5];
+// Debug: write to /tmp (always accessible) AND normal log path
+static void DebugLog(const char* msg) {
+    FILE* fp;
+    // Always write to /tmp first (no sandbox issues)
+    fp = fopen("/tmp/x68k_debug.txt", "a");
+    if (fp) { fprintf(fp, "%s\n", msg); fclose(fp); }
+    // Also try normal log path
+    const char* home = getenv("HOME");
+    char path[512];
+    if (home && home[0] != '\0')
+        snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+    else
+        snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
+    fp = fopen(path, "a");
+    if (fp) { fprintf(fp, "%s\n", msg); fclose(fp); }
+}
+
+static int s_appendlog_total = 0;
+#define APPENDLOG_LIMIT 5000
+
+static void
+X68000_AppendSCSILog(const char* message)
+{
+#ifdef __APPLE__
+    if (s_appendlog_total >= APPENDLOG_LIMIT) return;
+    s_appendlog_total++;
+    const char* home = getenv("HOME");
+    char path[512];
+    if (home && home[0] != '\0') {
+        snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+    } else {
+        snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
+    }
+    FILE* fp = fopen(path, "a");
+    if (fp) {
+        fprintf(fp, "%s\n", message);
+        fclose(fp);
+    }
+    fp = fopen("/tmp/x68000_scsi_iocs.txt", "a");
+    if (fp) {
+        fprintf(fp, "%s\n", message);
+        fclose(fp);
+    }
+#else
+    (void)message;
+#endif
+}
+
+
+static DWORD
+X68000_ReadIplSwappedLong(DWORD offset)
+{
+    if (IPL == NULL) {
+        return 0;
+    }
+    if (offset + 3 >= 0x40000) {
+        return 0;
+    }
+    return ((DWORD)IPL[offset + 1] << 24) |
+           ((DWORD)IPL[offset + 0] << 16) |
+           ((DWORD)IPL[offset + 3] << 8) |
+           ((DWORD)IPL[offset + 2]);
+}
+
+static DWORD
+X68000_ReadIplDirectLong(DWORD offset)
+{
+    if (IPL == NULL) {
+        return 0;
+    }
+    if (offset + 3 >= 0x40000) {
+        return 0;
+    }
+    return ((DWORD)IPL[offset + 0] << 24) |
+           ((DWORD)IPL[offset + 1] << 16) |
+           ((DWORD)IPL[offset + 2] << 8) |
+           ((DWORD)IPL[offset + 3]);
+}
+
+static DWORD
+X68000_ReadIplLong(DWORD offset, int useDirect)
+{
+    if (useDirect) {
+        return X68000_ReadIplDirectLong(offset);
+    }
+    return X68000_ReadIplSwappedLong(offset);
+}
+
+static DWORD
+X68000_ReadIplVector(int vectorNumber)
+{
+    if (vectorNumber < 0) {
+        return 0;
+    }
+    return X68000_ReadIplSwappedLong(0x30000 + (DWORD)vectorNumber * 4);
+}
+
+static DWORD
+X68000_DecodeIplVectorAddress(DWORD raw)
+{
+    // Unused/sentinel entries in ROM tables are often all-zeros/all-ones.
+    // Treat them as invalid instead of decoding to $00FFFFFF, otherwise the
+    // IOCS table scanner can falsely lock onto an FF-filled region.
+    if (raw == 0x00000000 || raw == 0xffffffff) {
+        return 0;
+    }
+    // Some IPLs store ROM vector/table entries in a packed form like:
+    //   0x03D32080 -> 0x00FFD320
+    // The top byte selects the ROM page ($FC-$FF), the middle 16 bits are the
+    // offset, and the low byte is a tag ($80).  A plain 24-bit mask would
+    // misdecode this as 0x00D32080 and the IOCS table scanner will miss most
+    // handlers (many live in $FC/$FD/$FE pages).
+    if ((raw & 0xff) == 0x80) {
+        DWORD page = (raw >> 24) & 0xff;
+        if (page <= 0x03) {
+            return 0x00fc0000 | (page << 16) | ((raw >> 8) & 0xffff);
+        }
+    }
+    return raw & 0x00ffffff;
+}
 
 #ifdef __cplusplus
 };
@@ -98,39 +526,12 @@ static int FrameSkipQueue = 0;
 void
 WinX68k_SCSICheck(void)
 {
-    static const BYTE SCSIIMG[] = {
-        0x00, 0xfc, 0x00, 0x14,            // $fc0000 SCSI��ư�ѤΥ���ȥꥢ�ɥ쥹
-        0x00, 0xfc, 0x00, 0x16,            // $fc0004 IOCS�٥�������Υ���ȥꥢ�ɥ쥹(ɬ��"Human"��8�Х�����)
-        0x00, 0x00, 0x00, 0x00,            // $fc0008 ?
-        0x48, 0x75, 0x6d, 0x61,            // $fc000c ��
-        0x6e, 0x36, 0x38, 0x6b,            // $fc0010 ID "Human68k"    (ɬ����ư����ȥ�ݥ���Ȥ�ľ��)
-        0x4e, 0x75,                // $fc0014 "rts"        (��ư����ȥ�ݥ����)
-        0x23, 0xfc, 0x00, 0xfc, 0x00, 0x2a,    // $fc0016 ��        (IOCS�٥������ꥨ��ȥ�ݥ����)
-        0x00, 0x00, 0x07, 0xd4,            // $fc001c "move.l #$fc002a, $7d4.l"
-        0x74, 0xff,                // $fc0020 "moveq #-1, d2"
-        0x4e, 0x75,                // $fc0022 "rts"
-//        0x53, 0x43, 0x53, 0x49, 0x49, 0x4e,    // $fc0024 ID "SCSIIN"
-// ��¢SCSI��ON�ˤ���ȡ�SASI�ϼ�ưŪ��OFF�ˤʤä��㤦�餷����
-// ��äơ�ID�ϥޥå����ʤ��褦�ˤ��Ƥ�����
-        0x44, 0x55, 0x4d, 0x4d, 0x59, 0x20,    // $fc0024 ID "DUMMY "
-        0x70, 0xff,                // $fc002a "moveq #-1, d0"    (SCSI IOCS�����륨��ȥ�ݥ����)
-        0x4e, 0x75,                // $fc002c "rts"
-    };
-
-#if 0
-    DWORD *p;
-#endif
     WORD *p1, *p2;
     int scsi;
     int i;
 
     scsi = 0;
     for (i = 0x30600; i < 0x30c00; i += 2) {
-#if 0 // 4���ܿ��ǤϤʤ��������ɥ쥹�����4�Х���Ĺ����������MIPS�ˤ�̵��
-        p = (DWORD *)(&IPL[i]);
-        if (*p == 0x0000fc00)
-            scsi = 1;
-#else
         p1 = (WORD *)(&IPL[i]);
         p2 = p1 + 1;
         // xxx: works only for little endian guys
@@ -138,18 +539,33 @@ WinX68k_SCSICheck(void)
             scsi = 1;
             break;
         }
-#endif
     }
 
-    // SCSI��ǥ�ΤȤ�
+    // SCSI model: zero first 8KB, fill rest with $FF, copy small SCSI BIOS stub
     if (scsi) {
-        ZeroMemory(IPL, 0x2000);        // ���Τ�8kb
-        memset(&IPL[0x2000], 0xff, 0x1e000);    // �Ĥ��0xff
-        memcpy(IPL, SCSIIMG, sizeof(SCSIIMG));    // �������SCSI BIOS
-//        Memory_SetSCSIMode();
+        ZeroMemory(IPL, 0x2000);
+        memset(&IPL[0x2000], 0xff, 0x1e000);
+        static const BYTE SCSIIMG_STUB[] = {
+            0x00, 0xfc, 0x00, 0x14,            // $fc0000 SCSI boot entry
+            0x00, 0xfc, 0x00, 0x16,            // $fc0004 IOCS vector setup entry
+            0x00, 0x00, 0x00, 0x00,            // $fc0008 ?
+            0x48, 0x75, 0x6d, 0x61,            // $fc000c
+            0x6e, 0x36, 0x38, 0x6b,            // $fc0010 ID "Human68k"
+            0x4e, 0x75,                        // $fc0014 "rts"
+            0x23, 0xfc, 0x00, 0xfc, 0x00, 0x2a, // $fc0016
+            0x00, 0x00, 0x07, 0xd4,            // $fc001c "move.l #$fc002a, $7d4.l"
+            0x74, 0xff,                        // $fc0020 "moveq #-1, d2"
+            0x4e, 0x75,                        // $fc0022 "rts"
+            0x44, 0x55, 0x4d, 0x4d, 0x59, 0x20, // $fc0024 ID "DUMMY "
+            0x70, 0xff,                        // $fc002a "moveq #-1, d0"
+            0x4e, 0x75,                        // $fc002c "rts"
+        };
+        memcpy(IPL, SCSIIMG_STUB, sizeof(SCSIIMG_STUB));
+        p6logd("SCSI IPL detected and enabled\n");
     } else {
-        // SASI��ǥ��IPL�����Τޤ޸�����
+        // SASI model: use IPL ROM as-is
         memcpy(IPL, &IPL[0x20000], 0x20000);
+        p6logd("SCSI IPL not detected\n");
     }
 }
 
@@ -188,6 +604,63 @@ WinX68k_LoadROMs(void)
         IPL[i] = IPL[i + 1];
         IPL[i + 1] = tmp;
     }
+
+    // Lightweight IPL ROM IOCS table scan — no Memory subsystem dependency.
+    // Scan for fn=$20 (B_PUTC) pointing to $FE_xxxx (IPL ROM native).
+    // Strategy: for each offset, quickly check fn=$20 + fn=$21 only.
+    {
+        int altHits = 0;
+        DWORD altFn20Best = 0;
+        int scsiHits = 0;
+        DWORD scsiFn20 = 0, scsiFn21 = 0;
+        DWORD scsiOff = 0;
+        int scsiUd = 0;
+        for (int ud = 0; ud <= 1; ++ud) {
+            for (DWORD off = 0; off + 256*4 <= 0x40000; off += 4) {
+                DWORD raw20 = X68000_ReadIplLong(off + 0x20*4, ud);
+                DWORD eff20 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw20), raw20, NULL);
+                DWORD raw21 = X68000_ReadIplLong(off + 0x21*4, ud);
+                DWORD eff21 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw21), raw21, NULL);
+                // Both must be in ROM range
+                if ((eff21 < 0x00fe0000U || eff21 > 0x00ffffffU) || (eff21 & 1))
+                    continue;
+                // Validate: also check fn=$04 and fn=$25 for table plausibility
+                DWORD raw04 = X68000_ReadIplLong(off + 0x04*4, ud);
+                DWORD eff04 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw04), raw04, NULL);
+                DWORD raw25 = X68000_ReadIplLong(off + 0x25*4, ud);
+                DWORD eff25 = X68000_NormalizeDecodedIplIocsHandler(
+                    X68000_DecodeIplVectorAddress(raw25), raw25, NULL);
+                int plausible = 0;
+                if (eff04 >= 0x00fc0000U && eff04 <= 0x00ffffffU && (eff04 & 1) == 0)
+                    plausible++;
+                if (eff25 >= 0x00fc0000U && eff25 <= 0x00ffffffU && (eff25 & 1) == 0)
+                    plausible++;
+                if (plausible < 2)
+                    continue;
+
+                if (eff20 >= 0x00fe0000U && eff20 <= 0x00ffffffU && (eff20 & 1) == 0) {
+                    if (altHits < 4)
+                        p6logd("IPL_SCAN_ALT: off=$%05X ud=%d fn20=$%08X fn21=$%08X\n",
+                               (unsigned int)off, ud, (unsigned int)eff20, (unsigned int)eff21);
+                    if (altFn20Best == 0) altFn20Best = eff20;
+                    altHits++;
+                } else if (eff20 >= 0x00ea0000U && eff20 < 0x00ea2000U) {
+                    if (scsiHits == 0) {
+                        scsiFn20 = eff20; scsiFn21 = eff21;
+                        scsiOff = off; scsiUd = ud;
+                    }
+                    scsiHits++;
+                }
+            }
+        }
+        p6logd("IPL_SCAN: scsiHits=%d scsiOff=$%05X fn20=$%08X fn21=$%08X | altHits=%d altFn20=$%08X\n",
+               scsiHits, (unsigned int)scsiOff, (unsigned int)scsiFn20, (unsigned int)scsiFn21,
+               altHits, (unsigned int)altFn20Best);
+    }
+
 #if 0
     fp = File_OpenCurDir((char *)FONTFILE);
     if (fp == 0) {
@@ -214,6 +687,17 @@ WinX68k_LoadROMs(void)
 int
 WinX68k_Reset(void)
 {
+    // Don't clear the log on reset — preserve boot log for debugging.
+    s_appendlog_total = 0;  // Reset log counter so post-reset entries are logged
+    X68000_AppendSCSILog("--- core reset ---");
+    {
+        char dbg[256];
+        snprintf(dbg, sizeof(dbg), "RESET bus_mode=%d scsi0=%d HDImage='%.40s' SRAM18=%02X",
+            g_storage_bus_mode, g_scsi0_mounted, Config.HDImage[0], SRAM[0x18 ^ 1]);
+        DebugLog(dbg);
+    }
+    printf("WinX68k_Reset called: g_storage_bus_mode=%d g_scsi0_mounted=%d\n",
+           g_storage_bus_mode, g_scsi0_mounted);
     {   // @added by GOROman
         VLINE_TOTAL = 567;
         VLINE = 0;
@@ -246,19 +730,16 @@ WinX68k_Reset(void)
     C68k_Set_Reg(&C68K, C68K_A7, (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002]);
     C68k_Set_Reg(&C68K, C68K_PC, (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006]);
 */
-    // Safety check: Ensure IPL ROM is loaded before setting CPU registers
-    if (IPL != NULL) {
-        // Extract reset vectors from IPL ROM
-        DWORD stack_pointer = (IPL[0x30001]<<24)|(IPL[0x30000]<<16)|(IPL[0x30003]<<8)|IPL[0x30002];
-        DWORD program_counter = (IPL[0x30005]<<24)|(IPL[0x30004]<<16)|(IPL[0x30007]<<8)|IPL[0x30006];
+    // Set reset vectors directly from IPL ROM (original px68k behavior).
+    // The previous "safety check" rejected valid vectors from SASI-era ROMs
+    // whose PC pointed to $FC0000 range instead of $FE0000+.
+	    if (IPL != NULL) {
+	        DWORD stack_pointer = X68000_ReadIplVector(0);
+	        DWORD program_counter = X68000_ReadIplVector(1);
 
-
-        // Validate reset vectors are reasonable for X68000 architecture
-        // Stack pointer should be in RAM (0x000000-0x00BFFFFF) or high memory (0x00ED0000+)
-        // Program counter should be in ROM area (0x00FE0000-0x00FFFFFF)
-        bool valid_stack = (stack_pointer >= 0x00000000 && stack_pointer <= 0x00BFFFFF) ||
-                          (stack_pointer >= 0x00ED0000 && stack_pointer <= 0x01000000);
-        bool valid_pc = (program_counter >= 0x00FE0000 && program_counter <= 0x01000000);
+        // Accept any non-zero vectors (original px68k had no validation)
+        bool valid_stack = (stack_pointer != 0);
+        bool valid_pc = (program_counter != 0);
 
         if (valid_stack && valid_pc) {
             C68k_Set_AReg(&C68K, 7, stack_pointer);
@@ -277,6 +758,21 @@ WinX68k_Reset(void)
         C68k_Set_PC(&C68K, 0x00FE0000);       // Safe program counter
     }
 #endif /* HAVE_C68K */
+
+    // Clear main RAM before IPL ROM runs on reset.
+    // After a previous SCSI boot, RAM contains stale OS data (IOCS
+    // vectors, device chains, kernel code, system variables) that
+    // interfere with a clean re-boot.  The synthetic SCSI driver
+    // state is reset by SCSI_Init(), making stale RAM pointers to
+    // the driver invalid.  Clearing RAM simulates a cold boot state.
+    // Use the actual allocated buffer size (MEM_SIZE), not a hardcoded
+    // value, since the X68000 memory size varies by model/SWITCH.X.
+#ifndef MEM_SIZE
+#define MEM_SIZE 0xc00000
+#endif
+    if (MEM != NULL) {
+        memset(MEM, 0, MEM_SIZE);
+    }
 
     Memory_Init();
     CRTC_Init();
@@ -297,6 +793,136 @@ WinX68k_Reset(void)
     IRQH_Init();
     MIDI_Init();
     //WinDrv_Init();
+#if defined(HAVE_C68K)
+	// IPL-ROM-first SCSI boot: IPL ROMに通常起動させ、SASIデバイススキャン時に
+	// SCSIブートセクタを注入する。
+	if (g_storage_bus_mode == 1 && g_scsi0_mounted) {
+		// Save SASI SRAM if switching from SASI mode
+		{
+			extern void WinX68k_SaveSASI_SRAM(void);
+			WinX68k_SaveSASI_SRAM();
+		}
+		g_scsi_boot_pending = 1;
+		SASI_ArmSCSIBootIntercept(1);
+		SCSI_InvalidateTransferCache();
+		g_enable_scsi_dev_driver = 1;
+		// Restore SCSI IPL ROM if SASI IPLROM0.DAT overrode it in a previous reset.
+		if (s_scsi_ipl_needs_restore) {
+			extern unsigned char IPLROM_DAT[0x20000];
+			int ii; BYTE tmp;
+			printf("WinX68k_Reset: Restoring SCSI IPL... step 1: copy IPLROM_DAT to both halves\n");
+			// Overwrite BOTH halves — IPL[0..0x20000] still held the
+			// byte-swapped SASI IPLROM from the previous reset, so byte-
+			// swapping the full 0x40000 would double-swap the first half
+			// and leave $FC0000-$FDFFFF garbled. Refill both halves first.
+			memcpy(IPL,             IPLROM_DAT, 0x20000);
+			memcpy(&IPL[0x20000],   IPLROM_DAT, 0x20000);
+			printf("WinX68k_Reset: step 2: SCSICheck\n");
+			WinX68k_SCSICheck();
+			printf("WinX68k_Reset: step 3: byte-swap\n");
+			for (ii = 0; ii < 0x40000; ii += 2) {
+				tmp = IPL[ii]; IPL[ii] = IPL[ii+1]; IPL[ii+1] = tmp;
+			}
+			printf("WinX68k_Reset: step 4: re-set vectors\n");
+			{
+				DWORD sp = X68000_ReadIplVector(0);
+				DWORD pc = X68000_ReadIplVector(1);
+				printf("WinX68k_Reset: vectors SP=$%08X PC=$%08X\n",
+				       (unsigned)sp, (unsigned)pc);
+				if (sp != 0 && pc != 0) {
+					C68k_Set_AReg(&C68K, 7, sp);
+					C68k_Set_PC(&C68K, pc);
+				}
+			}
+			s_scsi_ipl_needs_restore = 0;
+			printf("WinX68k_Reset: SCSI IPL restored OK\n");
+		}
+		// Keep $E96000 on SASI until the IPL ROM performs its native device
+		// select sequence; SCSI_InjectBoot() switches to full SCSI mode after
+		// the intercept fires.
+		Memory_ClearSCSIMode();
+		Memory_SetSASIBootMode();
+		SRAM[0x18 ^ 1] = 0x80;
+		X68000_AppendSCSILog("IPL-ROM-FIRST: SCSI boot, SRAM=$80");
+	} else {
+		g_scsi_boot_pending = 0;
+		SASI_ArmSCSIBootIntercept(0);
+		Memory_ClearSCSIMode();
+		g_enable_scsi_dev_driver = 0;
+		// Use SASI IPL ROM (IPLROM0.DAT) if available.
+		// IPLROM0.DAT is a SASI-era ROM that is NOT detected as SCSI IPL.
+		// It keeps $FC0000 intact with native SASI boot code, unlike
+		// IPLROM.DAT which gets replaced by the SCSI BIOS stub.
+		if (SASI_IPLROM_loaded) {
+			int ii;
+			BYTE tmp;
+			memcpy(IPL, SASI_IPLROM, 0x20000);
+			memcpy(&IPL[0x20000], SASI_IPLROM, 0x20000);
+			for (ii = 0; ii < 0x40000; ii += 2) {
+				tmp = IPL[ii];
+				IPL[ii] = IPL[ii + 1];
+				IPL[ii + 1] = tmp;
+			}
+			s_scsi_ipl_needs_restore = 1;
+			printf("WinX68k_Reset: Using SASI IPL ROM (IPLROM0.DAT) [byte-swapped]\n");
+		}
+		// Restore SCSIIPL to original minimal SCSI ROM (50d6a5b).
+		// SCSI_Init fills SCSIIPL with large synthetic ROM containing
+		// device driver code. The IPL ROM stumbles into this during
+		// native SASI boot when SCSI_Read returns SCSIIPL data.
+		{
+			static const BYTE SCSIIMG_ORIG[] = {
+				0x00, 0xea, 0x00, 0x34,
+				0x00, 0xea, 0x00, 0x36,
+				0x00, 0xea, 0x00, 0x4a,
+				0x48, 0x75, 0x6d, 0x61,
+				0x6e, 0x36, 0x38, 0x6b,
+				0x4e, 0x75,
+				0x23, 0xfc, 0x00, 0xea, 0x00, 0x4a,
+				0x00, 0x00, 0x07, 0xd4,
+				0x74, 0xff,
+				0x4e, 0x75,
+				0x53, 0x43, 0x53, 0x49, 0x45, 0x58,
+				0x13, 0xc1, 0x00, 0xe9, 0xf8, 0x00,
+				0x4e, 0x75,
+			};
+			extern BYTE SCSIIPL[0x2000];
+			int jj; BYTE t;
+			ZeroMemory(SCSIIPL, 0x2000);
+			memcpy(&SCSIIPL[0x20], SCSIIMG_ORIG, sizeof(SCSIIMG_ORIG));
+			for (jj = 0; jj < 0x2000; jj += 2) {
+				t = SCSIIPL[jj]; SCSIIPL[jj] = SCSIIPL[jj+1]; SCSIIPL[jj+1] = t;
+			}
+		}
+		if (Config.HDImage[0][0] != '\0') {
+			// Use separate SRAM state for SASI mode (original X68000 ROM).
+			// First time: init $FF + 12MB. After that: restore previous SASI state.
+			if (!s_sram_sasi_valid) {
+				memset(s_sram_sasi, 0xFF, 0x4000);
+				// RAM size 12MB (0x00C00000)
+				s_sram_sasi[0x09] = 0x00; s_sram_sasi[0x08] = 0xC0;
+				s_sram_sasi[0x0B] = 0x00; s_sram_sasi[0x0A] = 0x00;
+				// SRAM signature
+				s_sram_sasi[0x11] = 0x00; s_sram_sasi[0x10] = 0x01;
+				s_sram_sasi[0x13] = 0xED; s_sram_sasi[0x12] = 0x00;
+				s_sram_sasi_valid = 1;
+				printf("WinX68k_Reset: SASI SRAM initialized ($FF + 12MB)\n");
+			} else {
+				printf("WinX68k_Reset: SASI SRAM restored (SWITCH.X preserved)\n");
+			}
+			memcpy(SRAM, s_sram_sasi, 0x4000);
+			if ((SRAM[0x18 ^ 1] == 0x80) && !WinX68k_SASIImageHasBootSector()) {
+				SRAM[0x18 ^ 1] = 0x00;
+				X68000_AppendSCSILog("SASI boot bypass: image has no boot sector, falling back from HDD boot");
+			}
+		} else {
+			printf("WinX68k_Reset: SASI/FDD path, no HDImage\n");
+		}
+	}
+	// FORCE BOOT block removed: IPL ROM runs its full initialization,
+	// then SASI_ArmSCSIBootIntercept triggers SCSI_InjectBoot at
+	// the right moment (SASI device select).
+#endif
 
 //    C68K.ICount = 0;
     m68000_ICountBk = 0;
@@ -350,7 +976,7 @@ WinX68k_Cleanup(void)
     }
 }
 
-#define CLOCK_SLICE 1500  // Performance optimization: Increased from 200 to 1500 to reduce loop overhead
+#define CLOCK_SLICE 1500
 // -----------------------------------------------------------------------------------
 //  �����Τᤤ��롼��
 // -----------------------------------------------------------------------------------
@@ -408,9 +1034,8 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     ICount += clk_total;
     clk_next = (clk_total/VLINE_TOTAL);
     hsync = 1;
-
     do {
-        int m, n = (ICount>CLOCK_SLICE)?CLOCK_SLICE:ICount;
+        int m, n = (ICount > CLOCK_SLICE) ? CLOCK_SLICE : ICount;
 //        C68K.ICount = m68000_ICountBk = 0;            // ������ȯ������Ϳ���Ƥ����ʤ��ȥ����CARAT��
 
         if ( hsync ) {
@@ -476,9 +1101,12 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             //            C68k_Exec(&C68K, C68K.ICount);
             #if defined (HAVE_CYCLONE)
                         m68000_execute(n);
-            #elif defined (HAVE_C68K)
+#elif defined (HAVE_C68K)
                         C68k_Exec(&C68K, n);
-            #endif /* HAVE_C68K */
+                        if (SCSI_HasDeferredBoot()) {
+                            SCSI_CommitDeferredBoot();
+                        }
+#endif /* HAVE_C68K */
                         m = (n-m68000_ICountBk);
             //            m = (n-C68K.ICount-m68000_ICountBk);            // clockspeed progress
                         ClkUsed += m*10;
@@ -487,6 +1115,20 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                         ClkUsed -= usedclk*clkdiv;
                         ICount -= m;
                         clk_count += m;
+#if defined(HAVE_C68K)
+	                        // Lightweight SCSI boot checks (IPL-ROM-first architecture)
+	                        if (g_scsi_boot_pending) {
+                            // Device driver chain linking
+                            if (g_enable_scsi_dev_driver && !SCSI_IsDeviceLinked()) {
+                                SCSI_LinkDeviceDriver();
+                            }
+                            // IOCS[$F5] safety pin: ensure SCSI IOCS handler stays patched
+                            DWORD f5 = Memory_ReadD(0x7D4) & 0x00FFFFFFU;
+                            if (f5 != 0 && f5 != (SCSI_SYNTH_IOCS_ENTRY & 0x00FFFFFFU)) {
+                                Memory_WriteD(0x7D4, SCSI_SYNTH_IOCS_ENTRY);
+                            }
+                        }
+#endif
             //            C68K.ICount = m68000_ICountBk = 0;
                     }
 
@@ -901,6 +1543,16 @@ void X68000_LoadHDD( const char* filename )
 		strncpy(Config.HDImage[i], filename, MAX_PATH);
 	}
 
+	// SRAM boot device is managed by SRAM.DAT / SRAM_Init.
+	// Do NOT force $80 here - respect the user's SWITCH.X settings.
+	{
+		char dbg2[256];
+		snprintf(dbg2, sizeof(dbg2), "LOADHDD SRAM[18]=$%02X file='%.60s' buf=%p size=%ld",
+			(unsigned)SRAM[0x18 ^ 1],
+			filename, s_disk_image_buffer[4], s_disk_image_buffer_size[4]);
+		DebugLog(dbg2);
+	}
+
 	// Get HDD image size from memory buffer (set by Swift side)
 	// This avoids file access issues in sandboxed environment
 	if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
@@ -973,6 +1625,90 @@ const int X68000_IsHDDDirty()
 	return SASI_IsDirty(0) ? 1 : 0;
 }
 
+int X68000_GetStorageBusMode()
+{
+	return g_storage_bus_mode;
+}
+
+int X68000_IsSCSIBootPending(void)
+{
+	return g_scsi_boot_pending;
+}
+
+void X68000_SetStorageBusMode(int mode)
+{
+	if (g_storage_bus_mode == 0 && mode == 1) {
+		WinX68k_SaveSASI_SRAM();
+	}
+
+	g_storage_bus_mode = (mode == 1) ? 1 : 0;
+	if (g_storage_bus_mode == 0) {
+		// Restore the native SASI register map immediately so a prior SCSI
+		// session does not leave $E96000 routed to the SPC emulation.
+		// Also restore the pre-SCSI SRAM view before any Swift-side saveSRAM().
+		Memory_ClearSCSIMode();
+		WinX68k_RestoreSASI_SRAM();
+	}
+	// Note: SRAM boot device ($ED0018) is set by WinX68k_Reset for SCSI mode.
+	// For SASI/FDD, we don't modify SRAM to respect user's SWITCH.X setting.
+}
+
+int X68000_SCSI_IsMounted(int host, int id)
+{
+	if (host == 0 && id == 0) {
+		return g_scsi0_mounted;
+	}
+	return 0;
+}
+
+const char* X68000_SCSI_GetImagePath(int host, int id)
+{
+	if (host == 0 && id == 0 && g_scsi0_mounted) {
+		return g_scsi0_path;
+	}
+	return NULL;
+}
+
+int X68000_SCSI_Mount(int host, int id, const char* path, int flags)
+{
+	(void)flags;
+	if (host != 0 || id != 0 || path == NULL || path[0] == '\0') {
+		return 0;
+	}
+
+	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+		printf("X68000_SCSI_Mount: HDD buffer not initialized for %s\n", path);
+		return 0;
+	}
+
+	g_storage_bus_mode = 1;
+	Memory_SetSCSIMode();
+	SCSI_InvalidateTransferCache();
+	g_scsi0_mounted = 1;
+	strncpy(g_scsi0_path, path, MAX_PATH - 1);
+	g_scsi0_path[MAX_PATH - 1] = '\0';
+	// Keep SASI metadata in sync as a compatibility fallback.
+	// Some Human68k builds still probe SASI path during late init even
+	// when SCSI boot was used; clearing this state breaks COMMAND load.
+	X68000_LoadHDD(path);
+	X68000_AppendSCSILog("SCSI_MOUNT OK");
+
+	return 1;
+}
+
+int X68000_SCSI_Eject(int host, int id)
+{
+	if (host != 0 || id != 0) {
+		return 0;
+	}
+
+	g_scsi0_mounted = 0;
+	g_scsi0_path[0] = '\0';
+	SCSI_InvalidateTransferCache();
+	X68000_EjectHDD();
+	return 1;
+}
+
 unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
@@ -986,6 +1722,17 @@ unsigned char* X68000_GetCGROMPointer()
 unsigned char* X68000_GetIPLROMPointer()
 {
     return &IPLROM_DAT[0];
+}
+
+unsigned char* X68000_GetSCSIIPLPointer()
+{
+    return &SCSIROM_DAT[0];
+}
+
+unsigned char* X68000_GetSASI_IPLROMPointer()
+{
+    SASI_IPLROM_loaded = 1;
+    return &SASI_IPLROM[0];
 }
 
 /*
@@ -1114,6 +1861,13 @@ void X68000_Mouse_Set( float x, float y, const long button )
     
     printf("%3d %3d\n", xx, yy );
 */
+}
+
+// Keep the SASI-side SRAM snapshot in sync with the live SRAM contents.
+// This preserves SWITCH.X boot settings when returning from a SCSI session.
+void WinX68k_UpdateSASIRamSize(void) {
+    memcpy(s_sram_sasi, SRAM, 0x4000);
+    s_sram_sasi_valid = 1;
 }
 
 }

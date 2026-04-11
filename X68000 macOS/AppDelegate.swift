@@ -11,6 +11,33 @@ import UniformTypeIdentifiers
 import os.log
 import SwiftUI
 
+// Storage bus selection (SASI or SCSI). Default is SASI.
+enum StorageBusMode: Int {
+    case sasi = 0
+    case scsi = 1
+}
+
+extension UserDefaults {
+    private static let storageBusModeKey = "StorageBusMode"
+    private static let scsi0ReadyKey = "SCSI0Ready"
+    private static let scsi0FilenameKey = "SCSI0Filename"
+
+    var storageBusMode: StorageBusMode {
+        get { StorageBusMode(rawValue: integer(forKey: Self.storageBusModeKey)) ?? .sasi }
+        set { set(newValue.rawValue, forKey: Self.storageBusModeKey) }
+    }
+
+    var scsi0Ready: Bool {
+        get { bool(forKey: Self.scsi0ReadyKey) }
+        set { set(newValue, forKey: Self.scsi0ReadyKey) }
+    }
+
+    var scsi0Filename: String? {
+        get { string(forKey: Self.scsi0FilenameKey) }
+        set { set(newValue, forKey: Self.scsi0FilenameKey) }
+    }
+}
+
 @NSApplicationMain
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
@@ -39,6 +66,394 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var cachedSCCCompatMode: Int32 = 0
     private var lastSCCCompatCheck: TimeInterval = 0
     private let sccCompatCheckInterval: TimeInterval = 1.0
+
+    // Storage bus / SCSI ID0 cached state
+    private var cachedStorageBusMode: Int = 0 // 0=SASI,1=SCSI
+    private var cachedSCSIReady0: Bool = false
+    private var cachedSCSIFilename0: String? = nil
+    private var storageRestoreRetryCount: Int = 0
+    private let maxStorageRestoreRetries: Int = 5
+    private let storageRestoreRetryDelay: TimeInterval = 0.6
+    private var isPresentingSCSIOpenPanel = false
+
+    // MARK: - Core Bridge Helpers
+    private func resetSCSILogs() {
+        let home = NSHomeDirectory()
+        let logDir = "\(home)/Documents/X68000"
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(atPath: logDir, withIntermediateDirectories: true)
+
+        let logPaths = [
+            "\(logDir)/_scsi_iocs.txt",
+            "/tmp/x68000_scsi_iocs.txt",
+            "/tmp/x68_restore_trace.log"
+        ]
+
+        for logPath in logPaths {
+            if fileManager.fileExists(atPath: logPath) {
+                if let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) {
+                    defer { try? handle.close() }
+                    try? handle.truncate(atOffset: 0)
+                    continue
+                }
+            }
+            try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
+        }
+    }
+
+    /// Public wrapper so GameViewController can write to the same SCSI log file.
+    func appendSCSILogPublic(_ message: String) {
+        appendSCSILog(message)
+    }
+
+    private func appendSCSILog(_ message: String) {
+        guard let data = "\(message)\n".data(using: .utf8) else { return }
+        let home = NSHomeDirectory()
+        let fileManager = FileManager.default
+        let maxLogSize = 512 * 1024
+        let paths = [
+            "\(home)/Documents/X68000/_scsi_iocs.txt",
+            "/tmp/x68_restore_trace.log"
+        ]
+        for logPath in paths {
+            if let attrs = try? fileManager.attributesOfItem(atPath: logPath),
+               let fileSize = attrs[.size] as? NSNumber,
+               fileSize.intValue > maxLogSize {
+                if let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) {
+                    defer { try? handle.close() }
+                    try? handle.truncate(atOffset: 0)
+                } else {
+                    try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
+                }
+            }
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let handle = FileHandle(forWritingAtPath: logPath) {
+                    defer { try? handle.close() }
+                    do {
+                        try handle.seekToEnd()
+                        try handle.write(contentsOf: data)
+                    } catch {
+                        continue
+                    }
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logPath))
+            }
+        }
+    }
+
+    private func coreGetStorageBusMode() -> StorageBusMode {
+        let mode = X68000_GetStorageBusMode()
+        return mode == 1 ? .scsi : .sasi
+    }
+
+    private func coreSetStorageBusMode(_ mode: StorageBusMode) {
+        X68000_SetStorageBusMode(mode == .scsi ? 1 : 0)
+    }
+
+    private func coreGetSCSI0State() -> (ready: Bool, path: String?) {
+        // If core exposes query APIs, prefer them; otherwise fall back to our cached values
+        // Here we reuse our cache variables if core query is not available
+        return (X68000_SCSI_IsMounted(0, 0) != 0, X68000_SCSI_GetImagePath(0, 0).flatMap { String(cString: $0) })
+    }
+
+    private func coreMountSCSI0(path: String) -> Bool {
+        appendSCSILog("MAC_RESTORE_MOUNT begin path=\(path)")
+        if !preloadSCSIImageBuffer(path: path) {
+            appendSCSILog("MAC_RESTORE_MOUNT preload_failed path=\(path)")
+            return false
+        }
+        let result = X68000_SCSI_Mount(0, 0, path, 0)
+        appendSCSILog("MAC_RESTORE_MOUNT result=\(result) path=\(path)")
+        return result != 0
+    }
+
+    private func preloadSCSIImageData(url: URL) -> Data? {
+        do {
+            let imageData = try Data(contentsOf: url)
+            let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
+            guard !imageData.isEmpty, imageData.count <= maxSize else {
+                warningLog("Invalid SCSI image size for preload: \(imageData.count) bytes", category: .fileSystem)
+                return nil
+            }
+            return imageData
+        } catch {
+            errorLog("Failed to preload SCSI image data", error: error, category: .fileSystem)
+            return nil
+        }
+    }
+
+    private func preloadSCSIImageBuffer(path: String) -> Bool {
+        guard let imageData = preloadSCSIImageData(url: URL(fileURLWithPath: path)) else {
+            return false
+        }
+
+        guard let p = X68000_GetDiskImageBufferPointer(4, imageData.count) else {
+            errorLog("Failed to get SCSI preload buffer pointer", category: .fileSystem)
+            return false
+        }
+
+        imageData.copyBytes(to: p, count: imageData.count)
+        return true
+    }
+
+    private func mountSCSI0Async(url: URL) {
+        let accessible = url.startAccessingSecurityScopedResource()
+        let bookmarkData = try? url.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else {
+                if accessible {
+                    url.stopAccessingSecurityScopedResource()
+                }
+                return
+            }
+
+            // Read the image AND copy it into the emulator buffer on the
+            // background queue — a multi-hundred-MB copyBytes on the main
+            // thread would stall the run loop and show a beachball.
+            let bufferReady: Bool
+            if let imageData = self.preloadSCSIImageData(url: url),
+               let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
+                imageData.copyBytes(to: p, count: imageData.count)
+                bufferReady = true
+            } else {
+                bufferReady = false
+            }
+
+            if accessible {
+                url.stopAccessingSecurityScopedResource()
+            }
+
+            DispatchQueue.main.async {
+                guard bufferReady else {
+                    self.appendSCSILog("MAC_SCSI_MOUNT preload_failed path=\(url.path)")
+                    warningLog("SCSI(ID0) preload failed for \(url.path)", category: .fileSystem)
+                    self.showSCSIMountFailureAlert(url: url,
+                                                   reason: "ディスクイメージの読み込みに失敗しました。")
+                    return
+                }
+
+                X68000_SetStorageBusMode(1)
+                self.appendSCSILog("MAC_SCSI_MOUNT calling X68000_SCSI_Mount path=\(url.path)")
+                let mounted = X68000_SCSI_Mount(0, 0, url.path, 0) != 0
+                self.appendSCSILog("MAC_SCSI_MOUNT result=\(mounted ? 1 : 0)")
+                if mounted {
+                    let defaults = UserDefaults.standard
+                    defaults.scsi0Ready = true
+                    defaults.scsi0Filename = url.path
+                    defaults.storageBusMode = .scsi
+                    DiskStateManager.shared.recordHDDMount(url, bookmarkData: bookmarkData)
+                    DiskStateManager.shared.saveCurrentState()
+                    NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+                    self.updateMenuOnFileOperation()
+                    self.autoSaveDiskStateIfNeeded()
+                    infoLog("SCSI(ID0) image mounted asynchronously: \(url.lastPathComponent)", category: .fileSystem)
+                    self.appendSCSILog("MAC_SCSI_MOUNT calling X68000_Reset")
+                    X68000_Reset()
+                } else {
+                    warningLog("SCSI(ID0) async mount failed for \(url.path)", category: .fileSystem)
+                    self.showSCSIMountFailureAlert(url: url,
+                                                   reason: "エミュレータコアがマウントを拒否しました。")
+                }
+            }
+        }
+    }
+
+    private func preferredSCSIOpenDirectoryURL() -> URL? {
+        let fileManager = FileManager.default
+
+        if let currentPath = UserDefaults.standard.scsi0Filename, !currentPath.isEmpty {
+            let currentDirectory = URL(fileURLWithPath: currentPath).deletingLastPathComponent()
+            if fileManager.fileExists(atPath: currentDirectory.path) {
+                return currentDirectory
+            }
+        }
+
+        if let savedState = DiskStateManager.shared.loadSavedState(),
+           let hddState = savedState.hddState,
+           hddState.filePath.lowercased().hasSuffix(".hds") {
+            let savedDirectory = URL(fileURLWithPath: hddState.filePath).deletingLastPathComponent()
+            if fileManager.fileExists(atPath: savedDirectory.path) {
+                return savedDirectory
+            }
+        }
+
+        let sandboxDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if fileManager.fileExists(atPath: sandboxDocumentsX68000.path) {
+            return sandboxDocumentsX68000
+        }
+
+        if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
+           fileManager.fileExists(atPath: documentsURL.path) {
+            return documentsURL
+        }
+
+        return nil
+    }
+
+    private func preferredSCSIImageURLForDirectMount() -> URL? {
+        let fileManager = FileManager.default
+
+        if let savedState = DiskStateManager.shared.loadSavedState(),
+           let hddState = savedState.hddState,
+           hddState.filePath.lowercased().hasSuffix(".hds") {
+            if let bookmarkData = hddState.bookmarkData {
+                do {
+                    var isStale = false
+                    let resolvedURL = try URL(
+                        resolvingBookmarkData: bookmarkData,
+                        options: .withSecurityScope,
+                        relativeTo: nil,
+                        bookmarkDataIsStale: &isStale
+                    )
+                    if !isStale, fileManager.fileExists(atPath: resolvedURL.path) {
+                        return resolvedURL
+                    }
+                } catch {
+                    warningLog("Failed to resolve saved SCSI bookmark: \(error)", category: .fileSystem)
+                }
+            }
+
+            let savedURL = URL(fileURLWithPath: hddState.filePath)
+            if fileManager.fileExists(atPath: savedURL.path) {
+                return savedURL
+            }
+        }
+
+        if let currentPath = UserDefaults.standard.scsi0Filename, !currentPath.isEmpty {
+            let currentURL = URL(fileURLWithPath: currentPath)
+            if fileManager.fileExists(atPath: currentURL.path) {
+                return currentURL
+            }
+        }
+
+        return nil
+    }
+
+    private func presentSCSIOpenPanel() {
+        print("MAC_SCSI_OPEN_PANEL v5 presentSCSIOpenPanel entry")
+        fflush(stdout)
+        appendSCSILog("MAC_SCSI_OPEN_PANEL v5 present")
+
+        // Route the NSOpenPanel creation through GameViewController.
+        // Allocating NSOpenPanel directly from AppDelegate hangs (v3/v4 logs
+        // stopped on `let panel = NSOpenPanel()` — the remote view service
+        // XPC handshake can't resolve a parent window context when the
+        // caller isn't an NSResponder/NSViewController). The FDD open panel
+        // already uses this pattern from GameViewController and works.
+        guard let gameVC = gameViewController else {
+            appendSCSILog("MAC_SCSI_OPEN_PANEL v5 no_gameVC")
+            isPresentingSCSIOpenPanel = false
+            return
+        }
+        appendSCSILog("MAC_SCSI_OPEN_PANEL v5 gameVC_ok")
+
+        let initialDirectory = preferredSCSIOpenDirectoryURL()
+        appendSCSILog("MAC_SCSI_OPEN_PANEL v5 initial_dir=\(initialDirectory?.path ?? "nil")")
+
+        gameVC.presentSCSIOpenPanel(initialDirectoryURL: initialDirectory) { [weak self] url in
+            guard let self = self else { return }
+            self.isPresentingSCSIOpenPanel = false
+            if let url = url {
+                self.appendSCSILog("MAC_SCSI_OPEN_PANEL v5 picked=\(url.path)")
+                self.mountSCSI0Async(url: url)
+            } else {
+                self.appendSCSILog("MAC_SCSI_OPEN_PANEL v5 cancelled")
+            }
+        }
+        appendSCSILog("MAC_SCSI_OPEN_PANEL v5 begin_returned")
+    }
+
+    private func coreEjectSCSI0() -> Bool {
+        let result = X68000_SCSI_Eject(0, 0)
+        return result != 0
+    }
+
+    private func showSCSIMountFailureAlert(url: URL, reason: String) {
+        let alert = NSAlert()
+        alert.messageText = "SCSI イメージをマウントできませんでした"
+        alert.informativeText = "\(url.lastPathComponent)\n\(reason)"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        if let window = gameViewController?.view.window ?? NSApplication.shared.mainWindow {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
+    }
+
+    private func scheduleStorageRestoreRetryIfNeeded() {
+        guard storageRestoreRetryCount < maxStorageRestoreRetries else { return }
+        storageRestoreRetryCount += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + storageRestoreRetryDelay) { [weak self] in
+            self?.restoreStorageBusStateIfNeeded()
+        }
+    }
+
+    private func restoreStorageBusStateIfNeeded() {
+        let stateManager = DiskStateManager.shared
+        let autoMountMode = stateManager.autoMountMode
+        appendSCSILog("MAC_RESTORE_ENTRY mode=\(autoMountMode.rawValue) retry=\(storageRestoreRetryCount)")
+        guard autoMountMode == .lastSession || autoMountMode == .smartLoad else { return }
+        _ = stateManager.loadLastState()
+
+        let defaults = UserDefaults.standard
+        var desiredBusMode = defaults.storageBusMode
+        var desiredScsiPath = defaults.scsi0Filename
+
+        // Debug override for automated boot-loop analysis.
+        if let debugPath = ProcessInfo.processInfo.environment["X68_DEBUG_SCSI0_PATH"],
+           !debugPath.isEmpty {
+            if FileManager.default.fileExists(atPath: debugPath) {
+                desiredBusMode = .scsi
+                desiredScsiPath = debugPath
+                defaults.storageBusMode = .scsi
+                defaults.scsi0Ready = true
+                defaults.scsi0Filename = debugPath
+                appendSCSILog("MAC_RESTORE_DEBUG path=\(debugPath)")
+            } else {
+                appendSCSILog("MAC_RESTORE_DEBUG_MISSING path=\(debugPath)")
+            }
+        }
+
+        let savedPath = desiredScsiPath ?? "<nil>"
+        let scsiReady = defaults.scsi0Ready || (desiredScsiPath != nil)
+        appendSCSILog("MAC_RESTORE_STATE desiredBus=\(desiredBusMode.rawValue) scsiReady=\(scsiReady) path=\(savedPath)")
+
+        if coreGetStorageBusMode() != desiredBusMode {
+            coreSetStorageBusMode(desiredBusMode)
+        }
+        cachedStorageBusMode = desiredBusMode.rawValue
+
+        if desiredBusMode == .scsi {
+            if let path = desiredScsiPath, !path.isEmpty {
+                appendSCSILog("MAC_RESTORE_TRY path=\(path) exists=\(FileManager.default.fileExists(atPath: path) ? 1 : 0)")
+                if !coreGetSCSI0State().ready {
+                    if coreMountSCSI0(path: path) {
+                        appendSCSILog("MAC_RESTORE_OK path=\(path)")
+                        infoLog("Restored SCSI(ID0) image: \(URL(fileURLWithPath: path).lastPathComponent)", category: .fileSystem)
+                        // Startup restore happens after the first core reset.
+                        // Reset once more so the IPL boots from the restored SCSI disk.
+                        X68000_Reset()
+                        storageRestoreRetryCount = 0
+                    } else {
+                        appendSCSILog("MAC_RESTORE_FAIL path=\(path) retry=\(storageRestoreRetryCount + 1)")
+                        warningLog("Failed to restore SCSI(ID0) image from saved state", category: .fileSystem)
+                        scheduleStorageRestoreRetryIfNeeded()
+                    }
+                }
+            }
+        } else if coreGetSCSI0State().ready {
+            let _ = coreEjectSCSI0()
+        }
+
+        updateMenuTitles()
+    }
     
     var gameViewController: GameViewController? {
         // 方法1: 静的参照を使用（最も確実）
@@ -76,6 +491,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
+        resetSCSILogs()
+        appendSCSILog("MAC_APP_DID_FINISH")
         // Enable verbose logs for troubleshooting
         X68LogConfig.enableInfoLogs = true
         X68LogConfig.enableDebugLogs = true
@@ -90,6 +507,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         updateCRTMenuCheckmarks()
         updateSerialMenuCheckmarks()
         updateJoyportUMenuCheckmarks()
+
+        // Initialize HDD/Bus menu state
+        updateMenuTitles()
         
         // Listen for disk image loading notifications to update menus
         NotificationCenter.default.addObserver(
@@ -98,6 +518,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             name: .diskImageLoaded,
             object: nil
         )
+
+        // Disabled: restoreStorageBusStateIfNeeded() used separate
+        // UserDefaults keys (SCSI0Filename etc.) that went out of sync
+        // with DiskStateManager. All state restoration now goes through
+        // DiskStateManager via GameScene.bootWithStateRestore().
+        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        //     self?.appendSCSILog("MAC_RESTORE_SCHEDULED_CALL")
+        //     self?.restoreStorageBusStateIfNeeded()
+        // }
+
     }
 
     // MARK: - Menu System Rebuild
@@ -196,12 +626,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         let createHDDItem = NSMenuItem(title: "Create Empty HDD...", action: #selector(createEmptyHDD(_:)), keyEquivalent: "")
         createHDDItem.target = self
+        createHDDItem.identifier = NSUserInterfaceItemIdentifier("HDD-create")
         hddMenu.addItem(createHDDItem)
 
         let saveHDDItem = NSMenuItem(title: "Save HDD", action: #selector(saveHDD(_:)), keyEquivalent: "s")
         saveHDDItem.keyEquivalentModifierMask = [.command, .shift]
         saveHDDItem.target = self
+        saveHDDItem.identifier = NSUserInterfaceItemIdentifier("HDD-save")
         hddMenu.addItem(saveHDDItem)
+
+        // Add separator before new submenus
+        hddMenu.addItem(NSMenuItem.separator())
+
+        // Storage Bus Mode submenu
+        let busMenuItem = NSMenuItem(title: "Storage Bus Mode", action: nil, keyEquivalent: "")
+        let busMenu = NSMenu(title: "Storage Bus Mode")
+        busMenuItem.submenu = busMenu
+
+        let busSASI = NSMenuItem(title: "SASI", action: #selector(setStorageBusSASI(_:)), keyEquivalent: "")
+        busSASI.target = self
+        busSASI.identifier = NSUserInterfaceItemIdentifier("HDD-bus-SASI")
+        busMenu.addItem(busSASI)
+
+        let busSCSI = NSMenuItem(title: "SCSI", action: #selector(setStorageBusSCSI(_:)), keyEquivalent: "")
+        busSCSI.target = self
+        busSCSI.identifier = NSUserInterfaceItemIdentifier("HDD-bus-SCSI")
+        busMenu.addItem(busSCSI)
+
+        hddMenu.addItem(busMenuItem)
+
+        // SCSI Devices submenu (ID 0 only for now)
+        let scsiDevicesMenuItem = NSMenuItem(title: "SCSI Devices", action: nil, keyEquivalent: "")
+        let scsiDevicesMenu = NSMenu(title: "SCSI Devices")
+        scsiDevicesMenuItem.submenu = scsiDevicesMenu
+
+        let scsiOpen0 = NSMenuItem(title: "Open SCSI (ID 0)...", action: #selector(openSCSI0(_:)), keyEquivalent: "")
+        scsiOpen0.target = self
+        scsiOpen0.identifier = NSUserInterfaceItemIdentifier("SCSI0-open")
+        scsiDevicesMenu.addItem(scsiOpen0)
+
+        let scsiEject0 = NSMenuItem(title: "Eject SCSI (ID 0)", action: #selector(ejectSCSI0(_:)), keyEquivalent: "")
+        scsiEject0.target = self
+        scsiEject0.identifier = NSUserInterfaceItemIdentifier("SCSI0-eject")
+        scsiDevicesMenu.addItem(scsiEject0)
+
+        hddMenu.addItem(scsiDevicesMenuItem)
 
         mainMenu.addItem(hddMenuItem)
 
@@ -1225,6 +1694,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 } else if menuItem.title == "HDD" {
                     logger.debug("Updating HDD menu")
                     self.updateHDDMenuTitles(submenu: submenu)
+                    self.updateSCSIMenuTitles(hddSubmenu: submenu)
                 } else if menuItem.title == "Display" {
                     logger.debug("Updating Display menu - skipping mouse checkmark update to prevent infinite loop")
                     // Commented out to prevent infinite loop:
@@ -1236,6 +1706,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
     }
     
+    private func updateSCSIMenuTitles(hddSubmenu: NSMenu) {
+        // Find SCSI Devices submenu by title
+        guard let scsiDevicesItem = hddSubmenu.items.first(where: { $0.submenu?.title == "SCSI Devices" }) else { return }
+        guard let scsiSub = scsiDevicesItem.submenu else { return }
+
+        // Refresh cached state from Core bridge instead of UserDefaults
+        let busMode = coreGetStorageBusMode()
+        let scsi0 = coreGetSCSI0State()
+
+        for item in scsiSub.items {
+            let itemId = item.identifier?.rawValue ?? ""
+            let title = item.title
+            if itemId == "SCSI0-open" || title.contains("Open SCSI (ID 0)") || title.contains("SCSI (ID 0):") {
+                if scsi0.ready {
+                    if let name = scsi0.path, !name.isEmpty {
+                        let displayName = URL(fileURLWithPath: name).lastPathComponent
+                        item.title = "SCSI (ID 0): \(displayName)"
+                    } else {
+                        item.title = "SCSI (ID 0): [Mounted]"
+                    }
+                } else {
+                    item.title = "Open SCSI (ID 0)..."
+                }
+                // Enable only in SCSI mode
+                item.isEnabled = (busMode == .scsi)
+            } else if itemId == "SCSI0-eject" || title.contains("Eject SCSI (ID 0)") {
+                if scsi0.ready {
+                    if let name = scsi0.path, !name.isEmpty {
+                        let displayName = URL(fileURLWithPath: name).lastPathComponent
+                        item.title = "Eject SCSI (ID 0) (\(displayName))"
+                    } else {
+                        item.title = "Eject SCSI (ID 0)"
+                    }
+                    item.isEnabled = (busMode == .scsi)
+                } else {
+                    item.title = "Eject SCSI (ID 0)"
+                    item.isEnabled = false
+                }
+            }
+        }
+    }
+
     func updateMenusAfterStateRestore() {
         infoLog("Updating menus after state restoration", category: .ui)
         updateMenuTitles()
@@ -1455,6 +1967,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
     }
+
+    // Prevent modal "restore windows after crash?" prompts from blocking boot.
+    // This app's runtime state is reconstructed by our own disk-state logic.
+    func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
+        return false
+    }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        return false
+    }
     
     func applicationWillHide(_ notification: Notification) {
         // debugLog("AppDelegate.applicationWillHide - saving data", category: .x68mac)
@@ -1482,10 +2004,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 UTType(filenameExtension: "xdf") ?? .data,
                 UTType(filenameExtension: "d88") ?? .data,
                 UTType(filenameExtension: "hdm") ?? .data,
-                UTType(filenameExtension: "hdf") ?? .data
+                UTType(filenameExtension: "hdf") ?? .data,
+                UTType(filenameExtension: "hds") ?? .data  // Added hds here for completeness
             ]
         } else {
-            openPanel.allowedFileTypes = ["dim", "xdf", "d88", "hdm", "hdf"]
+            openPanel.allowedFileTypes = ["dim", "xdf", "d88", "hdm", "hdf", "hds"]
         }
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = false
@@ -1494,7 +2017,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         openPanel.begin { response in
             // debugLog("File dialog response: \(response == .OK ? "OK" : "Cancel")", category: .fileSystem)
             if response == .OK, let url = openPanel.url {
-                // debugLog("Selected file: \(url.lastPathComponent)", category: .fileSystem)
                 self.gameViewController?.load(url)
                 self.updateMenuOnFileOperation()  // Immediate menu update
                 self.autoSaveDiskStateIfNeeded()
@@ -1504,6 +2026,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // アプリケーションレベルでのファイルオープン処理（ダブルクリックで開いた場合）
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        print("AppDelegate.application(openFile:) called with: \(filename)")
         let url = URL(fileURLWithPath: filename)
         gameViewController?.load(url)
         updateMenuOnFileOperation()  // Immediate menu update
@@ -1513,6 +2036,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // より新しいファイルオープン処理
     func application(_ application: NSApplication, open urls: [URL]) {
+        print("AppDelegate.application(open urls:) called with: \(urls)")
         for url in urls {
             gameViewController?.load(url)
         }
@@ -1557,8 +2081,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     
     // MARK: - HDD Menu Actions
     @IBAction func openHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.openHDD called")
+        guard coreGetStorageBusMode() == .sasi else {
+            warningLog("Open Hard Disk requested while SCSI bus is active", category: .fileSystem)
+            return
+        }
         gameViewController?.openHDD(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
@@ -1582,6 +2108,118 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Reduced logging for performance
         // print("🐛 AppDelegate.saveHDD called")
         gameViewController?.gameScene?.saveHDD()
+    }
+    
+    // MARK: - Storage Bus Mode Actions
+    @objc func setStorageBusSASI(_ sender: Any?) {
+        guard coreGetStorageBusMode() != .sasi else { return }
+
+        // If SCSI(ID0) is mounted, confirm unmount
+        if coreGetSCSI0State().ready {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SASI Mode?"
+            alert.informativeText = "SCSI (ID 0) をアンマウントして SASI に切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            // Eject SCSI state via core
+            if coreEjectSCSI0() {
+                let defaults = UserDefaults.standard
+                defaults.scsi0Ready = false
+                defaults.scsi0Filename = nil
+                DiskStateManager.shared.recordHDDEject()
+            }
+        }
+
+        coreSetStorageBusMode(.sasi)
+        UserDefaults.standard.storageBusMode = .sasi
+        cachedStorageBusMode = StorageBusMode.sasi.rawValue
+        // Save DiskStateManager state IMMEDIATELY (not with delay).
+        // If the user quits before the delayed save runs, the old
+        // SCSI state persists and gets restored on next launch.
+        DiskStateManager.shared.saveCurrentState()
+        updateMenuTitles()
+    }
+
+    @objc func setStorageBusSCSI(_ sender: Any?) {
+        guard coreGetStorageBusMode() != .scsi else { return }
+
+        // If SASI HDD is mounted, confirm unmount
+        if getCachedHDDReady() {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SCSI Mode?"
+            alert.informativeText = "SASI のハードディスクをアンマウントして SCSI に切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            // Eject SASI HDD via existing action
+            gameViewController?.ejectHDD(self)
+        }
+
+        coreSetStorageBusMode(.scsi)
+        UserDefaults.standard.storageBusMode = .scsi
+        cachedStorageBusMode = StorageBusMode.scsi.rawValue
+        updateMenuTitles()
+    }
+
+    // MARK: - SCSI(ID 0) Menu Actions
+    @objc func openSCSI0(_ sender: Any?) {
+        // Version marker so the log file makes it obvious which build is live.
+        // If you see "v3" in the log, the current source is running.
+        print("MAC_SCSI_OPEN_PANEL v3 openSCSI0 entry")
+        fflush(stdout)
+        appendSCSILog("MAC_SCSI_OPEN_PANEL v3 entry")
+
+        // Only allow in SCSI mode
+        guard coreGetStorageBusMode() == .scsi else {
+            appendSCSILog("MAC_SCSI_OPEN_PANEL v3 guard_not_scsi")
+            return
+        }
+        guard !isPresentingSCSIOpenPanel else {
+            appendSCSILog("MAC_SCSI_OPEN_PANEL v3 guard_already_presenting")
+            return
+        }
+
+        appendSCSILog("MAC_SCSI_OPEN_PANEL begin")
+
+        // Always present the file picker when invoked from the menu.
+        // The direct-mount shortcut is reserved for startup auto-restore.
+        isPresentingSCSIOpenPanel = true
+
+        // Safety net: if the panel never calls its completion (silent failure,
+        // attached sheet conflict, etc.), clear the flag after 30s so the user
+        // can try again instead of being permanently locked out.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) { [weak self] in
+            guard let self = self else { return }
+            if self.isPresentingSCSIOpenPanel {
+                self.appendSCSILog("MAC_SCSI_OPEN_PANEL v3 watchdog_reset")
+                self.isPresentingSCSIOpenPanel = false
+            }
+        }
+
+        presentSCSIOpenPanel()
+    }
+
+    @objc func ejectSCSI0(_ sender: Any?) {
+        guard coreGetStorageBusMode() == .scsi else { return }
+        if coreGetSCSI0State().ready {
+            if coreEjectSCSI0() {
+                let defaults = UserDefaults.standard
+                defaults.scsi0Ready = false
+                defaults.scsi0Filename = nil
+                infoLog("SCSI(ID0) image ejected", category: .fileSystem)
+                NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+                updateMenuOnFileOperation()
+                autoSaveDiskStateIfNeeded()
+                // Save disk state after eject
+                let currentState = DiskStateManager.shared.createCurrentState()
+                DiskStateManager.shared.saveState(currentState)
+            } else {
+                errorLog("Failed to eject SCSI(ID0)", category: .fileSystem)
+            }
+        }
     }
     
     // MARK: - Settings Menu Actions
@@ -2107,6 +2745,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // Disable AppKit persistent UI restore prompts after crash.
+        // Those modal dialogs can block core execution and appear as a black screen.
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        UserDefaults.standard.set(true, forKey: "ApplePersistenceIgnoreState")
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let savedStatePath = ("~/Library/Saved Application State/\(bundleID).savedState" as NSString).expandingTildeInPath
+            if FileManager.default.fileExists(atPath: savedStatePath) {
+                try? FileManager.default.removeItem(atPath: savedStatePath)
+            }
+        }
         // Build menu as early as possible to avoid transient storyboard inconsistencies.
         rebuildMenuSystem()
     }
@@ -2201,6 +2849,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 menuItem.state = (currentMode == .smartLoad) ? .on : .off
             case "AutoMount-manual":
                 menuItem.state = (currentMode == .manual) ? .on : .off
+            case "HDD-bus-SASI":
+                menuItem.state = (coreGetStorageBusMode() == .sasi) ? .on : .off
+            case "HDD-bus-SCSI":
+                menuItem.state = (coreGetStorageBusMode() == .scsi) ? .on : .off
+            case "HDD-open", "HDD-eject", "HDD-create", "HDD-save":
+                // Enable SASI operations only when in SASI mode
+                menuItem.isEnabled = (coreGetStorageBusMode() == .sasi)
+            case "SCSI0-open", "SCSI0-eject":
+                // Enable SCSI(ID0) items only in SCSI mode
+                menuItem.isEnabled = (coreGetStorageBusMode() == .scsi)
             default:
                 break
             }

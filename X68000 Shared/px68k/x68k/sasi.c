@@ -9,6 +9,7 @@
 #include "../m68000/m68000.h"
 #include "ioc.h"
 #include "sasi.h"
+#include "scsi.h"
 #include "irqh.h"
 
 BYTE SASI_Buf[256];
@@ -29,6 +30,20 @@ BYTE SASI_SenseStatPtr = 0;
 WORD SASI_BufSize = 256;  // Current buffer size (256 for normal sectors, 8 for READ CAPACITY)
 
 int        hddtrace = 0;
+static int s_scsi_boot_intercept_armed = 0;
+int s_sasi_detected = 0;  /* Set to 1 after first SASI reset ($E96005) */
+
+/* Per-access SASI register trace. Default OFF: the IPL ROM probe loop
+ * polls $E96003 thousands of times per second; each log call does two
+ * fopen/fclose pairs synchronously and pegs the main thread with file I/O,
+ * which in turn starves the NSOpenPanel XPC handshake and manifests as a
+ * beach-balled file picker in the Swift UI. Flip to 1 for SCSI/SASI debug. */
+static int s_sasi_access_trace = 0;
+
+void SASI_ArmSCSIBootIntercept(int arm)
+{
+	s_scsi_boot_intercept_armed = arm;
+}
 
 int SASI_IsReady(void)
 {
@@ -54,6 +69,15 @@ extern long s_disk_image_buffer_size[5];
 static int s_Sasi_pos;
 static DWORD s_Sasi_image_size[5] = {0}; // Track HDD image sizes for capacity reporting
 static BYTE s_Sasi_dirty_flag[5] = {0}; // Track if HDD data has been modified
+
+static int SASI_IsDriveReady(int index)
+{
+	if (index < 0 || index >= 16) {
+		return 0;
+	}
+	return (Config.HDImage[index][0] != '\0') ? 1 : 0;
+}
+
 FILEH Sasi_Open(const char* filename) {
 //	printf( "%s( \"%s\" )\n", __FUNCTION__, filename );
 	s_Sasi_pos = 0;
@@ -146,6 +170,13 @@ void SASI_ClearDirtyFlag(int drive) {
 	}
 }
 
+// Set dirty flag (called from SCSI IOCS write handler)
+void SASI_SetDirtyFlag(int drive) {
+	if (drive >= 0 && drive < 5) {
+		s_Sasi_dirty_flag[drive] = 1;
+	}
+}
+
 // -----------------------------------------------------------------------
 //   わりこみ～
 // -----------------------------------------------------------------------
@@ -170,6 +201,8 @@ fclose(fp);
 // -----------------------------------------------------------------------
 void SASI_Init(void)
 {
+	s_sasi_detected = 0;  /* Reset detection flag */
+	s_scsi_boot_intercept_armed = 0;
 	SASI_Phase = 0;
 	SASI_Sector = 0;
 	SASI_Blocks = 0;
@@ -289,6 +322,7 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 
 	if (adr==0xe96003)
 	{
+		/* Phase=0 idle: all status bits clear (bus idle). */
 		if (SASI_Phase)
 			ret |= 2;		// Busy
 		if (SASI_Phase>1)
@@ -372,6 +406,19 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 
 	StatBar_HDD((SASI_Phase)?2:0);
 
+	/* Log SASI reads with PC and return value (gated — see s_sasi_access_trace) */
+	if (s_sasi_access_trace) {
+		extern void SCSI_LogText(const char *text);
+		DWORD pc = 0;
+#if defined(HAVE_C68K)
+		pc = C68k_Get_PC(&C68K) & 0x00ffffff;
+#endif
+		char sl[128];
+		snprintf(sl, sizeof(sl), "SASI_R adr=$%06X ret=$%02X Phase=%d pc=$%06X",
+			(unsigned)adr, (unsigned)ret, SASI_Phase, (unsigned)pc);
+		SCSI_LogText(sl);
+	}
+
 	return ret;
 }
 
@@ -396,7 +443,7 @@ void SASI_CheckCmd(void)
 	switch(SASI_Cmd[0])
 	{
 	case 0x00:					// Test Drive Ready
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 			SASI_Stat = 0;
 		else
 		{
@@ -406,7 +453,7 @@ void SASI_CheckCmd(void)
 		SASI_Phase += 2;
 		break;
 	case 0x01:					// Recalibrate
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			SASI_Sector = 0;
 			SASI_Stat = 0;
@@ -443,7 +490,7 @@ void SASI_CheckCmd(void)
 		result = SASI_Seek();
 		if ( (result==0)||(result==-1) )
 		{
-//			SASI_Phase++;
+			SASI_Phase++;
 			SASI_Error = 0x0f;
 		}
 		break;
@@ -459,12 +506,12 @@ void SASI_CheckCmd(void)
 		result = SASI_Seek();
 		if ( (result==0)||(result==-1) )
 		{
-//			SASI_Phase++;
+			SASI_Phase++;
 			SASI_Error = 0x0f;
 		}
 		break;
 	case 0x0b:					// Seek
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			SASI_Stat = 0;
 		}
@@ -477,7 +524,7 @@ void SASI_CheckCmd(void)
 //		SASI_Phase = 9;
 		break;
 	case 0x25:					// Read Capacity (SCSI command for HDD capacity)
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 		{
 			DWORD sectorCount = SASI_GetSectorCount(SASI_Device*2+SASI_Unit);
 			if (sectorCount > 0) {
@@ -515,7 +562,7 @@ void SASI_CheckCmd(void)
 	case 0xc2:
 		SASI_Phase = 10;
 		SASI_SenseStatPtr = 0;
-		if (Config.HDImage[SASI_Device*2+SASI_Unit][0])
+		if (SASI_IsDriveReady(SASI_Device*2+SASI_Unit))
 			SASI_Stat = 0;
 		else
 		{
@@ -544,6 +591,18 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 	int i;
 	BYTE bit;
 
+	if (s_sasi_access_trace) {
+		extern void SCSI_LogText(const char *text);
+		DWORD wpc = 0;
+#if defined(HAVE_C68K)
+		wpc = C68k_Get_PC(&C68K) & 0x00ffffff;
+#endif
+		char sl[128];
+		snprintf(sl, sizeof(sl), "SASI_W adr=$%06X data=$%02X Phase=%d pc=$%06X",
+		         (unsigned)adr, (unsigned)data, SASI_Phase, (unsigned)wpc);
+		SCSI_LogText(sl);
+	}
+
 	if (hddtrace&&((SASI_Phase!=3)||(adr!=0xe96001)))
 	{
 		FILE *fp;
@@ -559,6 +618,16 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 	}
 	if ( (adr==0xe96007)&&(SASI_Phase==0) )
 	{
+		if (s_scsi_boot_intercept_armed) {
+			s_scsi_boot_intercept_armed = 0;
+			SCSI_InjectBoot();
+			return;
+		}
+		printf("SASI_Write: device select data=$%02X HDImage[0]='%.20s' buf=%p size=%ld\n",
+		       (unsigned int)data,
+		       Config.HDImage[0],
+		       s_disk_image_buffer[4],
+		       s_disk_image_buffer_size[4]);
 		SASI_Device = 0x7f;
 		if (data)
 		{
@@ -572,8 +641,21 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 			}
 		}
 		// Check valid device range (0-7) before accessing Config.HDImage[16]
+		{
+			int ready0 = (SASI_Device < 8) ? SASI_IsDriveReady(SASI_Device*2) : 0;
+			int ready1 = (SASI_Device < 8) ? SASI_IsDriveReady(SASI_Device*2+1) : 0;
+			extern void SCSI_LogText(const char *text);
+			char slog[160];
+			snprintf(slog, sizeof(slog),
+			         "SASI_SEL dev=%d ready0=%d ready1=%d HDImg='%.40s' buf=%p size=%ld",
+			         SASI_Device, ready0, ready1,
+			         (SASI_Device < 8) ? Config.HDImage[SASI_Device*2] : "(inv)",
+			         s_disk_image_buffer[4],
+			         s_disk_image_buffer_size[4]);
+			SCSI_LogText(slog);
+		}
 		if ( (SASI_Device < 8) &&
-		     ((Config.HDImage[SASI_Device*2][0])||(Config.HDImage[SASI_Device*2+1][0])) )
+		     (SASI_IsDriveReady(SASI_Device*2) || SASI_IsDriveReady(SASI_Device*2+1)) )
 		{
 			SASI_Phase++;
 			SASI_CmdPtr = 0;
@@ -589,6 +671,7 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 	}
 	else if (adr==0xe96005)						// SASI Reset
 	{
+		s_sasi_detected = 1;  /* Controller detected, BSY→0 for protocol */
 		SASI_Phase = 0;
 		SASI_Sector = 0;
 		SASI_Blocks = 0;

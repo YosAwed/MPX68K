@@ -43,6 +43,7 @@ extern int realdisp_w, realdisp_h;
 #endif
 
 int WinX68k_Reset(void);
+int X68000_GetStorageBusMode(void);
 
 #ifndef	winx68k_gtkwarpper_h
 #define	winx68k_gtkwarpper_h

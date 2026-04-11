@@ -28,6 +28,8 @@ void X68000_Mouse_SetDoubleClickInProgress(int flag);
 unsigned char* X68000_GetSRAMPointer();
 unsigned char* X68000_GetCGROMPointer(); // added by Awed 2023/10/7
 unsigned char* X68000_GetIPLROMPointer(); // added by Awed 2023/10/7
+unsigned char* X68000_GetSCSIIPLPointer();
+unsigned char* X68000_GetSASI_IPLROMPointer();
 
 
 void X68000_Joystick_Set( unsigned char num, unsigned char data);
@@ -42,6 +44,15 @@ const char* X68000_GetHDDFilename();
 void X68000_SaveHDD();
 const int X68000_IsHDDDirty();
 
+int X68000_GetStorageBusMode();
+void X68000_SetStorageBusMode(int mode);
+int X68000_SCSI_IsMounted(int host, int id);
+const char* X68000_SCSI_GetImagePath(int host, int id);
+int X68000_SCSI_Mount(int host, int id, const char* path, int flags);
+int X68000_SCSI_Eject(int host, int id);
+void Memory_SetSCSIMode(void);
+void Memory_ClearSCSIMode(void);
+
 const long X68000_GetMIDIBufferSize();
 unsigned char* X68000_GetMIDIBuffer();
 
@@ -52,3 +63,6 @@ int PPI_GetJoyportUMode(void);
 // SCC compatibility toggle (original px68k mouse behavior)
 void SCC_SetCompatMode(int enable);
 int SCC_GetCompatMode(void);
+
+// SASI mode: update desired RAM size from current SRAM (call after saveSRAM)
+void WinX68k_UpdateSASIRamSize(void);

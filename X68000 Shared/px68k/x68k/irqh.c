@@ -4,7 +4,44 @@
 
 #include "common.h"
 #include "../m68000/m68000.h"
+#include "../m68000/c68k/c68k.h"
 #include "irqh.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+static int s_irqh_log_count = 0;
+
+// Disabled by default — see mem_wrap.c for the same reason. Re-enable with
+// -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 if you need IRQ ack tracing.
+#ifndef MPX68K_ENABLE_RUNTIME_FILE_LOGS
+#define MPX68K_ENABLE_RUNTIME_FILE_LOGS 0
+#endif
+
+static void IRQH_LogText(const char* text)
+{
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+	(void)text;
+	return;
+#else
+#ifdef __APPLE__
+	const char* home = getenv("HOME");
+	char path[512];
+	FILE* fp;
+	if (!home || home[0] == '\0') {
+		return;
+	}
+	snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+	fp = fopen(path, "a");
+	if (!fp) {
+		return;
+	}
+	fprintf(fp, "%s\n", text);
+	fclose(fp);
+#else
+	(void)text;
+#endif
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
+}
 
 #if defined (HAVE_CYCLONE)
 extern struct Cyclone m68k;
@@ -158,6 +195,23 @@ signed int  my_irqh_callback(signed int  level)
     int i;
     C68K_INT_CALLBACK *func = IRQH_CallBack[level&7];
     int vect = (func)(level&7);
+    if (s_irqh_log_count < 256) {
+		DWORD pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
+		if (pc < 0x00010000U || vect < 24 || vect > 31) {
+			DWORD sr = C68k_Get_SR(&C68K) & 0xffffU;
+			DWORD a7 = C68k_Get_AReg(&C68K, 7) & 0x00ffffffU;
+			char linebuf[176];
+			snprintf(linebuf, sizeof(linebuf),
+			         "IRQH_ACK line=%d vect=%d pc=$%08X sr=$%04X a7=%08X",
+			         (int)(level & 7),
+			         vect,
+			         (unsigned int)pc,
+			         (unsigned int)sr,
+			         (unsigned int)a7);
+			IRQH_LogText(linebuf);
+			s_irqh_log_count++;
+		}
+    }
     //p6logd("irq vect = %x line = %d\n", vect, level);
 
     for (i=7; i>0; i--)

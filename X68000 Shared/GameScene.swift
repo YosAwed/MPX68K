@@ -106,6 +106,7 @@ class GameScene: SKScene {
     // Fixed-step frame pacing for smooth emulation
     private var fixedStepAccumulator: Double = 0.0
     private var lastUpdateTime: TimeInterval = 0.0
+    private var lastSpriteKitUpdateWallTime: TimeInterval = 0.0
     private let emulatorHz: Double = 55.45
     private let targetFrameTime: Double = 1.0 / 55.45
     
@@ -259,16 +260,107 @@ class GameScene: SKScene {
         
         // Direct HDD loading to avoid complex FileSystem routing that may fail in TestFlight
         let extname = url.pathExtension.lowercased()
+        let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
         
         // Check if this is a valid HDD file
         let allowedExtensions: Set<String> = ["hdf", "hdm", "hds"]
         if allowedExtensions.contains(extname) {
             infoLog("Loading HDD file directly: \(extname.uppercased())", category: .fileSystem)
             
+            if extname == "hds" {
+                do {
+                    let imageData = try Data(contentsOf: url)
+                    infoLog("Successfully read SCSI HDD data: \(imageData.count) bytes", category: .fileSystem)
+
+                    let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
+                    guard imageData.count <= maxSize else {
+                        errorLog("SCSI HDD file too large: \(imageData.count) bytes", category: .fileSystem)
+                        return
+                    }
+
+                    DispatchQueue.main.async {
+                        if X68000_GetStorageBusMode() != 1 {
+                            X68000_SetStorageBusMode(1)
+                            #if os(macOS)
+                            UserDefaults.standard.set(1, forKey: "StorageBusMode")
+                            #endif
+                        }
+
+                        if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
+                            imageData.copyBytes(to: p, count: imageData.count)
+                            let mounted = X68000_SCSI_Mount(0, 0, url.path, 0) != 0
+                            if mounted {
+                                #if os(macOS)
+                                let defaults = UserDefaults.standard
+                                defaults.set(true, forKey: "SCSI0Ready")
+                                defaults.set(url.path, forKey: "SCSI0Filename")
+                                defaults.set(1, forKey: "StorageBusMode")
+                                #endif
+                                DiskStateManager.shared.recordHDDMount(url, bookmarkData: bookmarkData)
+                                self.fileSystem?.saveCurrentDiskState()
+                                infoLog("SCSI(ID0) image mounted: \(url.lastPathComponent)", category: .fileSystem)
+                                NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+                                #if os(macOS)
+                                if let appDelegate = NSApp.delegate as? AppDelegate {
+                                    appDelegate.updateMenuOnFileOperation()
+                                }
+                                #endif
+                                return
+                            }
+
+                            warningLog("SCSI(ID0) mount failed; falling back to SASI load", category: .fileSystem)
+                            X68000_SetStorageBusMode(0)
+                            #if os(macOS)
+                            UserDefaults.standard.set(0, forKey: "StorageBusMode")
+                            #endif
+                            X68000_LoadHDD(url.path)
+                            DiskStateManager.shared.recordHDDMount(url, bookmarkData: bookmarkData)
+                            self.fileSystem?.saveCurrentDiskState()
+                            self.fileSystem?.saveSRAM()
+                            infoLog("SASI fallback loaded: \(url.lastPathComponent)", category: .fileSystem)
+                            NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
+                            #if os(macOS)
+                            if let appDelegate = NSApp.delegate as? AppDelegate {
+                                appDelegate.updateMenuOnFileOperation()
+                            }
+                            #endif
+                        } else {
+                            errorLog("Failed to get SCSI HDD buffer pointer", category: .fileSystem)
+                        }
+                    }
+                } catch {
+                    errorLog("Error reading SCSI HDD file", error: error, category: .fileSystem)
+                }
+                return
+            }
+            
             do {
                 let imageData = try Data(contentsOf: url)
                 infoLog("Successfully read HDD data: \(imageData.count) bytes", category: .fileSystem)
-                
+
+                // Reject empty files — an empty file would malloc(0) and set
+                // s_disk_image_buffer_size[4] == 0, leaving SASI probe
+                // reporting "ready" with zero-size buffer. IPL then boots
+                // nothing. Fail fast and tell the user instead.
+                guard !imageData.isEmpty else {
+                    errorLog("HDD file is empty (0 bytes): \(url.path)", category: .fileSystem)
+                    #if os(macOS)
+                    DispatchQueue.main.async {
+                        let alert = NSAlert()
+                        alert.messageText = "HDD イメージが空です"
+                        alert.informativeText = "\(url.lastPathComponent) は 0 バイトのため、マウントできません。別のディスクイメージを選択してください。"
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "OK")
+                        if let window = NSApplication.shared.mainWindow {
+                            alert.beginSheetModal(for: window, completionHandler: nil)
+                        } else {
+                            alert.runModal()
+                        }
+                    }
+                    #endif
+                    return
+                }
+
                 // Security: Validate HDD file size (reasonable limit for hard disk images)
                 let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
                 guard imageData.count <= maxSize else {
@@ -277,9 +369,20 @@ class GameScene: SKScene {
                 }
                 
                 DispatchQueue.main.async {
+                    // SASI image: ensure bus mode is SASI
+                    if X68000_GetStorageBusMode() != 0 {
+                        X68000_SetStorageBusMode(0)
+                        #if os(macOS)
+                        UserDefaults.standard.set(0, forKey: "StorageBusMode")
+                        UserDefaults.standard.set(false, forKey: "SCSI0Ready")
+                        #endif
+                        infoLog("Switched to SASI bus mode for .hdf image", category: .fileSystem)
+                    }
                     if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
                         imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.path)  // Use url.path instead of url.absoluteString
+                        X68000_LoadHDD(url.path)
+                        DiskStateManager.shared.recordHDDMount(url, bookmarkData: bookmarkData)
+                        self.fileSystem?.saveCurrentDiskState()
                         infoLog("HDD loaded successfully: \(url.lastPathComponent)", category: .fileSystem)
                         
                         // Save SRAM after HDD loading
@@ -306,17 +409,29 @@ class GameScene: SKScene {
     
     func ejectHDD() {
         // debugLog("GameScene.ejectHDD() called", category: .fileSystem)
-        
+
         // Save HDD changes before ejecting
         if X68000_IsHDDReady() != 0 {
             infoLog("Saving HDD changes before ejecting...", category: .fileSystem)
             X68000_SaveHDD()
         }
-        
+
         X68000_EjectHDD()
-        
-        // Save current disk state after eject
-        fileSystem?.saveCurrentDiskState()
+
+        // Clear the SCSI state as well so a subsequent SASI mount doesn't
+        // carry over a stale SCSI image. DO NOT force the bus mode back to
+        // SASI here — the caller (e.g. bus-switch action) may have just set
+        // the mode intentionally, and clobbering it causes an unwanted SRAM
+        // round-trip and prevents the SCSI mount that immediately follows.
+        let _ = X68000_SCSI_Eject(0, 0)
+        #if os(macOS)
+        UserDefaults.standard.set(false, forKey: "SCSI0Ready")
+        UserDefaults.standard.removeObject(forKey: "SCSI0Filename")
+        #endif
+
+        DiskStateManager.shared.recordHDDEject()
+        // Save state IMMEDIATELY (not delayed).
+        DiskStateManager.shared.saveCurrentState()
         
         // Update menu after HDD eject
         #if os(macOS)
@@ -751,6 +866,54 @@ class GameScene: SKScene {
         startEmulator(with: fileSystem)
     }
 
+    private func restoreScsiFromDefaultsIfNeeded() -> Bool {
+        #if os(macOS)
+        let defaults = UserDefaults.standard
+        guard defaults.integer(forKey: "StorageBusMode") == 1 else {
+            return false
+        }
+        guard defaults.bool(forKey: "SCSI0Ready") else {
+            return false
+        }
+        guard let path = defaults.string(forKey: "SCSI0Filename"),
+              !path.isEmpty else {
+            return false
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            warningLog("SCSI restore skipped: image missing at \(path)", category: .fileSystem)
+            return false
+        }
+
+        do {
+            let imageData = try Data(contentsOf: URL(fileURLWithPath: path))
+            if imageData.isEmpty {
+                warningLog("SCSI restore skipped: empty image \(path)", category: .fileSystem)
+                return false
+            }
+            guard let p = X68000_GetDiskImageBufferPointer(4, imageData.count) else {
+                warningLog("SCSI restore failed: no disk buffer", category: .fileSystem)
+                return false
+            }
+            imageData.copyBytes(to: p, count: imageData.count)
+            X68000_SetStorageBusMode(1)
+            let mounted = X68000_SCSI_Mount(0, 0, path, 0) != 0
+            if mounted {
+                DiskStateManager.shared.recordHDDMount(URL(fileURLWithPath: path))
+                self.fileSystem?.saveCurrentDiskState()
+                infoLog("SCSI restore from defaults succeeded: \(URL(fileURLWithPath: path).lastPathComponent)", category: .fileSystem)
+            } else {
+                warningLog("SCSI restore from defaults failed for \(path)", category: .fileSystem)
+            }
+            return mounted
+        } catch {
+            errorLog("SCSI restore from defaults read error", error: error, category: .fileSystem)
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+
     private func startEmulator(with fileSystem: FileSystem) {
         // Load ROM files FIRST, before any emulator initialization
         guard fileSystem.loadIPLROM() && fileSystem.loadCGROM() else {
@@ -766,6 +929,24 @@ class GameScene: SKScene {
         // Use new state restore system for auto-mounting
         debugLog("GameScene: Calling bootWithStateRestore()", category: .fileSystem)
         fileSystem.bootWithStateRestore()
+        var scsiMounted = (X68000_GetStorageBusMode() == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
+        if !scsiMounted {
+            scsiMounted = restoreScsiFromDefaultsIfNeeded()
+        }
+        let sasiMounted = (X68000_GetStorageBusMode() == 0 && X68000_IsHDDReady() != 0)
+        if scsiMounted || sasiMounted {
+            infoLog("GameScene: HDD ready after restore (scsi=\(scsiMounted) sasi=\(sasiMounted)), issuing post-restore reset", category: .fileSystem)
+            X68000_Reset()
+        }
+        if let warmupRaw = ProcessInfo.processInfo.environment["X68_BOOT_WARMUP_STEPS"],
+           let warmupSteps = Int(warmupRaw),
+           warmupSteps > 0 {
+            let steps = min(max(warmupSteps, 1), 500_000)
+            infoLog("GameScene: running boot warmup updates (\(steps) steps)", category: .emulation)
+            for _ in 0..<steps {
+                X68000_Update(self.clockMHz, 0)
+            }
+        }
 
         guard let joyCardSprite = self.childNode(withName: "//JoyCard") as? SKSpriteNode else {
             fatalError("JoyCard sprite node not found in scene")
@@ -780,15 +961,19 @@ class GameScene: SKScene {
         // Mark emulator as initialized with a small delay to ensure stability
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             self.isEmulatorInitialized = true
+            self.lastSpriteKitUpdateWallTime = CFAbsoluteTimeGetCurrent()
             infoLog("Emulator initialization complete - using SpriteKit update", category: .emulation)
+            self.startUpdateTimer()
 
             // Apply saved screen rotation after emulator is fully initialized
             self.applyScreenRotation()
-#if os(macOS)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                GameViewController.shared?.promptForBootMediaIfNeeded()
-            }
-#endif
+            // NOTE: the boot-media prompt is now triggered from
+            // FileSystem.finishBootStateRestore so it appears only after the
+            // async state-restore has completed (or was skipped). Firing it
+            // here on a fixed 0.6s timer raced with async restore and caused
+            // the user's manually-picked HDD to be clobbered by a late
+            // restore callback — leaving s_disk_image_buffer_size[4] == 0
+            // and breaking boot.
         }
 
         mouseController = X68MouseController()
@@ -1168,18 +1353,28 @@ class GameScene: SKScene {
     private var sramSaveCounter = 0
     
     func startUpdateTimer() {
-        // Performance optimization: Use SpriteKit's native update() instead of Timer
-        // This eliminates duplicate update loops and improves performance
-        
+        // Keep a lightweight fallback update timer for cases where SpriteKit update
+        // does not fire (for example, backgrounded/inactive rendering paths).
         stopUpdateTimer()
         
-        // Only start SRAM save timer - main updates handled by SpriteKit update()
         DispatchQueue.main.async {
-            infoLog("Using SpriteKit native update - Timer-based updates disabled for performance", category: .emulation)
+            self.lastSpriteKitUpdateWallTime = CFAbsoluteTimeGetCurrent()
+
+            // Fallback emulator tick: only active when SpriteKit update has stalled.
+            self.timer = Timer.scheduledTimer(withTimeInterval: self.targetFrameTime, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                guard self.isEmulatorInitialized else { return }
+                let now = CFAbsoluteTimeGetCurrent()
+                if now - self.lastSpriteKitUpdateWallTime < 0.25 {
+                    return
+                }
+                X68000_Update(self.clockMHz, 0)
+                self.flushMIDIBuffer()
+            }
             
             // Start periodic SRAM save timer (every 30 seconds)
             self.sramSaveTimer = Timer.scheduledTimer(timeInterval: 30.0, target: self, selector: #selector(self.periodicSRAMSave), userInfo: nil, repeats: true)
-            infoLog("Periodic SRAM save timer started", category: .fileSystem)
+            infoLog("Fallback update timer and periodic SRAM save timer started", category: .fileSystem)
         }
     }
     
@@ -1232,6 +1427,7 @@ class GameScene: SKScene {
         guard isEmulatorInitialized else {
             return
         }
+        lastSpriteKitUpdateWallTime = CFAbsoluteTimeGetCurrent()
         
         // Fixed-step frame pacing for 55.45Hz emulator on 60Hz display
         if lastUpdateTime == 0.0 {
@@ -2655,6 +2851,10 @@ extension GameScene {
             if let characters = event.characters, !characters.isEmpty {
                 joycard?.handleCharacterInput(String(characters.first!), true)
             }
+            // Keep terminal-style input usable even if UI mode was switched.
+            if shouldForwardToX68KeyboardInJoycardMode(event) {
+                handleX68KeyboardInput(event, isKeyDown: true)
+            }
         case .keyboard:
             // X68000 keyboard input handling
             handleX68KeyboardInput(event, isKeyDown: true)
@@ -2742,10 +2942,36 @@ extension GameScene {
             if let characters = event.characters, !characters.isEmpty {
                 joycard?.handleCharacterInput(String(characters.first!), false)
             }
+            if shouldForwardToX68KeyboardInJoycardMode(event) {
+                handleX68KeyboardInput(event, isKeyDown: false)
+            }
         case .keyboard:
             // X68000 keyboard input handling
             handleX68KeyboardInput(event, isKeyDown: false)
         }
+    }
+
+    private func shouldForwardToX68KeyboardInJoycardMode(_ event: NSEvent) -> Bool {
+        switch event.keyCode {
+        case 36, 49, 51, 48, 53: // Return, Space, Backspace, Tab, Esc
+            return true
+        default:
+            break
+        }
+
+        guard let characters = event.characters, !characters.isEmpty else {
+            return false
+        }
+
+        if characters == "\r" || characters == "\n" || characters == "\t" ||
+            characters == "\u{08}" || characters == "\u{1b}" {
+            return true
+        }
+
+        guard let scalar = characters.unicodeScalars.first else {
+            return false
+        }
+        return scalar.value >= 0x20 && scalar.value <= 0x7e
     }
     
     // 特殊キー（文字以外）用のマッピング

@@ -68,7 +68,7 @@ void SRAM_Init(void)
     SRAM[0x10^1] = 0x00; SRAM[0x11^1] = 0x01;
     SRAM[0x12^1] = 0xED; SRAM[0x13^1] = 0x00;
 
-    // $ED0018-$ED001B: RAM size for BASIC (default 0)
+    // $ED0018: Boot device (bit7=HDD boot enable, 0x00=FDD, 0x80=HDD)
     SRAM[0x18^1] = 0x00; SRAM[0x19^1] = 0x00;
     SRAM[0x1A^1] = 0x00; SRAM[0x1B^1] = 0x00;
 
@@ -131,12 +131,24 @@ void SRAM_Cleanup(void)
 // -----------------------------------------------------------------------
 BYTE FASTCALL SRAM_Read(DWORD adr)
 {
+	BYTE val;
 	adr &= 0xffff;
 	adr ^= 1;
 	if (adr<0x4000)
-		return SRAM[adr];
+		val = SRAM[adr];
 	else
-		return 0xff;
+		val = 0xff;
+
+	/* Log reads of boot device byte $ED0018/$ED0019 */
+	if ((adr & 0xfffe) == 0x0018) {
+		extern void SCSI_LogText(const char *text);
+		char sl[96];
+		snprintf(sl, sizeof(sl), "SRAM_R adr=$ED%04X val=$%02X (raw_idx=%04X)",
+			(unsigned)((adr ^ 1) + 0xED0000), (unsigned)val, (unsigned)adr);
+		SCSI_LogText(sl);
+	}
+
+	return val;
 }
 
 
