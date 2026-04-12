@@ -61,6 +61,17 @@ void SCSI_LogText(const char* text);
 // disables SCSI disk access entirely.
 static BYTE s_spc_regs[0x20];  // mirrors for SPC register writes
 
+// Low-level SCSI IOCS state machine.
+// Tracks the command sequence: _S_SELECT → _S_CMDOUT → _S_DATAIN/OUT
+// → _S_STSIN → _S_MSGIN.  Data transfers use pSCSI-style immediate
+// memory copy (no DMA emulation).
+static BYTE  s_spc_cdb[16];         // Command Descriptor Block buffer
+static DWORD s_spc_cdb_len;         // bytes received in CDB
+static BYTE  s_spc_target_id;       // selected target ID
+static BYTE  s_spc_status_byte;     // status for _S_STSIN (0x00=GOOD)
+static BYTE  s_spc_message_byte;    // message for _S_MSGIN (0x00=Command Complete)
+static int   s_spc_cmd_valid;       // 1 if CDB has been received and parsed
+
 // Block device driver state
 static DWORD s_scsi_dev_reqpkt = 0;   // saved A5 from strategy call
 static int s_scsi_dev_linked = 0;     // device chain linked flag
@@ -344,6 +355,13 @@ void SCSI_Init(void)
 	s_scsi_bpb_ram_addr = SCSI_BPB_RAM_ADDR;
 	s_scsi_bpbptr_ram_addr = SCSI_BPBPTR_RAM_ADDR;
 	s_scsi_drvchk_state = 0x00;
+	// Low-level SCSI IOCS state
+	memset(s_spc_cdb, 0, sizeof(s_spc_cdb));
+	s_spc_cdb_len = 0;
+	s_spc_target_id = 0;
+	s_spc_status_byte = 0;
+	s_spc_message_byte = 0;
+	s_spc_cmd_valid = 0;
 	s_scsi_root_dir_start_sector = 0;
 	s_scsi_root_dir_sector_count = 0;
 	s_scsi_dev_absolute_sectors = -1;
@@ -1800,6 +1818,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 	}
 
 
+	case 0x23:  // _S_FORMAT: physical format (dummy — image size preserved)
 	case 0x2a:  // _S_MODESELECT
 	case 0x2b:  // _S_REZEROUNIT
 	case 0x2d:  // _S_SEEK
@@ -1918,6 +1937,12 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		result = 0;
 		break;
 
+	// Low-level SCSI IOCS commands can arrive with two different
+	// function codes depending on the call path:
+	//   - Via IOCS vector: $A0-$A9
+	//   - Via trap #15 $F5 d1.w: $00-$07
+	// Map the $00-$07 variants to the same handlers.
+	case 0x00:  // _S_RESET (via trap #15 $F5)
 	case 0xA0: { // _S_RESET / SCSI IOCS probe
 		// SCSI bus reset: set SPC INTS to indicate reset complete.
 		s_spc_regs[0x09] = 0x04;
@@ -1970,28 +1995,236 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		break;
 	}
 
+	case 0x01:  // _S_SELECT (via trap #15 $F5)
 	case 0xA1:  // _S_SELECT: select SCSI target
-		// Pretend target responded immediately.
-		s_spc_regs[0x09] = 0x01;  // INTS: SEL complete
-		result = 0;
-		break;
-
 	case 0xA2:  // _S_SELECTA: select with ATN
-		s_spc_regs[0x09] = 0x01;
+		// d4 = target ID, d5 = initiator ID.
+		// Only SCSI ID matching our mounted image responds.
+		s_spc_target_id = (BYTE)(d4 & 0x07);
+		s_spc_cdb_len = 0;
+		s_spc_cmd_valid = 0;
+		s_spc_status_byte = 0x00;   // GOOD
+		s_spc_message_byte = 0x00;  // Command Complete
+		if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
+			s_spc_regs[0x09] = 0x01;  // INTS: SEL complete
+			result = 0;
+		} else {
+			result = (DWORD)0xFFFFFFFF;  // no target
+		}
+		break;
+
+	case 0x02:  // _S_CMDOUT (via trap #15 $F5)
+	case 0xA3: {  // _S_CMDOUT: send CDB to target
+		// a1 = CDB buffer address, d3 = CDB byte count.
+		DWORD cdbAddr = a1 & 0x00FFFFFFU;
+		DWORD cdbLen = d3 & 0xFF;
+		DWORD ci;
+		if (cdbLen > 16) cdbLen = 16;
+		for (ci = 0; ci < cdbLen; ci++) {
+			s_spc_cdb[ci] = Memory_ReadB(cdbAddr + ci);
+		}
+		s_spc_cdb_len = cdbLen;
+		s_spc_cmd_valid = 1;
+		s_spc_status_byte = 0x00;  // assume GOOD
+		s_spc_regs[0x09] = 0x04;   // INTS: command complete
+		result = 0;
+		break;
+	}
+
+	case 0x03:  // _S_DATAIN (via trap #15 $F5)
+	case 0xA4: {  // _S_DATAIN: read data from target into memory
+		// a1 = destination buffer, d3 = byte count.
+		// Interpret the CDB stored by _S_CMDOUT and perform immediate
+		// memory copy (pSCSI DMA-bypass style).
+		DWORD dstAddr = a1 & 0x00FFFFFFU;
+		DWORD xferLen = d3;
+		result = 0;
+		s_spc_status_byte = 0x00;
+
+		if (!s_spc_cmd_valid || s_spc_cdb_len == 0) {
+			s_spc_status_byte = 0x02;  // CHECK CONDITION
+			result = (DWORD)0xFFFFFFFF;
+		} else {
+			BYTE scsiCmd = s_spc_cdb[0];
+			switch (scsiCmd) {
+			case 0x08: {  // READ(6)
+				DWORD lba = ((s_spc_cdb[1] & 0x1F) << 16) |
+				            (s_spc_cdb[2] << 8) | s_spc_cdb[3];
+				DWORD blocks = s_spc_cdb[4];
+				if (blocks == 0) blocks = 256;
+				DWORD blockSize = 512;
+				DWORD byteOff = lba * blockSize;
+				DWORD byteLen = blocks * blockSize;
+				DWORD ri;
+				if (xferLen < byteLen) byteLen = xferLen;
+				if (s_disk_image_buffer[4] &&
+				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < byteLen; ri++)
+						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
+				} else {
+					for (ri = 0; ri < byteLen; ri++)
+						Memory_WriteB(dstAddr + ri, 0x00);
+				}
+				break;
+			}
+			case 0x28: {  // READ(10)
+				DWORD lba = ((DWORD)s_spc_cdb[2] << 24) |
+				            ((DWORD)s_spc_cdb[3] << 16) |
+				            ((DWORD)s_spc_cdb[4] << 8) |
+				            (DWORD)s_spc_cdb[5];
+				DWORD blocks = ((DWORD)s_spc_cdb[7] << 8) | s_spc_cdb[8];
+				DWORD blockSize = 512;
+				DWORD byteOff = lba * blockSize;
+				DWORD byteLen = blocks * blockSize;
+				DWORD ri;
+				if (xferLen < byteLen) byteLen = xferLen;
+				if (s_disk_image_buffer[4] &&
+				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < byteLen; ri++)
+						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
+				} else {
+					for (ri = 0; ri < byteLen; ri++)
+						Memory_WriteB(dstAddr + ri, 0x00);
+				}
+				break;
+			}
+			case 0x12: {  // INQUIRY
+				BYTE inq[36];
+				DWORD ri;
+				memset(inq, 0, sizeof(inq));
+				inq[0] = 0x00;  // Direct access device
+				inq[1] = 0x00;  // Not removable
+				inq[2] = 0x02;  // SCSI-2
+				inq[3] = 0x02;  // Response data format
+				inq[4] = 31;    // Additional length
+				memcpy(&inq[8],  "SHARP   ", 8);   // Vendor
+				memcpy(&inq[16], "MPX68K HDD      ", 16); // Product
+				memcpy(&inq[32], "1.0 ", 4);        // Revision
+				DWORD copyLen = (xferLen < 36) ? xferLen : 36;
+				for (ri = 0; ri < copyLen; ri++)
+					Memory_WriteB(dstAddr + ri, inq[ri]);
+				break;
+			}
+			case 0x25: {  // READ CAPACITY
+				DWORD totalBlocks = 0;
+				BYTE cap[8];
+				if (s_disk_image_buffer[4])
+					totalBlocks = (DWORD)(s_disk_image_buffer_size[4] / 512);
+				if (totalBlocks > 0) totalBlocks--;
+				cap[0] = (totalBlocks >> 24) & 0xFF;
+				cap[1] = (totalBlocks >> 16) & 0xFF;
+				cap[2] = (totalBlocks >> 8) & 0xFF;
+				cap[3] = totalBlocks & 0xFF;
+				cap[4] = 0; cap[5] = 0; cap[6] = 0x02; cap[7] = 0x00; // 512 bytes
+				{
+					DWORD copyLen = (xferLen < 8) ? xferLen : 8;
+					DWORD ri;
+					for (ri = 0; ri < copyLen; ri++)
+						Memory_WriteB(dstAddr + ri, cap[ri]);
+				}
+				break;
+			}
+			case 0x03: {  // REQUEST SENSE
+				BYTE sense[18];
+				DWORD ri;
+				memset(sense, 0, sizeof(sense));
+				sense[0] = 0x70;  // Current error, fixed format
+				sense[7] = 10;    // Additional sense length
+				// No error (sense key = 0)
+				{
+					DWORD copyLen = (xferLen < 18) ? xferLen : 18;
+					for (ri = 0; ri < copyLen; ri++)
+						Memory_WriteB(dstAddr + ri, sense[ri]);
+				}
+				break;
+			}
+			case 0x1A: {  // MODE SENSE(6)
+				BYTE mode[4];
+				DWORD ri;
+				memset(mode, 0, sizeof(mode));
+				mode[0] = 3;  // Mode data length
+				{
+					DWORD copyLen = (xferLen < 4) ? xferLen : 4;
+					for (ri = 0; ri < copyLen; ri++)
+						Memory_WriteB(dstAddr + ri, mode[ri]);
+				}
+				break;
+			}
+			default:
+				// Unknown command: return empty data
+				{
+					DWORD ri;
+					DWORD fillLen = (xferLen < 256) ? xferLen : 256;
+					for (ri = 0; ri < fillLen; ri++)
+						Memory_WriteB(dstAddr + ri, 0x00);
+				}
+				break;
+			}
+		}
+		s_spc_regs[0x09] = 0x04;  // INTS: transfer complete
+		break;
+	}
+
+	case 0x04:  // _S_DATAOUT (via trap #15 $F5)
+	case 0xA5: {  // _S_DATAOUT: write data from memory to target
+		DWORD srcAddr = a1 & 0x00FFFFFFU;
+		DWORD xferLen = d3;
+		result = 0;
+		s_spc_status_byte = 0x00;
+
+		if (s_spc_cmd_valid && s_spc_cdb_len > 0) {
+			BYTE scsiCmd = s_spc_cdb[0];
+			if (scsiCmd == 0x0A || scsiCmd == 0x2A) {
+				// WRITE(6) or WRITE(10)
+				DWORD lba, blocks, blockSize = 512;
+				DWORD byteOff, byteLen;
+				if (scsiCmd == 0x0A) {
+					lba = ((s_spc_cdb[1] & 0x1F) << 16) |
+					      (s_spc_cdb[2] << 8) | s_spc_cdb[3];
+					blocks = s_spc_cdb[4];
+					if (blocks == 0) blocks = 256;
+				} else {
+					lba = ((DWORD)s_spc_cdb[2] << 24) |
+					      ((DWORD)s_spc_cdb[3] << 16) |
+					      ((DWORD)s_spc_cdb[4] << 8) |
+					      (DWORD)s_spc_cdb[5];
+					blocks = ((DWORD)s_spc_cdb[7] << 8) | s_spc_cdb[8];
+				}
+				byteOff = lba * blockSize;
+				byteLen = blocks * blockSize;
+				if (xferLen < byteLen) byteLen = xferLen;
+				if (s_disk_image_buffer[4] &&
+				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					DWORD wi;
+					for (wi = 0; wi < byteLen; wi++)
+						s_disk_image_buffer[4][byteOff + wi] = Memory_ReadB(srcAddr + wi);
+				}
+			}
+			// MODE SELECT ($15/$55): accept and ignore
+		}
+		s_spc_regs[0x09] = 0x04;  // INTS: transfer complete
+		break;
+	}
+
+	case 0x05:  // _S_STSIN (via trap #15 $F5)
+	case 0xA6:  // _S_STSIN: receive status byte from target
+		result = s_spc_status_byte;  // 0x00 = GOOD
+		s_spc_regs[0x09] = 0x04;
+		break;
+
+	case 0x06:  // _S_MSGIN (via trap #15 $F5)
+	case 0xA7:  // _S_MSGIN: receive message byte from target
+		result = s_spc_message_byte;  // 0x00 = Command Complete
+		s_spc_regs[0x09] = 0x04;
+		break;
+
+	case 0xA8:  // _S_MSGOUT: send message byte to target
+		// Accept and ignore
+		s_spc_regs[0x09] = 0x04;
 		result = 0;
 		break;
 
-	case 0xA3:  // _S_CMDOUT
-	case 0xA4:  // _S_DATAIN
-	case 0xA5:  // _S_DATAOUT
-	case 0xA6:  // _S_STSIN
-	case 0xA7:  // _S_MSGIN
-	case 0xA8:  // _S_MSGOUT
-		// Bus-level phase operations: return success as no-op
-		s_spc_regs[0x09] = 0x04;  // INTS: command complete
-		result = 0;
-		break;
-
+	case 0x07:  // _S_PHASE (via trap #15 $F5)
 	case 0xA9:  // _S_PHASE: get current bus phase
 		// Return 0 = bus free
 		result = 0;
