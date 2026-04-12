@@ -878,12 +878,14 @@ class FileSystem {
         
         
         DispatchQueue.main.async {
+            // Download iCloud documents only when a ubiquity container is
+            // available.  Calling startDownloadingUbiquitousItem on a local
+            // path produces "couldn't be saved" errors.
+            guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
+                return
+            }
             do {
-                // for iCloud
-                //                let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
-                let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                
-                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL!)
+                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL)
             } catch let error as NSError {
                 errorLog("Error accessing iCloud container", error: error, category: .fileSystem)
             }
