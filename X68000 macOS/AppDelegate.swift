@@ -39,7 +39,7 @@ extension UserDefaults {
 }
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenuDelegate {
     
     // Logger for menu updates
     private let logger = Logger(subsystem: "NANKIN.X68000", category: "MenuUpdate")
@@ -610,6 +610,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // HDD Menu
         let hddMenuItem = NSMenuItem(title: "HDD", action: nil, keyEquivalent: "")
         let hddMenu = NSMenu(title: "HDD")
+        hddMenu.delegate = self
         hddMenuItem.submenu = hddMenu
 
         let openHDDItem = NSMenuItem(title: "Open Hard Disk...", action: #selector(openHDD(_:)), keyEquivalent: "")
@@ -655,8 +656,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         hddMenu.addItem(busMenuItem)
 
-        // SCSI Devices submenu (ID 0 only for now)
+        // SCSI Devices submenu (ID 0 only for now).
+        // The parent item has no action — its enabled state is driven by
+        // menuWillOpen(_:) below, because NSMenu's auto-enable logic always
+        // treats submenu-bearing items as enabled and would override a direct
+        // isEnabled = false assignment.
         let scsiDevicesMenuItem = NSMenuItem(title: "SCSI Devices", action: nil, keyEquivalent: "")
+        scsiDevicesMenuItem.identifier = NSUserInterfaceItemIdentifier("SCSI-devices")
         let scsiDevicesMenu = NSMenu(title: "SCSI Devices")
         scsiDevicesMenuItem.submenu = scsiDevicesMenu
 
@@ -1714,6 +1720,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // Refresh cached state from Core bridge instead of UserDefaults
         let busMode = coreGetStorageBusMode()
         let scsi0 = coreGetSCSI0State()
+
+        // Gray out the whole "SCSI Devices" submenu header when bus is SASI.
+        scsiDevicesItem.isEnabled = (busMode == .scsi)
 
         for item in scsiSub.items {
             let itemId = item.identifier?.rawValue ?? ""
@@ -2866,6 +2875,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         
         // Default validation for other menu items
         return true
+    }
+
+    // MARK: - NSMenuDelegate
+
+    /// Called right before a menu becomes visible. We use this to force the
+    /// "SCSI Devices" submenu header to be gray when the storage bus is SASI.
+    /// NSMenu's autoenablesItems logic treats any NSMenuItem that has a
+    /// submenu as always-enabled, so validateMenuItem(_:) is useless for this
+    /// case — the isEnabled flag set here is the last word before drawing.
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu.title == "HDD" else { return }
+        guard let scsiDevicesItem = menu.items.first(where: {
+            $0.identifier?.rawValue == "SCSI-devices"
+        }) else { return }
+        scsiDevicesItem.isEnabled = (coreGetStorageBusMode() == .scsi)
     }
 
 }
