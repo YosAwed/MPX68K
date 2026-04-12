@@ -44,6 +44,13 @@ static DWORD s_last_iocs_sig_a1 = 0;
 static int s_scsi_log_total = 0;        // global log line counter
 #define SCSI_LOG_LIMIT 50000             // stop logging after this many lines
 
+// Runtime file logging is disabled by default — fopen/fprintf/fclose on every
+// IOCS trap and SPC register poll stalls the main thread. Enable with
+// -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 only when debugging SCSI boot.
+#ifndef MPX68K_ENABLE_RUNTIME_FILE_LOGS
+#define MPX68K_ENABLE_RUNTIME_FILE_LOGS 0
+#endif
+
 // Forward declarations
 void SCSI_LogText(const char* text);
 
@@ -318,9 +325,13 @@ void SCSI_Init(void)
 		SCSIIPL[i+1] = tmp;
 	}
 	ZeroMemory(s_spc_regs, sizeof(s_spc_regs));
-	// Some Human68k boot paths probe SCTL ($E96003) before issuing writes.
-	// Seed bit7 so "SPC present" checks do not treat the controller as absent.
-	s_spc_regs[0x03] = 0x80;
+	// Real MB89352 powers up with SCTL=$00 (RD cleared).  Drivers detect the
+	// chip via write-readback on SCTL/BDID, not by checking a specific initial
+	// value.  Previously bit7 was seeded here ($80) which made SCTL appear to
+	// be in permanent reset, trapping drivers in a poll loop.
+	s_spc_regs[0x03] = 0x00;
+	// SSTS power-on default: TC0 | DREG_EMPTY (no transfer in progress)
+	s_spc_regs[0x0d] = 0x05;
 	s_scsi_dev_reqpkt = 0;
 	s_scsi_dev_linked = 0;
 	s_scsi_boot_done = 0;
@@ -386,8 +397,17 @@ void SCSI_InvalidateTransferCache(void)
 
 // -----------------------------------------------------------------------
 //   ログ関連
+//   All helpers below are only referenced from the gated log path; when
+//   runtime logging is disabled they're defined but unused, so mark them
+//   __attribute__((unused)) to silence -Wunused-function.
 // -----------------------------------------------------------------------
-static void SCSI_GetLogPath(char* outPath, size_t outSize)
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
+#define SCSI_LOGFN_ATTR
+#else
+#define SCSI_LOGFN_ATTR __attribute__((unused))
+#endif
+
+static SCSI_LOGFN_ATTR void SCSI_GetLogPath(char* outPath, size_t outSize)
 {
 #ifdef __APPLE__
 	const char* home = getenv("HOME");
@@ -399,7 +419,7 @@ static void SCSI_GetLogPath(char* outPath, size_t outSize)
 	snprintf(outPath, outSize, "X68000/_scsi_iocs.txt");
 }
 
-static FILE* SCSI_OpenMirrorLog(const char* mode)
+static SCSI_LOGFN_ATTR FILE* SCSI_OpenMirrorLog(const char* mode)
 {
 #ifdef __APPLE__
 	return fopen("/tmp/x68000_scsi_iocs.txt", mode);
@@ -409,7 +429,7 @@ static FILE* SCSI_OpenMirrorLog(const char* mode)
 #endif
 }
 
-static void SCSI_EnsureLogDir(void)
+static SCSI_LOGFN_ATTR void SCSI_EnsureLogDir(void)
 {
 #ifdef __APPLE__
 	const char* home = getenv("HOME");
@@ -439,6 +459,9 @@ static int SCSI_HasExternalROM(void)
 
 static void SCSI_LogInit(void)
 {
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+	return;
+#else
 	char logPath[512];
 	FILE* mirror;
 	SCSI_GetLogPath(logPath, sizeof(logPath));
@@ -453,10 +476,15 @@ static void SCSI_LogInit(void)
 		fprintf(mirror, "--- SCSI log start ---\n");
 		fclose(mirror);
 	}
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 }
 
 static void SCSI_LogIO(DWORD adr, const char* op, BYTE data)
 {
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+	(void)adr; (void)op; (void)data;
+	return;
+#else
 	char logPath[512];
 	FILE* mirror;
 	if (s_scsi_log_total >= SCSI_LOG_LIMIT) return;
@@ -481,10 +509,15 @@ static void SCSI_LogIO(DWORD adr, const char* op, BYTE data)
 		}
 		fclose(mirror);
 	}
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 }
 
 void SCSI_LogText(const char* text)
 {
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+	(void)text;
+	return;
+#else
 	char logPath[512];
 	FILE* mirror;
 	if (s_scsi_log_total >= SCSI_LOG_LIMIT) return;
@@ -501,10 +534,15 @@ void SCSI_LogText(const char* text)
 		fprintf(mirror, "%s\n", text);
 		fclose(mirror);
 	}
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 }
 
 static void SCSI_LogSPCAccess(const char* op, DWORD adr, BYTE data)
 {
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+	(void)op; (void)adr; (void)data;
+	return;
+#else
 	char line[96];
 	if (s_spc_access_log_count >= 256) {
 		return;
@@ -513,6 +551,7 @@ static void SCSI_LogSPCAccess(const char* op, DWORD adr, BYTE data)
 	         op, (unsigned int)(adr & 0x00ffffff), (unsigned int)data);
 	SCSI_LogText(line);
 	s_spc_access_log_count++;
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 }
 
 static DWORD SCSI_GetPayloadOffset(void)
@@ -750,10 +789,15 @@ static int SCSI_IsLinearRamRange(DWORD addr, DWORD len)
 	}
 	start = (unsigned long long)(addr & 0x00ffffff);
 	end = start + (unsigned long long)len;
-	if (start >= 0x00c00000ULL) {
+	// Allow main RAM ($000000-$BFFFFF), GVRAM ($C00000-$DFFFFF),
+	// and text VRAM / sprite area ($E00000-$E7FFFF).
+	// Games load graphics data directly into GVRAM via DMA-style
+	// block reads; Memory_WriteB dispatches these to GVRAM_Write
+	// automatically.  Stop before I/O space ($E80000+).
+	if (start >= 0x00e80000ULL) {
 		return 0;
 	}
-	if (end > 0x00c00000ULL || end < start) {
+	if (end > 0x00e80000ULL || end < start) {
 		return 0;
 	}
 	return 1;
@@ -1885,6 +1929,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		if ((d1 & 0xFFFF) == 0x81A6) {
 			C68k_Set_DReg(&C68K, 1, (d1 & 0xFFFF0000U) | 0x0001U);
 			result = 1;
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
 			// DEBUG: dump probe return PC and machine code (bypass log limit)
 			{
 				static int s_a0_probe_dumps = 0;
@@ -1920,6 +1965,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 					}
 				}
 			}
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 		}
 		break;
 	}
@@ -1948,6 +1994,29 @@ static void SCSI_HandleIOCS(BYTE cmd)
 
 	case 0xA9:  // _S_PHASE: get current bus phase
 		// Return 0 = bus free
+		result = 0;
+		break;
+
+	case 0x08: {  // _S_LEVEL: get SCSI interrupt/ready level
+		// pSCSI ref: Human68k Disk Driver v1.04 enters an infinite loop
+		// when S_LEVEL < 4, treating it as "hardware in invalid state".
+		// Return 4 to indicate "SCSI controller ready, no pending IRQ".
+		result = 4;
+		break;
+	}
+
+	case 0x0a:  // _S_DATAINI: initiate data-in (DMA read from target)
+	case 0x0b:  // _S_DATAOUTI: initiate data-out (DMA write to target)
+		// pSCSI ref: these transfer-initiation commands are needed for
+		// drivers that use the low-level SCSI path.  In our trap-based
+		// model the actual transfer is handled by _S_READ/_S_READEXT,
+		// so these are no-ops that return success.
+		s_spc_regs[0x09] = 0x04;  // INTS: transfer complete
+		result = 0;
+		break;
+
+	case 0x28:  // _S_VERIFYEXT: verify sectors (no data transfer)
+		// Pretend verification succeeded.
 		result = 0;
 		break;
 
@@ -2256,7 +2325,20 @@ void FASTCALL SCSI_Write(DWORD adr, BYTE data)
 		BYTE offset = adr & 0x1f;
 		SCSI_LogSPCAccess("WRITE960", adr, data);
 		s_spc_regs[offset] = data;
-		if (offset == 0x05) {  // SCMD - command register
+		if (offset == 0x03) {  // SCTL - SPC control register
+			if (data & 0x80) {
+				// RD (Reset and Disable) bit: perform SPC software reset.
+				// Real MB89352 clears the RD bit automatically once the
+				// reset completes.  Drivers poll SCTL waiting for bit7=0;
+				// returning the written value unchanged traps them in an
+				// infinite loop.  Clear it immediately (instantaneous reset).
+				s_spc_regs[0x03] = data & 0x7F;
+				s_spc_regs[0x09] = 0x04;  // INTS: reset complete
+				s_spc_regs[0x0b] = 0x00;  // PSNS: bus free
+				s_spc_regs[0x0d] = 0x05;  // SSTS: TC0 | DREG_EMPTY
+				s_spc_regs[0x0f] = 0x00;  // SERR: no error
+			}
+		} else if (offset == 0x05) {  // SCMD - command register
 			BYTE cmd = data & 0xe0;
 			if (cmd == 0x20) {
 				// SELECT command: pretend target responded immediately
@@ -2280,7 +2362,15 @@ void FASTCALL SCSI_Write(DWORD adr, BYTE data)
 		BYTE offset = adr & 0x1f;
 		SCSI_LogSPCAccess("WRITE", adr, data);
 		s_spc_regs[offset] = data;
-		if (offset == 0x05) {
+		if (offset == 0x03) {
+			if (data & 0x80) {
+				s_spc_regs[0x03] = data & 0x7F;
+				s_spc_regs[0x09] = 0x04;
+				s_spc_regs[0x0b] = 0x00;
+				s_spc_regs[0x0d] = 0x05;
+				s_spc_regs[0x0f] = 0x00;
+			}
+		} else if (offset == 0x05) {
 			BYTE cmd = data & 0xe0;
 			if (cmd == 0x20) {
 				s_spc_regs[0x09] = 0x01;

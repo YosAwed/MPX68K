@@ -238,6 +238,7 @@ Memory_LogReadWord24(DWORD addr)
 	              ((WORD)MEM[(a + 1U) ^ 1]));
 }
 
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
 static void
 Memory_LogQueueWriteWatch(DWORD addr, BYTE oldVal, BYTE newVal)
 {
@@ -389,6 +390,7 @@ Memory_LogStackSlotWriteWatch(DWORD addr, BYTE oldVal, BYTE newVal)
 	(void)newVal;
 #endif
 }
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 
 /* Post-write guard for exception vector area AND IOCS vector table.
  *
@@ -595,18 +597,22 @@ wm_main(DWORD addr, BYTE val)
 		wm_cnt(addr, val);
 }
 
-static void 
+static void
 wm_cnt(DWORD addr, BYTE val)
 {
 
 	addr &= 0x00ffffff;
 	if (addr < 0x00c00000) {	// Use RAM upto 12MB
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
 		BYTE oldVal = MEM[addr ^ 1];
+#endif
 		MEM[addr ^ 1] = val;
 		Memory_VecPostWriteCheck(addr);
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
 		Memory_LogQueueWriteWatch(addr, oldVal, val);
 		Memory_LogSysPtrWriteWatch(addr, oldVal, val);
 		Memory_LogStackSlotWriteWatch(addr, oldVal, val);
+#endif
 	} else if (addr < 0x00e00000) {
 		GVRAM_Write(addr, val);
 	} else {

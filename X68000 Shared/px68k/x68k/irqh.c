@@ -195,6 +195,7 @@ signed int  my_irqh_callback(signed int  level)
     int i;
     C68K_INT_CALLBACK *func = IRQH_CallBack[level&7];
     int vect = (func)(level&7);
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
     if (s_irqh_log_count < 256) {
 		DWORD pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
 		if (pc < 0x00010000U || vect < 24 || vect > 31) {
@@ -212,6 +213,7 @@ signed int  my_irqh_callback(signed int  level)
 			s_irqh_log_count++;
 		}
     }
+#endif
     //p6logd("irq vect = %x line = %d\n", vect, level);
 
     for (i=7; i>0; i--)
