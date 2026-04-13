@@ -23,5 +23,12 @@ BYTE FASTCALL Joystick_Read(BYTE num);
 void FASTCALL Joystick_Write(BYTE num, BYTE data);
 void FASTCALL Joystick_Update(void);
 
+extern BYTE joy[2];
+extern BYTE JoyKeyState;
+extern BYTE JoyKeyState0;
+extern BYTE JoyKeyState1;
+extern BYTE JoyState0[2];
+extern BYTE JoyState1[2];
+extern BYTE JoyPortData[2];
 
 #endif

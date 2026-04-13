@@ -77,6 +77,27 @@ int ADPCM_IsReady(void)
 // -----------------------------------------------------------------------
 //   てーぶる初期化
 // -----------------------------------------------------------------------
+void ADPCM_GetMonitorState(ADPCMMonitorState* state)
+{
+	if (!state) return;
+	state->writePtr = ADPCM_WrPtr;
+	state->readPtr = ADPCM_RdPtr;
+	state->bufferSize = ADPCM_BufSize;
+	state->sampleRate = ADPCM_SampleRate;
+	state->clockRate = ADPCM_ClockRate;
+	state->count = ADPCM_Count;
+	state->preCounter = ADPCM_PreCounter;
+	state->step = ADPCM_Step;
+	state->output = ADPCM_Out;
+	state->playing = ADPCM_Playing;
+	state->dmaReady = ADPCM_DmaReady;
+	state->diffBuffer = ADPCM_DifBuf;
+	state->pan = ADPCM_Pan;
+	state->volumeShift = ADPCM_VolumeShift;
+	state->oldLeft = OldL;
+	state->oldRight = OldR;
+}
+
 static void ADPCM_InitTable(void)
 {
 #if ADPCM_ENABLE_OPTIMIZATIONS && ADPCM_OPTIMIZATION_LEVEL >= 1

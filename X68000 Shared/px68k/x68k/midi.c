@@ -685,6 +685,36 @@ unsigned char* X68000_GetMIDIBuffer(void)
     return s_midibuffer;
 }
 
+void MIDI_GetMonitorState(MIDIMonitorState* state)
+{
+	if (!state) return;
+	state->enabled = Config.MIDI_SW;
+	state->hasOutput = (hOut != 0);
+	state->module = MIDI_MODULE;
+	state->ctrl = MIDI_CTRL;
+	state->pos = MIDI_POS;
+	state->sysCount = MIDI_SYSCOUNT;
+	state->exclusiveWait = MIDI_EXCVWAIT;
+	state->regHigh = MIDI_RegHigh;
+	state->playing = MIDI_Playing;
+	state->vector = MIDI_Vector;
+	state->intEnable = MIDI_IntEnable;
+	state->intVect = MIDI_IntVect;
+	state->intFlag = MIDI_IntFlag;
+	state->buffered = MIDI_Buffered;
+	state->bufTimer = MIDI_BufTimer;
+	state->r05 = MIDI_R05;
+	state->gTimerMax = MIDI_GTimerMax;
+	state->mTimerMax = MIDI_MTimerMax;
+	state->gTimerVal = MIDI_GTimerVal;
+	state->mTimerVal = MIDI_MTimerVal;
+	state->txFull = MIDI_TxFull;
+	state->delayWrite = DBufPtrW;
+	state->delayRead = DBufPtrR;
+	state->delayCount = (DBufPtrW >= DBufPtrR) ? (DBufPtrW - DBufPtrR) : (MIDIDELAYBUF - DBufPtrR + DBufPtrW);
+	state->swiftBufferSize = s_midibuffersize;
+}
+
 void MIDI_DelayOut(unsigned int delay)
 {
 	unsigned int t = timeGetTime();
