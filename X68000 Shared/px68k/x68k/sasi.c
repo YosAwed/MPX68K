@@ -12,6 +12,7 @@
 #include "scsi.h"
 #include "irqh.h"
 
+char SASI_Name[16][MAX_PATH];
 BYTE SASI_Buf[256];
 BYTE SASI_Phase = 0;
 DWORD SASI_Sector = 0;

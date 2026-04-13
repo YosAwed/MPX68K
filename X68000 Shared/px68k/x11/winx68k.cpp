@@ -40,6 +40,7 @@ extern "C" {
 #include "palette.h"
 #include "crtc.h"
 #include "pia.h"
+#include "ppi.h"
 #include "scc.h"
 #include "midi.h"
 #include "sram.h"

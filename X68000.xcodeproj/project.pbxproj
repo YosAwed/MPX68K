@@ -81,6 +81,8 @@
 		535D07B02E685E0300CF5265 /* ppi.c in Sources */ = {isa = PBXBuildFile; fileRef = 535D07AF2E685E0300CF5265 /* ppi.c */; };
 		535D07B22E685E1D00CF5265 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B12E685E1D00CF5265 /* AppDelegate.swift */; };
 		535D07B42E685E2900CF5265 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B32E685E2900CF5265 /* GameViewController.swift */; };
+		AA000001300000000000AA01 /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002300000000000AA01 /* MonitorView.swift */; };
+		AA000003300000000000AA01 /* MonitorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004300000000000AA01 /* MonitorWindowController.swift */; };
 		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
 		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
@@ -260,6 +262,8 @@
 		535D07AF2E685E0300CF5265 /* ppi.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ppi.c; sourceTree = "<group>"; };
 		535D07B12E685E1D00CF5265 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		535D07B32E685E2900CF5265 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		AA000002300000000000AA01 /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
+		AA000004300000000000AA01 /* MonitorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorWindowController.swift; sourceTree = "<group>"; };
 		535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 macOS-Bridging-Header.h"; sourceTree = "<group>"; };
 		535D07B72E686CB300CF5265 /* ppi_8255.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi_8255.h; sourceTree = "<group>"; };
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
@@ -364,6 +368,8 @@
 				078594F624335FF700B5F09C /* X68000.entitlements */,
 				535D07B32E685E2900CF5265 /* GameViewController.swift */,
 				535D07B12E685E1D00CF5265 /* AppDelegate.swift */,
+				AA000002300000000000AA01 /* MonitorView.swift */,
+				AA000004300000000000AA01 /* MonitorWindowController.swift */,
 				07F863C2242F93EA00CBB224 /* Main.storyboard */,
 				07F863C5242F93EA00CBB224 /* Info.plist */,
 			);
@@ -693,6 +699,8 @@
 				07F4C7262430667D002CF5CA /* midi.c in Sources */,
 				07F4C7422430667D002CF5CA /* mfp.c in Sources */,
 				535D07B22E685E1D00CF5265 /* AppDelegate.swift in Sources */,
+				AA000001300000000000AA01 /* MonitorView.swift in Sources */,
+				AA000003300000000000AA01 /* MonitorWindowController.swift in Sources */,
 				07F4C7592430A73C002CF5CA /* AudioStream.swift in Sources */,
 				07F4C7462430667D002CF5CA /* bg.c in Sources */,
 				07F4C7442430667D002CF5CA /* sysport.c in Sources */,
