@@ -1,4 +1,6 @@
 #ifdef  __cplusplus
+#include <atomic>
+
 extern "C" {
 #endif
 #include <math.h>
@@ -1657,14 +1659,28 @@ void WinX68k_UpdateSASIRamSize(void) {
 // Machine Monitor API
 // ---------------------------------------------------------------------------
 
+#ifdef __cplusplus
+}
+static std::atomic<int> g_monitor_paused(0);
+extern "C" {
+#else
 static int g_monitor_paused = 0;
+#endif
 
 void X68000_Monitor_SetPaused(int paused) {
-    g_monitor_paused = paused;
+#ifdef __cplusplus
+    g_monitor_paused.store(paused ? 1 : 0, std::memory_order_relaxed);
+#else
+    g_monitor_paused = paused ? 1 : 0;
+#endif
 }
 
 int X68000_Monitor_IsPaused(void) {
+#ifdef __cplusplus
+    return g_monitor_paused.load(std::memory_order_relaxed);
+#else
     return g_monitor_paused;
+#endif
 }
 
 unsigned char X68000_Monitor_ReadB(unsigned int addr) {
@@ -1699,14 +1715,21 @@ typedef struct {
 } X68000MonitorCPUState;
 
 void X68000_Monitor_GetCPUState(X68000MonitorCPUState* s) {
+    if (!s) return;
     for (int i = 0; i < 8; i++) s->d[i] = m68000_get_reg(M68K_D0 + i);
     for (int i = 0; i < 8; i++) s->a[i] = m68000_get_reg(M68K_A0 + i);
     s->pc = m68000_get_reg(M68K_PC);
     s->sr = m68000_get_reg(M68K_SR);
 }
 
-void X68000_Monitor_SetDReg(int n, unsigned int val) { m68000_set_reg(M68K_D0 + n, val); }
-void X68000_Monitor_SetAReg(int n, unsigned int val) { m68000_set_reg(M68K_A0 + n, val); }
+void X68000_Monitor_SetDReg(int n, unsigned int val) {
+    if (n < 0 || n > 7) return;
+    m68000_set_reg(M68K_D0 + n, val);
+}
+void X68000_Monitor_SetAReg(int n, unsigned int val) {
+    if (n < 0 || n > 7) return;
+    m68000_set_reg(M68K_A0 + n, val);
+}
 void X68000_Monitor_SetPC(unsigned int val)          { m68000_set_reg(M68K_PC, val); }
 void X68000_Monitor_SetSR(unsigned int val)          { m68000_set_reg(M68K_SR, val); }
 

@@ -79,7 +79,10 @@ struct MonitorView: View {
         }
         .background(Color.black)
         .frame(minWidth: 640, minHeight: 480)
-        .onAppear { refreshCPUState() }
+        .onAppear {
+            isPaused = (X68000_Monitor_IsPaused() != 0)
+            refreshCPUState()
+        }
     }
 
     // MARK: - CPU Register Panel
@@ -180,13 +183,19 @@ struct MonitorView: View {
             return formatCPUState()
 
         case "D":
-            let addr = parts.count > 1 ? parseHex(parts[1]) : 0
-            let len  = parts.count > 2 ? parseHex(parts[2]) : 256
+            guard let addr = parts.count > 1 ? parseAddress(parts[1]) : 0 else {
+                return invalidHexMessage("address", parts[1])
+            }
+            guard let len = parts.count > 2 ? parseHex(parts[2]) : 0x100 else {
+                return invalidHexMessage("length", parts[2])
+            }
             return hexDump(addr: addr, length: len)
 
         case "R":
-            guard parts.count > 1 else { return "Usage: R addr [W|D]\n" }
-            let addr = parseHex(parts[1])
+            guard parts.count > 1 else { return "Usage: R addr [B|W|D]\n" }
+            guard let addr = parseAddress(parts[1]) else {
+                return invalidHexMessage("address", parts[1])
+            }
             let size = parts.count > 2 ? parts[2] : "B"
             return readValue(addr: addr, size: size)
 
@@ -196,15 +205,24 @@ struct MonitorView: View {
 
         case "MW":
             guard parts.count == 3 else { return "Usage: MW addr word\n" }
-            let addr = parseHex(parts[1])
-            let val  = UInt16(truncatingIfNeeded: parseHex(parts[2]))
-            X68000_Monitor_WriteW(addr, val)
+            guard let addr = parseAddress(parts[1]) else {
+                return invalidHexMessage("address", parts[1])
+            }
+            guard let val = parseHex(parts[2]), val <= UInt32(UInt16.max) else {
+                return invalidHexMessage("word", parts[2])
+            }
+            let word = UInt16(val)
+            X68000_Monitor_WriteW(addr, word)
             return String(format: "[%06X] <- %04X\n", addr, val)
 
         case "MD":
             guard parts.count == 3 else { return "Usage: MD addr dword\n" }
-            let addr = parseHex(parts[1])
-            let val  = parseHex(parts[2])
+            guard let addr = parseAddress(parts[1]) else {
+                return invalidHexMessage("address", parts[1])
+            }
+            guard let val = parseHex(parts[2]) else {
+                return invalidHexMessage("dword", parts[2])
+            }
             X68000_Monitor_WriteD(addr, val)
             return String(format: "[%06X] <- %08X\n", addr, val)
 
@@ -218,9 +236,26 @@ struct MonitorView: View {
 
     // MARK: - Helpers
 
-    private func parseHex(_ s: String) -> UInt32 {
-        let clean = s.hasPrefix("0X") ? String(s.dropFirst(2)) : s
-        return UInt32(clean, radix: 16) ?? 0
+    private func parseHex(_ s: String) -> UInt32? {
+        let clean: String
+        if s.hasPrefix("0X") {
+            clean = String(s.dropFirst(2))
+        } else if s.hasPrefix("$") {
+            clean = String(s.dropFirst())
+        } else {
+            clean = s
+        }
+        guard !clean.isEmpty else { return nil }
+        return UInt32(clean, radix: 16)
+    }
+
+    private func parseAddress(_ s: String) -> UInt32? {
+        guard let value = parseHex(s), value <= 0x00ff_ffff else { return nil }
+        return value
+    }
+
+    private func invalidHexMessage(_ label: String, _ value: String) -> String {
+        "Invalid \(label) '\(value)'. Numbers must be hex.\n"
     }
 
     private func hexDump(addr: UInt32, length: UInt32) -> String {
@@ -228,11 +263,13 @@ struct MonitorView: View {
         let len = min(length, 4096)
         var i: UInt32 = 0
         while i < len {
-            result += String(format: "%06X: ", addr + i)
+            let rowAddr = (addr + i) & 0x00ff_ffff
+            result += String(format: "%06X: ", rowAddr)
             var ascii = ""
             for j: UInt32 in 0..<16 {
                 if i + j < len {
-                    let b = X68000_Monitor_ReadB(addr + i + j)
+                    let byteAddr = (addr + i + j) & 0x00ff_ffff
+                    let b = X68000_Monitor_ReadB(byteAddr)
                     result += String(format: "%02X ", b)
                     ascii += (b >= 0x20 && b < 0x7f) ? String(UnicodeScalar(b)) : "."
                 } else {
@@ -253,19 +290,26 @@ struct MonitorView: View {
             return String(format: "[%06X] = %04X\n", addr, X68000_Monitor_ReadW(addr))
         case "D":
             return String(format: "[%06X] = %08X\n", addr, X68000_Monitor_ReadD(addr))
-        default:
+        case "B":
             return String(format: "[%06X] = %02X\n", addr, X68000_Monitor_ReadB(addr))
+        default:
+            return "Usage: R addr [B|W|D]\n"
         }
     }
 
     private func writeBytes(addrStr: String, values: [String]) -> String {
-        var addr = parseHex(addrStr)
+        guard var addr = parseAddress(addrStr) else {
+            return invalidHexMessage("address", addrStr)
+        }
         var result = ""
         for s in values {
-            let b = UInt8(truncatingIfNeeded: parseHex(s))
+            guard let value = parseHex(s), value <= UInt32(UInt8.max) else {
+                return invalidHexMessage("byte", s)
+            }
+            let b = UInt8(value)
             X68000_Monitor_WriteB(addr, b)
             result += String(format: "[%06X] <- %02X\n", addr, b)
-            addr += 1
+            addr = (addr + 1) & 0x00ff_ffff
         }
         return result
     }
@@ -273,7 +317,9 @@ struct MonitorView: View {
     private func setRegister(parts: [String]) -> String {
         guard parts.count == 3 else { return "Usage: SET Dn|An|PC|SR value\n" }
         let reg = parts[1]
-        let val = parseHex(parts[2])
+        guard let val = parseHex(parts[2]) else {
+            return invalidHexMessage("value", parts[2])
+        }
         if reg.hasPrefix("D"), let n = Int(reg.dropFirst()), n >= 0, n <= 7 {
             X68000_Monitor_SetDReg(Int32(n), val)
             refreshCPUState()
@@ -283,10 +329,16 @@ struct MonitorView: View {
             refreshCPUState()
             return String(format: "A%d <- %08X\n", n, val)
         } else if reg == "PC" {
+            guard val <= 0x00ff_ffff else {
+                return invalidHexMessage("PC", parts[2])
+            }
             X68000_Monitor_SetPC(val)
             refreshCPUState()
             return String(format: "PC <- %08X\n", val)
         } else if reg == "SR" {
+            guard val <= UInt32(UInt16.max) else {
+                return invalidHexMessage("SR", parts[2])
+            }
             X68000_Monitor_SetSR(val)
             refreshCPUState()
             return String(format: "SR <- %04X\n", val)
@@ -312,7 +364,7 @@ struct MonitorView: View {
         """
         Commands (all numbers are hex):
           D [addr] [len]       Hex dump  (default: addr=0, len=100)
-          R addr [W|D]         Read byte / word / dword
+          R addr [B|W|D]       Read byte / word / dword
           M addr b0 [b1 ...]   Write bytes
           MW addr val          Write word
           MD addr val          Write dword

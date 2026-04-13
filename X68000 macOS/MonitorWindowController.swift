@@ -9,7 +9,7 @@
 import Cocoa
 import SwiftUI
 
-class MonitorWindowController: NSWindowController {
+class MonitorWindowController: NSWindowController, NSWindowDelegate {
 
     convenience init() {
         let window = NSWindow(
@@ -25,6 +25,7 @@ class MonitorWindowController: NSWindowController {
         window.setFrameAutosaveName("MachineMonitorWindow")
         window.contentView = NSHostingView(rootView: MonitorView())
         window.level = .floating
+        window.delegate = self
         window.center()
     }
 
@@ -33,7 +34,7 @@ class MonitorWindowController: NSWindowController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    override func windowWillClose(_ notification: Notification) {
+    func windowWillClose(_ notification: Notification) {
         // Resume emulation if monitor is closed while paused
         X68000_Monitor_SetPaused(0)
     }
