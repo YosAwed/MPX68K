@@ -980,6 +980,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
         mainMenu.addItem(windowMenuItem)
 
+        // Debug Menu
+        let debugMenuItem = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
+        let debugMenu = NSMenu(title: "Debug")
+        debugMenuItem.submenu = debugMenu
+        let monitorItem = NSMenuItem(
+            title: "Machine Monitor",
+            action: #selector(showMachineMonitor),
+            keyEquivalent: "m"
+        )
+        monitorItem.keyEquivalentModifierMask = [.command, .shift]
+        debugMenu.addItem(monitorItem)
+        mainMenu.addItem(debugMenuItem)
+
         // Help Menu
         let helpMenuItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
         let helpMenu = NSMenu(title: "Help")
@@ -1083,6 +1096,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         )
         scene.crtSettingsWindowController = windowController
         windowController.show()
+    }
+
+    // MARK: - Machine Monitor
+
+    private var monitorWindowController: MonitorWindowController?
+
+    @objc func showMachineMonitor(_ sender: Any? = nil) {
+        if monitorWindowController == nil {
+            monitorWindowController = MonitorWindowController()
+        }
+        monitorWindowController?.show()
     }
 
     // Debug toggle handlers removed

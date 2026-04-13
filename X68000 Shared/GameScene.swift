@@ -1368,7 +1368,9 @@ class GameScene: SKScene {
                 if now - self.lastSpriteKitUpdateWallTime < 0.25 {
                     return
                 }
-                X68000_Update(self.clockMHz, 0)
+                if X68000_Monitor_IsPaused() == 0 {
+                    X68000_Update(self.clockMHz, 0)
+                }
                 self.flushMIDIBuffer()
             }
             
@@ -1462,7 +1464,9 @@ class GameScene: SKScene {
             
             // Step emulator forward one frame
             // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
-            X68000_Update(self.clockMHz, 0)
+            if X68000_Monitor_IsPaused() == 0 {
+                X68000_Update(self.clockMHz, 0)
+            }
 
             flushMIDIBuffer()
             midiController.flushDelayedEvents()

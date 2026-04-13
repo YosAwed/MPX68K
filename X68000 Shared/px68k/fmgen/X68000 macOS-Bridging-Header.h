@@ -66,3 +66,25 @@ int SCC_GetCompatMode(void);
 
 // SASI mode: update desired RAM size from current SRAM (call after saveSRAM)
 void WinX68k_UpdateSASIRamSize(void);
+
+// Machine Monitor
+typedef struct {
+    unsigned int d[8];
+    unsigned int a[8];
+    unsigned int pc;
+    unsigned int sr;
+} X68000MonitorCPUState;
+
+void X68000_Monitor_SetPaused(int paused);
+int  X68000_Monitor_IsPaused(void);
+unsigned char  X68000_Monitor_ReadB(unsigned int addr);
+unsigned short X68000_Monitor_ReadW(unsigned int addr);
+unsigned int   X68000_Monitor_ReadD(unsigned int addr);
+void X68000_Monitor_WriteB(unsigned int addr, unsigned char val);
+void X68000_Monitor_WriteW(unsigned int addr, unsigned short val);
+void X68000_Monitor_WriteD(unsigned int addr, unsigned int val);
+void X68000_Monitor_GetCPUState(X68000MonitorCPUState* s);
+void X68000_Monitor_SetDReg(int n, unsigned int val);
+void X68000_Monitor_SetAReg(int n, unsigned int val);
+void X68000_Monitor_SetPC(unsigned int val);
+void X68000_Monitor_SetSR(unsigned int val);

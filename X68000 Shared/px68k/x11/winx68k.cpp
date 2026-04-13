@@ -1653,5 +1653,62 @@ void WinX68k_UpdateSASIRamSize(void) {
     s_sram_sasi_valid = 1;
 }
 
+// ---------------------------------------------------------------------------
+// Machine Monitor API
+// ---------------------------------------------------------------------------
+
+static int g_monitor_paused = 0;
+
+void X68000_Monitor_SetPaused(int paused) {
+    g_monitor_paused = paused;
+}
+
+int X68000_Monitor_IsPaused(void) {
+    return g_monitor_paused;
+}
+
+unsigned char X68000_Monitor_ReadB(unsigned int addr) {
+    return cpu_readmem24(addr & 0x00ffffffu);
+}
+
+unsigned short X68000_Monitor_ReadW(unsigned int addr) {
+    return cpu_readmem24_word(addr & 0x00ffffffu);
+}
+
+unsigned int X68000_Monitor_ReadD(unsigned int addr) {
+    return cpu_readmem24_dword(addr & 0x00ffffffu);
+}
+
+void X68000_Monitor_WriteB(unsigned int addr, unsigned char val) {
+    cpu_writemem24(addr & 0x00ffffffu, val);
+}
+
+void X68000_Monitor_WriteW(unsigned int addr, unsigned short val) {
+    cpu_writemem24_word(addr & 0x00ffffffu, val);
+}
+
+void X68000_Monitor_WriteD(unsigned int addr, unsigned int val) {
+    cpu_writemem24_dword(addr & 0x00ffffffu, val);
+}
+
+typedef struct {
+    unsigned int d[8];
+    unsigned int a[8];
+    unsigned int pc;
+    unsigned int sr;
+} X68000MonitorCPUState;
+
+void X68000_Monitor_GetCPUState(X68000MonitorCPUState* s) {
+    for (int i = 0; i < 8; i++) s->d[i] = m68000_get_reg(M68K_D0 + i);
+    for (int i = 0; i < 8; i++) s->a[i] = m68000_get_reg(M68K_A0 + i);
+    s->pc = m68000_get_reg(M68K_PC);
+    s->sr = m68000_get_reg(M68K_SR);
+}
+
+void X68000_Monitor_SetDReg(int n, unsigned int val) { m68000_set_reg(M68K_D0 + n, val); }
+void X68000_Monitor_SetAReg(int n, unsigned int val) { m68000_set_reg(M68K_A0 + n, val); }
+void X68000_Monitor_SetPC(unsigned int val)          { m68000_set_reg(M68K_PC, val); }
+void X68000_Monitor_SetSR(unsigned int val)          { m68000_set_reg(M68K_SR, val); }
+
 }
 //extern "C"
