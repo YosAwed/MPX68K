@@ -88,3 +88,4 @@ void X68000_Monitor_SetDReg(int n, unsigned int val);
 void X68000_Monitor_SetAReg(int n, unsigned int val);
 void X68000_Monitor_SetPC(unsigned int val);
 void X68000_Monitor_SetSR(unsigned int val);
+void X68000_Monitor_GetHardwareState(int section, char* out, int outSize);

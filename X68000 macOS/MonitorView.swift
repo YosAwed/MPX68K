@@ -182,6 +182,9 @@ struct MonitorView: View {
             refreshCPUState()
             return formatCPUState()
 
+        case "HW":
+            return hardwareState(parts: parts)
+
         case "D":
             guard let addr = parts.count > 1 ? parseAddress(parts[1]) : 0 else {
                 return invalidHexMessage("address", parts[1])
@@ -360,6 +363,31 @@ struct MonitorView: View {
         return s
     }
 
+    private func hardwareState(parts: [String]) -> String {
+        let sectionName = parts.count > 1 ? parts[1] : "ALL"
+        guard let section = hardwareSectionCode(sectionName) else {
+            return "Usage: HW [ALL|IRQ|MFP|DMA|FDD|FDC|CRTC|SCSI]\n"
+        }
+
+        var buffer = [CChar](repeating: 0, count: 16_384)
+        X68000_Monitor_GetHardwareState(section, &buffer, Int32(buffer.count))
+        return String(cString: buffer)
+    }
+
+    private func hardwareSectionCode(_ name: String) -> Int32? {
+        switch name {
+        case "ALL": return 0
+        case "IRQ": return 1
+        case "MFP": return 2
+        case "DMA": return 3
+        case "FDD": return 4
+        case "FDC": return 5
+        case "CRTC": return 6
+        case "SCSI", "SASI", "HDD": return 7
+        default: return nil
+        }
+    }
+
     private var helpText: String {
         """
         Commands (all numbers are hex):
@@ -370,6 +398,7 @@ struct MonitorView: View {
           MD addr val          Write dword
           REG                  Show CPU registers
           SET Dn|An|PC|SR val  Set register (e.g. SET D0 DEADBEEF)
+          HW [section]         Hardware snapshot (ALL, IRQ, MFP, DMA, FDD, FDC, CRTC, SCSI)
           P                    Pause emulation
           G                    Resume emulation
           RESET                Reset emulator

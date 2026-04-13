@@ -177,6 +177,25 @@ int FDC_IsDataReady(void)
 	return ((fdc.bufnum)?1:0);
 }
 
+void FDC_GetMonitorState(FDCMonitorState* state)
+{
+	if (!state) return;
+	state->cmd = fdc.cmd;
+	state->cyl = fdc.cyl;
+	state->drv = fdc.drv;
+	state->ready = fdc.ready;
+	state->ctrl = fdc.ctrl;
+	state->wexec = fdc.wexec;
+	state->rdptr = fdc.rdptr;
+	state->wrptr = fdc.wrptr;
+	state->rdnum = fdc.rdnum;
+	state->wrnum = fdc.wrnum;
+	state->bufnum = fdc.bufnum;
+	state->st0 = fdc.st0;
+	state->st1 = fdc.st1;
+	state->st2 = fdc.st2;
+}
+
 
 
 static void FDC_ExecCmd(void)

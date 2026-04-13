@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 #include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include "common.h"
 #include "fileio.h"
 #include "timer.h"
@@ -1732,6 +1734,188 @@ void X68000_Monitor_SetAReg(int n, unsigned int val) {
 }
 void X68000_Monitor_SetPC(unsigned int val)          { m68000_set_reg(M68K_PC, val); }
 void X68000_Monitor_SetSR(unsigned int val)          { m68000_set_reg(M68K_SR, val); }
+
+enum {
+    X68_MON_HW_ALL = 0,
+    X68_MON_HW_IRQ = 1,
+    X68_MON_HW_MFP = 2,
+    X68_MON_HW_DMA = 3,
+    X68_MON_HW_FDD = 4,
+    X68_MON_HW_FDC = 5,
+    X68_MON_HW_CRTC = 6,
+    X68_MON_HW_SCSI = 7
+};
+
+static void monitor_appendf(char** cursor, int* remaining, const char* format, ...)
+{
+    if (!cursor || !*cursor || !remaining || *remaining <= 0) return;
+
+    va_list args;
+    va_start(args, format);
+    int written = vsnprintf(*cursor, (size_t)*remaining, format, args);
+    va_end(args);
+
+    if (written < 0) return;
+    if (written >= *remaining) {
+        *cursor += *remaining - 1;
+        *remaining = 1;
+    } else {
+        *cursor += written;
+        *remaining -= written;
+    }
+}
+
+static void monitor_format_irq(char** cursor, int* remaining)
+{
+    int active = 0;
+    monitor_appendf(cursor, remaining, "IRQ pending:");
+    for (int i = 1; i < 8; i++) {
+        monitor_appendf(cursor, remaining, " %d=%d", i, IRQH_IRQ[i] ? 1 : 0);
+        if (IRQH_IRQ[i]) active = i;
+    }
+    monitor_appendf(cursor, remaining, "  highest=%d\n", active);
+}
+
+static void monitor_format_mfp(char** cursor, int* remaining)
+{
+    monitor_appendf(cursor, remaining,
+                    "MFP GPIP=%02X AER=%02X DDR=%02X VR=%02X LastKey=%02X\n",
+                    MFP[MFP_GPIP], MFP[MFP_AER], MFP[MFP_DDR], MFP[MFP_VR], LastKey);
+    monitor_appendf(cursor, remaining,
+                    "MFP IER A/B=%02X/%02X  IPR A/B=%02X/%02X  ISR A/B=%02X/%02X  IMR A/B=%02X/%02X\n",
+                    MFP[MFP_IERA], MFP[MFP_IERB],
+                    MFP[MFP_IPRA], MFP[MFP_IPRB],
+                    MFP[MFP_ISRA], MFP[MFP_ISRB],
+                    MFP[MFP_IMRA], MFP[MFP_IMRB]);
+    monitor_appendf(cursor, remaining,
+                    "MFP TIMER TACR=%02X TBCR=%02X TCDCR=%02X TADR=%02X TBDR=%02X TCDR=%02X TDDR=%02X\n",
+                    MFP[MFP_TACR], MFP[MFP_TBCR], MFP[MFP_TCDCR],
+                    MFP[MFP_TADR], MFP[MFP_TBDR], MFP[MFP_TCDR], MFP[MFP_TDDR]);
+    monitor_appendf(cursor, remaining,
+                    "MFP USART SCR=%02X UCR=%02X RSR=%02X TSR=%02X UDR=%02X\n",
+                    MFP[MFP_SCR], MFP[MFP_UCR], MFP[MFP_RSR], MFP[MFP_TSR], MFP[MFP_UDR]);
+}
+
+static void monitor_format_dma(char** cursor, int* remaining)
+{
+    for (int ch = 0; ch < 4; ch++) {
+        monitor_appendf(cursor, remaining,
+                        "DMA%d CSR=%02X CER=%02X CCR=%02X OCR=%02X DCR=%02X SCR=%02X MTC=%04X MAR=%06X DAR=%06X BTC=%04X BAR=%06X NIV=%02X EIV=%02X\n",
+                        ch,
+                        DMA[ch].CSR, DMA[ch].CER, DMA[ch].CCR, DMA[ch].OCR, DMA[ch].DCR, DMA[ch].SCR,
+                        DMA[ch].MTC,
+                        (unsigned int)(DMA[ch].MAR & 0x00ffffffu),
+                        (unsigned int)(DMA[ch].DAR & 0x00ffffffu),
+                        DMA[ch].BTC,
+                        (unsigned int)(DMA[ch].BAR & 0x00ffffffu),
+                        DMA[ch].NIV, DMA[ch].EIV);
+    }
+}
+
+static void monitor_format_fdd(char** cursor, int* remaining)
+{
+    for (int drive = 0; drive < 4; drive++) {
+        FDCID id;
+        memset(&id, 0, sizeof(id));
+        int hasID = FDD_GetCurrentID(drive, &id);
+        const char* filename = X68000_GetFDDFilename(drive);
+        monitor_appendf(cursor, remaining,
+                        "FDD%d ready=%d ro=%d id=%s C/H/R/N=%02X/%02X/%02X/%02X file=%s\n",
+                        drive,
+                        FDD_IsReady(drive),
+                        FDD_IsReadOnly(drive),
+                        hasID ? "ok" : "--",
+                        id.c, id.h, id.r, id.n,
+                        (filename && filename[0]) ? filename : "(none)");
+    }
+}
+
+static void monitor_format_fdc(char** cursor, int* remaining)
+{
+    FDCMonitorState state;
+    memset(&state, 0, sizeof(state));
+    FDC_GetMonitorState(&state);
+    monitor_appendf(cursor, remaining,
+                    "FDC cmd=%02X drv=%d cyl=%d ready=%d ctrl=%02X wexec=%d st0/st1/st2=%02X/%02X/%02X\n",
+                    state.cmd, state.drv, state.cyl, state.ready, state.ctrl, state.wexec,
+                    state.st0, state.st1, state.st2);
+    monitor_appendf(cursor, remaining,
+                    "FDC rdptr=%d wrptr=%d rdnum=%d wrnum=%d bufnum=%d dataReady=%d\n",
+                    state.rdptr, state.wrptr, state.rdnum, state.wrnum, state.bufnum, FDC_IsDataReady());
+}
+
+static void monitor_format_crtc(char** cursor, int* remaining)
+{
+    monitor_appendf(cursor, remaining,
+                    "CRTC mode=%02X screen=%ux%u h=%u-%u v=%u-%u intLine=%u hsyncClk=%d VLINE=%u vline=%u\n",
+                    CRTC_Mode,
+                    (unsigned int)TextDotX, (unsigned int)TextDotY,
+                    CRTC_HSTART, CRTC_HEND, CRTC_VSTART, CRTC_VEND,
+                    CRTC_IntLine, HSYNC_CLK,
+                    (unsigned int)VLINE, (unsigned int)vline);
+    monitor_appendf(cursor, remaining,
+                    "CRTC textScroll=%u,%u graphScroll0=%u,%u graphScroll1=%u,%u graphScroll2=%u,%u graphScroll3=%u,%u\n",
+                    (unsigned int)TextScrollX, (unsigned int)TextScrollY,
+                    (unsigned int)GrphScrollX[0], (unsigned int)GrphScrollY[0],
+                    (unsigned int)GrphScrollX[1], (unsigned int)GrphScrollY[1],
+                    (unsigned int)GrphScrollX[2], (unsigned int)GrphScrollY[2],
+                    (unsigned int)GrphScrollX[3], (unsigned int)GrphScrollY[3]);
+    monitor_appendf(cursor, remaining,
+                    "CRTC regs 00-0F: %02X %02X %02X %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                    CRTC_Regs[0], CRTC_Regs[1], CRTC_Regs[2], CRTC_Regs[3],
+                    CRTC_Regs[4], CRTC_Regs[5], CRTC_Regs[6], CRTC_Regs[7],
+                    CRTC_Regs[8], CRTC_Regs[9], CRTC_Regs[10], CRTC_Regs[11],
+                    CRTC_Regs[12], CRTC_Regs[13], CRTC_Regs[14], CRTC_Regs[15]);
+    monitor_appendf(cursor, remaining,
+                    "CRTC regs 20-2F: %02X %02X %02X %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                    CRTC_Regs[0x20], CRTC_Regs[0x21], CRTC_Regs[0x22], CRTC_Regs[0x23],
+                    CRTC_Regs[0x24], CRTC_Regs[0x25], CRTC_Regs[0x26], CRTC_Regs[0x27],
+                    CRTC_Regs[0x28], CRTC_Regs[0x29], CRTC_Regs[0x2a], CRTC_Regs[0x2b],
+                    CRTC_Regs[0x2c], CRTC_Regs[0x2d], CRTC_Regs[0x2e], CRTC_Regs[0x2f]);
+}
+
+static void monitor_format_scsi(char** cursor, int* remaining)
+{
+    const char* path = X68000_SCSI_GetImagePath(0, 0);
+    monitor_appendf(cursor, remaining,
+                    "SCSI busMode=%d mounted=%d rom=%d bootPending=%d deferredBoot=%d devLinked=%d bootActivity=%d driverActivity=%d\n",
+                    X68000_GetStorageBusMode(),
+                    X68000_SCSI_IsMounted(0, 0),
+                    SCSI_IsROMPresent(),
+                    X68000_IsSCSIBootPending(),
+                    SCSI_HasDeferredBoot(),
+                    SCSI_IsDeviceLinked(),
+                    SCSI_HasBootActivity(),
+                    SCSI_HasDriverActivity());
+    monitor_appendf(cursor, remaining, "SCSI host0 id0 image=%s\n", (path && path[0]) ? path : "(none)");
+    monitor_appendf(cursor, remaining,
+                    "SASI ready=%d dirty0=%d dirty1=%d size0=%u size1=%u name0=%s name1=%s\n",
+                    SASI_IsReady(),
+                    SASI_IsDirty(0), SASI_IsDirty(1),
+                    (unsigned int)SASI_GetImageSize(0), (unsigned int)SASI_GetImageSize(1),
+                    SASI_Name[0][0] ? SASI_Name[0] : "(none)",
+                    SASI_Name[1][0] ? SASI_Name[1] : "(none)");
+}
+
+void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
+{
+    if (!out || outSize <= 0) return;
+    char* cursor = out;
+    int remaining = outSize;
+    out[0] = '\0';
+
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_IRQ) monitor_format_irq(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_MFP) monitor_format_mfp(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_DMA) monitor_format_dma(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_FDD) monitor_format_fdd(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_FDC) monitor_format_fdc(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_CRTC) monitor_format_crtc(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_SCSI) monitor_format_scsi(&cursor, &remaining);
+
+    if (out[0] == '\0') {
+        monitor_appendf(&cursor, &remaining, "Unknown hardware monitor section %d\n", section);
+    }
+}
 
 }
 //extern "C"
