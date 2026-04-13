@@ -1,0 +1,1665 @@
+//
+//  GameViewController.swift
+//  X68000 macOS
+//
+//  Created by GOROman on 2020/03/28.
+//  Copyright © 2020 GOROman/Awed. All rights reserved.
+//
+
+import Cocoa
+import SpriteKit
+import GameplayKit
+import UniformTypeIdentifiers
+
+// MARK: - Serial Communication Support
+
+public enum SCCMode: Int32 {
+    case mouseOnly = 0
+    case serialPTY = 1
+    case serialTCP = 2
+    case serialFile = 3
+    case serialTCPServer = 4
+}
+
+// SCC Function declarations
+@_silgen_name("SCC_Init") func SCC_Init()
+@_silgen_name("SCC_SetMode") func SCC_SetMode(_ mode: Int32, _ config: UnsafePointer<CChar>?) -> Int32
+@_silgen_name("SCC_CloseSerial") func SCC_CloseSerial()
+@_silgen_name("SCC_GetSlavePath") func SCC_GetSlavePath() -> UnsafePointer<CChar>?
+
+// MARK: - Custom SKView for Mouse Event Forwarding
+
+class MouseCaptureSKView: SKView {
+    
+    weak var gameViewController: GameViewController?
+    
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.mouseDown - forwarding to GameViewController", category: .input)
+        gameViewController?.mouseDown(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.mouseUp - forwarding to GameViewController", category: .input)
+        gameViewController?.mouseUp(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.rightMouseDown - forwarding to GameViewController", category: .input)
+        gameViewController?.rightMouseDown(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func rightMouseUp(with event: NSEvent) {
+        infoLog("🖱️ MouseCaptureSKView.rightMouseUp - forwarding to GameViewController", category: .input)
+        gameViewController?.rightMouseUp(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func mouseMoved(with event: NSEvent) {
+        gameViewController?.mouseMoved(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        gameViewController?.mouseDragged(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+    
+    override func rightMouseDragged(with event: NSEvent) {
+        gameViewController?.rightMouseDragged(with: event)
+        // Don't call super to prevent SKView from handling the event
+    }
+
+    // Disable default contextual menu only while capture is active
+    override func menu(for event: NSEvent) -> NSMenu? {
+        if let gc = gameViewController,
+           let mc = gc.gameScene?.mouseController,
+           mc.isCaptureMode {
+            return nil
+        }
+        return super.menu(for: event)
+    }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+class GameViewController: NSViewController {
+    
+    static weak var shared: GameViewController?
+    var gameScene: GameScene?
+    
+    // Serial Communication Manager wrapper
+    internal var currentSerialMode: SCCMode = .mouseOnly
+    internal var isSerialConnected: Bool = false
+    
+    // Mouse tracking for mouse capture mode
+    private var mouseTrackingArea: NSTrackingArea?
+    private var suppressNextMouseEvent: Bool = false
+    private var discardNextDelta: Bool = false
+    private var discardDeltaCount: Int = 0
+    // Swallow initial noisy deltas after enabling capture
+    private var captureSettleUntil: TimeInterval? = nil
+    private var didShowInitialDiskPrompt = false
+    
+    
+    
+    func load(_ url: URL) {
+        // Reduced logging for performance
+        // print("🐛 GameViewController.load() called with: \(url.lastPathComponent)")
+        // print("🐛 Full path: \(url.path)")
+        gameScene?.load(url: url)
+    }
+
+    // MARK: - ROM Management
+    func promptForMissingROMFiles(_ missing: [String], completion: @escaping (Bool) -> Void) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.promptForMissingROMFiles(missing, completion: completion)
+            }
+            return
+        }
+        guard let fileSystem = gameScene?.fileSystem else {
+            errorLog("ROM import failed: FileSystem not available", category: .fileSystem)
+            completion(false)
+            return
+        }
+
+        guard !missing.isEmpty else {
+            completion(true)
+            return
+        }
+
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select X68000 ROM Files"
+        openPanel.message = "Select \(missing.joined(separator: " and ")) to import into Documents/X68000."
+        if #available(macOS 11.0, *) {
+            openPanel.allowedContentTypes = [UTType(filenameExtension: "dat") ?? .data]
+        } else {
+            openPanel.allowedFileTypes = ["dat"]
+        }
+        openPanel.allowsMultipleSelection = true
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+
+        var defaultDirectory: URL?
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+        } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+            }
+        } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+        }
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK else {
+                warningLog("ROM selection cancelled or failed", category: .ui)
+                completion(false)
+                return
+            }
+
+            let urls = openPanel.urls
+            var accessed: [URL] = []
+            for url in urls {
+                if url.startAccessingSecurityScopedResource() {
+                    accessed.append(url)
+                }
+            }
+            defer {
+                for url in accessed {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                let imported = try fileSystem.importROMFiles(urls, requiredFilenames: missing)
+                let requiredSet = Set(missing.map { $0.uppercased() })
+                let remaining = requiredSet.subtracting(imported)
+                if !remaining.isEmpty {
+                    let remainingList = remaining.sorted().joined(separator: ", ")
+                    self?.showROMMissingAlert(remainingList: remainingList) { [weak self] in
+                        self?.promptForMissingROMFiles(Array(remaining), completion: completion)
+                    }
+                    return
+                }
+                completion(true)
+            } catch {
+                self?.handleError(error, context: "ROM import")
+                completion(false)
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            openPanel.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let window = self?.view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+                    openPanel.beginSheetModal(for: window, completionHandler: handleResponse)
+                } else {
+                    let response = openPanel.runModal()
+                    handleResponse(response)
+                }
+            }
+        }
+    }
+
+    private func showROMMissingAlert(remainingList: String, completion: @escaping () -> Void) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.showROMMissingAlert(remainingList: remainingList, completion: completion)
+            }
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "ROM Files Required"
+        alert.informativeText = "ROM files still missing: \(remainingList)."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window) { _ in
+                completion()
+            }
+        } else {
+            alert.runModal()
+            completion()
+        }
+    }
+    
+    // MARK: - FDD Management
+    @IBAction func openFDDDriveA(_ sender: Any) {
+        openFDDForDrive(0)
+    }
+    
+    @IBAction func openFDDDriveB(_ sender: Any) {
+        openFDDForDrive(1)
+    }
+    
+    @IBAction func ejectFDDDriveA(_ sender: Any) {
+        ejectFDDFromDrive(0)
+    }
+    
+    @IBAction func ejectFDDDriveB(_ sender: Any) {
+        ejectFDDFromDrive(1)
+    }
+    
+    private func openFDDForDrive(_ drive: Int, completion: ((Bool) -> Void)? = nil) {
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("FDD_OPEN enter drive=\(drive) thread=\(Thread.isMainThread ? "main" : "bg")")
+        appDelegate?.appendSCSILogPublic("FDD_OPEN before_alloc")
+        let openPanel = NSOpenPanel()
+        appDelegate?.appendSCSILogPublic("FDD_OPEN after_alloc")
+        openPanel.title = "Open FDD Image for Drive \(drive == 0 ? "0" : "1")"
+        if #available(macOS 11.0, *) {
+            var types: [UTType] = []
+            if let dim = UTType(filenameExtension: "dim") { types.append(dim) }
+            if let xdf = UTType(filenameExtension: "xdf") { types.append(xdf) }
+            if let d88 = UTType(filenameExtension: "d88") { types.append(d88) }
+            if types.isEmpty { types = [.data] }
+            openPanel.allowedContentTypes = types
+        } else {
+            openPanel.allowedFileTypes = ["dim", "xdf", "d88"]
+        }
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+        
+        // Try to set default directory to user's actual Documents folder first
+        var defaultDirectory: URL?
+        
+        // Priority 1: User's actual Documents/X68000 folder
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+            // Reduced logging for performance
+            // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+        }
+        // Priority 2: User's Documents folder
+        else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+                // Reduced logging for performance
+                // print("🔧 Using user Documents as default: \(userDocuments.path)")
+            }
+        }
+        // Priority 3: Sandboxed Documents folder
+        else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+            // Reduced logging for performance
+            // print("🔧 Using sandboxed Documents as default: \(documentsURL.path)")
+        }
+        
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+        
+        // Reduced logging for performance
+        appDelegate?.appendSCSILogPublic("FDD_OPEN configured drive=\(drive)")
+        appDelegate?.appendSCSILogPublic("FDD_OPEN begin_call drive=\(drive)")
+        openPanel.begin { [weak self] response in
+            appDelegate?.appendSCSILogPublic("FDD_OPEN callback response=\(response.rawValue)")
+            if response == .OK, let url = openPanel.url {
+                infoLog("NSOpenPanel selected file: \(url.path)", category: .fileSystem)
+                let accessible = url.startAccessingSecurityScopedResource()
+                DispatchQueue.main.async {
+                    self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
+                    if accessible {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                    completion?(true)
+                }
+            } else {
+                warningLog("NSOpenPanel cancelled or failed", category: .ui)
+                completion?(false)
+            }
+        }
+        appDelegate?.appendSCSILogPublic("FDD_OPEN begin_returned drive=\(drive)")
+    }
+    
+    private func ejectFDDFromDrive(_ drive: Int) {
+        gameScene?.ejectFDDFromDrive(drive)
+    }
+    
+    // MARK: - HDD Management
+    @IBAction func openHDD(_ sender: Any) {
+        openHDDWithCompletion()
+    }
+
+    private func openHDDWithCompletion(_ completion: ((Bool) -> Void)? = nil) {
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Open Hard Disk Image"
+        
+        var allowedTypes: [UTType] = []
+        if let hdfType = UTType(filenameExtension: "hdf") { allowedTypes.append(hdfType) }
+        if let hdmType = UTType(filenameExtension: "hdm") { allowedTypes.append(hdmType) }
+        if allowedTypes.isEmpty {
+            let exportedType = UTType(exportedAs: "NANKIN.X68000.1.HDD")
+            allowedTypes.append(exportedType)
+        }
+        
+        if #available(macOS 11.0, *) {
+            openPanel.allowedContentTypes = allowedTypes
+        } else {
+            openPanel.allowedFileTypes = ["hdf", "hdm"]
+        }
+        
+        openPanel.allowsOtherFileTypes = false
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+        
+        var defaultDirectory: URL?
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+        } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                  FileManager.default.fileExists(atPath: userDocuments.path) {
+            defaultDirectory = userDocuments
+        } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            defaultDirectory = documentsURL
+        }
+        
+        if let defaultDir = defaultDirectory {
+            openPanel.directoryURL = defaultDir
+        }
+        
+        openPanel.begin { [weak self] response in
+            if response == .OK, let url = openPanel.url {
+                infoLog("NSOpenPanel selected HDD file: \(url.path)", category: .fileSystem)
+                let accessible = url.startAccessingSecurityScopedResource()
+                DispatchQueue.main.async {
+                    self?.gameScene?.loadHDD(url: url)
+                    if accessible {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                    completion?(true)
+                }
+            } else {
+                warningLog("HDD NSOpenPanel cancelled or failed", category: .ui)
+                completion?(false)
+            }
+        }
+    }
+
+    func promptForBootMediaIfNeeded() {
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("BOOT_PROMPT enter thread=\(Thread.isMainThread ? "main" : "bg")")
+
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.promptForBootMediaIfNeeded()
+            }
+            return
+        }
+
+        guard !didShowInitialDiskPrompt else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT already_shown")
+            return
+        }
+        let hasFDD0 = X68000_IsFDDReady(0) != 0
+        let hasFDD1 = X68000_IsFDDReady(1) != 0
+        let hasHDD = X68000_IsHDDReady() != 0
+        appDelegate?.appendSCSILogPublic("BOOT_PROMPT ready fdd0=\(hasFDD0) fdd1=\(hasFDD1) hdd=\(hasHDD)")
+        guard !hasFDD0 && !hasFDD1 && !hasHDD else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT skip_has_disk")
+            return
+        }
+
+        didShowInitialDiskPrompt = true
+
+        let alert = NSAlert()
+        alert.messageText = "起動ディスクを選択してください"
+        alert.informativeText = "記録メディアがマウントされていません。FDD 0/1 または HDD を選んでください。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "FDD 0")
+        alert.addButton(withTitle: "FDD 1")
+        alert.addButton(withTitle: "HDD")
+        alert.addButton(withTitle: "キャンセル")
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT handleResponse response=\(response.rawValue)")
+            // The alert sheet is still dismissing when this fires. Defer via
+            // main.async so the sheet fully tears down before we allocate
+            // another NSOpenPanel (otherwise the XPC panel service hangs
+            // waiting for the window's sheet slot to free up).
+            DispatchQueue.main.async { [weak self] in
+                appDelegate?.appendSCSILogPublic("BOOT_PROMPT async_tick response=\(response.rawValue)")
+                switch response {
+                case .alertFirstButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(0)")
+                    self?.openFDDForDrive(0) { success in
+                        appDelegate?.appendSCSILogPublic("BOOT_PROMPT openFDDForDrive completion success=\(success)")
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                case .alertSecondButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(1)")
+                    self?.openFDDForDrive(1) { success in
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                case .alertThirdButtonReturn:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openHDDWithCompletion")
+                    self?.openHDDWithCompletion { success in
+                        if success { self?.resetAfterBootMediaInsert() }
+                    }
+                default:
+                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT cancelled")
+                }
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT beginSheetModal window=\(window.title)")
+            alert.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            appDelegate?.appendSCSILogPublic("BOOT_PROMPT runModal no_window")
+            let response = alert.runModal()
+            handleResponse(response)
+        }
+    }
+
+    /// Present an NSOpenPanel for picking a SCSI (.hds) image. Called from
+    /// AppDelegate — routed through GameViewController because allocating
+    /// NSOpenPanel directly from an AppDelegate (NSObject without a window
+    /// context) can hang the remote view service on macOS. The FDD open
+    /// panel uses this same pattern and works reliably.
+    func presentSCSIOpenPanel(initialDirectoryURL: URL?, completion: @escaping (URL?) -> Void) {
+        // v12: copy the EXACT pattern the FDD picker uses (which works).
+        // No scene pause, no drain, no skView pause, no sheet modal — just
+        // allocate NSOpenPanel, configure, and call .begin{} with the
+        // completion. The FDD picker is called from the same app, same
+        // SKView, same menu dispatch mechanism; if this hangs, the bug is
+        // not about our ceremony.
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 enter thread=\(Thread.isMainThread ? "main" : "bg")")
+
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 before_alloc")
+        let openPanel = NSOpenPanel()
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 after_alloc")
+        openPanel.title = "Open SCSI (ID 0) Image"
+        if #available(macOS 11.0, *) {
+            var types: [UTType] = []
+            if let hds = UTType(filenameExtension: "hds") { types.append(hds) }
+            if let hdf = UTType(filenameExtension: "hdf") { types.append(hdf) }
+            if types.isEmpty { types = [.data] }
+            openPanel.allowedContentTypes = types
+        } else {
+            openPanel.allowedFileTypes = ["hds", "hdf"]
+        }
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.treatsFilePackagesAsDirectories = false
+
+        if let directoryURL = initialDirectoryURL,
+           FileManager.default.fileExists(atPath: directoryURL.path) {
+            openPanel.directoryURL = directoryURL
+        }
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 configured")
+
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 begin_call")
+        openPanel.begin { [weak appDelegate] response in
+            appDelegate?.appendSCSILogPublic("GVC_SCSI v12 callback response=\(response.rawValue)")
+            if response == .OK, let url = openPanel.url {
+                infoLog("NSOpenPanel selected SCSI file: \(url.path)", category: .fileSystem)
+                completion(url)
+            } else {
+                warningLog("SCSI NSOpenPanel cancelled or failed", category: .ui)
+                completion(nil)
+            }
+        }
+        appDelegate?.appendSCSILogPublic("GVC_SCSI v12 begin_returned")
+    }
+
+    private func resetAfterBootMediaInsert() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.gameScene?.resetSystem()
+        }
+    }
+    
+    @IBAction func ejectHDD(_ sender: Any) {
+        gameScene?.ejectHDD()
+    }
+    
+    @IBAction func createEmptyHDD(_ sender: Any) {
+        // debugLog("Creating empty HDD dialog", category: .ui)
+        
+        // Step 1: Show size selection alert
+        let alert = NSAlert()
+        alert.messageText = "Create Empty Hard Disk"
+        alert.informativeText = "Select the size for the new hard disk image:"
+        alert.alertStyle = .informational
+        
+        // Add size options (FORMAT.X supports up to 40MB)
+        alert.addButton(withTitle: "10 MB")
+        alert.addButton(withTitle: "20 MB")
+        alert.addButton(withTitle: "40 MB")
+        alert.addButton(withTitle: "Cancel")
+        
+        let response = alert.runModal()
+        
+        // Check for Cancel button (fourth button)
+        if response.rawValue == NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3 {
+            // debugLog("HDD creation cancelled", category: .ui)
+            return
+        }
+        
+        // Determine size based on button selection
+        let sizeInMB: Int
+        let sizeInBytes: Int
+        
+        switch response.rawValue {
+        case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue:   // 10 MB
+            sizeInMB = 10
+            sizeInBytes = 10 * 1024 * 1024
+        case NSApplication.ModalResponse.alertSecondButtonReturn.rawValue:  // 20 MB
+            sizeInMB = 20
+            sizeInBytes = 20 * 1024 * 1024
+        case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue:   // 40 MB
+            sizeInMB = 40
+            sizeInBytes = 40 * 1024 * 1024
+        default:
+            errorLog("Unexpected button response", category: .ui)
+            return
+        }
+        
+        infoLog("Selected HDD size: \(sizeInMB) MB (\(sizeInBytes) bytes)", category: .fileSystem)
+        
+        // Step 2: Show save dialog
+        let savePanel = NSSavePanel()
+        savePanel.title = "Create Hard Disk Image"
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "hdf") ?? .data]
+        savePanel.nameFieldStringValue = "NewHDD_\(sizeInMB)MB.hdf"
+        
+        // Set default directory - same logic as openHDD
+        var defaultDirectory: URL?
+        
+        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
+        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
+            defaultDirectory = userDocumentsX68000
+        } else {
+            let userDocuments = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+            if FileManager.default.fileExists(atPath: userDocuments.path) {
+                defaultDirectory = userDocuments
+            }
+        }
+        
+        if let defaultDir = defaultDirectory {
+            savePanel.directoryURL = defaultDir
+            // debugLog("Set HDD creation default directory to: \(defaultDir.path)", category: .fileSystem)
+        }
+        
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else {
+                warningLog("HDD creation save dialog cancelled", category: .ui)
+                return
+            }
+            
+            infoLog("Creating HDD at: \(url.path)", category: .fileSystem)
+            
+            // Step 3: Create the empty HDD file
+            self.gameScene?.createEmptyHDD(at: url, sizeInBytes: sizeInBytes)
+        }
+    }
+    
+    // MARK: - Screen Rotation Management
+    @IBAction func rotateScreen(_ sender: Any) {
+        gameScene?.rotateScreen()
+    }
+    
+    @IBAction func setLandscapeMode(_ sender: Any) {
+        gameScene?.setScreenRotation(.landscape)
+    }
+    
+    @IBAction func setPortraitMode(_ sender: Any) {
+        gameScene?.setScreenRotation(.portrait)
+    }
+    
+    // MARK: - Clock Management
+    @IBAction func setClock1MHz(_ sender: Any) {
+        gameScene?.setCPUClock(1)
+    }
+    
+    @IBAction func setClock10MHz(_ sender: Any) {
+        gameScene?.setCPUClock(10)
+    }
+    
+    @IBAction func setClock16MHz(_ sender: Any) {
+        gameScene?.setCPUClock(16)
+    }
+    
+    @IBAction func setClock24MHz(_ sender: Any) {
+        gameScene?.setCPUClock(24)
+    }
+    
+    @IBAction func setClock40MHz(_ sender: Any) {
+        gameScene?.setCPUClock(40)
+    }
+    
+    @IBAction func setClock50MHz(_ sender: Any) {
+        gameScene?.setCPUClock(50)
+    }
+    
+    // MARK: - System Management
+    @IBAction func resetSystem(_ sender: Any) {
+        gameScene?.resetSystem()
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        // 静的参照を設定
+        GameViewController.shared = self
+        // debugLog("GameViewController.shared set in viewDidLoad", category: .ui)
+        
+        // Initialize SCC for serial communication
+        SCC_Init()
+        
+        gameScene = GameScene.newGameScene()
+        
+        // Configure SKView settings BEFORE presenting scene
+        let skView = self.view as! MouseCaptureSKView
+        skView.gameViewController = self  // Set reference for event forwarding
+        
+        // Critical: Set frame synchronization settings first
+        skView.preferredFramesPerSecond = 60
+        skView.isAsynchronous = false  // Essential for consistent timing
+        skView.ignoresSiblingOrder = false // ensure strict zPosition ordering for SKVideoNode/spr layering
+        
+        // Present the scene AFTER configuration
+        skView.presentScene(gameScene)
+        
+        skView.showsFPS = true
+        skView.showsNodeCount = true
+        skView.showsDrawCount = true
+        
+        // Enable keyboard and mouse input for the SKView
+        view.window?.makeFirstResponder(self.view)
+        
+        // Ensure the view accepts mouse events
+        view.wantsLayer = true
+        
+        // ドラッグ&ドロップを有効にする
+        setupDragAndDrop()
+        
+        // 画面回転変更の通知を監視
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenRotationChanged(_:)),
+            name: .screenRotationChanged,
+            object: nil
+        )
+        
+        // アプリ起動時は常に横長ウィンドウサイズでスタート
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.forceInitialLandscapeWindow()
+        }
+        
+        // Set up window delegate for close events
+        DispatchQueue.main.async {
+            if let window = self.view.window {
+                window.delegate = self
+                // debugLog("Window delegate set for close event handling", category: .ui)
+            }
+        }
+    }
+    
+    private func setupDragAndDrop() {
+        view.registerForDraggedTypes([.fileURL])
+    }
+    
+    // MARK: - First Responder and Keyboard Handling
+    override var acceptsFirstResponder: Bool {
+        return true
+    }
+    
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        // Ensure the view becomes first responder to receive keyboard and mouse events
+        view.window?.makeFirstResponder(self)
+        infoLog("GameViewController became first responder", category: .input)
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        // Forward keyboard events to the game scene
+        gameScene?.keyDown(with: event)
+    }
+    
+    override func keyUp(with event: NSEvent) {
+        // Forward keyboard events to the game scene
+        gameScene?.keyUp(with: event)
+    }
+    
+    @objc private func screenRotationChanged(_ notification: Notification) {
+        guard let rotation = notification.object as? GameScene.ScreenRotation else { return }
+        
+        // debugLog("Screen rotation changed to: \(rotation.displayName)", category: .ui)
+        
+        // ウィンドウサイズを回転に応じて調整
+        DispatchQueue.main.async {
+            self.adjustWindowSizeForRotation(rotation)
+        }
+    }
+    
+    private func adjustWindowSizeForSavedRotation() {
+        let userDefaults = UserDefaults.standard
+        let isPortrait = userDefaults.bool(forKey: "ScreenRotation_Portrait")
+        let savedRotation: GameScene.ScreenRotation = isPortrait ? .portrait : .landscape
+        
+        // debugLog("Adjusting window size for saved rotation: \(savedRotation.displayName)", category: .ui)
+        adjustWindowSizeForRotation(savedRotation)
+    }
+    
+    private func forceInitialLandscapeWindow() {
+        // debugLog("Forcing initial landscape window size", category: .ui)
+        adjustWindowSizeForRotation(.landscape)
+    }
+    
+    private func adjustWindowSizeForRotation(_ rotation: GameScene.ScreenRotation) {
+        guard let window = view.window else { return }
+        
+        _ = window.frame  // Get current frame for potential future use
+        
+        // 基本的なX68000解像度（768x512）に基づいて計算
+        let baseWidth: CGFloat = 768
+        let baseHeight: CGFloat = 512
+        
+        // 固定的な最適サイズを計算（現在のウィンドウサイズに依存しない）
+        let optimalScale: CGFloat = 1.5  // 適度なサイズ倍率
+        
+        let newContentSize: NSSize
+        
+        switch rotation {
+        case .landscape:
+            // 横画面：通常のアスペクト比
+            newContentSize = NSSize(
+                width: baseWidth * optimalScale,
+                height: baseHeight * optimalScale
+            )
+            
+        case .portrait:
+            // 縦画面：アスペクト比を反転し、縦長ウィンドウに
+            newContentSize = NSSize(
+                width: baseHeight * optimalScale,  // 元の高さが新しい幅
+                height: baseWidth * optimalScale   // 元の幅が新しい高さ
+            )
+        }
+        
+        // ウィンドウの新しい位置を計算（中央に配置）
+        let screenFrame = window.screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let newX = screenFrame.midX - newContentSize.width / 2
+        let newY = screenFrame.midY - newContentSize.height / 2
+        
+        let newFrame = window.frameRect(forContentRect: NSRect(
+            x: newX,
+            y: newY,
+            width: newContentSize.width,
+            height: newContentSize.height
+        ))
+        
+        window.setFrame(newFrame, display: true, animate: false)
+        
+        debugLog("Window size adjusted for \(rotation.displayName): \(newContentSize)", category: .ui)
+    }
+    
+    deinit {
+        infoLog("GameViewController.deinit - final save", category: .ui)
+        // Final save attempt
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+    }
+
+}
+
+// MARK: - Window Delegate Support
+extension GameViewController: NSWindowDelegate {
+    
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        infoLog("Window is about to close - saving all data", category: .ui)
+        
+        // Save HDD and SRAM before window closes
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+        
+        return true
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        infoLog("Window will close - final save attempt", category: .ui)
+        
+        // Final save attempt
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+    }
+}
+
+// MARK: - Drag and Drop Support
+extension GameViewController: NSDraggingDestination {
+    
+    func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard let types = sender.draggingPasteboard.types, types.contains(.fileURL) else {
+            return []
+        }
+        
+        // ファイルがサポートされた形式かチェック
+        if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] {
+            for url in urls {
+                let ext = url.pathExtension.lowercased()
+                if ["dim", "xdf", "d88", "hdm", "hdf"].contains(ext) {
+                    return .copy
+                }
+            }
+        }
+        
+        return []
+    }
+    
+    func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        return draggingEntered(sender)
+    }
+    
+    func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        debugLog("Drag and drop operation started", category: .ui)
+        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] else {
+            warningLog("No URLs found in drag operation", category: .ui)
+            return false
+        }
+        
+        var validUrls: [URL] = []
+        for url in urls {
+            debugLog("Dropped file: \(url.lastPathComponent)", category: .fileSystem)
+            let ext = url.pathExtension.lowercased()
+            if ["dim", "xdf", "d88", "hdm", "hdf"].contains(ext) {
+                validUrls.append(url)
+            }
+        }
+        
+        if validUrls.isEmpty {
+            warningLog("No valid disk image files found in drop", category: .fileSystem)
+            return false
+        }
+        
+        // If multiple floppy disk files, try to load them to separate drives
+        let floppyUrls = validUrls.filter { ["dim", "xdf", "d88"].contains($0.pathExtension.lowercased()) }
+        let hddUrls = validUrls.filter { ["hdm", "hdf"].contains($0.pathExtension.lowercased()) }
+        
+        if floppyUrls.count >= 2 {
+            // Load first two floppy disks to drives A and B
+            gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
+            gameScene?.loadFDDToDrive(url: floppyUrls[1], drive: 1)
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive 0 and \(floppyUrls[1].lastPathComponent) to Drive 1", category: .fileSystem)
+        } else if floppyUrls.count == 1 {
+            // Load single floppy to drive A
+            gameScene?.loadFDDToDrive(url: floppyUrls[0], drive: 0)
+            infoLog("Loaded \(floppyUrls[0].lastPathComponent) to Drive 0", category: .fileSystem)
+        }
+        
+        // Load HDD images using existing method
+        for hddUrl in hddUrls {
+            load(hddUrl)
+        }
+        
+        return true
+    }
+    
+    func saveSRAM() {
+        debugLog("GameViewController.saveSRAM() called", category: .fileSystem)
+        gameScene?.fileSystem?.saveSRAM()
+        
+        // Also save HDD changes
+        gameScene?.saveHDD()
+    }
+    
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        debugLog("GameViewController.viewWillDisappear - saving data before disappearing", category: .ui)
+        
+        // Save HDD changes when view is about to disappear
+        gameScene?.saveHDD()
+        gameScene?.fileSystem?.saveSRAM()
+    }
+    
+    // MARK: - Mouse Capture Management
+    
+    func enableMouseCapture() {
+        // debugLog("Enabling X68000 mouse capture", category: .input)
+        
+        // Route events via SKView for consistent forwarding
+        view.window?.makeFirstResponder(self.view)
+        infoLog("MouseCaptureSKView made first responder for mouse capture", category: .input)
+        
+        // Ensure our app/window is active to receive clicks after capture
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Hide the macOS cursor (AppKit only)
+        NSCursor.hide()
+        // Ensure we receive mouseMoved events even when not key only
+        view.window?.acceptsMouseMovedEvents = true
+        // Decouple OS cursor for true capture (prevent host edge clamp/click-through)
+        CGAssociateMouseAndMouseCursorPosition(0)
+        // Immediately warp the OS cursor into our window so the next click
+        // lands in this app rather than at the old global location.
+        warpCursorToViewCenter()
+        discardNextDelta = true // Drop the first delta after enabling to avoid spikes
+        discardDeltaCount = 0    // No extra discards; rely on single suppress
+        captureSettleUntil = Date().timeIntervalSince1970 + 0.15 // swallow ~150ms of synthetic noise
+        
+        // Enable mouse capture mode in the game scene
+        gameScene?.enableMouseCapture()
+        
+        // Add mouse tracking area to the view
+        setupMouseTracking()
+
+        // Do not warp OS cursor here
+
+        // Do not warp on enable to avoid visual jump
+        
+        // Mouse controller will be initialized automatically in enableCaptureMode
+        // No need for manual initialization here
+        
+        // No warping on enable to avoid macOS cursor reappearing outside window
+        
+        infoLog("X68000 mouse capture enabled - Mac cursor hidden", category: .input)
+    }
+    
+    func disableMouseCapture() {
+        // debugLog("Disabling X68000 mouse capture", category: .input)
+        
+        // Remove mouse tracking area
+        removeMouseTracking()
+        
+        // Show the macOS cursor (AppKit only)
+        NSCursor.unhide()
+        view.window?.acceptsMouseMovedEvents = false
+        // Re-attach OS cursor to hardware mouse
+        CGAssociateMouseAndMouseCursorPosition(1)
+        
+        // Disable mouse capture mode in the game scene
+        gameScene?.disableMouseCapture()
+        captureSettleUntil = nil
+        
+        infoLog("X68000 mouse capture disabled - Mac cursor visible", category: .input)
+    }
+    
+    private func setupMouseTracking() {
+        removeMouseTracking() // Remove existing tracking area if any
+        
+        let trackingArea = NSTrackingArea(
+            rect: view.bounds,
+            options: [.activeInKeyWindow, .mouseMoved, .enabledDuringMouseDrag, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        
+        view.addTrackingArea(trackingArea)
+        mouseTrackingArea = trackingArea
+        // debugLog("Mouse tracking area added: \(view.bounds)", category: .input)
+    }
+    
+    private func removeMouseTracking() {
+        if let trackingArea = mouseTrackingArea {
+            view.removeTrackingArea(trackingArea)
+            mouseTrackingArea = nil
+            // debugLog("Mouse tracking area removed", category: .input)
+        }
+    }
+    
+    // MARK: - Mouse Event Handling
+
+    private func handleMouseEvent(_ event: NSEvent) {
+        guard let gameScene = gameScene,
+              let mouseController = gameScene.mouseController else { return }
+
+        if mouseController.isCaptureMode {
+            // Capture mode: use raw deltas and re-center each event
+            if let until = captureSettleUntil, Date().timeIntervalSince1970 < until {
+                // During settle window, just swallow events (no warping needed when decoupled)
+                return
+            } else if captureSettleUntil != nil {
+                // Settle window elapsed
+                captureSettleUntil = nil
+            }
+            // No synthetic events from warping when decoupled; no need to discard here
+            // Invert Y here to cancel core inversion; matches prior good behavior
+            mouseController.addDeltas(event.deltaX, -event.deltaY)
+            // Reduced verbose per-event logging; no cursor warping when decoupled
+        } else {
+            // Non-capture: ignore macOS mouse movement entirely to avoid visual drift in emulator
+            return
+        }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+        handleMouseEvent(event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+        handleMouseEvent(event)
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        handleMouseEvent(event)
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+
+        guard let gameScene = gameScene,
+              let mouseController = gameScene.mouseController else { return }
+
+        // 非キャプチャ時は先に座標更新（ダブルクリック時の位置ズレ防止）
+        // 修正: マウスモードOFFでは座標を更新しない（視覚的なズレ防止）
+        if mouseController.isCaptureMode {
+            // Queue via controller; emission is frame-locked for stable cadence
+            mouseController.Click(0, true)
+        } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                // First update mouse position for VS.X coordinate awareness
+                let locationInView = event.locationInWindow
+                if let windowContentView = view.window?.contentView {
+                    let viewLocation = windowContentView.convert(locationInView, to: view)
+                    let normalizedX = Float(viewLocation.x / view.bounds.width)
+                    let normalizedY = Float(1.0 - (viewLocation.y / view.bounds.height)) // Flip Y
+                    // Update mouse coordinates
+                    mouseController.mx = max(0.0, min(1.0, normalizedX))
+                    mouseController.my = max(0.0, min(1.0, normalizedY))
+                    // Send position first, then button press
+                    mouseController.sendDirectUpdate(forceAbsolute: true)
+                }
+                X68000_Mouse_Event(1, 1.0, 0.0)
+            }
+            mouseController.Click(0, true)
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        // If CRT overlay is open, forward to overlay and consume
+        if let scene = gameScene, let overlay = scene.crtOverlay {
+            if let skView = self.view as? SKView {
+                let viewPoint = skView.convert(event.locationInWindow, from: nil)
+                let scenePoint = skView.convert(viewPoint, to: scene)
+                overlay.receivePointFromScene(scenePoint, in: scene)
+                return
+            }
+        }
+
+        guard let gameScene = gameScene,
+              let mouseController = gameScene.mouseController else { return }
+        if mouseController.isCaptureMode {
+            mouseController.Click(0, false)
+        } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(1, 0.0, 0.0)
+            }
+            mouseController.Click(0, false)
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
+        }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let gameScene = gameScene,
+              let mouseController = gameScene.mouseController else { return }
+        // In capture mode, cursor visibility is managed by enable/disableMouseCapture
+        // 修正: マウスモードOFFでは座標を更新しない
+        if mouseController.isCaptureMode {
+            mouseController.Click(1, true)
+        } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                // First update mouse position for VS.X coordinate awareness
+                let locationInView = event.locationInWindow
+                if let windowContentView = view.window?.contentView {
+                    let viewLocation = windowContentView.convert(locationInView, to: view)
+                    let normalizedX = Float(viewLocation.x / view.bounds.width)
+                    let normalizedY = Float(1.0 - (viewLocation.y / view.bounds.height)) // Flip Y
+                    // Update mouse coordinates
+                    mouseController.mx = max(0.0, min(1.0, normalizedX))
+                    mouseController.my = max(0.0, min(1.0, normalizedY))
+                    // Send position first, then button press
+                    mouseController.sendDirectUpdate(forceAbsolute: true)
+                }
+                X68000_Mouse_Event(2, 1.0, 0.0)
+            }
+            mouseController.Click(1, true)
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
+        }
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        guard let gameScene = gameScene,
+              let mouseController = gameScene.mouseController else { return }
+        // Always send right mouseUp for single click processing
+        // 修正: 右クリックのmouseUpも常にシングルクリック処理として送信
+        if mouseController.isCaptureMode {
+            mouseController.Click(1, false)
+        } else {
+            // In SCC compat mode, send direct events for VS.X compatibility
+            if SCC_GetCompatMode() != 0 {
+                X68000_Mouse_Event(2, 0.0, 0.0)
+            }
+            mouseController.Click(1, false)
+            if SCC_GetCompatMode() == 0 {
+                mouseController.sendDirectUpdate()
+            }
+        }
+    }
+    
+    // MARK: - JoyportU Settings
+    func setJoyportUMode(_ mode: Int) {
+        infoLog("Setting JoyportU mode to \(mode)", category: .input)
+        // Call C function to set PPI JoyportU mode
+        PPI_SetJoyportUMode(Int32(mode))
+    }
+    
+    func getJoyportUMode() -> Int {
+        // Call C function to get PPI JoyportU mode
+        return Int(PPI_GetJoyportUMode())
+    }
+    
+    // MARK: - Serial Communication Management
+    
+    var sccManager: SCCManagerProxy {
+        return SCCManagerProxy(gameViewController: self)
+    }
+    
+    func setSerialMouseOnly() -> Bool {
+        let result = SCC_SetMode(SCCMode.mouseOnly.rawValue, nil)
+        if result == 0 {
+            currentSerialMode = .mouseOnly
+            isSerialConnected = false
+            return true
+        }
+        return false
+    }
+    
+    func createSerialPTY() -> Bool {
+        let result = SCC_SetMode(SCCMode.serialPTY.rawValue, nil)
+        if result == 0 {
+            currentSerialMode = .serialPTY
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func connectSerialTCP(host: String, port: Int) -> Bool {
+        let config = "\(host):\(port)"
+        let result = config.withCString { ptr in SCC_SetMode(SCCMode.serialTCP.rawValue, ptr) }
+        if result == 0 {
+            currentSerialMode = .serialTCP
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func startSerialTCPServer(port: Int) -> Bool {
+        let config = "\(port)"
+        let result = config.withCString { ptr in SCC_SetMode(SCCMode.serialTCPServer.rawValue, ptr) }
+        if result == 0 {
+            currentSerialMode = .serialTCPServer
+            isSerialConnected = true
+            return true
+        }
+        return false
+    }
+    
+    func disconnectSerial() {
+        SCC_CloseSerial()
+        currentSerialMode = .mouseOnly
+        isSerialConnected = false
+    }
+    
+    func getPTYSlavePath() -> String? {
+        if let cPath = SCC_GetSlavePath() {
+            return String(cString: cPath)
+        }
+        return nil
+    }
+    
+    func getScreenCommand() -> String? {
+        if let slavePath = getPTYSlavePath() {
+            return "screen \(slavePath) 9600"
+        }
+        return nil
+    }
+}
+
+// MARK: - Cursor Utilities
+extension GameViewController {
+    /// Warp the OS cursor to the center of our view in screen coordinates.
+    /// Keeps future clicks within this app when the cursor is decoupled.
+    fileprivate func warpCursorToViewCenter() {
+        guard let window = self.view.window else { return }
+        // View bounds in window coords
+        let rectInWindow = view.convert(view.bounds, to: nil)
+        // Convert to screen coords (global Quartz space expected by CGWarp)
+        let rectOnScreen = window.convertToScreen(rectInWindow)
+        let center = CGPoint(x: rectOnScreen.midX, y: rectOnScreen.midY)
+        CGWarpMouseCursorPosition(center)
+    }
+}
+
+// MARK: - SCCManager Proxy for AppDelegate compatibility
+
+struct SCCManagerProxy {
+    weak var gameViewController: GameViewController?
+    
+    var currentMode: SCCMode {
+        return gameViewController?.currentSerialMode ?? .mouseOnly
+    }
+    
+    func setMouseOnlyMode() -> Bool {
+        return gameViewController?.setSerialMouseOnly() ?? false
+    }
+    
+    func createPTY() -> Bool {
+        return gameViewController?.createSerialPTY() ?? false
+    }
+    
+    func connectTCP(host: String, port: Int) -> Bool {
+        return gameViewController?.connectSerialTCP(host: host, port: port) ?? false
+    }
+    
+    func startTCPServer(port: Int) -> Bool {
+        return gameViewController?.startSerialTCPServer(port: port) ?? false
+    }
+    
+    func disconnect() {
+        gameViewController?.disconnectSerial()
+    }
+    
+    func getPTYSlavePath() -> String? {
+        return gameViewController?.getPTYSlavePath()
+    }
+    
+    func getScreenCommand() -> String? {
+        return gameViewController?.getScreenCommand()
+    }
+}
+
+// MARK: - CRT Settings SwiftUI Panel
+
+import SwiftUI
+
+/// Modern SwiftUI-based CRT settings window controller
+class CRTSettingsWindowController: NSWindowController {
+    private weak var gameScene: GameScene?
+
+    convenience init(gameScene: GameScene, settings: CRTSettings, preset: CRTPreset) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        self.init(window: window)
+
+        self.gameScene = gameScene
+
+        window.title = "CRT Display Settings"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
+        window.center()
+        window.setFrameAutosaveName("CRTSettingsWindow")
+
+        // Create SwiftUI view with callbacks
+        let settingsView = CRTSettingsPanel(
+            settings: settings,
+            preset: preset,
+            onSettingsChanged: { [weak gameScene] newSettings in
+                gameScene?.applyCRTSettings(newSettings)
+            },
+            onPresetChanged: { [weak gameScene] newPreset in
+                gameScene?.setCRTDisplayPreset(newPreset)
+            }
+        )
+
+        // Host SwiftUI view in NSHostingView
+        let hostingView = NSHostingView(rootView: settingsView)
+        window.contentView = hostingView
+
+        // Window appearance
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+
+        // Handle close button in SwiftUI (dismiss environment)
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+    }
+
+    func show() {
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// Modern SwiftUI-based CRT settings panel with macOS design language
+struct CRTSettingsPanel: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var scanlineIntensity: Double
+    @State private var curvature: Double
+    @State private var chromatic: Double
+    @State private var persistence: Double
+    @State private var vignette: Double
+    @State private var bloom: Double
+    @State private var noise: Double
+
+    @State private var selectedPreset: CRTPreset
+
+    let initialSettings: CRTSettings
+    let onSettingsChanged: (CRTSettings) -> Void
+    let onPresetChanged: (CRTPreset) -> Void
+
+    init(settings: CRTSettings, preset: CRTPreset, onSettingsChanged: @escaping (CRTSettings) -> Void, onPresetChanged: @escaping (CRTPreset) -> Void) {
+        self.initialSettings = settings
+        self.onSettingsChanged = onSettingsChanged
+        self.onPresetChanged = onPresetChanged
+
+        _scanlineIntensity = State(initialValue: Double(settings.scanlineIntensity))
+        _curvature = State(initialValue: Double(settings.curvature))
+        _chromatic = State(initialValue: Double(max(abs(settings.chromaShiftR), abs(settings.chromaShiftB))))
+        _persistence = State(initialValue: Double(settings.phosphorPersistence))
+        _vignette = State(initialValue: Double(settings.vignetteIntensity))
+        _bloom = State(initialValue: Double(settings.bloomIntensity))
+        _noise = State(initialValue: Double(settings.noiseIntensity))
+        _selectedPreset = State(initialValue: preset)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("CRT Display Settings")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .help("Close settings")
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Presets section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Presets")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+
+                        HStack(spacing: 8) {
+                            ForEach([CRTPreset.off, .subtle, .standard, .enhanced], id: \.self) { preset in
+                                PresetButton(
+                                    title: preset.displayName,
+                                    isSelected: selectedPreset == preset,
+                                    action: {
+                                        selectedPreset = preset
+                                        applyPreset(preset)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+
+                    Divider()
+                        .padding(.horizontal, 24)
+
+                    // Custom adjustments section
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Fine Tuning")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+
+                        VStack(spacing: 20) {
+                            SettingSlider(
+                                title: "Scanlines",
+                                value: $scanlineIntensity,
+                                range: 0.0...1.0,
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Screen Curvature",
+                                value: $curvature,
+                                range: 0.0...0.4,
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Chromatic Aberration",
+                                value: $chromatic,
+                                range: 0.0...2.5,
+                                unit: "px",
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Phosphor Persistence",
+                                value: $persistence,
+                                range: 0.0...0.8,
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Vignette",
+                                value: $vignette,
+                                range: 0.0...0.8,
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Bloom",
+                                value: $bloom,
+                                range: 0.0...0.6,
+                                onChange: settingsDidChange
+                            )
+
+                            SettingSlider(
+                                title: "Noise",
+                                value: $noise,
+                                range: 0.0...0.2,
+                                onChange: settingsDidChange
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+                }
+            }
+        }
+        .frame(width: 500, height: 600)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func applyPreset(_ preset: CRTPreset) {
+        let settings = CRTPresets.settings(for: preset)
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scanlineIntensity = Double(settings.scanlineIntensity)
+            curvature = Double(settings.curvature)
+            chromatic = Double(max(abs(settings.chromaShiftR), abs(settings.chromaShiftB)))
+            persistence = Double(settings.phosphorPersistence)
+            vignette = Double(settings.vignetteIntensity)
+            bloom = Double(settings.bloomIntensity)
+            noise = Double(settings.noiseIntensity)
+        }
+
+        onPresetChanged(preset)
+    }
+
+    private func settingsDidChange() {
+        // Mark as custom when manually adjusted
+        if selectedPreset != .custom {
+            selectedPreset = .custom
+        }
+
+        let settings = CRTSettings(
+            enabled: true,
+            scanlineIntensity: Float(scanlineIntensity),
+            scanlinePitch: 1.0,
+            curvature: Float(curvature),
+            phosphorPersistence: Float(persistence),
+            chromaShiftR: Float(chromatic),
+            chromaShiftB: -Float(chromatic),
+            noiseIntensity: Float(noise),
+            vignetteIntensity: Float(vignette),
+            bloomIntensity: Float(bloom)
+        )
+
+        onSettingsChanged(settings)
+    }
+}
+
+// MARK: - Preset Button Component
+private struct PresetButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? .white : .primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: isSelected ? 0 : 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Setting Slider Component
+private struct SettingSlider: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var unit: String = ""
+    let onChange: () -> Void
+
+    @State private var isEditing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Text(formattedValue)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+
+            Slider(
+                value: $value,
+                in: range,
+                onEditingChanged: { editing in
+                    isEditing = editing
+                    if !editing {
+                        onChange()
+                    }
+                }
+            )
+            .tint(.accentColor)
+        }
+    }
+
+    private var formattedValue: String {
+        if unit.isEmpty {
+            return String(format: "%.2f", value)
+        } else {
+            return String(format: "%.2f %@", value, unit)
+        }
+    }
+}
+
+// MARK: - CRTPreset Extension
+extension CRTPreset {
+    var displayName: String {
+        switch self {
+        case .off: return "Off"
+        case .subtle: return "Subtle"
+        case .standard: return "Standard"
+        case .enhanced: return "Enhanced"
+        case .custom: return "Custom"
+        }
+    }
+}
