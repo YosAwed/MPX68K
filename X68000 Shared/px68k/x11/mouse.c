@@ -283,6 +283,22 @@ void Mouse_SetCompatMode(int enable)
     // No action needed here as SCC_SetCompatMode() handles the state internally
 }
 
+void Mouse_GetMonitorState(MouseMonitorState* state)
+{
+	if (!state) return;
+	state->dx = MouseDX;
+	state->dy = MouseDY;
+	state->stat = MouseStat;
+	state->sw = MouseSW;
+	state->sccX = MouseX;
+	state->sccY = MouseY;
+	state->sccStatus = MouseSt;
+	state->queueCount = BtnQCount;
+	state->sentCount = MouseDataSendCount;
+	state->doubleClickInProgress = DoubleClickInProgress;
+	state->compatMode = SCC_GetCompatMode();
+}
+
 
 // ----------------------------------
 //	Start Capture

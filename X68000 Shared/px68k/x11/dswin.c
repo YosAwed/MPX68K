@@ -47,6 +47,8 @@ BYTE *pbep = &pcmbuffer[PCMBUF_SIZE];
 DWORD ratebase = 44100;
 long DSound_PreCounter = 0;
 BYTE rsndbuf[PCMBUF_SIZE];
+static volatile unsigned int s_dsound_last_callback_bytes = 0;
+static volatile unsigned int s_dsound_refill_count = 0;
 
 
 void audio_callback(void *buffer, int len);
@@ -154,6 +156,29 @@ static void sound_send(int length)
  #endif
 }
 
+static long DSound_BufferDataBytes(void)
+{
+    if (pbrp <= pbwp) {
+        return (long)(pbwp - pbrp);
+    }
+    return (long)((pbep - pbrp) + (pbwp - pbsp));
+}
+
+void DSound_GetMonitorState(DSoundMonitorState* state)
+{
+    if (!state) return;
+    state->ratebase = ratebase;
+    state->preCounter = DSound_PreCounter;
+    state->bufferBytes = (long)(pbep - pbsp);
+    state->dataBytes = DSound_BufferDataBytes();
+    state->freeBytes = state->bufferBytes - state->dataBytes;
+    state->readOffset = (long)(pbrp - pbsp);
+    state->writeOffset = (long)(pbwp - pbsp);
+    state->lastCallbackBytes = s_dsound_last_callback_bytes;
+    state->refillCount = s_dsound_refill_count;
+    state->directCallback = DSOUND_USE_DIRECT_CALLBACK;
+}
+
 void FASTCALL DSound_Send0(long clock)
 {
     int length = 0;
@@ -242,6 +267,7 @@ void audio_callback(void *buffer, int len)
 {
    int lena, lenb, datalen, rate;
    BYTE *buf;
+   s_dsound_last_callback_bytes = (unsigned int)len;
 
 cb_start:
    if (pbrp <= pbwp)
@@ -259,6 +285,7 @@ cb_start:
       // needs more data - generate extra to prevent underruns
 	   if (datalen < len) {
 		   int extra_samples = ((len - datalen) / 4) + 512; // Generate extra samples
+		   s_dsound_refill_count++;
 		   DSound_Send(extra_samples);
 //		   printf("MORE!");
 	   }
@@ -305,6 +332,7 @@ cb_start:
          int available = (int)(pbwp - pbsp);
          if (available < lenb) {
             int needed_samples = ((lenb - available) / 4) + 256; // Generate extra samples  
+            s_dsound_refill_count++;
             DSound_Send(needed_samples);
          }
 #if 0

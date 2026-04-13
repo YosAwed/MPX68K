@@ -366,7 +366,7 @@ struct MonitorView: View {
     private func hardwareState(parts: [String]) -> String {
         let sectionName = parts.count > 1 ? parts[1] : "ALL"
         guard let section = hardwareSectionCode(sectionName) else {
-            return "Usage: HW [ALL|IRQ|MFP|DMA|FDD|FDC|CRTC|SCSI]\n"
+            return "Usage: HW [ALL|IRQ|MFP|DMA|FDD|FDC|CRTC|SCSI|AUDIO|ADPCM|INPUT|VIDEO|MIDI|MEM]\n"
         }
 
         var buffer = [CChar](repeating: 0, count: 16_384)
@@ -384,6 +384,12 @@ struct MonitorView: View {
         case "FDC": return 5
         case "CRTC": return 6
         case "SCSI", "SASI", "HDD": return 7
+        case "AUDIO", "SOUND": return 8
+        case "ADPCM", "PCM": return 9
+        case "INPUT", "KEY", "KEYBOARD", "MOUSE", "JOY": return 10
+        case "VIDEO", "GFX", "GRAPHICS", "BG": return 11
+        case "MIDI": return 12
+        case "MEM", "MEMORY", "SRAM": return 13
         default: return nil
         }
     }
@@ -398,7 +404,9 @@ struct MonitorView: View {
           MD addr val          Write dword
           REG                  Show CPU registers
           SET Dn|An|PC|SR val  Set register (e.g. SET D0 DEADBEEF)
-          HW [section]         Hardware snapshot (ALL, IRQ, MFP, DMA, FDD, FDC, CRTC, SCSI)
+          HW [section]         Hardware snapshot
+                               ALL, IRQ, MFP, DMA, FDD, FDC, CRTC, SCSI,
+                               AUDIO, ADPCM, INPUT, VIDEO, MIDI, MEM
           P                    Pause emulation
           G                    Resume emulation
           RESET                Reset emulator

@@ -1743,7 +1743,13 @@ enum {
     X68_MON_HW_FDD = 4,
     X68_MON_HW_FDC = 5,
     X68_MON_HW_CRTC = 6,
-    X68_MON_HW_SCSI = 7
+    X68_MON_HW_SCSI = 7,
+    X68_MON_HW_AUDIO = 8,
+    X68_MON_HW_ADPCM = 9,
+    X68_MON_HW_INPUT = 10,
+    X68_MON_HW_VIDEO = 11,
+    X68_MON_HW_MIDI = 12,
+    X68_MON_HW_MEM = 13
 };
 
 static void monitor_appendf(char** cursor, int* remaining, const char* format, ...)
@@ -1897,6 +1903,219 @@ static void monitor_format_scsi(char** cursor, int* remaining)
                     SASI_Name[1][0] ? SASI_Name[1] : "(none)");
 }
 
+static void monitor_format_audio(char** cursor, int* remaining)
+{
+    DSoundMonitorState state;
+    memset(&state, 0, sizeof(state));
+    DSound_GetMonitorState(&state);
+    monitor_appendf(cursor, remaining,
+                    "AUDIO rate=%luHz direct=%u buffer=%ld data=%ld free=%ld read=%ld write=%ld lastCallback=%u refillCount=%u preCounter=%ld\n",
+                    state.ratebase,
+                    state.directCallback,
+                    state.bufferBytes,
+                    state.dataBytes,
+                    state.freeBytes,
+                    state.readOffset,
+                    state.writeOffset,
+                    state.lastCallbackBytes,
+                    state.refillCount,
+                    state.preCounter);
+}
+
+static void monitor_format_adpcm(char** cursor, int* remaining)
+{
+    ADPCMMonitorState state;
+    memset(&state, 0, sizeof(state));
+    ADPCM_GetMonitorState(&state);
+    monitor_appendf(cursor, remaining,
+                    "ADPCM playing=%d ready=%d pan=%02X clock=%02X clockRate=%u sampleRate=%u count=%u preCounter=%lld\n",
+                    state.playing,
+                    ADPCM_IsReady(),
+                    state.pan,
+                    ADPCM_Clock,
+                    (unsigned int)state.clockRate,
+                    (unsigned int)state.sampleRate,
+                    (unsigned int)state.count,
+                    state.preCounter);
+    monitor_appendf(cursor, remaining,
+                    "ADPCM buffer wr=%ld rd=%ld size=%ld diff=%d dmaReady=%d step=%d out=%d oldL/R=%d/%d volumeShift=%d\n",
+                    state.writePtr,
+                    state.readPtr,
+                    state.bufferSize,
+                    state.diffBuffer,
+                    state.dmaReady,
+                    state.step,
+                    state.output,
+                    state.oldLeft,
+                    state.oldRight,
+                    state.volumeShift);
+}
+
+static void monitor_format_input(char** cursor, int* remaining)
+{
+    MouseMonitorState mouseState;
+    memset(&mouseState, 0, sizeof(mouseState));
+    Mouse_GetMonitorState(&mouseState);
+
+    int keyDepth = (KeyBufWP >= KeyBufRP) ? (KeyBufWP - KeyBufRP) : (KeyBufSize - KeyBufRP + KeyBufWP);
+    monitor_appendf(cursor, remaining,
+                    "KEYBOARD enable=%02X intFlag=%02X lastKey=%02X bufRP=%u bufWP=%u depth=%d\n",
+                    KeyEnable,
+                    KeyIntFlag,
+                    LastKey,
+                    (unsigned int)KeyBufRP,
+                    (unsigned int)KeyBufWP,
+                    keyDepth);
+    monitor_appendf(cursor, remaining,
+                    "MOUSE sw=%u stat=%02X dx=%.2f dy=%.2f sccX=%d sccY=%d sccSt=%02X queue=%d sent=%d compat=%d doubleClick=%d acc=%.3f,%.3f memACE=%02X %02X %02X %02X\n",
+                    mouseState.sw,
+                    mouseState.stat,
+                    mouseState.dx,
+                    mouseState.dy,
+                    (int)mouseState.sccX,
+                    (int)mouseState.sccY,
+                    mouseState.sccStatus,
+                    mouseState.queueCount,
+                    mouseState.sentCount,
+                    mouseState.compatMode,
+                    mouseState.doubleClickInProgress,
+                    s_mouseAccX,
+                    s_mouseAccY,
+                    MEM ? MEM[0xace] : 0,
+                    MEM ? MEM[0xacf] : 0,
+                    MEM ? MEM[0xad0] : 0,
+                    MEM ? MEM[0xad1] : 0);
+    monitor_appendf(cursor, remaining,
+                    "PPI joyportU=%d joyActive=%u/%u joyPort=%02X/%02X joyState0=%02X/%02X joyState1=%02X/%02X\n",
+                    PPI_GetJoyportUMode(),
+                    (unsigned int)joy[0],
+                    (unsigned int)joy[1],
+                    (unsigned int)JoyPortData[0],
+                    (unsigned int)JoyPortData[1],
+                    (unsigned int)JoyState0[0],
+                    (unsigned int)JoyState0[1],
+                    (unsigned int)JoyState1[0],
+                    (unsigned int)JoyState1[1]);
+}
+
+static void monitor_format_video(char** cursor, int* remaining)
+{
+    int dirtyCount = 0;
+    int firstDirty = -1;
+    int lastDirty = -1;
+    for (int i = 0; i < 1024; i++) {
+        if (TextDirtyLine[i]) {
+            if (firstDirty < 0) firstDirty = i;
+            lastDirty = i;
+            dirtyCount++;
+        }
+    }
+
+    monitor_appendf(cursor, remaining,
+                    "VIDEO frameDirty=%d dispFrame=%u configFrameRate=%d textDirty=%d first=%d last=%d fastClr=%u fastClrLine=%u fastClrMask=%04X\n",
+                    X68000_IsFrameDirty(),
+                    (unsigned int)DispFrame,
+                    Config.FrameRate,
+                    dirtyCount,
+                    firstDirty,
+                    lastDirty,
+                    CRTC_FastClr,
+                    (unsigned int)CRTC_FastClrLine,
+                    CRTC_FastClrMask);
+    monitor_appendf(cursor, remaining,
+                    "VIDEO BG double=%d regs0-11: %02X %02X %02X %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                    BG_DoubleBuffer,
+                    BG_Regs[0], BG_Regs[1], BG_Regs[2], BG_Regs[3],
+                    BG_Regs[4], BG_Regs[5], BG_Regs[6], BG_Regs[7],
+                    BG_Regs[8], BG_Regs[9], BG_Regs[10], BG_Regs[11],
+                    BG_Regs[12], BG_Regs[13], BG_Regs[14], BG_Regs[15],
+                    BG_Regs[16], BG_Regs[17]);
+    monitor_appendf(cursor, remaining,
+                    "VIDEO BG0=%u,%u BG1=%u,%u HAdjust=%ld VLINEBG=%u BG_VLINE=%ld GrpDouble=%d\n",
+                    (unsigned int)BG0ScrollX,
+                    (unsigned int)BG0ScrollY,
+                    (unsigned int)BG1ScrollX,
+                    (unsigned int)BG1ScrollY,
+                    BG_HAdjust,
+                    (unsigned int)VLINEBG,
+                    BG_VLINE,
+                    Grp_DoubleBuffer);
+}
+
+static void monitor_format_midi(char** cursor, int* remaining)
+{
+    MIDIMonitorState state;
+    memset(&state, 0, sizeof(state));
+    MIDI_GetMonitorState(&state);
+    monitor_appendf(cursor, remaining,
+                    "MIDI enabled=%d output=%d module=%d ctrl=%d pos=%d sysCount=%d excWait=%d playing=%d regHigh=%d\n",
+                    state.enabled,
+                    state.hasOutput,
+                    state.module,
+                    state.ctrl,
+                    state.pos,
+                    state.sysCount,
+                    state.exclusiveWait,
+                    state.playing,
+                    state.regHigh);
+    monitor_appendf(cursor, remaining,
+                    "MIDI int enable=%02X flag=%02X vect=%02X vectorBase=%02X buffered=%u txFull=%d bufTimer=%ld R05=%02X swiftBuffer=%ld delay=%d/%d count=%d\n",
+                    state.intEnable,
+                    state.intFlag,
+                    state.intVect,
+                    state.vector,
+                    (unsigned int)state.buffered,
+                    state.txFull,
+                    state.bufTimer,
+                    state.r05,
+                    state.swiftBufferSize,
+                    state.delayRead,
+                    state.delayWrite,
+                    state.delayCount);
+    monitor_appendf(cursor, remaining,
+                    "MIDI timers G=%u/%ld M=%u/%ld\n",
+                    (unsigned int)state.gTimerMax,
+                    state.gTimerVal,
+                    (unsigned int)state.mTimerMax,
+                    state.mTimerVal);
+}
+
+static void monitor_format_mem(char** cursor, int* remaining)
+{
+    BYTE sramBoot = SRAM[0x18 ^ 1];
+    monitor_appendf(cursor, remaining,
+                    "MEM ptr RAM=%p IPL=%p FONT=%p OP_ROM=%p SCSIIPL=%p SCSIMode=%d busErrFlag=%u busErrAdr=%06X byteAccess=%u\n",
+                    MEM,
+                    IPL,
+                    FONT,
+                    OP_ROM,
+                    SCSIIPL,
+                    Memory_IsSCSIModeEnabled(),
+                    (unsigned int)BusErrFlag,
+                    (unsigned int)(BusErrAdr & 0x00ffffffu),
+                    (unsigned int)MemByteAccess);
+    monitor_appendf(cursor, remaining,
+                    "MEM SRAM boot=%02X signature=%02X %02X %02X %02X sasiIPLLoaded=%d sasiSRAMValid=%d scsiIPLRestore=%d\n",
+                    sramBoot,
+                    SRAM[0x10 ^ 1],
+                    SRAM[0x11 ^ 1],
+                    SRAM[0x12 ^ 1],
+                    SRAM[0x13 ^ 1],
+                    SASI_IPLROM_loaded,
+                    s_sram_sasi_valid,
+                    s_scsi_ipl_needs_restore);
+    monitor_appendf(cursor, remaining,
+                    "MEM exception vectors 0000-001F: %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X  %02X %02X %02X %02X\n",
+                    MEM ? MEM[0x00 ^ 1] : 0, MEM ? MEM[0x01 ^ 1] : 0, MEM ? MEM[0x02 ^ 1] : 0, MEM ? MEM[0x03 ^ 1] : 0,
+                    MEM ? MEM[0x04 ^ 1] : 0, MEM ? MEM[0x05 ^ 1] : 0, MEM ? MEM[0x06 ^ 1] : 0, MEM ? MEM[0x07 ^ 1] : 0,
+                    MEM ? MEM[0x08 ^ 1] : 0, MEM ? MEM[0x09 ^ 1] : 0, MEM ? MEM[0x0a ^ 1] : 0, MEM ? MEM[0x0b ^ 1] : 0,
+                    MEM ? MEM[0x0c ^ 1] : 0, MEM ? MEM[0x0d ^ 1] : 0, MEM ? MEM[0x0e ^ 1] : 0, MEM ? MEM[0x0f ^ 1] : 0,
+                    MEM ? MEM[0x10 ^ 1] : 0, MEM ? MEM[0x11 ^ 1] : 0, MEM ? MEM[0x12 ^ 1] : 0, MEM ? MEM[0x13 ^ 1] : 0,
+                    MEM ? MEM[0x14 ^ 1] : 0, MEM ? MEM[0x15 ^ 1] : 0, MEM ? MEM[0x16 ^ 1] : 0, MEM ? MEM[0x17 ^ 1] : 0,
+                    MEM ? MEM[0x18 ^ 1] : 0, MEM ? MEM[0x19 ^ 1] : 0, MEM ? MEM[0x1a ^ 1] : 0, MEM ? MEM[0x1b ^ 1] : 0,
+                    MEM ? MEM[0x1c ^ 1] : 0, MEM ? MEM[0x1d ^ 1] : 0, MEM ? MEM[0x1e ^ 1] : 0, MEM ? MEM[0x1f ^ 1] : 0);
+}
+
 void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
 {
     if (!out || outSize <= 0) return;
@@ -1911,6 +2130,12 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_FDC) monitor_format_fdc(&cursor, &remaining);
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_CRTC) monitor_format_crtc(&cursor, &remaining);
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_SCSI) monitor_format_scsi(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_AUDIO) monitor_format_audio(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_ADPCM) monitor_format_adpcm(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_INPUT) monitor_format_input(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_VIDEO) monitor_format_video(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_MIDI) monitor_format_midi(&cursor, &remaining);
+    if (section == X68_MON_HW_ALL || section == X68_MON_HW_MEM) monitor_format_mem(&cursor, &remaining);
 
     if (out[0] == '\0') {
         monitor_appendf(&cursor, &remaining, "Unknown hardware monitor section %d\n", section);
