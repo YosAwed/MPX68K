@@ -98,8 +98,12 @@ zsrc/
 # Local Xcode derived data checked in by accident on a feature branch
 .derivedData/
 
-# Local editor / agent state
-.claude/
+# Local editor / agent state (but track shared skills)
+.claude/*
+!.claude/skills
+.claude/skills/*
+!.claude/skills/*/
+!.claude/skills/**/SKILL.md
 
 # Ad-hoc build logs
 build_x86.log
