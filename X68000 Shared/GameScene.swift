@@ -98,8 +98,8 @@ class GameScene: SKScene {
     var screen_h: Float = 1024.0
     private var isEmulatorInitialized: Bool = false
     
-    // Performance optimization: Pre-allocated texture for reuse
-    private var preAllocatedTexture: SKTexture?
+    // Performance optimization: reuse Data buffer to avoid per-frame allocation
+    private var textureData = Data(count: 768 * 512 * 4)
     private var lastScreenWidth: Int = 0
     private var lastScreenHeight: Int = 0
     
@@ -1510,10 +1510,24 @@ class GameScene: SKScene {
     
     private func updateScreenTexture() {
         let cgsize = CGSize(width: w, height: h)
-        _ = (w != lastScreenWidth || h != lastScreenHeight)
-        
-        // Fall back to standard texture creation (SpriteKit doesn't expose Metal device directly)
-        fallbackTextureUpdate(cgsize)
+        let byteCount = w * h * 4
+        guard byteCount > 0 && byteCount <= d.count else { return }
+
+        // Resize reusable buffer only when screen dimensions change
+        if textureData.count != byteCount {
+            textureData = Data(count: byteCount)
+        }
+
+        // Single memcpy into the reusable Data buffer (avoids per-frame allocation)
+        textureData.withUnsafeMutableBytes { dst in
+            d.withUnsafeBytes { src in
+                memcpy(dst.baseAddress!, src.baseAddress!, byteCount)
+            }
+        }
+
+        let tex = SKTexture(data: textureData, size: cgsize, flipped: true)
+        tex.filteringMode = .nearest
+        updateSpriteWithTexture(tex, size: cgsize)
     }
 
     func setMIDIOutputDelayMs(_ ms: Double, persist: Bool = true) {
@@ -1538,13 +1552,6 @@ class GameScene: SKScene {
         }
     }
     
-    private func fallbackTextureUpdate(_ cgsize: CGSize) {
-        // Fallback to old method if Metal fails
-        let byteCount = min(frameBufferByteCount, d.count)
-        let tex = SKTexture(data: Data(d.prefix(byteCount)), size: cgsize, flipped: true)
-        tex.filteringMode = .nearest  // Pixel art filtering
-        updateSpriteWithTexture(tex, size: cgsize)
-    }
     
     private func updateSpriteWithTexture(_ texture: SKTexture, size: CGSize) {
         let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
