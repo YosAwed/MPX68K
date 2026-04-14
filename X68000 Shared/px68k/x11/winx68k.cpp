@@ -1750,7 +1750,8 @@ enum {
     X68_MON_HW_INPUT = 10,
     X68_MON_HW_VIDEO = 11,
     X68_MON_HW_MIDI = 12,
-    X68_MON_HW_MEM = 13
+    X68_MON_HW_MEM = 13,
+    X68_MON_HW_SUMMARY = 14
 };
 
 static void monitor_appendf(char** cursor, int* remaining, const char* format, ...)
@@ -2117,6 +2118,70 @@ static void monitor_format_mem(char** cursor, int* remaining)
                     MEM ? MEM[0x1c ^ 1] : 0, MEM ? MEM[0x1d ^ 1] : 0, MEM ? MEM[0x1e ^ 1] : 0, MEM ? MEM[0x1f ^ 1] : 0);
 }
 
+static void monitor_format_summary(char** cursor, int* remaining)
+{
+    int activeIrq = 0;
+    for (int i = 1; i < 8; i++) {
+        if (IRQH_IRQ[i]) activeIrq = i;
+    }
+
+    int keyDepth = (KeyBufWP >= KeyBufRP) ? (KeyBufWP - KeyBufRP) : (KeyBufSize - KeyBufRP + KeyBufWP);
+
+    MouseMonitorState mouseState;
+    memset(&mouseState, 0, sizeof(mouseState));
+    Mouse_GetMonitorState(&mouseState);
+
+    DSoundMonitorState audioState;
+    memset(&audioState, 0, sizeof(audioState));
+    DSound_GetMonitorState(&audioState);
+
+    ADPCMMonitorState adpcmState;
+    memset(&adpcmState, 0, sizeof(adpcmState));
+    ADPCM_GetMonitorState(&adpcmState);
+
+    MIDIMonitorState midiState;
+    memset(&midiState, 0, sizeof(midiState));
+    MIDI_GetMonitorState(&midiState);
+
+    monitor_appendf(cursor, remaining,
+                    "SUMMARY paused=%d PC=%06X SR=%04X IRQ=%d frameDirty=%d video=%ux%u mode=%02X\n",
+                    X68000_Monitor_IsPaused(),
+                    (unsigned int)(m68000_get_reg(M68K_PC) & 0x00ffffffu),
+                    (unsigned int)(m68000_get_reg(M68K_SR) & 0xffffu),
+                    activeIrq,
+                    X68000_IsFrameDirty(),
+                    (unsigned int)TextDotX,
+                    (unsigned int)TextDotY,
+                    CRTC_Mode);
+    monitor_appendf(cursor, remaining,
+                    "SUMMARY audio data=%ld free=%ld lastCallback=%u refillCount=%u adpcmPlaying=%d midiBuffered=%u\n",
+                    audioState.dataBytes,
+                    audioState.freeBytes,
+                    audioState.lastCallbackBytes,
+                    audioState.refillCount,
+                    adpcmState.playing,
+                    (unsigned int)midiState.buffered);
+    monitor_appendf(cursor, remaining,
+                    "SUMMARY storage fddReady=%d/%d/%d/%d scsiMounted=%d sasiReady=%d busMode=%d\n",
+                    FDD_IsReady(0),
+                    FDD_IsReady(1),
+                    FDD_IsReady(2),
+                    FDD_IsReady(3),
+                    X68000_SCSI_IsMounted(0, 0),
+                    SASI_IsReady(),
+                    X68000_GetStorageBusMode());
+    monitor_appendf(cursor, remaining,
+                    "SUMMARY input lastKey=%02X keyDepth=%d mouseQueue=%d joy=%02X/%02X memBusErr=%u@%06X scsiMode=%d\n",
+                    LastKey,
+                    keyDepth,
+                    mouseState.queueCount,
+                    (unsigned int)JoyPortData[0],
+                    (unsigned int)JoyPortData[1],
+                    (unsigned int)BusErrFlag,
+                    (unsigned int)(BusErrAdr & 0x00ffffffu),
+                    Memory_IsSCSIModeEnabled());
+}
+
 void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
 {
     if (!out || outSize <= 0) return;
@@ -2124,6 +2189,7 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
     int remaining = outSize;
     out[0] = '\0';
 
+    if (section == X68_MON_HW_SUMMARY) monitor_format_summary(&cursor, &remaining);
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_IRQ) monitor_format_irq(&cursor, &remaining);
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_MFP) monitor_format_mfp(&cursor, &remaining);
     if (section == X68_MON_HW_ALL || section == X68_MON_HW_DMA) monitor_format_dma(&cursor, &remaining);

@@ -29,9 +29,13 @@ private extension X68000MonitorCPUState {
 // MARK: - View
 
 struct MonitorView: View {
+    private static let initialOutput = "X68000 Machine Monitor\nType HELP for commands.\n"
+    private static let maxOutputCharacters = 200_000
+
     @State private var output: String = "X68000 Machine Monitor\nType HELP for commands.\n"
     @State private var input: String = ""
     @State private var isPaused: Bool = false
+    @State private var writeUnlocked: Bool = false
     @State private var cpuState = X68000MonitorCPUState()
     @State private var cmdHistory: [String] = []
     @State private var historyIndex: Int = -1
@@ -72,6 +76,9 @@ struct MonitorView: View {
                     .onSubmit { submitCommand() }
                 Button(isPaused ? "Resume (G)" : "Pause (P)") { togglePause() }
                     .controlSize(.small)
+                Text(writeUnlocked ? "WRITE UNLOCKED" : "WRITE LOCKED")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(writeUnlocked ? Color.red : Color.secondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -132,14 +139,15 @@ struct MonitorView: View {
         cmdHistory.insert(cmd, at: 0)
         historyIndex = -1
         input = ""
-        output += "> \(cmd)\n"
-        output += executeCommand(cmd)
+        appendOutput("> \(cmd)\n")
+        appendOutput(executeCommand(cmd))
     }
 
     private func togglePause() {
         isPaused.toggle()
         X68000_Monitor_SetPaused(isPaused ? 1 : 0)
-        output += isPaused ? "-- PAUSED --\n" : "-- RESUMED --\n"
+        if !isPaused { writeUnlocked = false }
+        appendOutput(isPaused ? "-- PAUSED --\n" : "-- RESUMED --\n")
         if isPaused { refreshCPUState() }
     }
 
@@ -155,7 +163,26 @@ struct MonitorView: View {
 
         switch cmd {
         case "HELP":
+            if parts.count > 1 && parts[1] == "HW" {
+                return hardwareHelpText
+            }
             return helpText
+
+        case "CLEAR", "CLS":
+            output = Self.initialOutput
+            return ""
+
+        case "LOCK":
+            guard parts.count == 2 && parts[1] == "WRITE" else { return "Usage: LOCK WRITE\n" }
+            writeUnlocked = false
+            return "Write commands locked.\n"
+
+        case "UNLOCK":
+            guard parts.count == 2 && parts[1] == "WRITE" else { return "Usage: UNLOCK WRITE\n" }
+            isPaused = (X68000_Monitor_IsPaused() != 0)
+            guard isPaused else { return "Pause before unlocking writes. Type P first.\n" }
+            writeUnlocked = true
+            return "Write commands unlocked until resume or LOCK WRITE.\n"
 
         case "P":
             if !isPaused {
@@ -169,13 +196,16 @@ struct MonitorView: View {
         case "G":
             if isPaused {
                 isPaused = false
+                writeUnlocked = false
                 X68000_Monitor_SetPaused(0)
                 return "-- RESUMED --\n"
             }
             return "(not paused)\n"
 
         case "RESET":
+            if let error = requireWriteAccess() { return error }
             X68000_Reset()
+            writeUnlocked = false
             return "Reset.\n"
 
         case "REG":
@@ -204,10 +234,12 @@ struct MonitorView: View {
 
         case "M":
             guard parts.count > 2 else { return "Usage: M addr b0 [b1 ...]\n" }
+            if let error = requireWriteAccess() { return error }
             return writeBytes(addrStr: parts[1], values: Array(parts.dropFirst(2)))
 
         case "MW":
             guard parts.count == 3 else { return "Usage: MW addr word\n" }
+            if let error = requireWriteAccess() { return error }
             guard let addr = parseAddress(parts[1]) else {
                 return invalidHexMessage("address", parts[1])
             }
@@ -220,6 +252,7 @@ struct MonitorView: View {
 
         case "MD":
             guard parts.count == 3 else { return "Usage: MD addr dword\n" }
+            if let error = requireWriteAccess() { return error }
             guard let addr = parseAddress(parts[1]) else {
                 return invalidHexMessage("address", parts[1])
             }
@@ -230,6 +263,7 @@ struct MonitorView: View {
             return String(format: "[%06X] <- %08X\n", addr, val)
 
         case "SET":
+            if let error = requireWriteAccess() { return error }
             return setRegister(parts: parts)
 
         default:
@@ -238,6 +272,25 @@ struct MonitorView: View {
     }
 
     // MARK: - Helpers
+
+    private func appendOutput(_ text: String) {
+        output += text
+        if output.count > Self.maxOutputCharacters {
+            let suffix = output.suffix(Self.maxOutputCharacters)
+            output = "... output truncated ...\n" + String(suffix)
+        }
+    }
+
+    private func requireWriteAccess() -> String? {
+        isPaused = (X68000_Monitor_IsPaused() != 0)
+        guard isPaused else {
+            return "Write commands require pause. Type P first.\n"
+        }
+        guard writeUnlocked else {
+            return "Write commands are locked. Type UNLOCK WRITE first.\n"
+        }
+        return nil
+    }
 
     private func parseHex(_ s: String) -> UInt32? {
         let clean: String
@@ -366,7 +419,7 @@ struct MonitorView: View {
     private func hardwareState(parts: [String]) -> String {
         let sectionName = parts.count > 1 ? parts[1] : "ALL"
         guard let section = hardwareSectionCode(sectionName) else {
-            return "Usage: HW [ALL|IRQ|MFP|DMA|FDD|FDC|CRTC|SCSI|AUDIO|ADPCM|INPUT|VIDEO|MIDI|MEM]\n"
+            return "Usage: HW [SUMMARY|ALL|IRQ|MFP|DMA|FDD|FDC|CRTC|SCSI|AUDIO|ADPCM|INPUT|VIDEO|MIDI|MEM]\n"
         }
 
         var buffer = [CChar](repeating: 0, count: 16_384)
@@ -377,6 +430,7 @@ struct MonitorView: View {
     private func hardwareSectionCode(_ name: String) -> Int32? {
         switch name {
         case "ALL": return 0
+        case "SUMMARY", "SUM", "STATUS": return 14
         case "IRQ": return 1
         case "MFP": return 2
         case "DMA": return 3
@@ -405,12 +459,19 @@ struct MonitorView: View {
           REG                  Show CPU registers
           SET Dn|An|PC|SR val  Set register (e.g. SET D0 DEADBEEF)
           HW [section]         Hardware snapshot
-                               ALL, IRQ, MFP, DMA, FDD, FDC, CRTC, SCSI,
+                               SUMMARY, ALL, IRQ, MFP, DMA, FDD, FDC, SCSI,
                                AUDIO, ADPCM, INPUT, VIDEO, MIDI, MEM
           P                    Pause emulation
           G                    Resume emulation
           RESET                Reset emulator
+          CLEAR                Clear monitor output
+          UNLOCK WRITE         Enable write commands while paused
+          LOCK WRITE           Disable write commands
           HELP                 This help
+
+        Write commands:
+          M, MW, MD, SET, and RESET require pause plus UNLOCK WRITE.
+          Write unlock is cleared when emulation resumes or RESET runs.
 
         Memory map:
           000000-BFFFFF  Main RAM
@@ -420,6 +481,29 @@ struct MonitorView: View {
           ED0000-ED3FFF  SRAM
           F00000-FBFFFF  Font ROM
           FC0000-FFFFFF  IPL ROM\n
+        """
+    }
+
+    private var hardwareHelpText: String {
+        """
+        Hardware monitor sections:
+          HW SUMMARY   Short overview: CPU, IRQ, video, audio, storage, input, memory
+          HW ALL       Full snapshot of all sections
+          HW IRQ       Pending interrupt levels and highest pending IRQ
+          HW MFP       MFP GPIO, interrupt masks, timers, USART registers
+          HW DMA       DMA channel CSR/CER/CCR/OCR/DCR/SCR and address counters
+          HW FDD       Mounted floppy image readiness, write protect, current ID
+          HW FDC       FDC command, status, transfer buffers, data-ready state
+          HW CRTC      Screen geometry, scroll registers, CRTC register blocks
+          HW SCSI      SCSI/SASI mount, boot, dirty, image state
+          HW AUDIO     Audio callback buffer, fill, refill counters
+          HW ADPCM     ADPCM playback, DMA, buffer, clock and output state
+          HW INPUT     Keyboard, mouse, PPI joystick state
+          HW VIDEO     Frame dirty, text dirty, BG scroll and graphics state
+          HW MIDI      MIDI module, interrupt, buffering and timer state
+          HW MEM       RAM/ROM pointers, SRAM boot bytes, bus error state
+
+        HW is pull-only. It does not start logging or add per-frame work.
         """
     }
 }
