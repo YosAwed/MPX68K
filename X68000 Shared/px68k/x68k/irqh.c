@@ -9,20 +9,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static int s_irqh_log_count = 0;
-
 // Disabled by default — see mem_wrap.c for the same reason. Re-enable with
 // -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 if you need IRQ ack tracing.
 #ifndef MPX68K_ENABLE_RUNTIME_FILE_LOGS
 #define MPX68K_ENABLE_RUNTIME_FILE_LOGS 0
 #endif
 
+#if MPX68K_ENABLE_RUNTIME_FILE_LOGS
+static int s_irqh_log_count = 0;
 static void IRQH_LogText(const char* text)
 {
-#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
-	(void)text;
-	return;
-#else
 #ifdef __APPLE__
 	const char* home = getenv("HOME");
 	char path[512];
@@ -40,8 +36,8 @@ static void IRQH_LogText(const char* text)
 #else
 	(void)text;
 #endif
-#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 }
+#endif /* MPX68K_ENABLE_RUNTIME_FILE_LOGS */
 
 #if defined (HAVE_CYCLONE)
 extern struct Cyclone m68k;
