@@ -2331,43 +2331,109 @@ class FileSystem {
         }
     }
     
-    func loadIPLROM() -> Bool
+    // MARK: - ROM Validation Helpers
+
+    /// IPLROM.DAT / IPLROM0.DAT の内容を検証する。
+    /// winx68k.cpp がロード後に各バイトペアをスワップするため、
+    /// ファイル上の raw バイト順から M68K 初期 PC を逆算して範囲チェックする。
+    private func validateIPLROM(_ data: Data, name: String) -> ROMLoadError? {
+        // 1. サイズ完全一致（0x20000 = 131072 バイト）
+        guard data.count == 0x20000 else {
+            return .invalidSize(name, expected: 0x20000, actual: data.count)
+        }
+        // 2. 全バイト同一値チェック（ゼロ埋め・FF埋めなど）
+        let first = data[0]
+        guard data.contains(where: { $0 != first }) else {
+            return .blankContent(name)
+        }
+        // 3. M68K リセットベクタ（初期 PC）の範囲検証
+        //    winx68k.cpp は IPL[] 全域でバイトペアスワップを行う。
+        //    ファイル上のオフセット 4–7 から実効 PC を逆算：
+        //      realPC = (file[5]<<24) | (file[4]<<16) | (file[7]<<8) | file[6]
+        //    有効な X68000 IPL ROM の初期 PC は必ず $FC0000–$FFFFFF に入る。
+        let pcHigh = UInt32(data[5]) << 24 | UInt32(data[4]) << 16
+        let pcLow  = UInt32(data[7]) << 8  | UInt32(data[6])
+        let initialPC = pcHigh | pcLow
+        guard initialPC >= 0xFC0000 && initialPC <= 0xFFFFFF else {
+            return .invalidVector(name, pc: initialPC)
+        }
+        return nil
+    }
+
+    /// SCSIEXROM.DAT の内容を検証する。
+    /// "SCSI" または "CZ-6BS1" 文字列が先頭 256 バイト内に存在するかを確認。
+    /// macOS 12 対応のため windows(ofCount:) は使用せず手動検索。
+    private func validateSCSIEXROM(_ data: Data) -> ROMLoadError? {
+        // 1. サイズ完全一致（0x2000 = 8192 バイト）
+        guard data.count == 0x2000 else {
+            return .invalidSize("SCSIEXROM.DAT", expected: 0x2000, actual: data.count)
+        }
+        // 2. 全バイト同一値チェック
+        let first = data[0]
+        guard data.contains(where: { $0 != first }) else {
+            return .blankContent("SCSIEXROM.DAT")
+        }
+        // 3. ROM マーカー文字列検索
+        let header = data.prefix(256)
+        let scsiMarker: [UInt8] = [0x53, 0x43, 0x53, 0x49]             // "SCSI"
+        let czMarker:   [UInt8] = [0x43, 0x5A, 0x2D, 0x36, 0x42, 0x53, 0x31] // "CZ-6BS1"
+        func containsSequence(_ seq: [UInt8], in buf: Data) -> Bool {
+            guard buf.count >= seq.count else { return false }
+            for i in 0...(buf.count - seq.count) {
+                if buf[i..<(i + seq.count)].elementsEqual(seq) { return true }
+            }
+            return false
+        }
+        guard containsSequence(scsiMarker, in: header) || containsSequence(czMarker, in: header) else {
+            return .invalidHeader("SCSIEXROM.DAT")
+        }
+        return nil
+    }
+
+    // MARK: - ROM Loading
+
+    func loadIPLROM() -> Result<Void, ROMLoadError>
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
 
         guard let url = findFileInDocuments("IPLROM.DAT") else {
             errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
-            return false
+            // ファイル未発見は既存の missing-ROM フローで処理済み。ここでは blankContent で代替返却。
+            return .failure(.blankContent("IPLROM.DAT"))
         }
 
         do {
             let data: Data = try Data(contentsOf: url)
-            // Security: Validate IPLROM file size (expected size is 0x20000 bytes)
-            let maxRomSize = 0x20000
-            guard data.count > 0 && data.count <= maxRomSize else {
-                errorLog("Security: IPLROM.DAT invalid size: \(data.count)", category: .fileSystem)
-                return false
+            // 内容検証（サイズ・全同一値・M68K PC ベクタ）
+            if let err = validateIPLROM(data, name: "IPLROM.DAT") {
+                errorLog("IPLROM.DAT validation failed: \(err.localizedDescription ?? "")", category: .fileSystem)
+                return .failure(err)
             }
             if let p = X68000_GetIPLROMPointer() {
-                data.copyBytes(to: p, count: min(data.count, maxRomSize))
+                data.copyBytes(to: p, count: 0x20000)
                 infoLog("IPLROM.DAT loaded successfully (\(data.count) bytes)", category: .fileSystem)
             } else {
                 errorLog("Failed to get IPLROM pointer", category: .fileSystem)
-                return false
+                return .failure(.blankContent("IPLROM.DAT"))
             }
         } catch let error as NSError {
             errorLog("Error loading IPLROM.DAT", error: error, category: .fileSystem)
-            return false
+            return .failure(.blankContent("IPLROM.DAT"))
         }
 
         // Optional: Load IPLROM0.DAT (SASI-compatible IPL ROM) as secondary.
         // Used by WinX68k_Reset when bus mode is SASI.
+        // ⚠️ 検証失敗は非致命的。ただし X68000_GetSASI_IPLROMPointer() を
+        //    呼ばないこと（呼ぶと C 側で SASI_IPLROM_loaded=1 が立つ）。
         if let sasiRomURL = findFileInDocuments("IPLROM0.DAT") {
             do {
                 let sasiData: Data = try Data(contentsOf: sasiRomURL)
-                if sasiData.count > 0 && sasiData.count <= 0x20000 {
+                if let err = validateIPLROM(sasiData, name: "IPLROM0.DAT") {
+                    warningLog("IPLROM0.DAT 検証失敗。SASIモードでは標準IPLを使用します: \(err.localizedDescription ?? "")", category: .fileSystem)
+                    // ポインタは取得しない → SASI_IPLROM_loaded フラグを立てない
+                } else {
                     if let p = X68000_GetSASI_IPLROMPointer() {
-                        sasiData.copyBytes(to: p, count: min(sasiData.count, 0x20000))
+                        sasiData.copyBytes(to: p, count: 0x20000)
                         infoLog("IPLROM0.DAT loaded as SASI IPL (\(sasiData.count) bytes)", category: .fileSystem)
                     }
                 }
@@ -2384,13 +2450,13 @@ class FileSystem {
            let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") {
             do {
                 let scsiData: Data = try Data(contentsOf: scsiRomURL)
-                let maxScsiSize = 0x2000
-                guard scsiData.count > 0 && scsiData.count <= maxScsiSize else {
-                    errorLog("Security: SCSIEXROM.DAT invalid size: \(scsiData.count)", category: .fileSystem)
-                    return true
+                // SCIモード設定時に無効 ROM は致命的エラー
+                if let err = validateSCSIEXROM(scsiData) {
+                    errorLog("SCSIEXROM.DAT 検証失敗: \(err.localizedDescription ?? "")", category: .fileSystem)
+                    return .failure(err)
                 }
                 if let scsiPtr = X68000_GetSCSIIPLPointer() {
-                    scsiData.copyBytes(to: scsiPtr, count: min(scsiData.count, maxScsiSize))
+                    scsiData.copyBytes(to: scsiPtr, count: 0x2000)
                     infoLog("SCSIEXROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
                 } else {
                     errorLog("Failed to get SCSI IPL pointer", category: .fileSystem)
@@ -2400,7 +2466,7 @@ class FileSystem {
             }
         }
 
-        return true
+        return .success(())
     }
     
     // MARK: - Explicit FDD Drive Loading

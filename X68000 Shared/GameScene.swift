@@ -914,10 +914,41 @@ class GameScene: SKScene {
         #endif
     }
 
+    /// ROM 検証エラーをプラットフォーム固有のダイアログで通知する。
+    private func notifyROMLoadError(_ error: ROMLoadError) {
+        DispatchQueue.main.async { [weak self] in
+            guard self != nil else { return }
+#if os(macOS)
+            if let vc = GameViewController.shared {
+                vc.showROMInvalidAlert(error: error)
+            }
+#elseif os(iOS)
+            if let window = UIApplication.shared.windows.first,
+               let vc = window.rootViewController {
+                let alert = UIAlertController(
+                    title: "ROM ファイルエラー",
+                    message: error.localizedDescription ?? "不明なエラーが発生しました。",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                vc.present(alert, animated: true)
+            }
+#endif
+        }
+    }
+
     private func startEmulator(with fileSystem: FileSystem) {
         // Load ROM files FIRST, before any emulator initialization
-        guard fileSystem.loadIPLROM() && fileSystem.loadCGROM() else {
-            errorLog("CRITICAL: Required ROM files not found - stopping emulator initialization", category: .emulation)
+        switch fileSystem.loadIPLROM() {
+        case .failure(let romError):
+            errorLog("CRITICAL: IPLROM load failed: \(romError)", category: .emulation)
+            notifyROMLoadError(romError)
+            return
+        case .success:
+            break
+        }
+        guard fileSystem.loadCGROM() else {
+            errorLog("CRITICAL: CGROM.DAT not found - stopping emulator initialization", category: .emulation)
             return
         }
 
