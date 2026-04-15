@@ -2346,17 +2346,6 @@ class FileSystem {
         guard data.contains(where: { $0 != first }) else {
             return .blankContent(name)
         }
-        // 3. M68K リセットベクタ（初期 PC）の範囲検証
-        //    winx68k.cpp は IPL[] 全域でバイトペアスワップを行う。
-        //    ファイル上のオフセット 4–7 から実効 PC を逆算：
-        //      realPC = (file[5]<<24) | (file[4]<<16) | (file[7]<<8) | file[6]
-        //    有効な X68000 IPL ROM の初期 PC は必ず $FC0000–$FFFFFF に入る。
-        let pcHigh = UInt32(data[5]) << 24 | UInt32(data[4]) << 16
-        let pcLow  = UInt32(data[7]) << 8  | UInt32(data[6])
-        let initialPC = pcHigh | pcLow
-        guard initialPC >= 0xFC0000 && initialPC <= 0xFFFFFF else {
-            return .invalidVector(name, pc: initialPC)
-        }
         return nil
     }
 

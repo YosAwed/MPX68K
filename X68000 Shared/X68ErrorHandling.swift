@@ -77,7 +77,6 @@ enum ROMLoadError: LocalizedError {
     case missingFile(String)
     case invalidSize(String, expected: Int, actual: Int)
     case blankContent(String)
-    case invalidVector(String, pc: UInt32)   // IPL ROM: 初期PC が $FC0000–$FFFFFF 外
     case invalidHeader(String)               // SCSIEXROM: マーカー文字列なし
 
     var errorDescription: String? {
@@ -88,8 +87,6 @@ enum ROMLoadError: LocalizedError {
             return "\(name) のサイズが不正です。\n期待: \(expected) バイト / 実際: \(actual) バイト\n正しい X68000 の ROM ファイルを使用してください。"
         case .blankContent(let name):
             return "\(name) が空または未初期化です（全バイトが同一値）。\n正しい X68000 の ROM ファイルを使用してください。"
-        case .invalidVector(let name, let pc):
-            return "\(name) は有効な X68000 IPL ROM ではありません。\n（リセットベクタ PC=$\(String(pc, radix: 16, uppercase: true)) が不正）\n正しい IPLROM.DAT を使用してください。"
         case .invalidHeader(let name):
             return "\(name) は有効な SCSI 拡張 ROM ではありません。\nCZ-6BS1 互換の SCSIEXROM.DAT を使用してください。"
         }
