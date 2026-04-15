@@ -1550,7 +1550,7 @@ class GameScene: SKScene {
         }
 
         // Single memcpy into the reusable Data buffer (avoids per-frame allocation)
-        textureData.withUnsafeMutableBytes { dst in
+        _ = textureData.withUnsafeMutableBytes { dst in
             d.withUnsafeBytes { src in
                 memcpy(dst.baseAddress!, src.baseAddress!, byteCount)
             }

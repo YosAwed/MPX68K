@@ -247,7 +247,7 @@ class GameViewController: NSViewController {
         }
         let alert = NSAlert()
         alert.messageText = "ROM ファイルエラー"
-        alert.informativeText = error.localizedDescription ?? "不明なエラーが発生しました。"
+        alert.informativeText = error.localizedDescription
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
         if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {

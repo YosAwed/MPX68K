@@ -2394,7 +2394,7 @@ class FileSystem {
             let data: Data = try Data(contentsOf: url)
             // 内容検証（サイズ・全同一値・M68K PC ベクタ）
             if let err = validateIPLROM(data, name: "IPLROM.DAT") {
-                errorLog("IPLROM.DAT validation failed: \(err.localizedDescription ?? "")", category: .fileSystem)
+                errorLog("IPLROM.DAT validation failed: \(err.localizedDescription)", category: .fileSystem)
                 return .failure(err)
             }
             if let p = X68000_GetIPLROMPointer() {
@@ -2417,7 +2417,7 @@ class FileSystem {
             do {
                 let sasiData: Data = try Data(contentsOf: sasiRomURL)
                 if let err = validateIPLROM(sasiData, name: "IPLROM0.DAT") {
-                    warningLog("IPLROM0.DAT 検証失敗。SASIモードでは標準IPLを使用します: \(err.localizedDescription ?? "")", category: .fileSystem)
+                    warningLog("IPLROM0.DAT 検証失敗。SASIモードでは標準IPLを使用します: \(err.localizedDescription)", category: .fileSystem)
                     // ポインタは取得しない → SASI_IPLROM_loaded フラグを立てない
                 } else {
                     if let p = X68000_GetSASI_IPLROMPointer() {
@@ -2443,7 +2443,7 @@ class FileSystem {
                 let scsiData: Data = try Data(contentsOf: scsiRomURL)
                 // SCIモード設定時に無効 ROM は致命的エラー
                 if let err = validateSCSIEXROM(scsiData) {
-                    errorLog("SCSIEXROM.DAT 検証失敗: \(err.localizedDescription ?? "")", category: .fileSystem)
+                    errorLog("SCSIEXROM.DAT 検証失敗: \(err.localizedDescription)", category: .fileSystem)
                     return .failure(err)
                 }
                 if let scsiPtr = X68000_GetSCSIIPLPointer() {
