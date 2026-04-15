@@ -74,6 +74,7 @@ enum X68MacError: LocalizedError {
 // MARK: - ROM Load Validation Errors
 
 enum ROMLoadError: LocalizedError {
+    case missingFile(String)
     case invalidSize(String, expected: Int, actual: Int)
     case blankContent(String)
     case invalidVector(String, pc: UInt32)   // IPL ROM: 初期PC が $FC0000–$FFFFFF 外
@@ -81,6 +82,8 @@ enum ROMLoadError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .missingFile(let name):
+            return "\(name) が見つかりません。\nDocuments/X68000 に正しい ROM ファイルを配置してください。"
         case .invalidSize(let name, let expected, let actual):
             return "\(name) のサイズが不正です。\n期待: \(expected) バイト / 実際: \(actual) バイト\n正しい X68000 の ROM ファイルを使用してください。"
         case .blankContent(let name):
@@ -206,4 +209,3 @@ func safeFileOperation<T>(_ operation: () throws -> T, filename: String) throws 
         }
     }
 }
-
