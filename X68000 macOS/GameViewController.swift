@@ -238,6 +238,25 @@ class GameViewController: NSViewController {
         }
     }
     
+    // MARK: - ROM Invalid Alert
+
+    func showROMInvalidAlert(error: ROMLoadError) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.showROMInvalidAlert(error: error) }
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "ROM ファイルエラー"
+        alert.informativeText = error.localizedDescription ?? "不明なエラーが発生しました。"
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window) { _ in }
+        } else {
+            alert.runModal()
+        }
+    }
+
     // MARK: - FDD Management
     @IBAction func openFDDDriveA(_ sender: Any) {
         openFDDForDrive(0)
