@@ -2398,8 +2398,7 @@ class FileSystem {
 
         guard let url = findFileInDocuments("IPLROM.DAT") else {
             errorLog("CRITICAL: IPLROM.DAT not found - emulator cannot start", category: .fileSystem)
-            // ファイル未発見は既存の missing-ROM フローで処理済み。ここでは blankContent で代替返却。
-            return .failure(.blankContent("IPLROM.DAT"))
+            return .failure(.missingFile("IPLROM.DAT"))
         }
 
         do {
@@ -2446,8 +2445,11 @@ class FileSystem {
         // SCSIEXROM.DAT (external SCSI, SCSIEX type) is required — its layout
         // matches the IPL ROM IOCS table.  SCSIINROM.DAT is an internal SCSI
         // ROM (SCSIIN type) with an incompatible layout and cannot be used.
-        if UserDefaults.standard.integer(forKey: "StorageBusMode") == 1,
-           let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") {
+        if UserDefaults.standard.integer(forKey: "StorageBusMode") == 1 {
+            guard let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") else {
+                errorLog("CRITICAL: SCSIEXROM.DAT not found while SCSI mode is enabled", category: .fileSystem)
+                return .failure(.missingFile("SCSIEXROM.DAT"))
+            }
             do {
                 let scsiData: Data = try Data(contentsOf: scsiRomURL)
                 // SCIモード設定時に無効 ROM は致命的エラー
