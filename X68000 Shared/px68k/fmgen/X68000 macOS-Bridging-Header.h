@@ -50,6 +50,10 @@ int X68000_SCSI_IsMounted(int host, int id);
 const char* X68000_SCSI_GetImagePath(int host, int id);
 int X68000_SCSI_Mount(int host, int id, const char* path, int flags);
 int X68000_SCSI_Eject(int host, int id);
+int X68000_SCSIU_Connect(void);
+void X68000_SCSIU_Disconnect(void);
+int X68000_SCSIU_IsConnected(void);
+const char* X68000_SCSIU_GetStatus(void);
 void Memory_SetSCSIMode(void);
 void Memory_ClearSCSIMode(void);
 
