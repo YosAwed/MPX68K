@@ -106,6 +106,8 @@ static int SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf);
 static int SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf);
 static int SCSIU_EnsureBootCache(void);
 static int SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize);
+static void SCSIU_ResetBootCache(void);
+static void SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize);
 #endif
 static BYTE* SCSI_ImgBuf(void);
 static long  SCSI_ImgSize(void);
@@ -511,6 +513,7 @@ SCSIU_StopBridge(void)
 	if (interruptFd >= 0) {
 		close(interruptFd);
 	}
+	SCSIU_ResetBootCache();
 #endif
 }
 
@@ -851,6 +854,43 @@ SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
 #define SCSIU_READ_CHUNK_BLOCKS  128  /* max blocks per DREG-EX burst (~64KB) */
 static BYTE*  s_scsiu_boot_cache      = NULL;
 static long   s_scsiu_boot_cache_size = 0;
+
+static void
+SCSIU_ResetBootCache(void)
+{
+	if (s_scsiu_boot_cache != NULL) {
+		free(s_scsiu_boot_cache);
+		s_scsiu_boot_cache = NULL;
+	}
+	s_scsiu_boot_cache_size = 0;
+}
+
+static void
+SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize)
+{
+	unsigned long long writeStart;
+	unsigned long long writeBytes;
+	unsigned long long cacheBytes;
+
+	if (s_scsiu_boot_cache == NULL || count == 0 || blockSize == 0) {
+		return;
+	}
+
+	writeStart = (unsigned long long)lba * (unsigned long long)blockSize;
+	writeBytes = (unsigned long long)count * (unsigned long long)blockSize;
+	cacheBytes = (unsigned long long)s_scsiu_boot_cache_size;
+
+	if (writeStart < cacheBytes && writeBytes > 0) {
+		char cacheLog[128];
+		snprintf(cacheLog, sizeof(cacheLog),
+		         "SCSIU_CACHE: invalidated by write lba=%u blocks=%u blockSize=%u",
+		         (unsigned int)lba,
+		         (unsigned int)count,
+		         (unsigned int)blockSize);
+		SCSI_LogText(cacheLog);
+		SCSIU_ResetBootCache();
+	}
+}
 
 /*
  * ブートキャッシュを物理 HDD から読み込む。
@@ -1255,6 +1295,7 @@ void SCSI_Init(void)
 	s_scsi_deferred_boot_pending = 0;
 	s_scsi_deferred_boot_addr = 0;
 	s_scsi_deferred_d5 = 0;
+	SCSIU_ResetBootCache();
 	SCSI_LogInit();
 	s_spc_access_log_count = 0;
 	SCSI_InvalidateTransferCache();
@@ -1275,6 +1316,7 @@ void SCSI_Init(void)
 // -----------------------------------------------------------------------
 void SCSI_Cleanup(void)
 {
+	SCSIU_ResetBootCache();
 }
 
 void SCSI_InvalidateTransferCache(void)
@@ -2680,6 +2722,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				result = 0xFFFFFFFF;
 				break;
 			}
+			SCSIU_InvalidateBootCacheRange(lba, blocks, blockSize);
 			free(tmpWr);
 			snprintf(logLine, sizeof(logLine),
 			         "SCSIU_XFER_WRITE cmd=$%02X lba=%u blocks=%u blockSize=%u",
@@ -3251,6 +3294,38 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				byteOff = lba * blockSize;
 				byteLen = blocks * blockSize;
 				if (xferLen < byteLen) byteLen = xferLen;
+#ifdef __APPLE__
+				if (X68000_GetStorageBusMode() == 2) {
+					BYTE* tmpW = NULL;
+					DWORD writeBlocks = 0;
+					if (byteLen == 0 || (byteLen % blockSize) != 0) {
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					writeBlocks = byteLen / blockSize;
+					tmpW = (BYTE*)malloc(byteLen);
+					if (tmpW == NULL) {
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					{
+						DWORD wi;
+						for (wi = 0; wi < byteLen; wi++) {
+							tmpW[wi] = Memory_ReadB(srcAddr + wi);
+						}
+					}
+					if (!SCSIU_WriteBlocks(lba, writeBlocks, blockSize, tmpW)) {
+						free(tmpW);
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					SCSIU_InvalidateBootCacheRange(lba, writeBlocks, blockSize);
+					free(tmpW);
+				} else
+#endif
 				if (s_disk_image_buffer[4] &&
 				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
 					DWORD wi;
@@ -5308,6 +5383,7 @@ static void SCSI_HandleDeviceCommand(void)
 				SCSI_LogText("SCSI_DEV WRITE SCSIU failed");
 				break;
 			}
+			SCSIU_InvalidateBootCacheRange(physLBA, physBlks, secSize);
 			free(tmpBuf);
 			SCSI_SetReqStatus(reqpkt, 1, 0x00);
 			{
