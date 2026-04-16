@@ -1,0 +1,38 @@
+name: macOS Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build c68k dependency
+        run: |
+          set -e
+          xcodebuild -project c68k/c68k.xcodeproj -scheme "c68k" -configuration Debug build
+
+      - name: Build (Debug)
+        run: |
+          set -e
+          xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Debug clean build
+
+      - name: Run tests
+        run: |
+          set -e
+          # Run XCTest. Replace -only-testing:... to target a single test if needed.
+          xcodebuild test -project X68000.xcodeproj -scheme "X68000 macOS" -destination 'platform=macOS' -enableCodeCoverage YES
+
+      - name: Upload test results (raw logs)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: |
+            /tmp/xcodebuild.log
