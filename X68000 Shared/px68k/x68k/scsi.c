@@ -15,10 +15,25 @@
 #include	"palette.h"
 #include	"tvram.h"
 #include	"../x11/keyboard.h"
+#include	<stdio.h>
+#include	<stdarg.h>
 #include	<stdlib.h>
 #include	<sys/stat.h>
 #include	<sys/types.h>
 #include	<string.h>
+#include	<limits.h>
+
+#ifdef __APPLE__
+#include	<unistd.h>
+#include	<fcntl.h>
+#include	<errno.h>
+#include	<pthread.h>
+#include	<sys/termios.h>
+#include	<IOKit/IOKitLib.h>
+#include	<IOKit/usb/IOUSBLib.h>
+#include	<IOKit/serial/IOSerialKeys.h>
+#include	<CoreFoundation/CoreFoundation.h>
+#endif
 
 #if defined(HAVE_C68K)
 #include	"../m68000/c68k/c68k.h"
@@ -44,6 +59,30 @@ static DWORD s_last_iocs_sig_a1 = 0;
 static int s_scsi_log_total = 0;        // global log line counter
 #define SCSI_LOG_LIMIT 50000             // stop logging after this many lines
 
+#ifdef __APPLE__
+#define SCSIU_VENDOR_ID  0x04d8
+#define SCSIU_PRODUCT_ID 0xE6B2
+#define SCSIU_MAX_PORTS  8
+#define SCSIU_PATH_LEN   256
+
+typedef struct {
+	int control_fd;
+	int interrupt_fd;
+	pthread_t interrupt_thread;
+	pthread_mutex_t mutex;
+	int connected;
+	int active;
+	unsigned int interrupt_count;
+	char control_path[SCSIU_PATH_LEN];
+	char interrupt_path[SCSIU_PATH_LEN];
+	char status[128];
+} SCSIU_BridgeState;
+
+static SCSIU_BridgeState s_scsi_u_bridge = {
+	-1, -1, 0, PTHREAD_MUTEX_INITIALIZER, 0, 0, 0, "", "", "Disconnected"
+};
+#endif
+
 // Runtime file logging is disabled by default — fopen/fprintf/fclose on every
 // IOCS trap and SPC register poll stalls the main thread. Enable with
 // -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 only when debugging SCSI boot.
@@ -53,6 +92,19 @@ static int s_scsi_log_total = 0;        // global log line counter
 
 // Forward declarations
 void SCSI_LogText(const char* text);
+
+#ifdef __APPLE__
+static void SCSIU_SetStatusLocked(const char* fmt, ...);
+static int SCSIU_FindCandidatePorts(char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN], int maxPorts);
+static int SCSIU_OpenPort(const char* path);
+static int SCSIU_ProbePortRole(int fd, char* outRole);
+static void* SCSIU_InterruptThread(void* arg);
+static BYTE SCSIU_ExecSPCReg(BYTE regAddr);
+static void SCSIU_SendSPCReg(BYTE regAddr, BYTE val);
+static int SCSIU_ExecDregBurst(BYTE* buf, DWORD maxLen);
+static int SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf);
+static int SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf);
+#endif
 
 
 // Minimal SPC (MB89352) register state for driver initialization.
@@ -132,6 +184,660 @@ static DWORD SCSI_Mask24(DWORD addr);
 static void SCSI_NormalizeRootShortNames(DWORD bufAddr, DWORD startSec,
                                          DWORD count, DWORD secSize);
 static void SCSI_LogKernelQueueState(const char* tag);
+
+#ifdef __APPLE__
+static void
+SCSIU_SetStatusLocked(const char* fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(s_scsi_u_bridge.status, sizeof(s_scsi_u_bridge.status), fmt, ap);
+	va_end(ap);
+}
+
+static int
+SCSIU_CopyDialinPath(io_object_t service, char* outPath, int outSize)
+{
+	CFTypeRef devicePathRef;
+	Boolean ok;
+
+	devicePathRef = IORegistryEntryCreateCFProperty(service, CFSTR(kIODialinDeviceKey), kCFAllocatorDefault, 0);
+	if (devicePathRef == NULL) {
+		return 0;
+	}
+	ok = CFGetTypeID(devicePathRef) == CFStringGetTypeID() &&
+	     CFStringGetCString((CFStringRef)devicePathRef, outPath, outSize, kCFStringEncodingUTF8);
+	CFRelease(devicePathRef);
+	return ok ? 1 : 0;
+}
+
+static int
+SCSIU_FindCandidatePorts(char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN], int maxPorts)
+{
+	CFMutableDictionaryRef matchDict;
+	CFNumberRef vendorRef;
+	CFNumberRef productRef;
+	SInt32 vendorId;
+	SInt32 productId;
+	io_iterator_t iterator;
+	io_object_t usbDevice;
+	int count;
+
+	matchDict = IOServiceMatching(kIOUSBDeviceClassName);
+	if (matchDict == NULL) {
+		return 0;
+	}
+
+	vendorId = SCSIU_VENDOR_ID;
+	productId = SCSIU_PRODUCT_ID;
+	vendorRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &vendorId);
+	productRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &productId);
+	if (vendorRef == NULL || productRef == NULL) {
+		if (vendorRef != NULL) CFRelease(vendorRef);
+		if (productRef != NULL) CFRelease(productRef);
+		return 0;
+	}
+
+	CFDictionarySetValue(matchDict, CFSTR(kUSBVendorID), vendorRef);
+	CFDictionarySetValue(matchDict, CFSTR(kUSBProductID), productRef);
+	CFRelease(vendorRef);
+	CFRelease(productRef);
+
+	if (IOServiceGetMatchingServices(kIOMainPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+		return 0;
+	}
+
+	count = 0;
+	while ((usbDevice = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
+		io_iterator_t childIterator;
+		if (IORegistryEntryCreateIterator(usbDevice, kIOServicePlane, kIORegistryIterateRecursively, &childIterator) == KERN_SUCCESS) {
+			io_object_t childService;
+			while ((childService = IOIteratorNext(childIterator)) != IO_OBJECT_NULL) {
+				char devicePath[SCSIU_PATH_LEN];
+				int duplicate;
+				int i;
+
+				if (!SCSIU_CopyDialinPath(childService, devicePath, sizeof(devicePath))) {
+					IOObjectRelease(childService);
+					continue;
+				}
+
+				duplicate = 0;
+				for (i = 0; i < count; ++i) {
+					if (strncmp(paths[i], devicePath, SCSIU_PATH_LEN) == 0) {
+						duplicate = 1;
+						break;
+					}
+				}
+				if (!duplicate && count < maxPorts) {
+					strncpy(paths[count], devicePath, SCSIU_PATH_LEN - 1);
+					paths[count][SCSIU_PATH_LEN - 1] = '\0';
+					++count;
+				}
+				IOObjectRelease(childService);
+			}
+			IOObjectRelease(childIterator);
+		}
+		IOObjectRelease(usbDevice);
+	}
+
+	IOObjectRelease(iterator);
+	return count;
+}
+
+static int
+SCSIU_OpenPort(const char* path)
+{
+	int fd;
+	struct termios tty;
+
+	fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	if (fd < 0) {
+		return -1;
+	}
+	if (tcgetattr(fd, &tty) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	cfmakeraw(&tty);
+	cfsetispeed(&tty, B230400);
+	cfsetospeed(&tty, B230400);
+	tty.c_cflag &= ~PARENB;
+	tty.c_cflag &= ~CSTOPB;
+	tty.c_cflag &= ~CSIZE;
+	tty.c_cflag |= CS8;
+	tty.c_cflag |= CREAD | CLOCAL;
+	tty.c_cc[VMIN] = 0;
+	tty.c_cc[VTIME] = 0;
+
+	if (tcsetattr(fd, TCSANOW, &tty) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	tcflush(fd, TCIOFLUSH);
+	return fd;
+}
+
+static int
+SCSIU_ProbePortRole(int fd, char* outRole)
+{
+	unsigned char request;
+	unsigned char response;
+	int i;
+
+	request = 0x00;
+	response = 0x00;
+	tcflush(fd, TCIOFLUSH);
+	if (write(fd, &request, 1) != 1) {
+		return 0;
+	}
+
+	for (i = 0; i < 50; ++i) {
+		ssize_t bytesRead = read(fd, &response, 1);
+		if (bytesRead == 1) {
+			if (response == 's' || response == 'S') {
+				*outRole = (char)response;
+				return 1;
+			}
+		} else if (bytesRead < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return 0;
+		}
+		usleep(10000);
+	}
+
+	return 0;
+}
+
+static void*
+SCSIU_InterruptThread(void* arg)
+{
+	(void)arg;
+	while (s_scsi_u_bridge.active) {
+		unsigned char data;
+		ssize_t bytesRead = read(s_scsi_u_bridge.interrupt_fd, &data, 1);
+		if (bytesRead == 1) {
+			if (data == 'I') {
+				pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+				s_scsi_u_bridge.interrupt_count += 1;
+				SCSIU_SetStatusLocked("Connected (%u IRQ)", s_scsi_u_bridge.interrupt_count);
+				pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			}
+		} else if (bytesRead < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			SCSIU_SetStatusLocked("Interrupt port read error");
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			break;
+		}
+		usleep(1000);
+	}
+	return NULL;
+}
+#endif
+
+int
+SCSIU_InitBridge(void)
+{
+#ifdef __APPLE__
+	char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN];
+	int portCount;
+	int i;
+	int controlFd;
+	int interruptFd;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	if (s_scsi_u_bridge.connected) {
+		SCSIU_SetStatusLocked("Connected");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 1;
+	}
+	s_scsi_u_bridge.interrupt_count = 0;
+	SCSIU_SetStatusLocked("Searching for SCSI-U");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	memset(paths, 0, sizeof(paths));
+	portCount = SCSIU_FindCandidatePorts(paths, SCSIU_MAX_PORTS);
+	if (portCount < 2) {
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		SCSIU_SetStatusLocked("SCSI-U serial ports not found");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	controlFd = -1;
+	interruptFd = -1;
+	for (i = 0; i < portCount; ++i) {
+		int fd;
+		char role;
+
+		fd = SCSIU_OpenPort(paths[i]);
+		if (fd < 0) {
+			continue;
+		}
+		role = '\0';
+		if (!SCSIU_ProbePortRole(fd, &role)) {
+			close(fd);
+			continue;
+		}
+		if (role == 's' && controlFd < 0) {
+			controlFd = fd;
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			strncpy(s_scsi_u_bridge.control_path, paths[i], sizeof(s_scsi_u_bridge.control_path) - 1);
+			s_scsi_u_bridge.control_path[sizeof(s_scsi_u_bridge.control_path) - 1] = '\0';
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			continue;
+		}
+		if (role == 'S' && interruptFd < 0) {
+			interruptFd = fd;
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			strncpy(s_scsi_u_bridge.interrupt_path, paths[i], sizeof(s_scsi_u_bridge.interrupt_path) - 1);
+			s_scsi_u_bridge.interrupt_path[sizeof(s_scsi_u_bridge.interrupt_path) - 1] = '\0';
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			continue;
+		}
+		close(fd);
+	}
+
+	if (controlFd < 0 || interruptFd < 0) {
+		if (controlFd >= 0) close(controlFd);
+		if (interruptFd >= 0) close(interruptFd);
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		s_scsi_u_bridge.control_path[0] = '\0';
+		s_scsi_u_bridge.interrupt_path[0] = '\0';
+		SCSIU_SetStatusLocked("Handshake failed");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	s_scsi_u_bridge.control_fd = controlFd;
+	s_scsi_u_bridge.interrupt_fd = interruptFd;
+	s_scsi_u_bridge.active = 1;
+	s_scsi_u_bridge.connected = 1;
+	SCSIU_SetStatusLocked("Connected");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	if (pthread_create(&s_scsi_u_bridge.interrupt_thread, NULL, SCSIU_InterruptThread, NULL) != 0) {
+		SCSIU_StopBridge();
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		SCSIU_SetStatusLocked("Interrupt thread start failed");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+void
+SCSIU_StopBridge(void)
+{
+#ifdef __APPLE__
+	int controlFd;
+	int interruptFd;
+	pthread_t thread;
+	int shouldJoin;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	controlFd = s_scsi_u_bridge.control_fd;
+	interruptFd = s_scsi_u_bridge.interrupt_fd;
+	thread = s_scsi_u_bridge.interrupt_thread;
+	shouldJoin = (s_scsi_u_bridge.connected && thread != 0);
+	s_scsi_u_bridge.active = 0;
+	s_scsi_u_bridge.connected = 0;
+	s_scsi_u_bridge.control_fd = -1;
+	s_scsi_u_bridge.interrupt_fd = -1;
+	s_scsi_u_bridge.interrupt_thread = 0;
+	s_scsi_u_bridge.interrupt_count = 0;
+	s_scsi_u_bridge.control_path[0] = '\0';
+	s_scsi_u_bridge.interrupt_path[0] = '\0';
+	SCSIU_SetStatusLocked("Disconnected");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	if (shouldJoin) {
+		pthread_join(thread, NULL);
+	}
+	if (controlFd >= 0) {
+		close(controlFd);
+	}
+	if (interruptFd >= 0) {
+		close(interruptFd);
+	}
+#endif
+}
+
+int
+SCSIU_IsConnected(void)
+{
+#ifdef __APPLE__
+	int connected;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	connected = s_scsi_u_bridge.connected;
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+	return connected;
+#else
+	return 0;
+#endif
+}
+
+const char*
+SCSIU_GetStatus(void)
+{
+#ifdef __APPLE__
+	return s_scsi_u_bridge.status;
+#else
+	return "Unavailable on this platform";
+#endif
+}
+
+// ---------------------------------------------------------------------------------------
+//  SCSI-U SPC (MB89352) レジスタ操作 — USB serial 経由
+//  コントロールポートへのプロトコル:
+//    読出し: cmd バイトを送信 → 1バイト受信
+//    書込み: cmd|0x80 バイトを送信 → val バイトを送信
+//    DREG-EX (0x41): 0x41 を送信 → 2バイト length → length バイトのデータ
+// ---------------------------------------------------------------------------------------
+#ifdef __APPLE__
+
+/* SPC レジスタ読出し。タイムアウト時は 0xFF を返す。 */
+static BYTE
+SCSIU_ExecSPCReg(BYTE regAddr)
+{
+	unsigned char buf;
+	int i;
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return 0xFF;
+	}
+	if (write(s_scsi_u_bridge.control_fd, &regAddr, 1) != 1) {
+		return 0xFF;
+	}
+	/* 200ms ポーリング (20000 × 10μs) */
+	for (i = 0; i < 20000; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, &buf, 1);
+		if (n == 1) {
+			return buf;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return 0xFF;
+		}
+		usleep(10);
+	}
+	return 0xFF;
+}
+
+/* SPC レジスタ書込み。cmd|0x80, val の 2バイトを送信する。 */
+static void
+SCSIU_SendSPCReg(BYTE regAddr, BYTE val)
+{
+	unsigned char cmd[2];
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return;
+	}
+	cmd[0] = (unsigned char)(regAddr | 0x80);
+	cmd[1] = val;
+	(void)write(s_scsi_u_bridge.control_fd, cmd, 2);
+}
+
+/*
+ * DREG-EX (0x41) による一括データ受信。
+ * spc_bridger の m_ExecEx() 相当。
+ * 戻り値: 受信バイト数 (≥0)、エラー時 -1。
+ */
+static int
+SCSIU_ExecDregBurst(BYTE* buf, DWORD maxLen)
+{
+	BYTE cmd = 0x41;
+	unsigned char lenBuf[2];
+	DWORD dataLen;
+	DWORD received;
+	int i;
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return -1;
+	}
+	tcflush(s_scsi_u_bridge.control_fd, TCIOFLUSH);
+	if (write(s_scsi_u_bridge.control_fd, &cmd, 1) != 1) {
+		return -1;
+	}
+
+	/* 2バイトの length (little-endian) を受信 */
+	received = 0;
+	for (i = 0; i < 2000 && received < 2; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, lenBuf + received, 2 - received);
+		if (n > 0) {
+			received += (DWORD)n;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return -1;
+		}
+		if (received < 2) {
+			usleep(1000);
+		}
+	}
+	if (received < 2) {
+		return -1; /* タイムアウト */
+	}
+
+	dataLen = (DWORD)lenBuf[0] | ((DWORD)lenBuf[1] << 8);
+	if (dataLen > maxLen) {
+		dataLen = maxLen;
+	}
+
+	/* データ本体を受信 */
+	received = 0;
+	for (i = 0; i < 100000 && received < dataLen; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, buf + received, dataLen - received);
+		if (n > 0) {
+			received += (DWORD)n;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return -1;
+		}
+		if (received < dataLen) {
+			usleep(100);
+		}
+	}
+	return (int)received;
+}
+
+/*
+ * INTS レジスタをポーリングして指定ビットが立つまで待つ。
+ * timeoutUs: マイクロ秒単位のタイムアウト。
+ * 戻り値: 1=成功, 0=タイムアウト。
+ */
+static int
+SCSIU_WaitINTS(BYTE mask, int timeoutUs)
+{
+	int elapsed = 0;
+
+	while (elapsed < timeoutUs) {
+		BYTE ints = SCSIU_ExecSPCReg(0x09/*INTS*/);
+		if (ints & mask) {
+			return 1;
+		}
+		usleep(200);
+		elapsed += 200;
+		/* 1回の ExecSPCReg は USB ラウンドトリップ (~1ms) を含むため
+		 * 実際のタイムアウトは timeoutUs より長くなる場合がある */
+	}
+	return 0;
+}
+
+/*
+ * SPC (MB89352) で SCSI READ(10) を実行して count ブロックを buf に読み込む。
+ * lba: 論理ブロックアドレス, count: ブロック数, blockSize: ブロックサイズ(bytes)
+ * 戻り値: 1=成功, 0=失敗
+ */
+static int
+SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
+{
+	DWORD totalBytes;
+	BYTE cdb[10];
+	int received;
+
+	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
+		return 0;
+	}
+	if (count == 0 || blockSize == 0) {
+		return 0;
+	}
+	totalBytes = count * blockSize;
+
+	/* --- 1. SPC 初期化 --- */
+	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14); /* Arb enable + initiator mode */
+	SCSIU_SendSPCReg(0x01/*BDID*/, 0x40); /* Host ID = 6 */
+
+	/* --- 2. ARBITRATION --- */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00);
+	SCSIU_SendSPCReg(0x17/*TEMP*/, 0x01); /* Target ID = 0 */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x04); /* ARBITRATION コマンド */
+	/* 仲裁完了: INTS bit4 (RESEL) または短いウェイト */
+	usleep(2000);
+
+	/* --- 3. SELECTION --- */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* SELECTION + ATN */
+	/* COMMAND フェーズ遷移待ち: INTS bit3 (CMD_COMP) */
+	if (!SCSIU_WaitINTS(0x08, 2000000)) {
+		return 0;
+	}
+
+	/* --- 4. COMMAND PHASE: READ(10) CDB 送信 --- */
+	cdb[0] = 0x28; /* READ(10) */
+	cdb[1] = 0x00;
+	cdb[2] = (BYTE)((lba >> 24) & 0xFF);
+	cdb[3] = (BYTE)((lba >> 16) & 0xFF);
+	cdb[4] = (BYTE)((lba >> 8) & 0xFF);
+	cdb[5] = (BYTE)(lba & 0xFF);
+	cdb[6] = 0x00;
+	cdb[7] = (BYTE)((count >> 8) & 0xFF);
+	cdb[8] = (BYTE)(count & 0xFF);
+	cdb[9] = 0x00;
+
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x02); /* Command phase */
+	{
+		int k;
+		for (k = 0; k < 10; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, cdb[k]);
+		}
+	}
+
+	/* --- 5. DATA IN フェーズ待ち --- */
+	if (!SCSIU_WaitINTS(0x08, 5000000)) {
+		return 0;
+	}
+
+	/* --- 6. TC 設定 + Initiator Receive --- */
+	SCSIU_SendSPCReg(0x19/*TCH*/, (BYTE)((totalBytes >> 16) & 0xFF));
+	SCSIU_SendSPCReg(0x1B/*TCM*/, (BYTE)((totalBytes >>  8) & 0xFF));
+	SCSIU_SendSPCReg(0x1D/*TCL*/, (BYTE)(totalBytes & 0xFF));
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x01); /* Data In phase */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x84); /* Initiator Receive */
+
+	/* --- 7. データ受信 (DREG-EX で一括) --- */
+	received = SCSIU_ExecDregBurst(buf, totalBytes);
+	if (received < 0 || (DWORD)received < totalBytes) {
+		return 0;
+	}
+
+	/* --- 8. STATUS + MESSAGE フェーズ (完了処理) --- */
+	SCSIU_WaitINTS(0x08, 2000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* status byte */
+	SCSIU_WaitINTS(0x08, 1000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* message byte */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* Message Accept */
+
+	return 1;
+}
+
+/*
+ * SPC (MB89352) で SCSI WRITE(10) を実行して count ブロックを buf から書き込む。
+ * 戻り値: 1=成功, 0=失敗
+ */
+static int
+SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
+{
+	DWORD totalBytes;
+	BYTE cdb[10];
+
+	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
+		return 0;
+	}
+	if (count == 0 || blockSize == 0) {
+		return 0;
+	}
+	totalBytes = count * blockSize;
+
+	/* --- 1. SPC 初期化 --- */
+	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14);
+	SCSIU_SendSPCReg(0x01/*BDID*/, 0x40);
+
+	/* --- 2. ARBITRATION --- */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00);
+	SCSIU_SendSPCReg(0x17/*TEMP*/, 0x01);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x04);
+	usleep(2000);
+
+	/* --- 3. SELECTION --- */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28);
+	if (!SCSIU_WaitINTS(0x08, 2000000)) {
+		return 0;
+	}
+
+	/* --- 4. COMMAND PHASE: WRITE(10) CDB 送信 --- */
+	cdb[0] = 0x2A; /* WRITE(10) */
+	cdb[1] = 0x00;
+	cdb[2] = (BYTE)((lba >> 24) & 0xFF);
+	cdb[3] = (BYTE)((lba >> 16) & 0xFF);
+	cdb[4] = (BYTE)((lba >> 8) & 0xFF);
+	cdb[5] = (BYTE)(lba & 0xFF);
+	cdb[6] = 0x00;
+	cdb[7] = (BYTE)((count >> 8) & 0xFF);
+	cdb[8] = (BYTE)(count & 0xFF);
+	cdb[9] = 0x00;
+
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x02);
+	{
+		int k;
+		for (k = 0; k < 10; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, cdb[k]);
+		}
+	}
+
+	/* --- 5. DATA OUT フェーズ待ち --- */
+	if (!SCSIU_WaitINTS(0x08, 5000000)) {
+		return 0;
+	}
+
+	/* --- 6. TC 設定 + Initiator Send --- */
+	SCSIU_SendSPCReg(0x19/*TCH*/, (BYTE)((totalBytes >> 16) & 0xFF));
+	SCSIU_SendSPCReg(0x1B/*TCM*/, (BYTE)((totalBytes >>  8) & 0xFF));
+	SCSIU_SendSPCReg(0x1D/*TCL*/, (BYTE)(totalBytes & 0xFF));
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00); /* Data Out phase */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0xC4); /* Initiator Send */
+
+	/* --- 7. データ送信 (1バイトずつ DREG に書く) --- */
+	{
+		DWORD k;
+		for (k = 0; k < totalBytes; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, buf[k]);
+		}
+	}
+
+	/* --- 8. STATUS + MESSAGE フェーズ --- */
+	SCSIU_WaitINTS(0x08, 2000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* status byte */
+	SCSIU_WaitINTS(0x08, 1000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* message byte */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* Message Accept */
+
+	return 1;
+}
+
+#endif /* __APPLE__ */
 
 // ---------------------------------------------------------------------------------------
 //  合成SCSI ROM (外付けSCSI CZ-6BS1互換: $EA0000-$EA1FFF)
@@ -771,10 +1477,19 @@ static int SCSI_ResolveTransfer(DWORD lba, DWORD blocks, DWORD blockSize,
 	unsigned long long start;
 	unsigned long long bytes;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+	if (blocks == 0 || blockSize == 0) {
 		return 0;
 	}
-	if (blocks == 0 || blockSize == 0) {
+
+	/* SCSI-U モード: image buffer を使わず lba/blockSize から転送量を計算する */
+	if (X68000_GetStorageBusMode() == 2) {
+		*imageOffset = 0; /* 未使用 */
+		bytes = (unsigned long long)blocks * (unsigned long long)blockSize;
+		*transferBytes = (DWORD)bytes;
+		return 1;
+	}
+
+	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
 		return 0;
 	}
 
@@ -1610,9 +2325,30 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			break;
 		}
 
-		for (i = 0; i < transferBytes; i++) {
-			Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
-		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpRd = (BYTE*)malloc(transferBytes);
+			if (tmpRd == NULL || !SCSIU_ReadBlocks(lba, blocks, blockSize, tmpRd)) {
+				free(tmpRd);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, tmpRd[i]);
+			}
+			free(tmpRd);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
+		} else {
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
+			}
 			snprintf(logLine, sizeof(logLine),
 			         "SCSI_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u imgOff=0x%X first=%02X%02X%02X%02X",
 			         cmd,
@@ -1620,11 +2356,12 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			         (unsigned int)blocks,
 			         (unsigned int)blockSize,
 			         (unsigned int)imageOffset,
-		         s_disk_image_buffer[4][imageOffset + 0],
-		         s_disk_image_buffer[4][imageOffset + 1],
-		         s_disk_image_buffer[4][imageOffset + 2],
-		         s_disk_image_buffer[4][imageOffset + 3]);
-		SCSI_LogText(logLine);
+			         s_disk_image_buffer[4][imageOffset + 0],
+			         s_disk_image_buffer[4][imageOffset + 1],
+			         s_disk_image_buffer[4][imageOffset + 2],
+			         s_disk_image_buffer[4][imageOffset + 3]);
+			SCSI_LogText(logLine);
+		}
 		result = 0;
 		break;
 	}
@@ -1738,9 +2475,34 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			break;
 		}
 
-		for (i = 0; i < transferBytes; i++) {
-			s_disk_image_buffer[4][imageOffset + i] = Memory_ReadB(a1 + i);
-		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpWr = (BYTE*)malloc(transferBytes);
+			if (tmpWr == NULL) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				tmpWr[i] = Memory_ReadB(a1 + i);
+			}
+			if (!SCSIU_WriteBlocks(lba, blocks, blockSize, tmpWr)) {
+				free(tmpWr);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			free(tmpWr);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_WRITE cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
+		} else {
+			for (i = 0; i < transferBytes; i++) {
+				s_disk_image_buffer[4][imageOffset + i] = Memory_ReadB(a1 + i);
+			}
 			snprintf(logLine, sizeof(logLine),
 			         "SCSI_XFER_WRITE cmd=$%02X lba=%u blocks=%u blockSize=%u imgOff=0x%X",
 			         cmd,
@@ -1748,7 +2510,8 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			         (unsigned int)blocks,
 			         (unsigned int)blockSize,
 			         (unsigned int)imageOffset);
-		SCSI_LogText(logLine);
+			SCSI_LogText(logLine);
+		}
 		SASI_SetDirtyFlag(0);
 		result = 0;
 		break;
@@ -1787,6 +2550,29 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		if (!SCSI_IsLinearRamRange(a1, transferBytes)) {
 			result = 0xFFFFFFFF;
 			break;
+		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpRd2 = (BYTE*)malloc(transferBytes);
+			if (tmpRd2 == NULL || !SCSIU_ReadBlocks(lba, blocks, blockSize, tmpRd2)) {
+				free(tmpRd2);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, tmpRd2[i]);
+			}
+			free(tmpRd2);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+			result = 0;
+			break;
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
 		}
 		for (i = 0; i < transferBytes; i++) {
 			Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
@@ -1832,15 +2618,51 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		break;
 
 	case 0x24:  // _S_TESTUNIT
-		result = (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) ? 0 : 0xFFFFFFFF;
+		if (X68000_GetStorageBusMode() == 2) {
+			result = SCSIU_IsConnected() ? 0 : 0xFFFFFFFF;
+		} else {
+			result = (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) ? 0 : 0xFFFFFFFF;
+		}
 		break;
 
 	case 0x25: {  // _S_READCAP
 		DWORD blockSize = SCSI_GetImageBlockSize();
-		DWORD dataOffset = SCSI_GetIocsDataOffset();
+		DWORD dataOffset;
 		DWORD dataSize = 0;
 		DWORD totalBlocks;
 
+		if (X68000_GetStorageBusMode() == 2) {
+			/* SCSI-U モード: SPC READ CAPACITY(10) で実際の値を取得する。
+			 * 暫定実装: デバイス接続確認のみ行い、固定 blockSize / 容量を返す。
+			 * TODO: SPC READ CAPACITY コマンドで実際の値を取得する。 */
+			if (!SCSIU_IsConnected()) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			if (!SCSI_IsLinearRamRange(a1, 8)) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			/* ブロックサイズは 512 バイト固定、容量は 4GB - 1 ブロック */
+			blockSize = 512;
+			totalBlocks = 0x800000; /* 4GB / 512 = 8388608 ブロック */
+			Memory_WriteB(a1 + 0, (BYTE)(((totalBlocks - 1) >> 24) & 0xff));
+			Memory_WriteB(a1 + 1, (BYTE)(((totalBlocks - 1) >> 16) & 0xff));
+			Memory_WriteB(a1 + 2, (BYTE)(((totalBlocks - 1) >>  8) & 0xff));
+			Memory_WriteB(a1 + 3, (BYTE)((totalBlocks - 1) & 0xff));
+			Memory_WriteB(a1 + 4, (BYTE)((blockSize >> 24) & 0xff));
+			Memory_WriteB(a1 + 5, (BYTE)((blockSize >> 16) & 0xff));
+			Memory_WriteB(a1 + 6, (BYTE)((blockSize >>  8) & 0xff));
+			Memory_WriteB(a1 + 7, (BYTE)(blockSize & 0xff));
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_READCAP blocks=%u blockSize=%u (stub)",
+			         (unsigned int)totalBlocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+			result = 0;
+			break;
+		}
+
+		dataOffset = SCSI_GetIocsDataOffset();
 		if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
 			result = 0xFFFFFFFF;
 			break;
