@@ -18,6 +18,9 @@ class X68Security {
     
     /// 最大ファイルサイズ（100MB）
     static let maxFileSize: Int64 = 100 * 1024 * 1024
+
+    /// 最大ディスクイメージサイズ（2GB）
+    static let maxDiskImageSize: Int64 = 2 * 1024 * 1024 * 1024
     
     /// ROMファイルの期待サイズ
     static let expectedROMSizes: [String: Int] = [
@@ -62,6 +65,50 @@ class X68Security {
             throw X68MacError.invalidConfiguration("Could not determine file size for \(url.lastPathComponent)")
         }
         return fileSize
+    }
+
+    /// ディスクイメージのサイズを検証
+    static func validatedDiskImageSize(_ url: URL, maximumSize: Int64 = maxDiskImageSize) throws -> Int64 {
+        let fileSize = try getFileSize(url)
+        guard fileSize > 0 else {
+            throw X68MacError.diskImageCorrupted("File is empty: \(url.lastPathComponent)")
+        }
+        guard fileSize <= maximumSize else {
+            let sizeMB = Int(fileSize / (1024 * 1024))
+            throw X68MacError.fileTooLarge(url.lastPathComponent, sizeMB)
+        }
+        return fileSize
+    }
+
+    /// ファイル内容を指定ポインタへチャンクコピー
+    static func streamFileContents(_ url: URL,
+                                   to pointer: UnsafeMutablePointer<UInt8>,
+                                   expectedSize: Int64,
+                                   chunkSize: Int = 1024 * 1024) throws {
+        let fileHandle = try FileHandle(forReadingFrom: url)
+        defer { try? fileHandle.close() }
+
+        var bytesCopied: Int64 = 0
+        while bytesCopied < expectedSize {
+            let bytesToRead = Int(min(Int64(chunkSize), expectedSize - bytesCopied))
+            let chunk = try fileHandle.read(upToCount: bytesToRead) ?? Data()
+            if chunk.isEmpty {
+                break
+            }
+
+            chunk.withUnsafeBytes { src in
+                guard let baseAddress = src.baseAddress else { return }
+                let destination = pointer.advanced(by: Int(bytesCopied))
+                destination.update(from: baseAddress.assumingMemoryBound(to: UInt8.self), count: chunk.count)
+            }
+            bytesCopied += Int64(chunk.count)
+        }
+
+        guard bytesCopied == expectedSize else {
+            throw X68MacError.diskImageCorrupted(
+                "Streamed bytes mismatch for \(url.lastPathComponent): expected \(expectedSize), got \(bytesCopied)"
+            )
+        }
     }
     
     /// ROMファイルの検証
@@ -203,9 +250,19 @@ class X68Security {
     /// - Throws: ファイルアクセスエラー
     static func calculateChecksum(_ url: URL) throws -> String {
         return try secureFileAccess(url) {
-            let data = try Data(contentsOf: url)
-            let hash = SHA256.hash(data: data)
-            return hash.compactMap { String(format: "%02x", $0) }.joined()
+            let fileHandle = try FileHandle(forReadingFrom: url)
+            defer { try? fileHandle.close() }
+
+            var hasher = SHA256()
+            while true {
+                let chunk = try fileHandle.read(upToCount: 1024 * 1024)
+                if let chunk, !chunk.isEmpty {
+                    hasher.update(data: chunk)
+                } else {
+                    break
+                }
+            }
+            return hasher.finalize().map { String(format: "%02x", $0) }.joined()
         }
     }
     
@@ -219,8 +276,19 @@ class X68Security {
         
         // セキュリティスコープ付きでファイル読み込み
         return try secureFileAccess(url) {
-            return try Data(contentsOf: url)
+            let fileHandle = try FileHandle(forReadingFrom: url)
+            defer { try? fileHandle.close() }
+
+            var data = Data()
+            while true {
+                let chunk = try fileHandle.read(upToCount: 256 * 1024)
+                if let chunk, !chunk.isEmpty {
+                    data.append(chunk)
+                } else {
+                    break
+                }
+            }
+            return data
         }
     }
 }
-

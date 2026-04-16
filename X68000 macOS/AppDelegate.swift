@@ -168,15 +168,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         return result != 0
     }
 
-    private func preloadSCSIImageData(url: URL) -> Data? {
+    private func preloadSCSIImageData(url: URL) -> Int64? {
         do {
-            let imageData = try Data(contentsOf: url)
-            let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
-            guard !imageData.isEmpty, imageData.count <= maxSize else {
-                warningLog("Invalid SCSI image size for preload: \(imageData.count) bytes", category: .fileSystem)
-                return nil
-            }
-            return imageData
+            return try X68Security.validatedDiskImageSize(url)
         } catch {
             errorLog("Failed to preload SCSI image data", error: error, category: .fileSystem)
             return nil
@@ -184,17 +178,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
 
     private func preloadSCSIImageBuffer(path: String) -> Bool {
-        guard let imageData = preloadSCSIImageData(url: URL(fileURLWithPath: path)) else {
+        let fileURL = URL(fileURLWithPath: path)
+        guard let fileSize = preloadSCSIImageData(url: fileURL) else {
             return false
         }
 
-        guard let p = X68000_GetDiskImageBufferPointer(4, imageData.count) else {
+        guard let p = X68000_GetDiskImageBufferPointer(4, Int(fileSize)) else {
             errorLog("Failed to get SCSI preload buffer pointer", category: .fileSystem)
             return false
         }
 
-        imageData.copyBytes(to: p, count: imageData.count)
-        return true
+        do {
+            try X68Security.streamFileContents(fileURL, to: p, expectedSize: fileSize)
+            return true
+        } catch {
+            errorLog("Failed to stream SCSI image into buffer", error: error, category: .fileSystem)
+            return false
+        }
     }
 
     private func mountSCSI0Async(url: URL) {
@@ -213,17 +213,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 return
             }
 
-            // Read the image AND copy it into the emulator buffer on the
-            // background queue — a multi-hundred-MB copyBytes on the main
-            // thread would stall the run loop and show a beachball.
-            let bufferReady: Bool
-            if let imageData = self.preloadSCSIImageData(url: url),
-               let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                imageData.copyBytes(to: p, count: imageData.count)
-                bufferReady = true
-            } else {
-                bufferReady = false
-            }
+            // Stream the image into the emulator buffer on the background
+            // queue so large SCSI mounts do not block the main run loop.
+            let bufferReady = self.preloadSCSIImageBuffer(path: url.path)
 
             if accessible {
                 url.stopAccessingSecurityScopedResource()
@@ -2873,6 +2865,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         } else if let identifier = menuItem.identifier?.rawValue {
             // Handle AutoMountMode menu items
             let currentMode = DiskStateManager.shared.autoMountMode
+            let busMode = coreGetStorageBusMode()
             switch identifier {
             case "AutoMount-disabled":
                 menuItem.state = (currentMode == .disabled) ? .on : .off
@@ -2883,15 +2876,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             case "AutoMount-manual":
                 menuItem.state = (currentMode == .manual) ? .on : .off
             case "HDD-bus-SASI":
-                menuItem.state = (coreGetStorageBusMode() == .sasi) ? .on : .off
+                menuItem.state = (busMode == .sasi) ? .on : .off
             case "HDD-bus-SCSI":
-                menuItem.state = (coreGetStorageBusMode() == .scsi) ? .on : .off
-            case "HDD-open", "HDD-eject", "HDD-create", "HDD-save":
-                // Enable SASI operations only when in SASI mode
-                menuItem.isEnabled = (coreGetStorageBusMode() == .sasi)
-            case "SCSI0-open", "SCSI0-eject":
-                // Enable SCSI(ID0) items only in SCSI mode
-                menuItem.isEnabled = (coreGetStorageBusMode() == .scsi)
+                menuItem.state = (busMode == .scsi) ? .on : .off
+            case "HDD-open", "HDD-create":
+                return busMode == .sasi
+            case "HDD-eject", "HDD-save":
+                return busMode == .sasi && getCachedHDDReady()
+            case "SCSI0-open":
+                return busMode == .scsi
+            case "SCSI0-eject":
+                return busMode == .scsi && coreGetSCSI0State().ready
             default:
                 break
             }

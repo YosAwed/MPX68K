@@ -71,7 +71,9 @@ public class DiskStateManager {
     private struct PreparedHDDRestore {
         let filePath: String
         let fileName: String
-        let imageData: Data
+        let fileURL: URL
+        let fileSize: Int64
+        let securityScopedURL: URL?
     }
     
     private let userDefaults = UserDefaults.standard
@@ -273,13 +275,13 @@ public class DiskStateManager {
                 if let attributes = try? FileManager.default.attributesOfItem(atPath: finalUrl.path),
                    let fileSize = attributes[.size] as? Int64,
                    let modDate = attributes[.modificationDate] as? Date {
-                    
+
                     let bookmarkData = (try? finalUrl.bookmarkData(
                         options: .withSecurityScope,
                         includingResourceValuesForKeys: nil,
                         relativeTo: nil
                     )) ?? mountedFDDBookmarks[drive]
-                    
+
                     let fddState = DiskMountState.FDDState(
                         drive: drive,
                         filePath: finalUrl.path,
@@ -490,41 +492,40 @@ public class DiskStateManager {
             }
         }
 
-        defer {
-            securityScopedURL?.stopAccessingSecurityScopedResource()
-        }
-
         do {
-            let imageData = try Data(contentsOf: restoreURL)
-            // Reject empty images so we never malloc(0) and end up with
-            // a valid-looking Config.HDImage but a zero-size buffer.
-            // Previously this silently allowed SASI probe to report
-            // ready=1 HDImg='…' size=0, which looked like "HDD set but
-            // won't boot" and wasted a debug session.
-            guard !imageData.isEmpty else {
-                warningLog("HDD restore skipped: image is 0 bytes: \(hddState.filePath)", category: .fileSystem)
-                return nil
-            }
+            let fileSize = try X68Security.validatedDiskImageSize(restoreURL)
             return PreparedHDDRestore(
-                filePath: hddState.filePath,
+                filePath: restoreURL.path,
                 fileName: hddState.fileName,
-                imageData: imageData
+                fileURL: restoreURL,
+                fileSize: fileSize,
+                securityScopedURL: securityScopedURL
             )
         } catch {
-            errorLog("Failed to read HDD file for restore: \(error)", category: .fileSystem)
+            securityScopedURL?.stopAccessingSecurityScopedResource()
+            errorLog("Failed to prepare HDD file for restore: \(error)", category: .fileSystem)
             return nil
         }
     }
 
     private func mountPreparedHDDRestore(_ prepared: PreparedHDDRestore, hddState: DiskMountState.HDDState) -> Bool {
+        defer {
+            prepared.securityScopedURL?.stopAccessingSecurityScopedResource()
+        }
+
         let extname = URL(fileURLWithPath: prepared.filePath).pathExtension.lowercased()
 
-        guard let p = X68000_GetDiskImageBufferPointer(4, prepared.imageData.count) else {
+        guard let p = X68000_GetDiskImageBufferPointer(4, Int(prepared.fileSize)) else {
             errorLog("Failed to get HDD buffer pointer for restore", category: .fileSystem)
             return false
         }
 
-        prepared.imageData.copyBytes(to: p, count: prepared.imageData.count)
+        do {
+            try X68Security.streamFileContents(prepared.fileURL, to: p, expectedSize: prepared.fileSize)
+        } catch {
+            errorLog("Failed to stream HDD file for restore: \(error)", category: .fileSystem)
+            return false
+        }
 
         if extname == "hds" {
             X68000_SetStorageBusMode(1)
@@ -535,7 +536,7 @@ public class DiskStateManager {
                 UserDefaults.standard.set(true, forKey: "SCSI0Ready")
                 UserDefaults.standard.set(prepared.filePath, forKey: "SCSI0Filename")
                 #endif
-                infoLog("Restored SCSI HDD: \(prepared.fileName) (\(prepared.imageData.count) bytes)", category: .fileSystem)
+                infoLog("Restored SCSI HDD: \(prepared.fileName) (\(prepared.fileSize) bytes)", category: .fileSystem)
                 return true
             }
 
@@ -555,8 +556,8 @@ public class DiskStateManager {
             #endif
         }
 
-        X68000_LoadHDD(hddState.filePath)
-        infoLog("Restored HDD: \(prepared.fileName) (\(prepared.imageData.count) bytes)", category: .fileSystem)
+        X68000_LoadHDD(prepared.filePath)
+        infoLog("Restored HDD: \(prepared.fileName) (\(prepared.fileSize) bytes)", category: .fileSystem)
         return true
     }
 
@@ -828,7 +829,7 @@ class FileSystem {
                 if validDiskExtensions.contains(pathExtension) {
                     foundCount += 1
                     debugLog("Found new disk image: \(fileURL.lastPathComponent)", category: .fileSystem)
-                    
+
                     // In smart load mode, only log found files without auto-loading
                     // Files will be loaded when user explicitly selects them
                 }
@@ -1163,7 +1164,7 @@ class FileSystem {
                 if validDiskExtensions.contains(pathExtension) {
                     foundCount += 1
                     debugLog("Found disk image: \(fileURL.lastPathComponent)", category: .fileSystem)
-                    
+
                     // Security: Validate file paths and types
                     if isValidDiskImageFile(fileURL) {
                         loadDiskImage(fileURL)
@@ -1315,7 +1316,7 @@ class FileSystem {
         // Check if this is an iCloud file that needs downloading
         if url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") {
             infoLog("Detected iCloud file, attempting to download...", category: .fileSystem)
-            
+
             do {
                 // First check if file is already available
                 if FileManager.default.fileExists(atPath: url.path) {
@@ -1409,43 +1410,60 @@ class FileSystem {
     
     private func performFileLoad(url: URL) {
         do {
-            // File should be accessible now with security scope
-            let imageData: Data = try Data(contentsOf: url)
-            
-            // Security: Validate file size (max 80MB for disk images)
-            let maxSize = 80 * 1024 * 1024 // 80MB
-            guard imageData.count <= maxSize else {
-                errorLog("Security: File too large: \(imageData.count) bytes", category: .fileSystem)
-                return
-            }
-            
-            debugLog("size: \(imageData.count)", category: .fileSystem)
-            
+            let extname = url.pathExtension.removingPercentEncoding?.lowercased()
+            let fileSize = try validatedDiskImageSize(for: url)
+            let bufferDrive = extname == "hdf" ? 4 : inferredFDDDrive(for: url)
+            try streamDiskImage(at: url, bufferDrive: bufferDrive, fileSize: fileSize)
+            debugLog("size: \(fileSize)", category: .fileSystem)
+
             // UI updates need to be on main thread
             DispatchQueue.main.async {
-                let extname = url.pathExtension.removingPercentEncoding
-                if extname?.lowercased() == "hdf" {
-                    if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.path)
-                        infoLog("HDD loaded successfully - no automatic reset", category: .fileSystem)
-                    }
+                if extname == "hdf" {
+                    X68000_LoadHDD(url.path)
+                    infoLog("HDD loaded successfully - no automatic reset", category: .fileSystem)
                 } else {
-                    var drive = 0
-                    if url.path.contains(" B.") || url.path.contains("_B.") {
-                        drive = 1
-                    }
-                    
-                    if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadFDD(drive, url.path)
-                        infoLog("FDD loaded successfully (drive \(drive)) - no automatic reset", category: .fileSystem)
-                    }
+                    let drive = self.inferredFDDDrive(for: url)
+                    X68000_LoadFDD(drive, url.path)
+                    infoLog("FDD loaded successfully (drive \(drive)) - no automatic reset", category: .fileSystem)
                 }
             }
         } catch let error as NSError {
             errorLog("Error loading file data", error: error, category: .fileSystem)
         }
+    }
+
+    private func inferredFDDDrive(for url: URL) -> Int {
+        if url.path.contains(" B.") || url.path.contains("_B.") {
+            return 1
+        }
+
+        let filename = url.deletingPathExtension().lastPathComponent.lowercased()
+        if filename.hasSuffix("b") || filename.hasSuffix(" b") || filename.hasSuffix("_b") {
+            return 1
+        }
+
+        return 0
+    }
+
+    private func validatedDiskImageSize(for url: URL) throws -> Int64 {
+        let ext = url.pathExtension.lowercased()
+        let maximumSize: Int64
+        if ["hdf", "hdm", "hds"].contains(ext) {
+            maximumSize = X68Security.maxDiskImageSize
+        } else {
+            maximumSize = 2 * 1024 * 1024
+        }
+        return try X68Security.validatedDiskImageSize(url, maximumSize: maximumSize)
+    }
+
+    private func streamDiskImage(at url: URL,
+                                 bufferDrive: Int,
+                                 fileSize: Int64,
+                                 chunkSize: Int = 1024 * 1024) throws {
+        guard let buffer = X68000_GetDiskImageBufferPointer(bufferDrive, Int(fileSize)) else {
+            throw X68MacError.invalidConfiguration("Failed to get disk buffer pointer for \(url.lastPathComponent)")
+        }
+        try X68Security.streamFileContents(url, to: buffer, expectedSize: fileSize, chunkSize: chunkSize)
     }
     func loadDiskImage( _ url : URL )
     {
@@ -1657,24 +1675,13 @@ class FileSystem {
         
         // Try to load companion disk
         do {
-            let imageData = try Data(contentsOf: companionUrl)
-            debugLog("Successfully read companion disk: \(companionUrl.lastPathComponent)", category: .fileSystem)
-            
-            // Determine drive based on filename
-            var drive = 0
-            let filename = companionUrl.deletingPathExtension().lastPathComponent.lowercased()
-            if filename.hasSuffix("b") || filename.hasSuffix(" b") || filename.hasSuffix("_b") {
-                drive = 1
-            }
+            let drive = inferredFDDDrive(for: companionUrl)
+            let fileSize = try X68Security.validatedDiskImageSize(companionUrl, maximumSize: 2 * 1024 * 1024)
+            try streamDiskImage(at: companionUrl, bufferDrive: drive, fileSize: fileSize, chunkSize: 256 * 1024)
             
             DispatchQueue.main.async {
-                if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
-                    imageData.copyBytes(to: p, count: imageData.count)
-                    X68000_LoadFDD(drive, companionUrl.path)
-                    infoLog("Success: Companion disk loaded: \(companionUrl.lastPathComponent) (drive \(drive))", category: .fileSystem)
-                } else {
-                    errorLog("Failed to get buffer for companion disk", category: .fileSystem)
-                }
+                X68000_LoadFDD(drive, companionUrl.path)
+                infoLog("Success: Companion disk loaded: \(companionUrl.lastPathComponent) (drive \(drive))", category: .fileSystem)
                 completion()
             }
         } catch {
@@ -1873,49 +1880,29 @@ class FileSystem {
         }
         
         do {
+            let extname = url.pathExtension.lowercased()
+            let fileSize = try validatedDiskImageSize(for: url)
+            let drive = inferredFDDDrive(for: url)
+            let bufferDrive = extname == "hdf" ? 4 : drive
             debugLog("Reading data from: \(url.path)", category: .fileSystem)
-            let imageData = try Data(contentsOf: url)
-            debugLog("Successfully read \(imageData.count) bytes from \(url.lastPathComponent)", category: .fileSystem)
-            
-            // Determine drive based on filename
-            var drive = 0
-            let filename = url.deletingPathExtension().lastPathComponent.lowercased()
-            if filename.hasSuffix("b") || filename.hasSuffix(" b") || filename.hasSuffix("_b") || 
-               url.path.contains(" B.") || url.path.contains("_B.") {
-                drive = 1
-            }
+            try streamDiskImage(at: url, bufferDrive: bufferDrive, fileSize: fileSize)
             debugLog("Determined drive: \(drive) for \(url.lastPathComponent)", category: .fileSystem)
             
             DispatchQueue.main.async {
-                let extname = url.pathExtension.lowercased()
                 if extname == "hdf" {
                     debugLog("Loading as HDD image", category: .fileSystem)
-                    if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.path)
-                        infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
-                        
-                        // Save current disk state after successful HDD load
-                        self.saveCurrentDiskState()
-                        completion(true)
-                    } else {
-                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
-                        completion(false)
-                    }
+                    X68000_LoadHDD(url.path)
+                    infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
+                    // Save current disk state after successful HDD load
+                    self.saveCurrentDiskState()
+                    completion(true)
                 } else {
                     debugLog("Loading as FDD image to drive \(drive)", category: .fileSystem)
-                    if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadFDD(drive, url.path)
-                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
-                
-                // Save current disk state after successful load
-                self.saveCurrentDiskState()
-                        completion(true)
-                    } else {
-                        errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
-                        completion(false)
-                    }
+                    X68000_LoadFDD(drive, url.path)
+                    infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+                    // Save current disk state after successful load
+                    self.saveCurrentDiskState()
+                    completion(true)
                 }
             }
         } catch {
@@ -2084,48 +2071,31 @@ class FileSystem {
         
         do {
             debugLog("Attempting to read data from: \(url.path)", category: .fileSystem)
-            let imageData = try Data(contentsOf: url)
-            debugLog("Successfully read \(imageData.count) bytes from \(url.lastPathComponent)", category: .fileSystem)
+            let extname = url.pathExtension.lowercased()
+            let fileSize = try validatedDiskImageSize(for: url)
+            let drive = inferredFDDDrive(for: url)
+            let bufferDrive = extname == "hdf" ? 4 : drive
+            try streamDiskImage(at: url, bufferDrive: bufferDrive, fileSize: fileSize)
+            debugLog("Successfully streamed \(fileSize) bytes from \(url.lastPathComponent)", category: .fileSystem)
             
             // Determine drive based on filename
-            var drive = 0
-            let filename = url.deletingPathExtension().lastPathComponent.lowercased()
-            if filename.hasSuffix("b") || filename.hasSuffix(" b") || filename.hasSuffix("_b") || 
-               url.path.contains(" B.") || url.path.contains("_B.") {
-                drive = 1
-            }
             debugLog("Determined drive: \(drive) for \(url.lastPathComponent)", category: .fileSystem)
             
             DispatchQueue.main.async {
-                let extname = url.pathExtension.lowercased()
                 if extname == "hdf" {
                     debugLog("Loading as HDD image", category: .fileSystem)
-                    if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadHDD(url.path)
-                        infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
-                        
-                        // Save current disk state after successful HDD load
-                        self.saveCurrentDiskState()
-                        completion(true)
-                    } else {
-                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
-                        completion(false)
-                    }
+                    X68000_LoadHDD(url.path)
+                    infoLog("Success: HDD loaded: \(url.lastPathComponent)", category: .fileSystem)
+                    // Save current disk state after successful HDD load
+                    self.saveCurrentDiskState()
+                    completion(true)
                 } else {
                     debugLog("Loading as FDD image to drive \(drive)", category: .fileSystem)
-                    if let p = X68000_GetDiskImageBufferPointer(drive, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
-                        X68000_LoadFDD(drive, url.path)
-                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
-                
-                // Save current disk state after successful load
-                self.saveCurrentDiskState()
-                        completion(true)
-                    } else {
-                        errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
-                        completion(false)
-                    }
+                    X68000_LoadFDD(drive, url.path)
+                    infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+                    // Save current disk state after successful load
+                    self.saveCurrentDiskState()
+                    completion(true)
                 }
             }
         } catch {
@@ -2465,31 +2435,17 @@ class FileSystem {
         debugLog("FileSystem.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         do {
-            let data = try Data(contentsOf: url)
+            let fileSize = try X68Security.validatedDiskImageSize(url, maximumSize: 2 * 1024 * 1024)
+            try streamDiskImage(at: url, bufferDrive: drive, fileSize: fileSize, chunkSize: 256 * 1024)
+            X68000_LoadFDD(drive, url.path)
             
-            // Security: Validate file size for disk images
-            guard data.count > 0 && data.count <= 2 * 1024 * 1024 else { // Max 2MB for floppy disk
-                errorLog("Security: Disk image file invalid size: \(data.count)", category: .fileSystem)
-                return
-            }
-            
-            if let p = X68000_GetDiskImageBufferPointer(drive, data.count) {
-                data.copyBytes(to: p, count: data.count)
-                X68000_LoadFDD(drive, url.path)
-                
-                // Record mount in Swift side for state management
-                let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-                DiskStateManager.shared.recordFDDMount(url, drive: drive, bookmarkData: bookmarkData)
-                
-                infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
-                
-                // Save current disk state after successful load
-                self.saveCurrentDiskState()
-                
-                infoLog("FDD loaded to drive \(drive) - no automatic reset", category: .fileSystem)
-            } else {
-                errorLog("Failed to get FDD buffer pointer for drive \(drive)", category: .fileSystem)
-            }
+            // Record mount in Swift side for state management
+            let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+            DiskStateManager.shared.recordFDDMount(url, drive: drive, bookmarkData: bookmarkData)
+            infoLog("Success: FDD loaded: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
+            // Save current disk state after successful load
+            self.saveCurrentDiskState()
+            infoLog("FDD loaded to drive \(drive) - no automatic reset", category: .fileSystem)
         } catch let error as NSError {
             errorLog("Error loading FDD image", error: error, category: .fileSystem)
         }

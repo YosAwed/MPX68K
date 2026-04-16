@@ -253,6 +253,17 @@ class GameScene: SKScene {
     }
     
     // MARK: - HDD Management
+    private func streamDiskImageToBuffer(url: URL,
+                                         bufferDrive: Int,
+                                         maximumSize: Int64 = X68Security.maxDiskImageSize) throws -> Int64 {
+        let fileSize = try X68Security.validatedDiskImageSize(url, maximumSize: maximumSize)
+        guard let buffer = X68000_GetDiskImageBufferPointer(bufferDrive, Int(fileSize)) else {
+            throw X68MacError.invalidConfiguration("Failed to get disk buffer pointer for \(url.lastPathComponent)")
+        }
+        try X68Security.streamFileContents(url, to: buffer, expectedSize: fileSize)
+        return fileSize
+    }
+
     func loadHDD(url: URL) {
         // debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
         // debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
@@ -268,26 +279,19 @@ class GameScene: SKScene {
             infoLog("Loading HDD file directly: \(extname.uppercased())", category: .fileSystem)
             
             if extname == "hds" {
-                do {
-                    let imageData = try Data(contentsOf: url)
-                    infoLog("Successfully read SCSI HDD data: \(imageData.count) bytes", category: .fileSystem)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let fileSize = try self.streamDiskImageToBuffer(url: url, bufferDrive: 4)
+                        infoLog("Successfully streamed SCSI HDD data: \(fileSize) bytes", category: .fileSystem)
 
-                    let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
-                    guard imageData.count <= maxSize else {
-                        errorLog("SCSI HDD file too large: \(imageData.count) bytes", category: .fileSystem)
-                        return
-                    }
+                        DispatchQueue.main.async {
+                            if X68000_GetStorageBusMode() != 1 {
+                                X68000_SetStorageBusMode(1)
+                                #if os(macOS)
+                                UserDefaults.standard.set(1, forKey: "StorageBusMode")
+                                #endif
+                            }
 
-                    DispatchQueue.main.async {
-                        if X68000_GetStorageBusMode() != 1 {
-                            X68000_SetStorageBusMode(1)
-                            #if os(macOS)
-                            UserDefaults.standard.set(1, forKey: "StorageBusMode")
-                            #endif
-                        }
-
-                        if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                            imageData.copyBytes(to: p, count: imageData.count)
                             let mounted = X68000_SCSI_Mount(0, 0, url.path, 0) != 0
                             if mounted {
                                 #if os(macOS)
@@ -324,62 +328,30 @@ class GameScene: SKScene {
                                 appDelegate.updateMenuOnFileOperation()
                             }
                             #endif
-                        } else {
-                            errorLog("Failed to get SCSI HDD buffer pointer", category: .fileSystem)
                         }
+                    } catch {
+                        errorLog("Error reading SCSI HDD file", error: error, category: .fileSystem)
                     }
-                } catch {
-                    errorLog("Error reading SCSI HDD file", error: error, category: .fileSystem)
                 }
                 return
             }
             
-            do {
-                let imageData = try Data(contentsOf: url)
-                infoLog("Successfully read HDD data: \(imageData.count) bytes", category: .fileSystem)
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let fileSize = try self.streamDiskImageToBuffer(url: url, bufferDrive: 4)
+                    infoLog("Successfully streamed HDD data: \(fileSize) bytes", category: .fileSystem)
 
-                // Reject empty files — an empty file would malloc(0) and set
-                // s_disk_image_buffer_size[4] == 0, leaving SASI probe
-                // reporting "ready" with zero-size buffer. IPL then boots
-                // nothing. Fail fast and tell the user instead.
-                guard !imageData.isEmpty else {
-                    errorLog("HDD file is empty (0 bytes): \(url.path)", category: .fileSystem)
-                    #if os(macOS)
                     DispatchQueue.main.async {
-                        let alert = NSAlert()
-                        alert.messageText = "HDD イメージが空です"
-                        alert.informativeText = "\(url.lastPathComponent) は 0 バイトのため、マウントできません。別のディスクイメージを選択してください。"
-                        alert.alertStyle = .warning
-                        alert.addButton(withTitle: "OK")
-                        if let window = NSApplication.shared.mainWindow {
-                            alert.beginSheetModal(for: window, completionHandler: nil)
-                        } else {
-                            alert.runModal()
+                        // SASI image: ensure bus mode is SASI
+                        if X68000_GetStorageBusMode() != 0 {
+                            X68000_SetStorageBusMode(0)
+                            #if os(macOS)
+                            UserDefaults.standard.set(0, forKey: "StorageBusMode")
+                            UserDefaults.standard.set(false, forKey: "SCSI0Ready")
+                            #endif
+                            infoLog("Switched to SASI bus mode for .hdf image", category: .fileSystem)
                         }
-                    }
-                    #endif
-                    return
-                }
 
-                // Security: Validate HDD file size (reasonable limit for hard disk images)
-                let maxSize = 2 * 1024 * 1024 * 1024 // 2GB max
-                guard imageData.count <= maxSize else {
-                    errorLog("HDD file too large: \(imageData.count) bytes", category: .fileSystem)
-                    return
-                }
-                
-                DispatchQueue.main.async {
-                    // SASI image: ensure bus mode is SASI
-                    if X68000_GetStorageBusMode() != 0 {
-                        X68000_SetStorageBusMode(0)
-                        #if os(macOS)
-                        UserDefaults.standard.set(0, forKey: "StorageBusMode")
-                        UserDefaults.standard.set(false, forKey: "SCSI0Ready")
-                        #endif
-                        infoLog("Switched to SASI bus mode for .hdf image", category: .fileSystem)
-                    }
-                    if let p = X68000_GetDiskImageBufferPointer(4, imageData.count) {
-                        imageData.copyBytes(to: p, count: imageData.count)
                         X68000_LoadHDD(url.path)
                         DiskStateManager.shared.recordHDDMount(url, bookmarkData: bookmarkData)
                         self.fileSystem?.saveCurrentDiskState()
@@ -394,12 +366,30 @@ class GameScene: SKScene {
                             appDelegate.updateMenuOnFileOperation()
                         }
                         #endif
-                    } else {
-                        errorLog("Failed to get HDD buffer pointer", category: .fileSystem)
                     }
+                } catch let error as X68MacError {
+                    if case .diskImageCorrupted(let message) = error, message.contains("File is empty") {
+                        errorLog("HDD file is empty (0 bytes): \(url.path)", category: .fileSystem)
+                        #if os(macOS)
+                        DispatchQueue.main.async {
+                            let alert = NSAlert()
+                            alert.messageText = "HDD イメージが空です"
+                            alert.informativeText = "\(url.lastPathComponent) は 0 バイトのため、マウントできません。別のディスクイメージを選択してください。"
+                            alert.alertStyle = .warning
+                            alert.addButton(withTitle: "OK")
+                            if let window = NSApplication.shared.mainWindow {
+                                alert.beginSheetModal(for: window, completionHandler: nil)
+                            } else {
+                                alert.runModal()
+                            }
+                        }
+                        #endif
+                    } else {
+                        errorLog("Error reading HDD file", error: error, category: .fileSystem)
+                    }
+                } catch {
+                    errorLog("Error reading HDD file", error: error, category: .fileSystem)
                 }
-            } catch {
-                errorLog("Error reading HDD file", error: error, category: .fileSystem)
             }
         } else {
             errorLog("Invalid HDD file extension: \(extname)", category: .fileSystem)
@@ -885,16 +875,7 @@ class GameScene: SKScene {
         }
 
         do {
-            let imageData = try Data(contentsOf: URL(fileURLWithPath: path))
-            if imageData.isEmpty {
-                warningLog("SCSI restore skipped: empty image \(path)", category: .fileSystem)
-                return false
-            }
-            guard let p = X68000_GetDiskImageBufferPointer(4, imageData.count) else {
-                warningLog("SCSI restore failed: no disk buffer", category: .fileSystem)
-                return false
-            }
-            imageData.copyBytes(to: p, count: imageData.count)
+            _ = try streamDiskImageToBuffer(url: URL(fileURLWithPath: path), bufferDrive: 4)
             X68000_SetStorageBusMode(1)
             let mounted = X68000_SCSI_Mount(0, 0, path, 0) != 0
             if mounted {
