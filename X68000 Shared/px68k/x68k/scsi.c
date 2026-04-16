@@ -108,6 +108,7 @@ static int SCSIU_EnsureBootCache(void);
 static int SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize);
 static void SCSIU_ResetBootCache(void);
 static void SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize);
+static DWORD SCSIU_GetBlockSize(void);
 #endif
 static BYTE* SCSI_ImgBuf(void);
 static long  SCSI_ImgSize(void);
@@ -846,14 +847,15 @@ SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
 
 /* ---------------------------------------------------------------------------------------
  * SCSI-U ブートキャッシュ
- * 物理 HDD の先頭 SCSIU_BOOT_CACHE_BLOCKS ブロックをキャッシュする。
+ * 物理 HDD の先頭約 4MB をキャッシュする。
  * これにより既存の SCSI_FindPartitionBootOffset / SCSI_ReadBPBFromImage 等を
  * image buffer モードと共通のコードで動かせる。
  * --------------------------------------------------------------------------------------- */
-#define SCSIU_BOOT_CACHE_BLOCKS 8192  /* 8192 × 512B = 4MB */
-#define SCSIU_READ_CHUNK_BLOCKS  128  /* max blocks per DREG-EX burst (~64KB) */
+#define SCSIU_BOOT_CACHE_TARGET_BYTES (4 * 1024 * 1024)
 static BYTE*  s_scsiu_boot_cache      = NULL;
 static long   s_scsiu_boot_cache_size = 0;
+static DWORD  s_scsiu_reported_block_size = 512;
+static int    s_scsiu_capacity_valid = 0;
 
 static void
 SCSIU_ResetBootCache(void)
@@ -863,6 +865,8 @@ SCSIU_ResetBootCache(void)
 		s_scsiu_boot_cache = NULL;
 	}
 	s_scsiu_boot_cache_size = 0;
+	s_scsiu_reported_block_size = 512;
+	s_scsiu_capacity_valid = 0;
 }
 
 static void
@@ -892,19 +896,35 @@ SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize)
 	}
 }
 
+static DWORD
+SCSIU_GetBlockSize(void)
+{
+	DWORD lastLBA = 0;
+	DWORD blockSize = 0;
+
+	if (s_scsiu_capacity_valid && s_scsiu_reported_block_size != 0) {
+		return s_scsiu_reported_block_size;
+	}
+	if (s_scsi_u_bridge.connected && SCSIU_ReadCapacity(&lastLBA, &blockSize) && blockSize != 0) {
+		return blockSize;
+	}
+	return (s_scsiu_reported_block_size != 0) ? s_scsiu_reported_block_size : 512;
+}
+
 /*
  * ブートキャッシュを物理 HDD から読み込む。
- * DREG-EX 1 回あたり最大 SCSIU_READ_CHUNK_BLOCKS ブロック (≈64KB) に分けて転送する。
+ * DREG-EX 1 回あたり約 64KB 以下に分けて転送する。
  * すでにロード済みなら即 1 を返す。
  * 戻り値: 1=成功/既ロード, 0=失敗
  */
 static int
 SCSIU_EnsureBootCache(void)
 {
-	DWORD blockSize  = 512;
-	DWORD totalBlocks = SCSIU_BOOT_CACHE_BLOCKS;
-	DWORD totalBytes  = totalBlocks * blockSize;
+	DWORD blockSize;
+	DWORD totalBlocks;
+	DWORD totalBytes;
 	DWORD chunksRead  = 0;
+	DWORD chunkBlocks;
 	char cacheLog[128];
 
 	if (s_scsiu_boot_cache != NULL) {
@@ -912,6 +932,19 @@ SCSIU_EnsureBootCache(void)
 	}
 	if (!s_scsi_u_bridge.connected) {
 		return 0;
+	}
+	blockSize = SCSIU_GetBlockSize();
+	if (blockSize == 0) {
+		blockSize = 512;
+	}
+	totalBlocks = (DWORD)(((unsigned long long)SCSIU_BOOT_CACHE_TARGET_BYTES + blockSize - 1) / blockSize);
+	if (totalBlocks == 0) {
+		totalBlocks = 1;
+	}
+	totalBytes = totalBlocks * blockSize;
+	chunkBlocks = 0xFFFFu / blockSize;
+	if (chunkBlocks == 0) {
+		chunkBlocks = 1;
 	}
 	s_scsiu_boot_cache = (BYTE*)malloc(totalBytes);
 	if (s_scsiu_boot_cache == NULL) {
@@ -921,12 +954,11 @@ SCSIU_EnsureBootCache(void)
 
 	while (chunksRead < totalBlocks) {
 		DWORD toRead = totalBlocks - chunksRead;
-		if (toRead > SCSIU_READ_CHUNK_BLOCKS)
-			toRead = SCSIU_READ_CHUNK_BLOCKS;
+		if (toRead > chunkBlocks)
+			toRead = chunkBlocks;
 		if (!SCSIU_ReadBlocks(chunksRead, toRead, blockSize,
 		                      s_scsiu_boot_cache + chunksRead * blockSize)) {
-			free(s_scsiu_boot_cache);
-			s_scsiu_boot_cache = NULL;
+			SCSIU_ResetBootCache();
 			snprintf(cacheLog, sizeof(cacheLog),
 			         "SCSIU_CACHE: load failed at block %u", (unsigned int)chunksRead);
 			SCSI_LogText(cacheLog);
@@ -937,8 +969,10 @@ SCSIU_EnsureBootCache(void)
 
 	s_scsiu_boot_cache_size = (long)totalBytes;
 	snprintf(cacheLog, sizeof(cacheLog),
-	         "SCSIU_CACHE: boot cache loaded (%uMB, %u blocks)",
-	         (unsigned int)(totalBytes >> 20), (unsigned int)totalBlocks);
+	         "SCSIU_CACHE: boot cache loaded (%uMB, %u blocks, blockSize=%u)",
+	         (unsigned int)(totalBytes >> 20),
+	         (unsigned int)totalBlocks,
+	         (unsigned int)blockSize);
 	SCSI_LogText(cacheLog);
 	return 1;
 }
@@ -1013,6 +1047,8 @@ SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize)
 	                ((DWORD)resp[2] <<  8) |  (DWORD)resp[3];
 	*outBlockSize = ((DWORD)resp[4] << 24) | ((DWORD)resp[5] << 16) |
 	                ((DWORD)resp[6] <<  8) |  (DWORD)resp[7];
+	s_scsiu_reported_block_size = (*outBlockSize != 0) ? *outBlockSize : 512;
+	s_scsiu_capacity_valid = 1;
 	return 1;
 }
 
@@ -1996,7 +2032,7 @@ static void SCSI_HandleBoot(void)
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
-		blockSize = 512;
+		blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 	}
 	// SCSI HDD boot code lives at LBA2.  X68SCSI1 containers place the payload
 	// (virtual LBA2) at 0x400; raw images need an explicit +2 sector offset.
@@ -2214,7 +2250,7 @@ void SCSI_InjectBoot(void)
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
-		blockSize = 512;
+		blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 	}
 	bootOffset = SCSI_GetPayloadOffset();
 	if (bootOffset == 0) {
@@ -2876,13 +2912,19 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				break;
 			}
 			/* SPC READ CAPACITY(10) で実際の容量を取得する */
-			blockSize = 512;
+			blockSize = SCSIU_GetBlockSize();
 			if (SCSIU_ReadCapacity(&lastLBA, &blockSize)) {
 				totalBlocks = lastLBA + 1;
 			} else {
 				/* 失敗時フォールバック: 4GB 分 */
-				blockSize = 512;
-				totalBlocks = 0x800000;
+				unsigned long long fallbackBytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+				if (blockSize == 0) {
+					blockSize = 512;
+				}
+				totalBlocks = (DWORD)(fallbackBytes / blockSize);
+				if (totalBlocks == 0) {
+					totalBlocks = 1;
+				}
 			}
 			Memory_WriteB(a1 + 0, (BYTE)(((totalBlocks - 1) >> 24) & 0xff));
 			Memory_WriteB(a1 + 1, (BYTE)(((totalBlocks - 1) >> 16) & 0xff));
@@ -3117,7 +3159,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				            (s_spc_cdb[2] << 8) | s_spc_cdb[3];
 				DWORD blocks = s_spc_cdb[4];
 				if (blocks == 0) blocks = 256;
-				DWORD blockSize = 512;
+				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
 				DWORD byteLen = blocks * blockSize;
 				DWORD ri;
@@ -3150,7 +3192,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				            ((DWORD)s_spc_cdb[4] << 8) |
 				            (DWORD)s_spc_cdb[5];
 				DWORD blocks = ((DWORD)s_spc_cdb[7] << 8) | s_spc_cdb[8];
-				DWORD blockSize = 512;
+				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
 				DWORD byteLen = blocks * blockSize;
 				DWORD ri;
@@ -3196,7 +3238,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			}
 			case 0x25: {  // READ CAPACITY
 				DWORD totalBlocks = 0;
-				DWORD capBlockSize = 512;
+				DWORD capBlockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				BYTE cap[8];
 #ifdef __APPLE__
 				if (X68000_GetStorageBusMode() == 2) {
@@ -3277,7 +3319,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			BYTE scsiCmd = s_spc_cdb[0];
 			if (scsiCmd == 0x0A || scsiCmd == 0x2A) {
 				// WRITE(6) or WRITE(10)
-				DWORD lba, blocks, blockSize = 512;
+				DWORD lba, blocks, blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff, byteLen;
 				if (scsiCmd == 0x0A) {
 					lba = ((s_spc_cdb[1] & 0x1F) << 16) |
