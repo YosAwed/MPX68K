@@ -3216,27 +3216,32 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				if (blocks == 0) blocks = 256;
 				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
-				DWORD byteLen = blocks * blockSize;
+				DWORD fullByteLen = blocks * blockSize;
+				DWORD copyLen = fullByteLen;
 				DWORD ri;
-				if (xferLen < byteLen) byteLen = xferLen;
+				if (xferLen < copyLen) copyLen = xferLen;
 #ifdef __APPLE__
 				if (X68000_GetStorageBusMode() == 2) {
-					BYTE* tmpR6 = (BYTE*)malloc(byteLen);
-					if (tmpR6 && SCSIU_ReadBlocks(lba, byteLen / blockSize, blockSize, tmpR6)) {
-						for (ri = 0; ri < byteLen; ri++)
+					BYTE* tmpR6 = (BYTE*)malloc(fullByteLen);
+					if (tmpR6 && SCSIU_ReadBlocks(lba, blocks, blockSize, tmpR6)) {
+						for (ri = 0; ri < copyLen; ri++)
 							Memory_WriteB(dstAddr + ri, tmpR6[ri]);
 					} else {
-						for (ri = 0; ri < byteLen; ri++) Memory_WriteB(dstAddr + ri, 0x00);
+						s_spc_status_byte = 0x02;
+						result = (DWORD)0xFFFFFFFF;
 					}
 					free(tmpR6);
+					if (result != 0) {
+						break;
+					}
 				} else
 #endif
 				if (s_disk_image_buffer[4] &&
-				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
-					for (ri = 0; ri < byteLen; ri++)
+				    byteOff + copyLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
 				} else {
-					for (ri = 0; ri < byteLen; ri++)
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, 0x00);
 				}
 				break;
@@ -3249,27 +3254,32 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				DWORD blocks = ((DWORD)s_spc_cdb[7] << 8) | s_spc_cdb[8];
 				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
-				DWORD byteLen = blocks * blockSize;
+				DWORD fullByteLen = blocks * blockSize;
+				DWORD copyLen = fullByteLen;
 				DWORD ri;
-				if (xferLen < byteLen) byteLen = xferLen;
+				if (xferLen < copyLen) copyLen = xferLen;
 #ifdef __APPLE__
 				if (X68000_GetStorageBusMode() == 2) {
-					BYTE* tmpR10 = (BYTE*)malloc(byteLen);
+					BYTE* tmpR10 = (BYTE*)malloc(fullByteLen);
 					if (tmpR10 && blocks > 0 && SCSIU_ReadBlocks(lba, blocks, blockSize, tmpR10)) {
-						for (ri = 0; ri < byteLen; ri++)
+						for (ri = 0; ri < copyLen; ri++)
 							Memory_WriteB(dstAddr + ri, tmpR10[ri]);
 					} else {
-						for (ri = 0; ri < byteLen; ri++) Memory_WriteB(dstAddr + ri, 0x00);
+						s_spc_status_byte = 0x02;
+						result = (DWORD)0xFFFFFFFF;
 					}
 					free(tmpR10);
+					if (result != 0) {
+						break;
+					}
 				} else
 #endif
 				if (s_disk_image_buffer[4] &&
-				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
-					for (ri = 0; ri < byteLen; ri++)
+				    byteOff + copyLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
 				} else {
-					for (ri = 0; ri < byteLen; ri++)
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, 0x00);
 				}
 				break;
