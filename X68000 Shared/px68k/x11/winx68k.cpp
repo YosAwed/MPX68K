@@ -1552,6 +1552,7 @@ void X68000_SCSIU_Disconnect(void)
 		SCSIU_StopBridge();
 	}
 	if (g_storage_bus_mode == 2) {
+		g_storage_bus_mode = 0;
 		Memory_ClearSCSIMode();
 		WinX68k_RestoreSASI_SRAM();
 	}

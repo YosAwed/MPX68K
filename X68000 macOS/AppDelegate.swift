@@ -2389,6 +2389,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         guard coreGetSCSIUState().connected else { return }
 
         coreDisconnectSCSIU()
+        UserDefaults.standard.storageBusMode = .sasi
+        cachedStorageBusMode = StorageBusMode.sasi.rawValue
+        DiskStateManager.shared.saveCurrentState()
         updateMenuTitles()
     }
 
