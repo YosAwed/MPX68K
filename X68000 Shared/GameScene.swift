@@ -919,8 +919,14 @@ class GameScene: SKScene {
     }
 
     private func startEmulator(with fileSystem: FileSystem) {
+        #if os(macOS)
+        let selectedStorageBusMode = UserDefaults.standard.integer(forKey: "StorageBusMode")
+        #else
+        let selectedStorageBusMode = 0
+        #endif
+
         // Load ROM files FIRST, before any emulator initialization
-        switch fileSystem.loadIPLROM() {
+        switch fileSystem.loadIPLROM(selectedStorageBusMode: selectedStorageBusMode) {
         case .failure(let romError):
             errorLog("CRITICAL: IPLROM load failed: \(romError)", category: .emulation)
             notifyROMLoadError(romError)
@@ -937,10 +943,9 @@ class GameScene: SKScene {
         X68000_Init(samplingRate)
 
         #if os(macOS)
-        let persistedStorageBusMode = UserDefaults.standard.integer(forKey: "StorageBusMode")
-        switch persistedStorageBusMode {
+        switch selectedStorageBusMode {
         case 1, 2:
-            X68000_SetStorageBusMode(Int32(persistedStorageBusMode))
+            X68000_SetStorageBusMode(Int32(selectedStorageBusMode))
         default:
             X68000_SetStorageBusMode(0)
         }

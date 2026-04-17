@@ -2357,7 +2357,7 @@ class FileSystem {
 
     // MARK: - ROM Loading
 
-    func loadIPLROM() -> Result<Void, ROMLoadError>
+    func loadIPLROM(selectedStorageBusMode: Int) -> Result<Void, ROMLoadError>
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
 
@@ -2410,8 +2410,7 @@ class FileSystem {
         // SCSIEXROM.DAT (external SCSI, SCSIEX type) is required — its layout
         // matches the IPL ROM IOCS table.  SCSIINROM.DAT is an internal SCSI
         // ROM (SCSIIN type) with an incompatible layout and cannot be used.
-        let storageBusMode = UserDefaults.standard.integer(forKey: "StorageBusMode")
-        if storageBusMode == 1 || storageBusMode == 2 {
+        if selectedStorageBusMode == 1 || selectedStorageBusMode == 2 {
             guard let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") else {
                 errorLog("CRITICAL: SCSIEXROM.DAT not found while SCSI/SCSI-U mode is enabled", category: .fileSystem)
                 return .failure(.missingFile("SCSIEXROM.DAT"))

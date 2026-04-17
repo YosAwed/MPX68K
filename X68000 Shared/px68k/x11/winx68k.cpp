@@ -591,7 +591,8 @@ WinX68k_Reset(void)
 #if defined(HAVE_C68K)
 	// IPL-ROM-first SCSI boot: IPL ROMに通常起動させ、SASIデバイススキャン時に
 	// SCSIブートセクタを注入する。
-	if (g_storage_bus_mode == 1 && g_scsi0_mounted) {
+	if ((g_storage_bus_mode == 1 && g_scsi0_mounted) ||
+	    (g_storage_bus_mode == 2 && SCSIU_IsConnected())) {
 		// Save SASI SRAM if switching from SASI mode
 		{
 			extern void WinX68k_SaveSASI_SRAM(void);
@@ -1454,10 +1455,11 @@ void X68000_SetStorageBusMode(int mode)
 		Memory_ClearSCSIMode();
 		WinX68k_RestoreSASI_SRAM();
 	} else if (g_storage_bus_mode == 2) {
-		// SCSI-U connection state is tracked separately. Until the physical
-		// transfer backend is wired into the IOCS/boot path, keep the memory
-		// map on the neutral SASI side to avoid stale synthetic SCSI state.
-		Memory_ClearSCSIMode();
+		if (SCSIU_IsConnected()) {
+			Memory_SetSCSIMode();
+		} else {
+			Memory_ClearSCSIMode();
+		}
 		WinX68k_RestoreSASI_SRAM();
 	}
 	// Note: SRAM boot device ($ED0018) is set by WinX68k_Reset for SCSI mode.
@@ -1538,7 +1540,7 @@ int X68000_SCSIU_Connect(void)
 
 	g_storage_bus_mode = 2;
 	SCSI_InvalidateTransferCache();
-	Memory_ClearSCSIMode();
+	Memory_SetSCSIMode();
 	WinX68k_RestoreSASI_SRAM();
 	X68000_AppendSCSILog("SCSI-U CONNECTED");
 	return 1;
@@ -1550,7 +1552,6 @@ void X68000_SCSIU_Disconnect(void)
 		SCSIU_StopBridge();
 	}
 	if (g_storage_bus_mode == 2) {
-		g_storage_bus_mode = 0;
 		Memory_ClearSCSIMode();
 		WinX68k_RestoreSASI_SRAM();
 	}

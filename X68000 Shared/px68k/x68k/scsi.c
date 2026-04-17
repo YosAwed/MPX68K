@@ -64,6 +64,7 @@ static int s_scsi_log_total = 0;        // global log line counter
 #define SCSIU_PRODUCT_ID 0xE6B2
 #define SCSIU_MAX_PORTS  8
 #define SCSIU_PATH_LEN   256
+#define SCSIU_MAX_DREG_BURST_BYTES 0xFFFFu
 
 typedef struct {
 	int control_fd;
@@ -106,6 +107,7 @@ static int SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf);
 static int SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf);
 static int SCSIU_EnsureBootCache(void);
 static int SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize);
+static int SCSIU_GetCapacity(DWORD* outTotalBlocks, DWORD* outBlockSize);
 static void SCSIU_ResetBootCache(void);
 static void SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize);
 static DWORD SCSIU_GetBlockSize(void);
@@ -684,6 +686,8 @@ static int
 SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
 {
 	DWORD totalBytes;
+	DWORD remainingBytes;
+	BYTE* readPtr;
 	BYTE cdb[10];
 	int received;
 
@@ -745,10 +749,19 @@ SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
 	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x01); /* Data In phase */
 	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x84); /* Initiator Receive */
 
-	/* --- 7. データ受信 (DREG-EX で一括) --- */
-	received = SCSIU_ExecDregBurst(buf, totalBytes);
-	if (received < 0 || (DWORD)received < totalBytes) {
-		return 0;
+	/* --- 7. データ受信 (DREG-EX を 64KB 以下に分割) --- */
+	remainingBytes = totalBytes;
+	readPtr = buf;
+	while (remainingBytes > 0) {
+		DWORD chunkBytes = (remainingBytes > SCSIU_MAX_DREG_BURST_BYTES)
+		                 ? SCSIU_MAX_DREG_BURST_BYTES
+		                 : remainingBytes;
+		received = SCSIU_ExecDregBurst(readPtr, chunkBytes);
+		if (received < 0 || (DWORD)received < chunkBytes) {
+			return 0;
+		}
+		readPtr += chunkBytes;
+		remainingBytes -= chunkBytes;
 	}
 
 	/* --- 8. STATUS + MESSAGE フェーズ (完了処理) --- */
@@ -854,6 +867,7 @@ SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
 #define SCSIU_BOOT_CACHE_TARGET_BYTES (4 * 1024 * 1024)
 static BYTE*  s_scsiu_boot_cache      = NULL;
 static long   s_scsiu_boot_cache_size = 0;
+static DWORD  s_scsiu_reported_total_blocks = 0;
 static DWORD  s_scsiu_reported_block_size = 512;
 static int    s_scsiu_capacity_valid = 0;
 
@@ -865,6 +879,7 @@ SCSIU_ResetBootCache(void)
 		s_scsiu_boot_cache = NULL;
 	}
 	s_scsiu_boot_cache_size = 0;
+	s_scsiu_reported_total_blocks = 0;
 	s_scsiu_reported_block_size = 512;
 	s_scsiu_capacity_valid = 0;
 }
@@ -896,16 +911,37 @@ SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize)
 	}
 }
 
-static DWORD
-SCSIU_GetBlockSize(void)
+static int
+SCSIU_GetCapacity(DWORD* outTotalBlocks, DWORD* outBlockSize)
 {
 	DWORD lastLBA = 0;
 	DWORD blockSize = 0;
 
-	if (s_scsiu_capacity_valid && s_scsiu_reported_block_size != 0) {
-		return s_scsiu_reported_block_size;
+	if (outTotalBlocks == NULL || outBlockSize == NULL) {
+		return 0;
 	}
-	if (s_scsi_u_bridge.connected && SCSIU_ReadCapacity(&lastLBA, &blockSize) && blockSize != 0) {
+	if (s_scsiu_capacity_valid &&
+	    s_scsiu_reported_total_blocks != 0 &&
+	    s_scsiu_reported_block_size != 0) {
+		*outTotalBlocks = s_scsiu_reported_total_blocks;
+		*outBlockSize = s_scsiu_reported_block_size;
+		return 1;
+	}
+	if (!s_scsi_u_bridge.connected || !SCSIU_ReadCapacity(&lastLBA, &blockSize) || blockSize == 0) {
+		return 0;
+	}
+	*outTotalBlocks = s_scsiu_reported_total_blocks;
+	*outBlockSize = s_scsiu_reported_block_size;
+	return (*outTotalBlocks != 0 && *outBlockSize != 0) ? 1 : 0;
+}
+
+static DWORD
+SCSIU_GetBlockSize(void)
+{
+	DWORD totalBlocks = 0;
+	DWORD blockSize = 0;
+
+	if (SCSIU_GetCapacity(&totalBlocks, &blockSize) && blockSize != 0) {
 		return blockSize;
 	}
 	return (s_scsiu_reported_block_size != 0) ? s_scsiu_reported_block_size : 512;
@@ -921,6 +957,8 @@ static int
 SCSIU_EnsureBootCache(void)
 {
 	DWORD blockSize;
+	DWORD reportedBlocks = 0;
+	DWORD reportedBlockSize = 0;
 	DWORD totalBlocks;
 	DWORD totalBytes;
 	DWORD chunksRead  = 0;
@@ -937,12 +975,26 @@ SCSIU_EnsureBootCache(void)
 	if (blockSize == 0) {
 		blockSize = 512;
 	}
+	if (!SCSIU_GetCapacity(&reportedBlocks, &reportedBlockSize)) {
+		SCSI_LogText("SCSIU_CACHE: READ CAPACITY failed");
+		return 0;
+	}
+	if (reportedBlockSize != 0) {
+		blockSize = reportedBlockSize;
+	}
+	if (reportedBlocks == 0) {
+		SCSI_LogText("SCSIU_CACHE: zero-capacity device");
+		return 0;
+	}
 	totalBlocks = (DWORD)(((unsigned long long)SCSIU_BOOT_CACHE_TARGET_BYTES + blockSize - 1) / blockSize);
 	if (totalBlocks == 0) {
 		totalBlocks = 1;
 	}
+	if (totalBlocks > reportedBlocks) {
+		totalBlocks = reportedBlocks;
+	}
 	totalBytes = totalBlocks * blockSize;
-	chunkBlocks = 0xFFFFu / blockSize;
+	chunkBlocks = SCSIU_MAX_DREG_BURST_BYTES / blockSize;
 	if (chunkBlocks == 0) {
 		chunkBlocks = 1;
 	}
@@ -1047,6 +1099,9 @@ SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize)
 	                ((DWORD)resp[2] <<  8) |  (DWORD)resp[3];
 	*outBlockSize = ((DWORD)resp[4] << 24) | ((DWORD)resp[5] << 16) |
 	                ((DWORD)resp[6] <<  8) |  (DWORD)resp[7];
+	s_scsiu_reported_total_blocks = (*outLastLBA == 0xFFFFFFFFU)
+	                              ? 0xFFFFFFFFU
+	                              : (*outLastLBA + 1);
 	s_scsiu_reported_block_size = (*outBlockSize != 0) ? *outBlockSize : 512;
 	s_scsiu_capacity_valid = 1;
 	return 1;
@@ -4963,8 +5018,10 @@ static void SCSI_HandleDeviceCommand(void)
 					for (i = 0; i < (DWORD)byteCount; i++)
 						Memory_WriteB(bufAddr + i, tmpBuf[i]);
 				} else {
-					for (i = 0; i < (DWORD)byteCount; i++)
-						Memory_WriteB(bufAddr + i, 0x00);
+					free(tmpBuf);
+					SCSI_SetReqStatus(reqpkt, 0, 0x02);
+					SCSI_LogText("SCSI_DEV READ SCSIU failed");
+					break;
 				}
 				free(tmpBuf);
 				SCSI_SetReqStatus(reqpkt, 1, 0x00);

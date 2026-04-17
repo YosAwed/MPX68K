@@ -76,6 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     private let maxStorageRestoreRetries: Int = 5
     private let storageRestoreRetryDelay: TimeInterval = 0.6
     private var isPresentingSCSIOpenPanel = false
+    private var isConnectingSCSIU = false
 
     // MARK: - Core Bridge Helpers
     private func resetSCSILogs() {
@@ -417,6 +418,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             alert.beginSheetModal(for: window, completionHandler: nil)
         } else {
             alert.runModal()
+        }
+    }
+
+    private func performSCSIUConnect(rollbackToSASIOnFailure: Bool,
+                                     onSuccess: (() -> Void)? = nil) {
+        guard !isConnectingSCSIU else { return }
+
+        isConnectingSCSIU = true
+        updateMenuTitles()
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            let connected = self.coreConnectSCSIU()
+
+            DispatchQueue.main.async {
+                self.isConnectingSCSIU = false
+
+                if connected {
+                    onSuccess?()
+                } else {
+                    if rollbackToSASIOnFailure {
+                        self.coreSetStorageBusMode(.sasi)
+                        UserDefaults.standard.storageBusMode = .sasi
+                        self.cachedStorageBusMode = StorageBusMode.sasi.rawValue
+                        DiskStateManager.shared.saveCurrentState()
+                    }
+                    self.showSCSIUConnectionFailureAlert()
+                }
+
+                self.updateMenuTitles()
+            }
         }
     }
 
@@ -1848,6 +1881,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
         let busMode = coreGetStorageBusMode()
         let scsiU = coreGetSCSIUState()
+        let statusText = isConnectingSCSIU ? "Connecting..." : scsiU.status
 
         scsiUDevicesItem.isEnabled = (busMode == .scsiU)
 
@@ -1855,14 +1889,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             let itemId = item.identifier?.rawValue ?? ""
             switch itemId {
             case "SCSIU-status":
-                item.title = "Status: \(scsiU.status)"
+                item.title = "Status: \(statusText)"
                 item.isEnabled = false
             case "SCSIU-connect":
-                item.title = scsiU.connected ? "Reconnect SCSI-U" : "Connect SCSI-U"
-                item.isEnabled = (busMode == .scsiU && !scsiU.connected)
+                item.title = isConnectingSCSIU ? "Connecting SCSI-U..." :
+                             (scsiU.connected ? "Reconnect SCSI-U" : "Connect SCSI-U")
+                item.isEnabled = (busMode == .scsiU && !isConnectingSCSIU)
             case "SCSIU-disconnect":
                 item.title = "Disconnect SCSI-U"
-                item.isEnabled = (busMode == .scsiU && scsiU.connected)
+                item.isEnabled = (busMode == .scsiU && scsiU.connected && !isConnectingSCSIU)
             default:
                 break
             }
@@ -2301,6 +2336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         coreSetStorageBusMode(.scsi)
         UserDefaults.standard.storageBusMode = .scsi
         cachedStorageBusMode = StorageBusMode.scsi.rawValue
+        DiskStateManager.shared.saveCurrentState()
         updateMenuTitles()
     }
 
@@ -2331,29 +2367,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
 
         coreSetStorageBusMode(.scsiU)
-        if !coreConnectSCSIU() {
-            coreSetStorageBusMode(.sasi)
-            cachedStorageBusMode = StorageBusMode.sasi.rawValue
-            UserDefaults.standard.storageBusMode = .sasi
-            showSCSIUConnectionFailureAlert()
-            updateMenuTitles()
-            return
+        performSCSIUConnect(rollbackToSASIOnFailure: true) { [weak self] in
+            guard let self = self else { return }
+            self.clearPersistedSCSI0State()
+            UserDefaults.standard.storageBusMode = .scsiU
+            self.cachedStorageBusMode = StorageBusMode.scsiU.rawValue
+            DiskStateManager.shared.saveCurrentState()
         }
-
-        clearPersistedSCSI0State()
-        UserDefaults.standard.storageBusMode = .scsiU
-        cachedStorageBusMode = StorageBusMode.scsiU.rawValue
-        updateMenuTitles()
     }
 
     @objc func connectSCSIU(_ sender: Any?) {
         guard coreGetStorageBusMode() == .scsiU else { return }
-        guard !coreGetSCSIUState().connected else { return }
-
-        if !coreConnectSCSIU() {
-            showSCSIUConnectionFailureAlert()
+        if coreGetSCSIUState().connected {
+            coreDisconnectSCSIU()
         }
-        updateMenuTitles()
+        performSCSIUConnect(rollbackToSASIOnFailure: false)
     }
 
     @objc func disconnectSCSIU(_ sender: Any?) {
@@ -2361,8 +2389,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         guard coreGetSCSIUState().connected else { return }
 
         coreDisconnectSCSIU()
-        UserDefaults.standard.storageBusMode = .scsiU
-        cachedStorageBusMode = StorageBusMode.scsiU.rawValue
         updateMenuTitles()
     }
 
@@ -3067,9 +3093,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             case "SCSIU-status":
                 return false
             case "SCSIU-connect":
-                return busMode == .scsiU && !coreGetSCSIUState().connected
+                return busMode == .scsiU && !isConnectingSCSIU
             case "SCSIU-disconnect":
-                return busMode == .scsiU && coreGetSCSIUState().connected
+                return busMode == .scsiU && coreGetSCSIUState().connected && !isConnectingSCSIU
             default:
                 break
             }
