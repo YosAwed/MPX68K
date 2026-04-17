@@ -131,8 +131,9 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Open Hard Disk…** / **Eject Hard Disk**: Mount or eject an HDD image
 - **Create Empty HDD…**: Generate a new empty `.hdf` image (format later with `FORMAT.X` under Human68k)
 - **Save HDD** (⌘S): Persist the current HDD state
-- **Storage Bus Mode → SASI / SCSI**: Switch the hard disk bus at runtime
-- **SCSI Devices → Open SCSI (ID 0)… / Eject SCSI (ID 0)**: Manage the external SCSI device
+- **Storage Bus Mode → SASI / SCSI / SCSI U**: Switch the hard disk bus at runtime
+- **SCSI Devices → Open SCSI (ID 0)… / Eject SCSI (ID 0)**: Manage the SCSI image device
+- **SCSI U Device → Connect SCSI U / Disconnect SCSI U**: Manage the physical SCSI U bridge
 
 #### Clock Menu
 - **1 / 10 / 16 / 24 (Default) / 40 / 50 MHz** (keys 1-6): Change CPU clock speed

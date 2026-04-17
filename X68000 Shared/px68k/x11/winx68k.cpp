@@ -97,7 +97,7 @@ DWORD skippedframes = 0;
 static int ClkUsed = 0;
 static int FrameSkipCount = 0;
 static int FrameSkipQueue = 0;
-static int g_storage_bus_mode = 0; // 0 = SASI, 1 = SCSI
+static int g_storage_bus_mode = 0; // 0 = SASI, 1 = SCSI image, 2 = SCSI-U
 static unsigned char SASI_IPLROM[0x20000] = {0};
 static int SASI_IPLROM_loaded = 0;
 static int s_scsi_ipl_needs_restore = 0;  // set when SASI IPLROM0 overrides IPL
@@ -154,6 +154,13 @@ static int g_scsi_force_redraw_attempts = 0;
 static void X68000_AppendSCSILog(const char* message);
 static DWORD X68000_ReadIplLong(DWORD offset, int useDirect);
 static DWORD X68000_DecodeIplVectorAddress(DWORD raw);
+
+static void
+WinX68k_ClearSCSIImageState(void)
+{
+	g_scsi0_mounted = 0;
+	g_scsi0_path[0] = '\0';
+}
 
 static DWORD
 X68000_NormalizeDecodedIplIocsHandler(DWORD decoded, DWORD sourceRaw, int* outCanonicalized)
@@ -584,7 +591,8 @@ WinX68k_Reset(void)
 #if defined(HAVE_C68K)
 	// IPL-ROM-first SCSI boot: IPL ROMに通常起動させ、SASIデバイススキャン時に
 	// SCSIブートセクタを注入する。
-	if (g_storage_bus_mode == 1 && g_scsi0_mounted) {
+	if ((g_storage_bus_mode == 1 && g_scsi0_mounted) ||
+	    (g_storage_bus_mode == 2 && SCSIU_IsConnected())) {
 		// Save SASI SRAM if switching from SASI mode
 		{
 			extern void WinX68k_SaveSASI_SRAM(void);
@@ -1425,16 +1433,33 @@ int X68000_IsSCSIBootPending(void)
 
 void X68000_SetStorageBusMode(int mode)
 {
-	if (g_storage_bus_mode == 0 && mode == 1) {
+	if (g_storage_bus_mode == 0 && (mode == 1 || mode == 2)) {
 		WinX68k_SaveSASI_SRAM();
 	}
+	if (g_storage_bus_mode == 2 && mode != 2) {
+		SCSIU_StopBridge();
+	}
 
-	g_storage_bus_mode = (mode == 1) ? 1 : 0;
+	if (mode == 1) {
+		g_storage_bus_mode = 1;
+	} else if (mode == 2) {
+		g_storage_bus_mode = 2;
+	} else {
+		g_storage_bus_mode = 0;
+	}
+
 	if (g_storage_bus_mode == 0) {
 		// Restore the native SASI register map immediately so a prior SCSI
 		// session does not leave $E96000 routed to the SPC emulation.
 		// Also restore the pre-SCSI SRAM view before any Swift-side saveSRAM().
 		Memory_ClearSCSIMode();
+		WinX68k_RestoreSASI_SRAM();
+	} else if (g_storage_bus_mode == 2) {
+		if (SCSIU_IsConnected()) {
+			Memory_SetSCSIMode();
+		} else {
+			Memory_ClearSCSIMode();
+		}
 		WinX68k_RestoreSASI_SRAM();
 	}
 	// Note: SRAM boot device ($ED0018) is set by WinX68k_Reset for SCSI mode.
@@ -1463,6 +1488,9 @@ int X68000_SCSI_Mount(int host, int id, const char* path, int flags)
 	if (host != 0 || id != 0 || path == NULL || path[0] == '\0') {
 		return 0;
 	}
+	if (SCSIU_IsConnected()) {
+		SCSIU_StopBridge();
+	}
 
 	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
 		printf("X68000_SCSI_Mount: HDD buffer not initialized for %s\n", path);
@@ -1490,11 +1518,55 @@ int X68000_SCSI_Eject(int host, int id)
 		return 0;
 	}
 
-	g_scsi0_mounted = 0;
-	g_scsi0_path[0] = '\0';
+	WinX68k_ClearSCSIImageState();
 	SCSI_InvalidateTransferCache();
 	X68000_EjectHDD();
 	return 1;
+}
+
+int X68000_SCSIU_Connect(void)
+{
+	if (!SCSIU_InitBridge()) {
+		return 0;
+	}
+	if (g_storage_bus_mode == 0) {
+		WinX68k_SaveSASI_SRAM();
+	}
+
+	if (g_scsi0_mounted) {
+		WinX68k_ClearSCSIImageState();
+		X68000_EjectHDD();
+	}
+
+	g_storage_bus_mode = 2;
+	SCSI_InvalidateTransferCache();
+	Memory_SetSCSIMode();
+	WinX68k_RestoreSASI_SRAM();
+	X68000_AppendSCSILog("SCSI-U CONNECTED");
+	return 1;
+}
+
+void X68000_SCSIU_Disconnect(void)
+{
+	if (SCSIU_IsConnected()) {
+		SCSIU_StopBridge();
+	}
+	if (g_storage_bus_mode == 2) {
+		g_storage_bus_mode = 0;
+		Memory_ClearSCSIMode();
+		WinX68k_RestoreSASI_SRAM();
+	}
+	X68000_AppendSCSILog("SCSI-U DISCONNECTED");
+}
+
+int X68000_SCSIU_IsConnected(void)
+{
+	return SCSIU_IsConnected();
+}
+
+const char* X68000_SCSIU_GetStatus(void)
+{
+	return SCSIU_GetStatus();
 }
 
 unsigned char* X68000_GetSRAMPointer()
