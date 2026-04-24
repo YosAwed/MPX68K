@@ -89,3 +89,8 @@ void X68000_Monitor_SetAReg(int n, unsigned int val);
 void X68000_Monitor_SetPC(unsigned int val);
 void X68000_Monitor_SetSR(unsigned int val);
 void X68000_Monitor_GetHardwareState(int section, char* out, int outSize);
+
+// Machine Monitor UNIX socket server (X68000 Shared/px68k/x11/winx68k.cpp)
+// Enabled at runtime when UserDefaults key "monitorSocketEnabled" is true.
+void MonitorSocket_Start(void);
+void MonitorSocket_Stop(void);

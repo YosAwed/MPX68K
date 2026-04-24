@@ -39,6 +39,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ### System & Connectivity
 - **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, TCP server
+- **Machine Monitor Socket**: Optional UNIX domain socket for programmatic emulator control (see below)
 - **Session State**: Secure restorable state on macOS
 - **iCloud Document Sync**: ROM and disk images sync across your devices
 
@@ -162,6 +163,78 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Arrow Keys** or **WASD**: 8-direction movement
 - **Space** or **J**: Button A
 - **Z** or **K**: Button B
+
+## Machine Monitor Socket
+
+The Machine Monitor socket exposes the emulator's internal state over a UNIX domain socket at `/tmp/mpx68k_monitor.sock`, allowing external tools (scripts, test harnesses, debuggers) to pause/resume emulation, read and write memory, inspect CPU registers, and hot-swap disk images — all without using the GUI.
+
+The socket is **disabled by default**. To enable it, set the `monitorSocketEnabled` user default before launching the app:
+
+```bash
+defaults write NANKIN.X68000 monitorSocketEnabled -bool YES
+```
+
+To disable it again:
+
+```bash
+defaults delete NANKIN.X68000 monitorSocketEnabled
+```
+
+When enabled, the socket is created at launch and removed on quit.  A log line confirms the path:
+```
+[MPX68K] Machine Monitor socket: /tmp/mpx68k_monitor.sock
+```
+
+### Protocol
+
+The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request is one `\n`-terminated line; each response ends with `OK` on success or `ERROR <message>` on failure.
+
+| Command | Description |
+|---------|-------------|
+| `PAUSE` | Pause emulation (required before writes) |
+| `RESUME` | Resume emulation |
+| `STATUS` | Returns `PAUSED` or `RUNNING` |
+| `REGS` | Dump D0–D7, A0–A7, PC, SR (hex) |
+| `READ <addr> <n>` | Hex-dump `n` bytes starting at `addr` |
+| `READB/READW/READD <addr>` | Read byte / 16-bit word / 32-bit dword |
+| `WRITE <addr> <b0> [b1…]` | Write bytes (requires `PAUSE`) |
+| `WRITEW/WRITED <addr> <val>` | Write word / dword (requires `PAUSE`) |
+| `HW [section]` | Hardware state snapshot |
+| `MOUNTFDD <drive> <path>` | Hot-swap a disk image into FDD 0 or 1 |
+| `EJECTFDD <drive>` | Eject image from FDD 0 or 1 |
+| `QUIT` | Close connection |
+
+All addresses and values are hexadecimal.  A simple session:
+
+```
+$ nc -U /tmp/mpx68k_monitor.sock
+PAUSE
+OK
+READD 00ed0018
+00000080
+OK
+RESUME
+OK
+QUIT
+OK
+```
+
+Multiple concurrent clients are supported.  Memory reads are allowed at any time; writes require `PAUSE` first to avoid data races.
+
+### FDD disk swapping
+
+`MOUNTFDD` and `EJECTFDD` let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.d88`, `.hdm`):
+
+```
+MOUNTFDD 0 /Users/you/Documents/X68000/disk1.xdf
+OK
+EJECTFDD 0
+OK
+```
+
+### Building with Socket Support
+
+The socket server is compiled into `X68000 Shared/px68k/x11/winx68k.cpp`, which is already part of the "X68000 macOS" target.  No additional build steps are required — just build the project normally after enabling the feature via `defaults write`.
 
 ## File Formats
 
