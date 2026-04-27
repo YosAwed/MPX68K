@@ -181,7 +181,7 @@ defaults delete NANKIN.X68000 monitorSocketEnabled
 ```
 
 When enabled, the socket is created at launch and removed on quit.  A log line confirms the path:
-```
+```text
 [MPX68K] Machine Monitor socket: /tmp/mpx68k_monitor.sock
 ```
 
@@ -206,7 +206,7 @@ The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request 
 
 All addresses and values are hexadecimal.  A simple session:
 
-```
+```console
 $ nc -U /tmp/mpx68k_monitor.sock
 PAUSE
 OK
@@ -225,7 +225,7 @@ Multiple concurrent clients are supported.  Memory reads are allowed at any time
 
 `MOUNTFDD` and `EJECTFDD` let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.d88`, `.hdm`):
 
-```
+```text
 MOUNTFDD 0 /Users/you/Documents/X68000/disk1.xdf
 OK
 EJECTFDD 0

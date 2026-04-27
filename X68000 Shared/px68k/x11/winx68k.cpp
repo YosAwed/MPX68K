@@ -6,6 +6,7 @@ extern "C" {
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "common.h"
 #include "fileio.h"
 #include "timer.h"
@@ -117,7 +118,7 @@ static int WinX68k_SASIImageHasBootSector(void) {
 			return 1;
 		}
 	}
-	return 0;
+    return 0;
 }
 
 void WinX68k_SaveSASI_SRAM(void) {
@@ -1107,11 +1108,15 @@ int original_main(int argc, const char *argv[], const long samplingrate )
     FDD_SetFD(1, Config.FDDImage[1], 0);
 #endif
     //SDL_StartTextInput();
-    return 0;
+	return 0;
 }
 
+int X68000_Monitor_ConsumePauseRequest(void);
 
 void Update(const long clockMHz, const int vsync ) {
+    if (X68000_Monitor_ConsumePauseRequest()) {
+        return;
+    }
 
 	if ((Config.NoWaitMode || Timer_GetCount()) || vsync == 0) {
         WinX68k_Exec(clockMHz, vsync);
@@ -1665,12 +1670,62 @@ void WinX68k_UpdateSASIRamSize(void) {
 #ifdef __cplusplus
 }
 static std::atomic<int> g_monitor_paused(0);
+static pthread_mutex_t g_monitor_pause_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  g_monitor_pause_cond = PTHREAD_COND_INITIALIZER;
+static int g_monitor_pause_requested = 0;
+static int g_monitor_pause_acknowledged = 0;
 extern "C" {
 #else
 static int g_monitor_paused = 0;
+static pthread_mutex_t g_monitor_pause_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  g_monitor_pause_cond = PTHREAD_COND_INITIALIZER;
+static int g_monitor_pause_requested = 0;
+static int g_monitor_pause_acknowledged = 0;
 #endif
 
+void X68000_Monitor_RequestStop(void) {
+    pthread_mutex_lock(&g_monitor_pause_mutex);
+    g_monitor_pause_requested = 1;
+    pthread_mutex_unlock(&g_monitor_pause_mutex);
+}
+
+void X68000_Monitor_WaitForStopAck(void) {
+    pthread_mutex_lock(&g_monitor_pause_mutex);
+    while (!g_monitor_pause_acknowledged) {
+        pthread_cond_wait(&g_monitor_pause_cond, &g_monitor_pause_mutex);
+    }
+    pthread_mutex_unlock(&g_monitor_pause_mutex);
+}
+
+int X68000_Monitor_IsStopAcked(void) {
+    pthread_mutex_lock(&g_monitor_pause_mutex);
+    int acked = g_monitor_pause_acknowledged;
+    pthread_mutex_unlock(&g_monitor_pause_mutex);
+    return acked;
+}
+
+int X68000_Monitor_ConsumePauseRequest(void) {
+    pthread_mutex_lock(&g_monitor_pause_mutex);
+    if (!g_monitor_pause_requested) {
+        pthread_mutex_unlock(&g_monitor_pause_mutex);
+        return 0;
+    }
+    g_monitor_pause_acknowledged = 1;
+    pthread_cond_broadcast(&g_monitor_pause_cond);
+    pthread_mutex_unlock(&g_monitor_pause_mutex);
+    return 1;
+}
+
 void X68000_Monitor_SetPaused(int paused) {
+    pthread_mutex_lock(&g_monitor_pause_mutex);
+    if (paused) {
+        g_monitor_pause_requested = 1;
+    } else {
+        g_monitor_pause_requested = 0;
+        g_monitor_pause_acknowledged = 0;
+        pthread_cond_broadcast(&g_monitor_pause_cond);
+    }
+    pthread_mutex_unlock(&g_monitor_pause_mutex);
 #ifdef __cplusplus
     g_monitor_paused.store(paused ? 1 : 0, std::memory_order_relaxed);
 #else
@@ -2234,7 +2289,6 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
 
 #include <stdlib.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
@@ -2245,6 +2299,9 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
 static int          s_server_fd = -1;
 static pthread_t    s_thread;
 static volatile int s_running   = 0;
+static int          s_thread_started = 0;
+static int          s_client_fd = -1;
+static pthread_mutex_t s_client_fd_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void ms_send(int fd, const char* s) {
     size_t len = strlen(s), sent = 0;
@@ -2285,6 +2342,7 @@ static int ms_split(char* buf, char** parts, int max) {
 
 static void ms_handle(int fd) {
     char line[1024];
+#define MS_REQUIRE_STOP_ACK(MSG) do { if (!X68000_Monitor_IsStopAcked()) { ms_err(fd, MSG); continue; } } while (0)
     while (ms_readline(fd, line, sizeof(line))) {
         char cb[1024]; strncpy(cb, line, sizeof(cb)-1); cb[sizeof(cb)-1] = '\0';
         for (int i = 0; cb[i] && cb[i] != ' '; i++) cb[i] = (char)toupper((unsigned char)cb[i]);
@@ -2295,14 +2353,16 @@ static void ms_handle(int fd) {
         if (strcmp(cmd,"QUIT")==0)   { ms_ok(fd); break; }
 
         if (strcmp(cmd,"PAUSE")==0)  {
+            X68000_Monitor_RequestStop();
+            X68000_Monitor_WaitForStopAck();
             X68000_Monitor_SetPaused(1);
-            struct timespec ts = {0, 20*1000*1000}; nanosleep(&ts, nullptr);
             ms_ok(fd); continue;
         }
         if (strcmp(cmd,"RESUME")==0) { X68000_Monitor_SetPaused(0); ms_ok(fd); continue; }
         if (strcmp(cmd,"STATUS")==0) { ms_send(fd, X68000_Monitor_IsPaused() ? "PAUSED\n" : "RUNNING\n"); ms_ok(fd); continue; }
 
         if (strcmp(cmd,"REGS")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before REGS");
             X68000MonitorCPUState s; X68000_Monitor_GetCPUState(&s);
             char out[512]; int pos = 0;
             for (int i=0;i<8;i++) pos+=snprintf(out+pos,sizeof(out)-pos,"D%d=%08X ",i,s.d[i]);
@@ -2314,6 +2374,7 @@ static void ms_handle(int fd) {
         }
 
         if (strcmp(cmd,"READ")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before READ");
             if (np<3) { ms_err(fd,"usage: READ <addr_hex> <count>"); continue; }
             unsigned int addr=(unsigned int)strtoul(parts[1],nullptr,16), n=(unsigned int)strtoul(parts[2],nullptr,0);
             if (n>65536) { ms_err(fd,"count too large (max 65536)"); continue; }
@@ -2326,22 +2387,26 @@ static void ms_handle(int fd) {
             ms_ok(fd); continue;
         }
         if (strcmp(cmd,"READB")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before READB");
             if (np<2) { ms_err(fd,"usage: READB <addr_hex>"); continue; }
             char out[16]; snprintf(out,sizeof(out),"%02X\n",X68000_Monitor_ReadB((unsigned int)strtoul(parts[1],nullptr,16)));
             ms_send(fd,out); ms_ok(fd); continue;
         }
         if (strcmp(cmd,"READW")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before READW");
             if (np<2) { ms_err(fd,"usage: READW <addr_hex>"); continue; }
             char out[16]; snprintf(out,sizeof(out),"%04X\n",X68000_Monitor_ReadW((unsigned int)strtoul(parts[1],nullptr,16)));
             ms_send(fd,out); ms_ok(fd); continue;
         }
         if (strcmp(cmd,"READD")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before READD");
             if (np<2) { ms_err(fd,"usage: READD <addr_hex>"); continue; }
             char out[16]; snprintf(out,sizeof(out),"%08X\n",X68000_Monitor_ReadD((unsigned int)strtoul(parts[1],nullptr,16)));
             ms_send(fd,out); ms_ok(fd); continue;
         }
 
         if (strcmp(cmd,"WRITE")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before WRITE");
             if (np<3) { ms_err(fd,"usage: WRITE <addr_hex> <byte_hex>..."); continue; }
             if (!X68000_Monitor_IsPaused()) { ms_err(fd,"must PAUSE before WRITE"); continue; }
             unsigned int addr=(unsigned int)strtoul(parts[1],nullptr,16);
@@ -2349,12 +2414,14 @@ static void ms_handle(int fd) {
             ms_ok(fd); continue;
         }
         if (strcmp(cmd,"WRITEW")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before WRITEW");
             if (np<3) { ms_err(fd,"usage: WRITEW <addr_hex> <word_hex>"); continue; }
             if (!X68000_Monitor_IsPaused()) { ms_err(fd,"must PAUSE before WRITEW"); continue; }
             X68000_Monitor_WriteW((unsigned int)strtoul(parts[1],nullptr,16),(unsigned short)strtoul(parts[2],nullptr,16));
             ms_ok(fd); continue;
         }
         if (strcmp(cmd,"WRITED")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before WRITED");
             if (np<3) { ms_err(fd,"usage: WRITED <addr_hex> <dword_hex>"); continue; }
             if (!X68000_Monitor_IsPaused()) { ms_err(fd,"must PAUSE before WRITED"); continue; }
             X68000_Monitor_WriteD((unsigned int)strtoul(parts[1],nullptr,16),(unsigned int)strtoul(parts[2],nullptr,16));
@@ -2362,6 +2429,7 @@ static void ms_handle(int fd) {
         }
 
         if (strcmp(cmd,"MOUNTFDD")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before MOUNTFDD");
             if (np<3) { ms_err(fd,"usage: MOUNTFDD <drive> <path>"); continue; }
             long drive=atol(parts[1]);
             if (drive<0||drive>1) { ms_err(fd,"drive must be 0 or 1"); continue; }
@@ -2372,6 +2440,7 @@ static void ms_handle(int fd) {
             X68000_LoadFDD(drive,path); ms_ok(fd); continue;
         }
         if (strcmp(cmd,"EJECTFDD")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before EJECTFDD");
             if (np<2) { ms_err(fd,"usage: EJECTFDD <drive>"); continue; }
             long drive=atol(parts[1]);
             if (drive<0||drive>1) { ms_err(fd,"drive must be 0 or 1"); continue; }
@@ -2379,6 +2448,7 @@ static void ms_handle(int fd) {
         }
 
         if (strcmp(cmd,"HW")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before HW");
             int section=(np>=2)?atoi(parts[1]):0;
             char buf[4096]; X68000_Monitor_GetHardwareState(section,buf,(int)sizeof(buf));
             ms_send(fd,buf); ms_send(fd,"\n"); ms_ok(fd); continue;
@@ -2404,18 +2474,35 @@ static void ms_handle(int fd) {
 
         ms_err(fd,"unknown command (try HELP)");
     }
-    close(fd);
+#undef MS_REQUIRE_STOP_ACK
+    pthread_mutex_lock(&s_client_fd_mutex);
+    if (s_client_fd == fd) {
+        s_client_fd = -1;
+        pthread_mutex_unlock(&s_client_fd_mutex);
+        close(fd);
+    } else {
+        pthread_mutex_unlock(&s_client_fd_mutex);
+    }
 }
 
 static void* ms_server_thread(void*) {
     while (s_running) {
         struct sockaddr_storage peer; socklen_t plen=sizeof(peer);
         int client=accept(s_server_fd,(struct sockaddr*)&peer,&plen);
-        if (client<0) { if (s_running) perror("mpx68k monitor: accept"); continue; }
+        if (client<0) {
+            if (s_running) perror("mpx68k monitor: accept");
+            break;
+        }
         /* SO_NOSIGPIPE prevents write() to a broken socket from delivering SIGPIPE
            to the process. write() returns -1/EPIPE instead, which ms_send ignores. */
         int nosig=1; setsockopt(client,SOL_SOCKET,SO_NOSIGPIPE,&nosig,sizeof(nosig));
+        pthread_mutex_lock(&s_client_fd_mutex);
+        s_client_fd = client;
+        pthread_mutex_unlock(&s_client_fd_mutex);
         ms_handle(client);
+        pthread_mutex_lock(&s_client_fd_mutex);
+        if (s_client_fd == client) s_client_fd = -1;
+        pthread_mutex_unlock(&s_client_fd_mutex);
     }
     return nullptr;
 }
@@ -2434,13 +2521,27 @@ extern "C" void MonitorSocket_Start(void) {
         perror("mpx68k monitor: listen"); close(s_server_fd); s_server_fd=-1; return;
     }
     s_running=1;
-    pthread_create(&s_thread,nullptr,ms_server_thread,nullptr);
+    s_thread_started = (pthread_create(&s_thread,nullptr,ms_server_thread,nullptr) == 0);
+    if (!s_thread_started) {
+        perror("mpx68k monitor: pthread_create");
+        s_running = 0;
+        close(s_server_fd);
+        s_server_fd = -1;
+        unlink(MONITOR_SOCKET_PATH);
+        return;
+    }
     fprintf(stderr,"[MPX68K] Machine Monitor socket: %s\n",MONITOR_SOCKET_PATH);
 }
 
 extern "C" void MonitorSocket_Stop(void) {
     s_running=0;
+    pthread_mutex_lock(&s_client_fd_mutex);
+    if (s_client_fd>=0) { shutdown(s_client_fd,SHUT_RDWR); close(s_client_fd); s_client_fd=-1; }
+    pthread_mutex_unlock(&s_client_fd_mutex);
     if (s_server_fd>=0) { shutdown(s_server_fd,SHUT_RDWR); close(s_server_fd); s_server_fd=-1; }
     unlink(MONITOR_SOCKET_PATH);
-    pthread_join(s_thread,nullptr);
+    if (s_thread_started) {
+        pthread_join(s_thread,nullptr);
+        s_thread_started = 0;
+    }
 }
