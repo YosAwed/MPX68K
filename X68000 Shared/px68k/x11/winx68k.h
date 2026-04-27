@@ -44,6 +44,10 @@ extern int realdisp_w, realdisp_h;
 
 int WinX68k_Reset(void);
 int X68000_GetStorageBusMode(void);
+int X68000_SCSIU_Connect(void);
+void X68000_SCSIU_Disconnect(void);
+int X68000_SCSIU_IsConnected(void);
+const char* X68000_SCSIU_GetStatus(void);
 
 #ifndef	winx68k_gtkwarpper_h
 #define	winx68k_gtkwarpper_h

@@ -28,6 +28,10 @@ int SCSI_IsROMPresent(void);
 void SCSI_Init(void);
 void SCSI_Cleanup(void);
 void SCSI_InvalidateTransferCache(void);
+int SCSIU_InitBridge(void);
+void SCSIU_StopBridge(void);
+int SCSIU_IsConnected(void);
+const char* SCSIU_GetStatus(void);
 
 BYTE FASTCALL SCSI_Read(DWORD adr);
 void FASTCALL SCSI_Write(DWORD adr, BYTE data);
