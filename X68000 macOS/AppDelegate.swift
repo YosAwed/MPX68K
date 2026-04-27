@@ -483,6 +483,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
+        if UserDefaults.standard.bool(forKey: "monitorSocketEnabled") {
+            MonitorSocket_Start()
+        }
         resetSCSILogs()
         appendSCSILog("MAC_APP_DID_FINISH")
         // Enable verbose logs for troubleshooting
@@ -1977,6 +1980,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
+        if UserDefaults.standard.bool(forKey: "monitorSocketEnabled") {
+            MonitorSocket_Stop()
+        }
         // Save SRAM data before terminating
         // debugLog("AppDelegate.applicationWillTerminate - saving SRAM", category: .x68mac)
         gameViewController?.saveSRAM()

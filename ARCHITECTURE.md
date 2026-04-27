@@ -327,4 +327,36 @@ graph TD
 - **C/C++ Core**: px68k emulation engine in separate language layer
 - **Minimal Dependencies**: Clean separation between emulation and UI layers
 
+### 5. Machine Monitor Socket (macOS only)
+
+The bottom of `X68000 Shared/px68k/x11/winx68k.cpp` implements a UNIX domain socket server that wraps the existing `X68000_Monitor_*` C API defined in the same file.
+
+```mermaid
+graph LR
+    subgraph "External Client"
+        Client[nc / Python / shell script]
+    end
+    subgraph "monitor_socket.cpp"
+        Thread[POSIX server thread]
+        Parser[Line protocol parser]
+    end
+    subgraph "Machine Monitor API"
+        MonitorAPI[X68000_Monitor_*\nwinx68k.cpp]
+    end
+    subgraph "Emulation Core"
+        PX68K[px68k]
+    end
+
+    Client -- /tmp/mpx68k_monitor.sock --> Thread
+    Thread --> Parser
+    Parser --> MonitorAPI
+    MonitorAPI --> PX68K
+```
+
+The server runs on a dedicated POSIX thread and is lifecycle-managed by `AppDelegate`:
+- **Start**: `applicationDidFinishLaunching` calls `MonitorSocket_Start()` when `UserDefaults["monitorSocketEnabled"]` is `true` (default: `false`)
+- **Stop**: `applicationWillTerminate` calls `MonitorSocket_Stop()`, which shuts down the listener, removes the socket file, and joins the thread
+
+`SO_NOSIGPIPE` is set on each accepted client fd so that a disconnecting client cannot deliver `SIGPIPE` to the main emulator process.  Memory writes are guarded: the protocol requires `PAUSE` before any `WRITE*` command to prevent mid-frame data races.
+
 This architecture enables MPX68K to provide authentic X68000 emulation while maintaining modern iOS and macOS user experience standards.
