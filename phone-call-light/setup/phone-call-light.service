@@ -1,0 +1,16 @@
+[Unit]
+Description=Phone Call Light Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/phone-call-light
+Environment=LAMP_AUTH_TOKEN=change-me-please
+ExecStart=/home/pi/phone-call-light/venv/bin/python server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
