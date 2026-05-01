@@ -1111,7 +1111,7 @@ int original_main(int argc, const char *argv[], const long samplingrate )
 	return 0;
 }
 
-int X68000_Monitor_ConsumePauseRequest(void);
+extern "C" int X68000_Monitor_ConsumePauseRequest(void);
 
 void Update(const long clockMHz, const int vsync ) {
     if (X68000_Monitor_ConsumePauseRequest()) {
