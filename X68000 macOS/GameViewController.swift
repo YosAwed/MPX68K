@@ -1482,6 +1482,7 @@ struct CRTSettingsPanel: View {
                                 )
                             }
                         }
+                        .presetGlassGroup(spacing: 8)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 16)
@@ -1609,6 +1610,40 @@ private struct PresetButton: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
+                .padding(.horizontal, 4)
+        }
+        .buttonStyle(.plain)
+        .presetCapsuleStyle(isSelected: isSelected)
+    }
+}
+
+// MARK: - Liquid Glass Helpers (macOS 26+)
+
+private extension View {
+    /// Wraps grouped glass elements in a `GlassEffectContainer` so they share
+    /// a sampling region. No-op on macOS < 26 (and iOS < 26).
+    @ViewBuilder
+    func presetGlassGroup(spacing: CGFloat) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { self }
+        } else {
+            self
+        }
+    }
+
+    /// Capsule preset chip: prominent tinted glass when selected, regular
+    /// interactive glass otherwise. Falls back to the prior accent-color +
+    /// stroke style on older OSes.
+    @ViewBuilder
+    func presetCapsuleStyle(isSelected: Bool) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            if isSelected {
+                self.glassEffect(.prominent.tint(.accentColor).interactive(), in: .capsule)
+            } else {
+                self.glassEffect(.regular.interactive(), in: .capsule)
+            }
+        } else {
+            self
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
@@ -1618,7 +1653,6 @@ private struct PresetButton: View {
                         .stroke(Color(nsColor: .separatorColor), lineWidth: isSelected ? 0 : 1)
                 )
         }
-        .buttonStyle(.plain)
     }
 }
 
