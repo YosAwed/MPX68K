@@ -649,11 +649,17 @@ class FileSystem {
         // would clobber the freshly-loaded buffer and break boot.
         let userMountedFDD0 = X68000_IsFDDReady(0) != 0
         let userMountedFDD1 = X68000_IsFDDReady(1) != 0
-        let scsiMounted = (X68000_GetStorageBusMode() == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
-        let sasiMounted = (X68000_GetStorageBusMode() == 0 && X68000_IsHDDReady() != 0)
+        let busMode = X68000_GetStorageBusMode()
+        let scsiMounted = (busMode == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
+        let sasiMounted = (busMode == 0 && X68000_IsHDDReady() != 0)
+        #if os(macOS)
+        let scsiUMounted = (busMode == 2 && X68000_SCSIU_IsConnected() != 0)
+        #else
+        let scsiUMounted = false
+        #endif
 
-        if restored && (scsiMounted || sasiMounted) && !(userMountedFDD0 || userMountedFDD1) {
-            infoLog("FileSystem: HDD ready after async restore (scsi=\(scsiMounted) sasi=\(sasiMounted)), issuing post-restore reset", category: .fileSystem)
+        if restored && (scsiMounted || sasiMounted || scsiUMounted) && !(userMountedFDD0 || userMountedFDD1) {
+            infoLog("FileSystem: HDD ready after async restore (scsi=\(scsiMounted) sasi=\(sasiMounted) scsiU=\(scsiUMounted)), issuing post-restore reset", category: .fileSystem)
             X68000_Reset()
         } else if restored {
             infoLog("FileSystem: skipping post-restore reset (user already mounted media)", category: .fileSystem)
@@ -2351,7 +2357,7 @@ class FileSystem {
 
     // MARK: - ROM Loading
 
-    func loadIPLROM() -> Result<Void, ROMLoadError>
+    func loadIPLROM(selectedStorageBusMode: Int) -> Result<Void, ROMLoadError>
     {
         infoLog("==== Load IPLROM ====", category: .fileSystem)
 
@@ -2400,13 +2406,13 @@ class FileSystem {
             }
         }
 
-        // Optional: Load SCSI external ROM (8KB) for SCSI mode.
+        // Optional: Load SCSI external ROM (8KB) for SCSI / SCSI-U mode.
         // SCSIEXROM.DAT (external SCSI, SCSIEX type) is required — its layout
         // matches the IPL ROM IOCS table.  SCSIINROM.DAT is an internal SCSI
         // ROM (SCSIIN type) with an incompatible layout and cannot be used.
-        if UserDefaults.standard.integer(forKey: "StorageBusMode") == 1 {
+        if selectedStorageBusMode == 1 || selectedStorageBusMode == 2 {
             guard let scsiRomURL = findFileInDocuments("SCSIEXROM.DAT") else {
-                errorLog("CRITICAL: SCSIEXROM.DAT not found while SCSI mode is enabled", category: .fileSystem)
+                errorLog("CRITICAL: SCSIEXROM.DAT not found while SCSI/SCSI-U mode is enabled", category: .fileSystem)
                 return .failure(.missingFile("SCSIEXROM.DAT"))
             }
             do {

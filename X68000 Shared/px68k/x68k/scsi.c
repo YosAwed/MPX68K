@@ -15,10 +15,25 @@
 #include	"palette.h"
 #include	"tvram.h"
 #include	"../x11/keyboard.h"
+#include	<stdio.h>
+#include	<stdarg.h>
 #include	<stdlib.h>
 #include	<sys/stat.h>
 #include	<sys/types.h>
 #include	<string.h>
+#include	<limits.h>
+
+#ifdef __APPLE__
+#include	<unistd.h>
+#include	<fcntl.h>
+#include	<errno.h>
+#include	<pthread.h>
+#include	<sys/termios.h>
+#include	<IOKit/IOKitLib.h>
+#include	<IOKit/usb/IOUSBLib.h>
+#include	<IOKit/serial/IOSerialKeys.h>
+#include	<CoreFoundation/CoreFoundation.h>
+#endif
 
 #if defined(HAVE_C68K)
 #include	"../m68000/c68k/c68k.h"
@@ -44,6 +59,31 @@ static DWORD s_last_iocs_sig_a1 = 0;
 static int s_scsi_log_total = 0;        // global log line counter
 #define SCSI_LOG_LIMIT 50000             // stop logging after this many lines
 
+#ifdef __APPLE__
+#define SCSIU_VENDOR_ID  0x04d8
+#define SCSIU_PRODUCT_ID 0xE6B2
+#define SCSIU_MAX_PORTS  8
+#define SCSIU_PATH_LEN   256
+#define SCSIU_MAX_DREG_BURST_BYTES 0xFFFFu
+
+typedef struct {
+	int control_fd;
+	int interrupt_fd;
+	pthread_t interrupt_thread;
+	pthread_mutex_t mutex;
+	int connected;
+	int active;
+	unsigned int interrupt_count;
+	char control_path[SCSIU_PATH_LEN];
+	char interrupt_path[SCSIU_PATH_LEN];
+	char status[128];
+} SCSIU_BridgeState;
+
+static SCSIU_BridgeState s_scsi_u_bridge = {
+	-1, -1, 0, PTHREAD_MUTEX_INITIALIZER, 0, 0, 0, "", "", "Disconnected"
+};
+#endif
+
 // Runtime file logging is disabled by default — fopen/fprintf/fclose on every
 // IOCS trap and SPC register poll stalls the main thread. Enable with
 // -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 only when debugging SCSI boot.
@@ -53,6 +93,27 @@ static int s_scsi_log_total = 0;        // global log line counter
 
 // Forward declarations
 void SCSI_LogText(const char* text);
+
+#ifdef __APPLE__
+static void SCSIU_SetStatusLocked(const char* fmt, ...);
+static int SCSIU_FindCandidatePorts(char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN], int maxPorts);
+static int SCSIU_OpenPort(const char* path);
+static int SCSIU_ProbePortRole(int fd, char* outRole);
+static void* SCSIU_InterruptThread(void* arg);
+static BYTE SCSIU_ExecSPCReg(BYTE regAddr);
+static void SCSIU_SendSPCReg(BYTE regAddr, BYTE val);
+static int SCSIU_ExecDregBurst(BYTE* buf, DWORD maxLen);
+static int SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf);
+static int SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf);
+static int SCSIU_EnsureBootCache(void);
+static int SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize);
+static int SCSIU_GetCapacity(DWORD* outTotalBlocks, DWORD* outBlockSize);
+static void SCSIU_ResetBootCache(void);
+static void SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize);
+static DWORD SCSIU_GetBlockSize(void);
+#endif
+static BYTE* SCSI_ImgBuf(void);
+static long  SCSI_ImgSize(void);
 
 
 // Minimal SPC (MB89352) register state for driver initialization.
@@ -132,6 +193,947 @@ static DWORD SCSI_Mask24(DWORD addr);
 static void SCSI_NormalizeRootShortNames(DWORD bufAddr, DWORD startSec,
                                          DWORD count, DWORD secSize);
 static void SCSI_LogKernelQueueState(const char* tag);
+
+#ifdef __APPLE__
+static void
+SCSIU_SetStatusLocked(const char* fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(s_scsi_u_bridge.status, sizeof(s_scsi_u_bridge.status), fmt, ap);
+	va_end(ap);
+}
+
+static int
+SCSIU_CopyDialinPath(io_object_t service, char* outPath, int outSize)
+{
+	CFTypeRef devicePathRef;
+	Boolean ok;
+
+	devicePathRef = IORegistryEntryCreateCFProperty(service, CFSTR(kIODialinDeviceKey), kCFAllocatorDefault, 0);
+	if (devicePathRef == NULL) {
+		return 0;
+	}
+	ok = CFGetTypeID(devicePathRef) == CFStringGetTypeID() &&
+	     CFStringGetCString((CFStringRef)devicePathRef, outPath, outSize, kCFStringEncodingUTF8);
+	CFRelease(devicePathRef);
+	return ok ? 1 : 0;
+}
+
+static int
+SCSIU_FindCandidatePorts(char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN], int maxPorts)
+{
+	CFMutableDictionaryRef matchDict;
+	CFNumberRef vendorRef;
+	CFNumberRef productRef;
+	SInt32 vendorId;
+	SInt32 productId;
+	io_iterator_t iterator;
+	io_object_t usbDevice;
+	int count;
+
+	matchDict = IOServiceMatching(kIOUSBDeviceClassName);
+	if (matchDict == NULL) {
+		return 0;
+	}
+
+	vendorId = SCSIU_VENDOR_ID;
+	productId = SCSIU_PRODUCT_ID;
+	vendorRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &vendorId);
+	productRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &productId);
+	if (vendorRef == NULL || productRef == NULL) {
+		if (vendorRef != NULL) CFRelease(vendorRef);
+		if (productRef != NULL) CFRelease(productRef);
+		return 0;
+	}
+
+	CFDictionarySetValue(matchDict, CFSTR(kUSBVendorID), vendorRef);
+	CFDictionarySetValue(matchDict, CFSTR(kUSBProductID), productRef);
+	CFRelease(vendorRef);
+	CFRelease(productRef);
+
+	if (IOServiceGetMatchingServices(kIOMainPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+		return 0;
+	}
+
+	count = 0;
+	while ((usbDevice = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
+		io_iterator_t childIterator;
+		if (IORegistryEntryCreateIterator(usbDevice, kIOServicePlane, kIORegistryIterateRecursively, &childIterator) == KERN_SUCCESS) {
+			io_object_t childService;
+			while ((childService = IOIteratorNext(childIterator)) != IO_OBJECT_NULL) {
+				char devicePath[SCSIU_PATH_LEN];
+				int duplicate;
+				int i;
+
+				if (!SCSIU_CopyDialinPath(childService, devicePath, sizeof(devicePath))) {
+					IOObjectRelease(childService);
+					continue;
+				}
+
+				duplicate = 0;
+				for (i = 0; i < count; ++i) {
+					if (strncmp(paths[i], devicePath, SCSIU_PATH_LEN) == 0) {
+						duplicate = 1;
+						break;
+					}
+				}
+				if (!duplicate && count < maxPorts) {
+					strncpy(paths[count], devicePath, SCSIU_PATH_LEN - 1);
+					paths[count][SCSIU_PATH_LEN - 1] = '\0';
+					++count;
+				}
+				IOObjectRelease(childService);
+			}
+			IOObjectRelease(childIterator);
+		}
+		IOObjectRelease(usbDevice);
+	}
+
+	IOObjectRelease(iterator);
+	return count;
+}
+
+static int
+SCSIU_OpenPort(const char* path)
+{
+	int fd;
+	struct termios tty;
+
+	fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	if (fd < 0) {
+		return -1;
+	}
+	if (tcgetattr(fd, &tty) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	cfmakeraw(&tty);
+	cfsetispeed(&tty, B230400);
+	cfsetospeed(&tty, B230400);
+	tty.c_cflag &= ~PARENB;
+	tty.c_cflag &= ~CSTOPB;
+	tty.c_cflag &= ~CSIZE;
+	tty.c_cflag |= CS8;
+	tty.c_cflag |= CREAD | CLOCAL;
+	tty.c_cc[VMIN] = 0;
+	tty.c_cc[VTIME] = 0;
+
+	if (tcsetattr(fd, TCSANOW, &tty) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	tcflush(fd, TCIOFLUSH);
+	return fd;
+}
+
+static int
+SCSIU_ProbePortRole(int fd, char* outRole)
+{
+	unsigned char request;
+	unsigned char response;
+	int i;
+
+	request = 0x00;
+	response = 0x00;
+	tcflush(fd, TCIOFLUSH);
+	if (write(fd, &request, 1) != 1) {
+		return 0;
+	}
+
+	for (i = 0; i < 50; ++i) {
+		ssize_t bytesRead = read(fd, &response, 1);
+		if (bytesRead == 1) {
+			if (response == 's' || response == 'S') {
+				*outRole = (char)response;
+				return 1;
+			}
+		} else if (bytesRead < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return 0;
+		}
+		usleep(10000);
+	}
+
+	return 0;
+}
+
+static void*
+SCSIU_InterruptThread(void* arg)
+{
+	(void)arg;
+	while (s_scsi_u_bridge.active) {
+		unsigned char data;
+		ssize_t bytesRead = read(s_scsi_u_bridge.interrupt_fd, &data, 1);
+		if (bytesRead == 1) {
+			if (data == 'I') {
+				pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+				s_scsi_u_bridge.interrupt_count += 1;
+				SCSIU_SetStatusLocked("Connected (%u IRQ)", s_scsi_u_bridge.interrupt_count);
+				pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			}
+		} else if (bytesRead < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			SCSIU_SetStatusLocked("Interrupt port read error");
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			break;
+		}
+		usleep(1000);
+	}
+	return NULL;
+}
+#endif
+
+int
+SCSIU_InitBridge(void)
+{
+#ifdef __APPLE__
+	char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN];
+	int portCount;
+	int i;
+	int controlFd;
+	int interruptFd;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	if (s_scsi_u_bridge.connected) {
+		SCSIU_SetStatusLocked("Connected");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 1;
+	}
+	s_scsi_u_bridge.interrupt_count = 0;
+	SCSIU_SetStatusLocked("Searching for SCSI-U");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	memset(paths, 0, sizeof(paths));
+	portCount = SCSIU_FindCandidatePorts(paths, SCSIU_MAX_PORTS);
+	if (portCount < 2) {
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		SCSIU_SetStatusLocked("SCSI-U serial ports not found");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	controlFd = -1;
+	interruptFd = -1;
+	for (i = 0; i < portCount; ++i) {
+		int fd;
+		char role;
+
+		fd = SCSIU_OpenPort(paths[i]);
+		if (fd < 0) {
+			continue;
+		}
+		role = '\0';
+		if (!SCSIU_ProbePortRole(fd, &role)) {
+			close(fd);
+			continue;
+		}
+		if (role == 's' && controlFd < 0) {
+			controlFd = fd;
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			strncpy(s_scsi_u_bridge.control_path, paths[i], sizeof(s_scsi_u_bridge.control_path) - 1);
+			s_scsi_u_bridge.control_path[sizeof(s_scsi_u_bridge.control_path) - 1] = '\0';
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			continue;
+		}
+		if (role == 'S' && interruptFd < 0) {
+			interruptFd = fd;
+			pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+			strncpy(s_scsi_u_bridge.interrupt_path, paths[i], sizeof(s_scsi_u_bridge.interrupt_path) - 1);
+			s_scsi_u_bridge.interrupt_path[sizeof(s_scsi_u_bridge.interrupt_path) - 1] = '\0';
+			pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+			continue;
+		}
+		close(fd);
+	}
+
+	if (controlFd < 0 || interruptFd < 0) {
+		if (controlFd >= 0) close(controlFd);
+		if (interruptFd >= 0) close(interruptFd);
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		s_scsi_u_bridge.control_path[0] = '\0';
+		s_scsi_u_bridge.interrupt_path[0] = '\0';
+		SCSIU_SetStatusLocked("Handshake failed");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	s_scsi_u_bridge.control_fd = controlFd;
+	s_scsi_u_bridge.interrupt_fd = interruptFd;
+	s_scsi_u_bridge.active = 1;
+	s_scsi_u_bridge.connected = 1;
+	SCSIU_SetStatusLocked("Connected");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	if (pthread_create(&s_scsi_u_bridge.interrupt_thread, NULL, SCSIU_InterruptThread, NULL) != 0) {
+		SCSIU_StopBridge();
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		SCSIU_SetStatusLocked("Interrupt thread start failed");
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+		return 0;
+	}
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+void
+SCSIU_StopBridge(void)
+{
+#ifdef __APPLE__
+	int controlFd;
+	int interruptFd;
+	pthread_t thread;
+	int shouldJoin;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	controlFd = s_scsi_u_bridge.control_fd;
+	interruptFd = s_scsi_u_bridge.interrupt_fd;
+	thread = s_scsi_u_bridge.interrupt_thread;
+	shouldJoin = (s_scsi_u_bridge.connected && thread != 0);
+	s_scsi_u_bridge.active = 0;
+	s_scsi_u_bridge.connected = 0;
+	s_scsi_u_bridge.control_fd = -1;
+	s_scsi_u_bridge.interrupt_fd = -1;
+	s_scsi_u_bridge.interrupt_thread = 0;
+	s_scsi_u_bridge.interrupt_count = 0;
+	s_scsi_u_bridge.control_path[0] = '\0';
+	s_scsi_u_bridge.interrupt_path[0] = '\0';
+	SCSIU_SetStatusLocked("Disconnected");
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+
+	if (shouldJoin) {
+		pthread_join(thread, NULL);
+	}
+	if (controlFd >= 0) {
+		close(controlFd);
+	}
+	if (interruptFd >= 0) {
+		close(interruptFd);
+	}
+	SCSIU_ResetBootCache();
+#endif
+}
+
+int
+SCSIU_IsConnected(void)
+{
+#ifdef __APPLE__
+	int connected;
+
+	pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+	connected = s_scsi_u_bridge.connected;
+	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
+	return connected;
+#else
+	return 0;
+#endif
+}
+
+const char*
+SCSIU_GetStatus(void)
+{
+#ifdef __APPLE__
+	return s_scsi_u_bridge.status;
+#else
+	return "Unavailable on this platform";
+#endif
+}
+
+// ---------------------------------------------------------------------------------------
+//  SCSI-U SPC (MB89352) レジスタ操作 — USB serial 経由
+//  コントロールポートへのプロトコル:
+//    読出し: cmd バイトを送信 → 1バイト受信
+//    書込み: cmd|0x80 バイトを送信 → val バイトを送信
+//    DREG-EX (0x41): 0x41 を送信 → 2バイト length → length バイトのデータ
+// ---------------------------------------------------------------------------------------
+#ifdef __APPLE__
+
+/* SPC レジスタ読出し。タイムアウト時は 0xFF を返す。 */
+static BYTE
+SCSIU_ExecSPCReg(BYTE regAddr)
+{
+	unsigned char buf;
+	int i;
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return 0xFF;
+	}
+	if (write(s_scsi_u_bridge.control_fd, &regAddr, 1) != 1) {
+		return 0xFF;
+	}
+	/* 200ms ポーリング (20000 × 10μs) */
+	for (i = 0; i < 20000; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, &buf, 1);
+		if (n == 1) {
+			return buf;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return 0xFF;
+		}
+		usleep(10);
+	}
+	return 0xFF;
+}
+
+/* SPC レジスタ書込み。cmd|0x80, val の 2バイトを送信する。 */
+static void
+SCSIU_SendSPCReg(BYTE regAddr, BYTE val)
+{
+	unsigned char cmd[2];
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return;
+	}
+	cmd[0] = (unsigned char)(regAddr | 0x80);
+	cmd[1] = val;
+	(void)write(s_scsi_u_bridge.control_fd, cmd, 2);
+}
+
+/*
+ * DREG-EX (0x41) による一括データ受信。
+ * spc_bridger の m_ExecEx() 相当。
+ * 戻り値: 受信バイト数 (≥0)、エラー時 -1。
+ */
+static int
+SCSIU_ExecDregBurst(BYTE* buf, DWORD maxLen)
+{
+	BYTE cmd = 0x41;
+	unsigned char lenBuf[2];
+	DWORD dataLen;
+	DWORD received;
+	int i;
+
+	if (s_scsi_u_bridge.control_fd < 0) {
+		return -1;
+	}
+	tcflush(s_scsi_u_bridge.control_fd, TCIOFLUSH);
+	if (write(s_scsi_u_bridge.control_fd, &cmd, 1) != 1) {
+		return -1;
+	}
+
+	/* 2バイトの length (little-endian) を受信 */
+	received = 0;
+	for (i = 0; i < 2000 && received < 2; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, lenBuf + received, 2 - received);
+		if (n > 0) {
+			received += (DWORD)n;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return -1;
+		}
+		if (received < 2) {
+			usleep(1000);
+		}
+	}
+	if (received < 2) {
+		return -1; /* タイムアウト */
+	}
+
+	dataLen = (DWORD)lenBuf[0] | ((DWORD)lenBuf[1] << 8);
+	if (dataLen > maxLen) {
+		dataLen = maxLen;
+	}
+
+	/* データ本体を受信 */
+	received = 0;
+	for (i = 0; i < 100000 && received < dataLen; ++i) {
+		ssize_t n = read(s_scsi_u_bridge.control_fd, buf + received, dataLen - received);
+		if (n > 0) {
+			received += (DWORD)n;
+		} else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+			return -1;
+		}
+		if (received < dataLen) {
+			usleep(100);
+		}
+	}
+	return (int)received;
+}
+
+/*
+ * INTS レジスタをポーリングして指定ビットが立つまで待つ。
+ * timeoutUs: マイクロ秒単位のタイムアウト。
+ * 戻り値: 1=成功, 0=タイムアウト。
+ */
+static int
+SCSIU_WaitINTS(BYTE mask, int timeoutUs)
+{
+	int elapsed = 0;
+
+	while (elapsed < timeoutUs) {
+		BYTE ints = SCSIU_ExecSPCReg(0x09/*INTS*/);
+		if (ints & mask) {
+			return 1;
+		}
+		usleep(200);
+		elapsed += 200;
+		/* 1回の ExecSPCReg は USB ラウンドトリップ (~1ms) を含むため
+		 * 実際のタイムアウトは timeoutUs より長くなる場合がある */
+	}
+	return 0;
+}
+
+/*
+ * SPC (MB89352) で SCSI READ(10) を実行して count ブロックを buf に読み込む。
+ * lba: 論理ブロックアドレス, count: ブロック数, blockSize: ブロックサイズ(bytes)
+ * 戻り値: 1=成功, 0=失敗
+ */
+static int
+SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
+{
+	DWORD totalBytes;
+	DWORD remainingBytes;
+	BYTE* readPtr;
+	BYTE cdb[10];
+	int received;
+
+	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
+		return 0;
+	}
+	if (count == 0 || blockSize == 0) {
+		return 0;
+	}
+	totalBytes = count * blockSize;
+
+	/* --- 1. SPC 初期化 --- */
+	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14); /* Arb enable + initiator mode */
+	SCSIU_SendSPCReg(0x01/*BDID*/, 0x40); /* Host ID = 6 */
+
+	/* --- 2. ARBITRATION --- */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00);
+	SCSIU_SendSPCReg(0x17/*TEMP*/, 0x01); /* Target ID = 0 */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x04); /* ARBITRATION コマンド */
+	/* 仲裁完了: INTS bit4 (RESEL) または短いウェイト */
+	usleep(2000);
+
+	/* --- 3. SELECTION --- */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* SELECTION + ATN */
+	/* COMMAND フェーズ遷移待ち: INTS bit3 (CMD_COMP) */
+	if (!SCSIU_WaitINTS(0x08, 2000000)) {
+		return 0;
+	}
+
+	/* --- 4. COMMAND PHASE: READ(10) CDB 送信 --- */
+	cdb[0] = 0x28; /* READ(10) */
+	cdb[1] = 0x00;
+	cdb[2] = (BYTE)((lba >> 24) & 0xFF);
+	cdb[3] = (BYTE)((lba >> 16) & 0xFF);
+	cdb[4] = (BYTE)((lba >> 8) & 0xFF);
+	cdb[5] = (BYTE)(lba & 0xFF);
+	cdb[6] = 0x00;
+	cdb[7] = (BYTE)((count >> 8) & 0xFF);
+	cdb[8] = (BYTE)(count & 0xFF);
+	cdb[9] = 0x00;
+
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x02); /* Command phase */
+	{
+		int k;
+		for (k = 0; k < 10; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, cdb[k]);
+		}
+	}
+
+	/* --- 5. DATA IN フェーズ待ち --- */
+	if (!SCSIU_WaitINTS(0x08, 5000000)) {
+		return 0;
+	}
+
+	/* --- 6. TC 設定 + Initiator Receive --- */
+	SCSIU_SendSPCReg(0x19/*TCH*/, (BYTE)((totalBytes >> 16) & 0xFF));
+	SCSIU_SendSPCReg(0x1B/*TCM*/, (BYTE)((totalBytes >>  8) & 0xFF));
+	SCSIU_SendSPCReg(0x1D/*TCL*/, (BYTE)(totalBytes & 0xFF));
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x01); /* Data In phase */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x84); /* Initiator Receive */
+
+	/* --- 7. データ受信 (DREG-EX を 64KB 以下に分割) --- */
+	remainingBytes = totalBytes;
+	readPtr = buf;
+	while (remainingBytes > 0) {
+		DWORD chunkBytes = (remainingBytes > SCSIU_MAX_DREG_BURST_BYTES)
+		                 ? SCSIU_MAX_DREG_BURST_BYTES
+		                 : remainingBytes;
+		received = SCSIU_ExecDregBurst(readPtr, chunkBytes);
+		if (received < 0 || (DWORD)received < chunkBytes) {
+			return 0;
+		}
+		readPtr += chunkBytes;
+		remainingBytes -= chunkBytes;
+	}
+
+	/* --- 8. STATUS + MESSAGE フェーズ (完了処理) --- */
+	SCSIU_WaitINTS(0x08, 2000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* status byte */
+	SCSIU_WaitINTS(0x08, 1000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* message byte */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* Message Accept */
+
+	return 1;
+}
+
+/*
+ * SPC (MB89352) で SCSI WRITE(10) を実行して count ブロックを buf から書き込む。
+ * 戻り値: 1=成功, 0=失敗
+ */
+static int
+SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
+{
+	DWORD totalBytes;
+	BYTE cdb[10];
+
+	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
+		return 0;
+	}
+	if (count == 0 || blockSize == 0) {
+		return 0;
+	}
+	totalBytes = count * blockSize;
+
+	/* --- 1. SPC 初期化 --- */
+	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14);
+	SCSIU_SendSPCReg(0x01/*BDID*/, 0x40);
+
+	/* --- 2. ARBITRATION --- */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00);
+	SCSIU_SendSPCReg(0x17/*TEMP*/, 0x01);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x04);
+	usleep(2000);
+
+	/* --- 3. SELECTION --- */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28);
+	if (!SCSIU_WaitINTS(0x08, 2000000)) {
+		return 0;
+	}
+
+	/* --- 4. COMMAND PHASE: WRITE(10) CDB 送信 --- */
+	cdb[0] = 0x2A; /* WRITE(10) */
+	cdb[1] = 0x00;
+	cdb[2] = (BYTE)((lba >> 24) & 0xFF);
+	cdb[3] = (BYTE)((lba >> 16) & 0xFF);
+	cdb[4] = (BYTE)((lba >> 8) & 0xFF);
+	cdb[5] = (BYTE)(lba & 0xFF);
+	cdb[6] = 0x00;
+	cdb[7] = (BYTE)((count >> 8) & 0xFF);
+	cdb[8] = (BYTE)(count & 0xFF);
+	cdb[9] = 0x00;
+
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x02);
+	{
+		int k;
+		for (k = 0; k < 10; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, cdb[k]);
+		}
+	}
+
+	/* --- 5. DATA OUT フェーズ待ち --- */
+	if (!SCSIU_WaitINTS(0x08, 5000000)) {
+		return 0;
+	}
+
+	/* --- 6. TC 設定 + Initiator Send --- */
+	SCSIU_SendSPCReg(0x19/*TCH*/, (BYTE)((totalBytes >> 16) & 0xFF));
+	SCSIU_SendSPCReg(0x1B/*TCM*/, (BYTE)((totalBytes >>  8) & 0xFF));
+	SCSIU_SendSPCReg(0x1D/*TCL*/, (BYTE)(totalBytes & 0xFF));
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00); /* Data Out phase */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0xC4); /* Initiator Send */
+
+	/* --- 7. データ送信 (1バイトずつ DREG に書く) --- */
+	{
+		DWORD k;
+		for (k = 0; k < totalBytes; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, buf[k]);
+		}
+	}
+
+	/* --- 8. STATUS + MESSAGE フェーズ --- */
+	SCSIU_WaitINTS(0x08, 2000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* status byte */
+	SCSIU_WaitINTS(0x08, 1000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/); /* message byte */
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28); /* Message Accept */
+
+	return 1;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * SCSI-U ブートキャッシュ
+ * 物理 HDD の先頭約 4MB をキャッシュする。
+ * これにより既存の SCSI_FindPartitionBootOffset / SCSI_ReadBPBFromImage 等を
+ * image buffer モードと共通のコードで動かせる。
+ * --------------------------------------------------------------------------------------- */
+#define SCSIU_BOOT_CACHE_TARGET_BYTES (4 * 1024 * 1024)
+static BYTE*  s_scsiu_boot_cache      = NULL;
+static long   s_scsiu_boot_cache_size = 0;
+static DWORD  s_scsiu_reported_total_blocks = 0;
+static DWORD  s_scsiu_reported_block_size = 512;
+static int    s_scsiu_capacity_valid = 0;
+
+static void
+SCSIU_ResetBootCache(void)
+{
+	if (s_scsiu_boot_cache != NULL) {
+		free(s_scsiu_boot_cache);
+		s_scsiu_boot_cache = NULL;
+	}
+	s_scsiu_boot_cache_size = 0;
+	s_scsiu_reported_total_blocks = 0;
+	s_scsiu_reported_block_size = 512;
+	s_scsiu_capacity_valid = 0;
+}
+
+static void
+SCSIU_InvalidateBootCacheRange(DWORD lba, DWORD count, DWORD blockSize)
+{
+	unsigned long long writeStart;
+	unsigned long long writeBytes;
+	unsigned long long cacheBytes;
+
+	if (s_scsiu_boot_cache == NULL || count == 0 || blockSize == 0) {
+		return;
+	}
+
+	writeStart = (unsigned long long)lba * (unsigned long long)blockSize;
+	writeBytes = (unsigned long long)count * (unsigned long long)blockSize;
+	cacheBytes = (unsigned long long)s_scsiu_boot_cache_size;
+
+	if (writeStart < cacheBytes && writeBytes > 0) {
+		char cacheLog[128];
+		snprintf(cacheLog, sizeof(cacheLog),
+		         "SCSIU_CACHE: invalidated by write lba=%u blocks=%u blockSize=%u",
+		         (unsigned int)lba,
+		         (unsigned int)count,
+		         (unsigned int)blockSize);
+		SCSI_LogText(cacheLog);
+		SCSIU_ResetBootCache();
+	}
+}
+
+static int
+SCSIU_GetCapacity(DWORD* outTotalBlocks, DWORD* outBlockSize)
+{
+	DWORD lastLBA = 0;
+	DWORD blockSize = 0;
+
+	if (outTotalBlocks == NULL || outBlockSize == NULL) {
+		return 0;
+	}
+	if (s_scsiu_capacity_valid &&
+	    s_scsiu_reported_total_blocks != 0 &&
+	    s_scsiu_reported_block_size != 0) {
+		*outTotalBlocks = s_scsiu_reported_total_blocks;
+		*outBlockSize = s_scsiu_reported_block_size;
+		return 1;
+	}
+	if (!s_scsi_u_bridge.connected || !SCSIU_ReadCapacity(&lastLBA, &blockSize) || blockSize == 0) {
+		return 0;
+	}
+	*outTotalBlocks = s_scsiu_reported_total_blocks;
+	*outBlockSize = s_scsiu_reported_block_size;
+	return (*outTotalBlocks != 0 && *outBlockSize != 0) ? 1 : 0;
+}
+
+static DWORD
+SCSIU_GetBlockSize(void)
+{
+	DWORD totalBlocks = 0;
+	DWORD blockSize = 0;
+
+	if (SCSIU_GetCapacity(&totalBlocks, &blockSize) && blockSize != 0) {
+		return blockSize;
+	}
+	return (s_scsiu_reported_block_size != 0) ? s_scsiu_reported_block_size : 512;
+}
+
+/*
+ * ブートキャッシュを物理 HDD から読み込む。
+ * DREG-EX 1 回あたり約 64KB 以下に分けて転送する。
+ * すでにロード済みなら即 1 を返す。
+ * 戻り値: 1=成功/既ロード, 0=失敗
+ */
+static int
+SCSIU_EnsureBootCache(void)
+{
+	DWORD blockSize;
+	DWORD reportedBlocks = 0;
+	DWORD reportedBlockSize = 0;
+	DWORD totalBlocks;
+	DWORD totalBytes;
+	DWORD chunksRead  = 0;
+	DWORD chunkBlocks;
+	char cacheLog[128];
+
+	if (s_scsiu_boot_cache != NULL) {
+		return 1; /* 既にロード済み */
+	}
+	if (!s_scsi_u_bridge.connected) {
+		return 0;
+	}
+	blockSize = SCSIU_GetBlockSize();
+	if (blockSize == 0) {
+		blockSize = 512;
+	}
+	if (!SCSIU_GetCapacity(&reportedBlocks, &reportedBlockSize)) {
+		SCSI_LogText("SCSIU_CACHE: READ CAPACITY failed");
+		return 0;
+	}
+	if (reportedBlockSize != 0) {
+		blockSize = reportedBlockSize;
+	}
+	if (reportedBlocks == 0) {
+		SCSI_LogText("SCSIU_CACHE: zero-capacity device");
+		return 0;
+	}
+	totalBlocks = (DWORD)(((unsigned long long)SCSIU_BOOT_CACHE_TARGET_BYTES + blockSize - 1) / blockSize);
+	if (totalBlocks == 0) {
+		totalBlocks = 1;
+	}
+	if (totalBlocks > reportedBlocks) {
+		totalBlocks = reportedBlocks;
+	}
+	totalBytes = totalBlocks * blockSize;
+	chunkBlocks = SCSIU_MAX_DREG_BURST_BYTES / blockSize;
+	if (chunkBlocks == 0) {
+		chunkBlocks = 1;
+	}
+	s_scsiu_boot_cache = (BYTE*)malloc(totalBytes);
+	if (s_scsiu_boot_cache == NULL) {
+		SCSI_LogText("SCSIU_CACHE: malloc failed");
+		return 0;
+	}
+
+	while (chunksRead < totalBlocks) {
+		DWORD toRead = totalBlocks - chunksRead;
+		if (toRead > chunkBlocks)
+			toRead = chunkBlocks;
+		if (!SCSIU_ReadBlocks(chunksRead, toRead, blockSize,
+		                      s_scsiu_boot_cache + chunksRead * blockSize)) {
+			SCSIU_ResetBootCache();
+			snprintf(cacheLog, sizeof(cacheLog),
+			         "SCSIU_CACHE: load failed at block %u", (unsigned int)chunksRead);
+			SCSI_LogText(cacheLog);
+			return 0;
+		}
+		chunksRead += toRead;
+	}
+
+	s_scsiu_boot_cache_size = (long)totalBytes;
+	snprintf(cacheLog, sizeof(cacheLog),
+	         "SCSIU_CACHE: boot cache loaded (%uMB, %u blocks, blockSize=%u)",
+	         (unsigned int)(totalBytes >> 20),
+	         (unsigned int)totalBlocks,
+	         (unsigned int)blockSize);
+	SCSI_LogText(cacheLog);
+	return 1;
+}
+
+/*
+ * SPC READ CAPACITY(10) を実行して実際のディスク容量を取得する。
+ * outLastLBA: 最後の LBA (ブロック数 - 1)
+ * outBlockSize: バイト/ブロック
+ * 戻り値: 1=成功, 0=失敗
+ */
+static int
+SCSIU_ReadCapacity(DWORD* outLastLBA, DWORD* outBlockSize)
+{
+	BYTE cdb[10];
+	BYTE resp[8];
+	int received;
+
+	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
+		return 0;
+	}
+
+	/* SPC 初期化 */
+	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14);
+	SCSIU_SendSPCReg(0x01/*BDID*/, 0x40);
+
+	/* ARBITRATION + SELECTION */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x00);
+	SCSIU_SendSPCReg(0x17/*TEMP*/, 0x01);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x04);
+	usleep(2000);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28);
+	if (!SCSIU_WaitINTS(0x08, 2000000)) {
+		return 0;
+	}
+
+	/* READ CAPACITY(10) CDB */
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = 0x25; /* READ CAPACITY(10) */
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x02);
+	{
+		int k;
+		for (k = 0; k < 10; ++k) {
+			SCSIU_SendSPCReg(0x15/*DREG*/, cdb[k]);
+		}
+	}
+
+	/* DATA IN フェーズ待ち */
+	if (!SCSIU_WaitINTS(0x08, 5000000)) {
+		return 0;
+	}
+
+	/* 8バイト受信 */
+	SCSIU_SendSPCReg(0x19/*TCH*/, 0x00);
+	SCSIU_SendSPCReg(0x1B/*TCM*/, 0x00);
+	SCSIU_SendSPCReg(0x1D/*TCL*/, 0x08);
+	SCSIU_SendSPCReg(0x11/*PCTL*/, 0x01);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x84);
+
+	received = SCSIU_ExecDregBurst(resp, 8);
+	if (received < 8) {
+		return 0;
+	}
+
+	/* STATUS + MESSAGE */
+	SCSIU_WaitINTS(0x08, 2000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/);
+	SCSIU_WaitINTS(0x08, 1000000);
+	SCSIU_ExecSPCReg(0x15/*DREG*/);
+	SCSIU_SendSPCReg(0x05/*SCMD*/, 0x28);
+
+	*outLastLBA   = ((DWORD)resp[0] << 24) | ((DWORD)resp[1] << 16) |
+	                ((DWORD)resp[2] <<  8) |  (DWORD)resp[3];
+	*outBlockSize = ((DWORD)resp[4] << 24) | ((DWORD)resp[5] << 16) |
+	                ((DWORD)resp[6] <<  8) |  (DWORD)resp[7];
+	s_scsiu_reported_total_blocks = (*outLastLBA == 0xFFFFFFFFU)
+	                              ? 0xFFFFFFFFU
+	                              : (*outLastLBA + 1);
+	s_scsiu_reported_block_size = (*outBlockSize != 0) ? *outBlockSize : 512;
+	s_scsiu_capacity_valid = 1;
+	return 1;
+}
+
+#endif /* __APPLE__ */
+
+/* ---------------------------------------------------------------------------------------
+ * バスモードに応じたイメージバッファポインタ/サイズ取得ヘルパー。
+ * SCSI-U モードではブートキャッシュを返す。
+ * --------------------------------------------------------------------------------------- */
+static BYTE*
+SCSI_ImgBuf(void)
+{
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() == 2) {
+		return s_scsiu_boot_cache;
+	}
+#endif
+	return s_disk_image_buffer[4];
+}
+
+static long
+SCSI_ImgSize(void)
+{
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() == 2) {
+		return s_scsiu_boot_cache_size;
+	}
+#endif
+	return s_disk_image_buffer_size[4];
+}
 
 // ---------------------------------------------------------------------------------------
 //  合成SCSI ROM (外付けSCSI CZ-6BS1互換: $EA0000-$EA1FFF)
@@ -384,6 +1386,7 @@ void SCSI_Init(void)
 	s_scsi_deferred_boot_pending = 0;
 	s_scsi_deferred_boot_addr = 0;
 	s_scsi_deferred_d5 = 0;
+	SCSIU_ResetBootCache();
 	SCSI_LogInit();
 	s_spc_access_log_count = 0;
 	SCSI_InvalidateTransferCache();
@@ -404,6 +1407,7 @@ void SCSI_Init(void)
 // -----------------------------------------------------------------------
 void SCSI_Cleanup(void)
 {
+	SCSIU_ResetBootCache();
 }
 
 void SCSI_InvalidateTransferCache(void)
@@ -577,12 +1581,12 @@ static DWORD SCSI_GetPayloadOffset(void)
 	BYTE* buf;
 	long size;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] < 8) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() < 8) {
 		return 0;
 	}
 
-	buf = s_disk_image_buffer[4];
-	size = s_disk_image_buffer_size[4];
+	buf = SCSI_ImgBuf();
+	size = SCSI_ImgSize();
 
 	// Standard container header.
 	if (memcmp(buf, "X68SCSI1", 8) == 0) {
@@ -668,11 +1672,11 @@ static DWORD SCSI_GetImageBlockSize(void)
 	int hasPart512;
 	int hasPart1024;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] < 16) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() < 16) {
 		return 512;
 	}
-	buf = s_disk_image_buffer[4];
-	size = s_disk_image_buffer_size[4];
+	buf = SCSI_ImgBuf();
+	size = SCSI_ImgSize();
 
 	if (memcmp(buf, "X68SCSI1", 8) == 0 || memcmp(buf + 1, "68SCSI1", 7) == 0) {
 		headerBlockSize = ((DWORD)buf[8] << 8) | (DWORD)buf[9];
@@ -771,10 +1775,19 @@ static int SCSI_ResolveTransfer(DWORD lba, DWORD blocks, DWORD blockSize,
 	unsigned long long start;
 	unsigned long long bytes;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+	if (blocks == 0 || blockSize == 0) {
 		return 0;
 	}
-	if (blocks == 0 || blockSize == 0) {
+
+	/* SCSI-U モード: image buffer を使わず lba/blockSize から転送量を計算する */
+	if (X68000_GetStorageBusMode() == 2) {
+		*imageOffset = 0; /* 未使用 */
+		bytes = (unsigned long long)blocks * (unsigned long long)blockSize;
+		*transferBytes = (DWORD)bytes;
+		return 1;
+	}
+
+	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
 		return 0;
 	}
 
@@ -1051,18 +2064,30 @@ static void SCSI_HandleBoot(void)
 
 	printf("SCSI_HandleBoot: Attempting SCSI boot...\n");
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() == 2) {
+		/* SCSI-U モード: 物理 HDD の先頭を USB 経由で読み込む */
+		if (!SCSIU_EnsureBootCache()) {
+			printf("SCSI_HandleBoot: SCSI-U boot cache load failed\n");
+			SCSI_LogText("SCSIU_BOOT: boot cache load failed");
+			C68k_Set_DReg(&C68K, 0, 0xFFFFFFFF);
+			return;
+		}
+	}
+#endif
+
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() <= 0) {
 		printf("SCSI_HandleBoot: No HDD image loaded\n");
 		SCSI_LogText("SCSI_BOOT: no HDD image");
 		C68k_Set_DReg(&C68K, 0, 0xFFFFFFFF);
 		return;
 	}
-	imgBuf = s_disk_image_buffer[4];
-	imgSize = (DWORD)s_disk_image_buffer_size[4];
+	imgBuf = SCSI_ImgBuf();
+	imgSize = (DWORD)SCSI_ImgSize();
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
-		blockSize = 512;
+		blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 	}
 	// SCSI HDD boot code lives at LBA2.  X68SCSI1 containers place the payload
 	// (virtual LBA2) at 0x400; raw images need an explicit +2 sector offset.
@@ -1131,8 +2156,8 @@ static void SCSI_HandleBoot(void)
 
 	// ブートコードとして先頭8セクタをロード
 	bootSize = blockSize * 8;
-	if (bootOffset + bootSize > (DWORD)s_disk_image_buffer_size[4]) {
-		bootSize = (DWORD)s_disk_image_buffer_size[4] - bootOffset;
+	if (bootOffset + bootSize > (DWORD)SCSI_ImgSize()) {
+		bootSize = (DWORD)SCSI_ImgSize() - bootOffset;
 	}
 	if (bootSize < 16) {
 		snprintf(bootLog, sizeof(bootLog),
@@ -1144,20 +2169,20 @@ static void SCSI_HandleBoot(void)
 	}
 
 	// M68000 メモリにコピー (バイト単位で書き込み、エンディアン考慮)
-	for (i = 0; i < bootSize; i++) {
-		Memory_WriteB(destAddr + i, s_disk_image_buffer[4][bootOffset + i]);
+	{
+		BYTE* src = SCSI_ImgBuf();
+		for (i = 0; i < bootSize; i++) {
+			Memory_WriteB(destAddr + i, src[bootOffset + i]);
+		}
+		snprintf(bootLog, sizeof(bootLog),
+		         "SCSI_BOOT: load=%u offset=0x%X lbaBase=%u blk=%u d5=%u first=%02X%02X%02X%02X",
+		         (unsigned int)bootSize, (unsigned int)bootOffset,
+		         (unsigned int)bootBaseLBA,
+		         (unsigned int)blockSize,
+		         (unsigned int)d5Exp,
+		         src[bootOffset + 0], src[bootOffset + 1],
+		         src[bootOffset + 2], src[bootOffset + 3]);
 	}
-
-	snprintf(bootLog, sizeof(bootLog),
-	         "SCSI_BOOT: load=%u offset=0x%X lbaBase=%u blk=%u d5=%u first=%02X%02X%02X%02X",
-	         (unsigned int)bootSize, (unsigned int)bootOffset,
-	         (unsigned int)bootBaseLBA,
-	         (unsigned int)blockSize,
-	         (unsigned int)d5Exp,
-	         s_disk_image_buffer[4][bootOffset + 0],
-	         s_disk_image_buffer[4][bootOffset + 1],
-	         s_disk_image_buffer[4][bootOffset + 2],
-	         s_disk_image_buffer[4][bootOffset + 3]);
 	SCSI_LogText(bootLog);
 
 	// Real SCSI IPL passes sector-size code in d5 and target ID in d1.
@@ -1233,8 +2258,20 @@ void SCSI_InjectBoot(void)
 	SCSI_LogText("SCSI_INJECT_BOOT: IPL ROM init complete, injecting SCSI boot");
 	printf("SCSI_InjectBoot: IPL ROM init complete, injecting SCSI boot...\n");
 
-	// Verify buffer integrity at BPB area
-	if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0x8020) {
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() == 2) {
+		/* SCSI-U モード: ブートキャッシュをロード */
+		if (!SCSIU_EnsureBootCache()) {
+			printf("SCSI_InjectBoot: SCSI-U boot cache load failed\n");
+			SCSI_LogText("SCSIU_INJECT: boot cache load failed");
+			return;
+		}
+	}
+#endif
+
+	// Verify buffer integrity at BPB area (image mode only — SCSI-U cache may be smaller)
+	if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0x8020
+	    && X68000_GetStorageBusMode() != 2) {
 		char vb[256];
 		snprintf(vb, sizeof(vb),
 		         "BUF_VERIFY_INJECT @0x8012: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
@@ -1246,28 +2283,29 @@ void SCSI_InjectBoot(void)
 		         s_disk_image_buffer[4][0x801C], s_disk_image_buffer[4][0x801D],
 		         s_disk_image_buffer[4][0x801E], s_disk_image_buffer[4][0x801F]);
 		SCSI_LogText(vb);
-		// Also check root dir entry 8 (CONFIG.SYS)
-		snprintf(vb, sizeof(vb),
-		         "BUF_VERIFY_INJECT rootdir8@0x40D16: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-		         s_disk_image_buffer[4][0x40D16], s_disk_image_buffer[4][0x40D17],
-		         s_disk_image_buffer[4][0x40D18], s_disk_image_buffer[4][0x40D19],
-		         s_disk_image_buffer[4][0x40D1A], s_disk_image_buffer[4][0x40D1B],
-		         s_disk_image_buffer[4][0x40D1C], s_disk_image_buffer[4][0x40D1D],
-		         s_disk_image_buffer[4][0x40D1E], s_disk_image_buffer[4][0x40D1F]);
-		SCSI_LogText(vb);
+		if (s_disk_image_buffer_size[4] > 0x40D26) {
+			snprintf(vb, sizeof(vb),
+			         "BUF_VERIFY_INJECT rootdir8@0x40D16: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+			         s_disk_image_buffer[4][0x40D16], s_disk_image_buffer[4][0x40D17],
+			         s_disk_image_buffer[4][0x40D18], s_disk_image_buffer[4][0x40D19],
+			         s_disk_image_buffer[4][0x40D1A], s_disk_image_buffer[4][0x40D1B],
+			         s_disk_image_buffer[4][0x40D1C], s_disk_image_buffer[4][0x40D1D],
+			         s_disk_image_buffer[4][0x40D1E], s_disk_image_buffer[4][0x40D1F]);
+			SCSI_LogText(vb);
+		}
 	}
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() <= 0) {
 		printf("SCSI_InjectBoot: No HDD image loaded\n");
 		SCSI_LogText("SCSI_INJECT_BOOT: no HDD image - aborting");
 		return;
 	}
-	imgBuf = s_disk_image_buffer[4];
-	imgSize = (DWORD)s_disk_image_buffer_size[4];
+	imgBuf = SCSI_ImgBuf();
+	imgSize = (DWORD)SCSI_ImgSize();
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
-		blockSize = 512;
+		blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 	}
 	bootOffset = SCSI_GetPayloadOffset();
 	if (bootOffset == 0) {
@@ -1610,9 +2648,30 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			break;
 		}
 
-		for (i = 0; i < transferBytes; i++) {
-			Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
-		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpRd = (BYTE*)malloc(transferBytes);
+			if (tmpRd == NULL || !SCSIU_ReadBlocks(lba, blocks, blockSize, tmpRd)) {
+				free(tmpRd);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, tmpRd[i]);
+			}
+			free(tmpRd);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
+		} else {
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
+			}
 			snprintf(logLine, sizeof(logLine),
 			         "SCSI_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u imgOff=0x%X first=%02X%02X%02X%02X",
 			         cmd,
@@ -1620,11 +2679,12 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			         (unsigned int)blocks,
 			         (unsigned int)blockSize,
 			         (unsigned int)imageOffset,
-		         s_disk_image_buffer[4][imageOffset + 0],
-		         s_disk_image_buffer[4][imageOffset + 1],
-		         s_disk_image_buffer[4][imageOffset + 2],
-		         s_disk_image_buffer[4][imageOffset + 3]);
-		SCSI_LogText(logLine);
+			         s_disk_image_buffer[4][imageOffset + 0],
+			         s_disk_image_buffer[4][imageOffset + 1],
+			         s_disk_image_buffer[4][imageOffset + 2],
+			         s_disk_image_buffer[4][imageOffset + 3]);
+			SCSI_LogText(logLine);
+		}
 		result = 0;
 		break;
 	}
@@ -1738,9 +2798,35 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			break;
 		}
 
-		for (i = 0; i < transferBytes; i++) {
-			s_disk_image_buffer[4][imageOffset + i] = Memory_ReadB(a1 + i);
-		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpWr = (BYTE*)malloc(transferBytes);
+			if (tmpWr == NULL) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				tmpWr[i] = Memory_ReadB(a1 + i);
+			}
+			if (!SCSIU_WriteBlocks(lba, blocks, blockSize, tmpWr)) {
+				free(tmpWr);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			SCSIU_InvalidateBootCacheRange(lba, blocks, blockSize);
+			free(tmpWr);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_WRITE cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
+		} else {
+			for (i = 0; i < transferBytes; i++) {
+				s_disk_image_buffer[4][imageOffset + i] = Memory_ReadB(a1 + i);
+			}
 			snprintf(logLine, sizeof(logLine),
 			         "SCSI_XFER_WRITE cmd=$%02X lba=%u blocks=%u blockSize=%u imgOff=0x%X",
 			         cmd,
@@ -1748,7 +2834,8 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			         (unsigned int)blocks,
 			         (unsigned int)blockSize,
 			         (unsigned int)imageOffset);
-		SCSI_LogText(logLine);
+			SCSI_LogText(logLine);
+		}
 		SASI_SetDirtyFlag(0);
 		result = 0;
 		break;
@@ -1787,6 +2874,29 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		if (!SCSI_IsLinearRamRange(a1, transferBytes)) {
 			result = 0xFFFFFFFF;
 			break;
+		}
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			BYTE* tmpRd2 = (BYTE*)malloc(transferBytes);
+			if (tmpRd2 == NULL || !SCSIU_ReadBlocks(lba, blocks, blockSize, tmpRd2)) {
+				free(tmpRd2);
+				result = 0xFFFFFFFF;
+				break;
+			}
+			for (i = 0; i < transferBytes; i++) {
+				Memory_WriteB(a1 + i, tmpRd2[i]);
+			}
+			free(tmpRd2);
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_XFER_READ cmd=$%02X lba=%u blocks=%u blockSize=%u",
+			         cmd, (unsigned int)lba, (unsigned int)blocks, (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+			result = 0;
+			break;
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
 		}
 		for (i = 0; i < transferBytes; i++) {
 			Memory_WriteB(a1 + i, s_disk_image_buffer[4][imageOffset + i]);
@@ -1832,15 +2942,66 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		break;
 
 	case 0x24:  // _S_TESTUNIT
-		result = (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) ? 0 : 0xFFFFFFFF;
+		if (X68000_GetStorageBusMode() == 2) {
+			result = SCSIU_IsConnected() ? 0 : 0xFFFFFFFF;
+		} else {
+			result = (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) ? 0 : 0xFFFFFFFF;
+		}
 		break;
 
 	case 0x25: {  // _S_READCAP
 		DWORD blockSize = SCSI_GetImageBlockSize();
-		DWORD dataOffset = SCSI_GetIocsDataOffset();
+		DWORD dataOffset;
 		DWORD dataSize = 0;
 		DWORD totalBlocks;
 
+		if (X68000_GetStorageBusMode() == 2) {
+#ifdef __APPLE__
+			DWORD lastLBA = 0;
+			if (!SCSIU_IsConnected()) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			if (!SCSI_IsLinearRamRange(a1, 8)) {
+				result = 0xFFFFFFFF;
+				break;
+			}
+			/* SPC READ CAPACITY(10) で実際の容量を取得する */
+			blockSize = SCSIU_GetBlockSize();
+			if (SCSIU_ReadCapacity(&lastLBA, &blockSize)) {
+				totalBlocks = lastLBA + 1;
+			} else {
+				/* 失敗時フォールバック: 4GB 分 */
+				unsigned long long fallbackBytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+				if (blockSize == 0) {
+					blockSize = 512;
+				}
+				totalBlocks = (DWORD)(fallbackBytes / blockSize);
+				if (totalBlocks == 0) {
+					totalBlocks = 1;
+				}
+			}
+			Memory_WriteB(a1 + 0, (BYTE)(((totalBlocks - 1) >> 24) & 0xff));
+			Memory_WriteB(a1 + 1, (BYTE)(((totalBlocks - 1) >> 16) & 0xff));
+			Memory_WriteB(a1 + 2, (BYTE)(((totalBlocks - 1) >>  8) & 0xff));
+			Memory_WriteB(a1 + 3, (BYTE)((totalBlocks - 1) & 0xff));
+			Memory_WriteB(a1 + 4, (BYTE)((blockSize >> 24) & 0xff));
+			Memory_WriteB(a1 + 5, (BYTE)((blockSize >> 16) & 0xff));
+			Memory_WriteB(a1 + 6, (BYTE)((blockSize >>  8) & 0xff));
+			Memory_WriteB(a1 + 7, (BYTE)(blockSize & 0xff));
+			snprintf(logLine, sizeof(logLine),
+			         "SCSIU_READCAP lastLBA=%u blockSize=%u",
+			         (unsigned int)(totalBlocks - 1), (unsigned int)blockSize);
+			SCSI_LogText(logLine);
+			result = 0;
+			break;
+#else
+			result = 0xFFFFFFFF;
+			break;
+#endif
+		}
+
+		dataOffset = SCSI_GetIocsDataOffset();
 		if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
 			result = 0xFFFFFFFF;
 			break;
@@ -2005,7 +3166,8 @@ static void SCSI_HandleIOCS(BYTE cmd)
 		s_spc_cmd_valid = 0;
 		s_spc_status_byte = 0x00;   // GOOD
 		s_spc_message_byte = 0x00;  // Command Complete
-		if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
+		if ((X68000_GetStorageBusMode() == 2 && SCSIU_IsConnected()) ||
+		    (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0)) {
 			s_spc_regs[0x09] = 0x01;  // INTS: SEL complete
 			result = 0;
 		} else {
@@ -2052,17 +3214,34 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				            (s_spc_cdb[2] << 8) | s_spc_cdb[3];
 				DWORD blocks = s_spc_cdb[4];
 				if (blocks == 0) blocks = 256;
-				DWORD blockSize = 512;
+				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
-				DWORD byteLen = blocks * blockSize;
+				DWORD fullByteLen = blocks * blockSize;
+				DWORD copyLen = fullByteLen;
 				DWORD ri;
-				if (xferLen < byteLen) byteLen = xferLen;
+				if (xferLen < copyLen) copyLen = xferLen;
+#ifdef __APPLE__
+				if (X68000_GetStorageBusMode() == 2) {
+					BYTE* tmpR6 = (BYTE*)malloc(fullByteLen);
+					if (tmpR6 && SCSIU_ReadBlocks(lba, blocks, blockSize, tmpR6)) {
+						for (ri = 0; ri < copyLen; ri++)
+							Memory_WriteB(dstAddr + ri, tmpR6[ri]);
+					} else {
+						s_spc_status_byte = 0x02;
+						result = (DWORD)0xFFFFFFFF;
+					}
+					free(tmpR6);
+					if (result != 0) {
+						break;
+					}
+				} else
+#endif
 				if (s_disk_image_buffer[4] &&
-				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
-					for (ri = 0; ri < byteLen; ri++)
+				    byteOff + copyLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
 				} else {
-					for (ri = 0; ri < byteLen; ri++)
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, 0x00);
 				}
 				break;
@@ -2073,17 +3252,34 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				            ((DWORD)s_spc_cdb[4] << 8) |
 				            (DWORD)s_spc_cdb[5];
 				DWORD blocks = ((DWORD)s_spc_cdb[7] << 8) | s_spc_cdb[8];
-				DWORD blockSize = 512;
+				DWORD blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff = lba * blockSize;
-				DWORD byteLen = blocks * blockSize;
+				DWORD fullByteLen = blocks * blockSize;
+				DWORD copyLen = fullByteLen;
 				DWORD ri;
-				if (xferLen < byteLen) byteLen = xferLen;
+				if (xferLen < copyLen) copyLen = xferLen;
+#ifdef __APPLE__
+				if (X68000_GetStorageBusMode() == 2) {
+					BYTE* tmpR10 = (BYTE*)malloc(fullByteLen);
+					if (tmpR10 && blocks > 0 && SCSIU_ReadBlocks(lba, blocks, blockSize, tmpR10)) {
+						for (ri = 0; ri < copyLen; ri++)
+							Memory_WriteB(dstAddr + ri, tmpR10[ri]);
+					} else {
+						s_spc_status_byte = 0x02;
+						result = (DWORD)0xFFFFFFFF;
+					}
+					free(tmpR10);
+					if (result != 0) {
+						break;
+					}
+				} else
+#endif
 				if (s_disk_image_buffer[4] &&
-				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
-					for (ri = 0; ri < byteLen; ri++)
+				    byteOff + copyLen <= (DWORD)s_disk_image_buffer_size[4]) {
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, s_disk_image_buffer[4][byteOff + ri]);
 				} else {
-					for (ri = 0; ri < byteLen; ri++)
+					for (ri = 0; ri < copyLen; ri++)
 						Memory_WriteB(dstAddr + ri, 0x00);
 				}
 				break;
@@ -2107,15 +3303,27 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			}
 			case 0x25: {  // READ CAPACITY
 				DWORD totalBlocks = 0;
+				DWORD capBlockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				BYTE cap[8];
-				if (s_disk_image_buffer[4])
+#ifdef __APPLE__
+				if (X68000_GetStorageBusMode() == 2) {
+					DWORD lastLBA = 0;
+					SCSIU_ReadCapacity(&lastLBA, &capBlockSize);
+					totalBlocks = lastLBA; /* already 0-based last LBA */
+				} else
+#endif
+				if (s_disk_image_buffer[4]) {
 					totalBlocks = (DWORD)(s_disk_image_buffer_size[4] / 512);
-				if (totalBlocks > 0) totalBlocks--;
+					if (totalBlocks > 0) totalBlocks--;
+				}
 				cap[0] = (totalBlocks >> 24) & 0xFF;
 				cap[1] = (totalBlocks >> 16) & 0xFF;
 				cap[2] = (totalBlocks >> 8) & 0xFF;
 				cap[3] = totalBlocks & 0xFF;
-				cap[4] = 0; cap[5] = 0; cap[6] = 0x02; cap[7] = 0x00; // 512 bytes
+				cap[4] = (capBlockSize >> 24) & 0xFF;
+				cap[5] = (capBlockSize >> 16) & 0xFF;
+				cap[6] = (capBlockSize >>  8) & 0xFF;
+				cap[7] = capBlockSize & 0xFF;
 				{
 					DWORD copyLen = (xferLen < 8) ? xferLen : 8;
 					DWORD ri;
@@ -2176,7 +3384,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 			BYTE scsiCmd = s_spc_cdb[0];
 			if (scsiCmd == 0x0A || scsiCmd == 0x2A) {
 				// WRITE(6) or WRITE(10)
-				DWORD lba, blocks, blockSize = 512;
+				DWORD lba, blocks, blockSize = (X68000_GetStorageBusMode() == 2) ? SCSIU_GetBlockSize() : 512;
 				DWORD byteOff, byteLen;
 				if (scsiCmd == 0x0A) {
 					lba = ((s_spc_cdb[1] & 0x1F) << 16) |
@@ -2193,6 +3401,38 @@ static void SCSI_HandleIOCS(BYTE cmd)
 				byteOff = lba * blockSize;
 				byteLen = blocks * blockSize;
 				if (xferLen < byteLen) byteLen = xferLen;
+#ifdef __APPLE__
+				if (X68000_GetStorageBusMode() == 2) {
+					BYTE* tmpW = NULL;
+					DWORD writeBlocks = 0;
+					if (byteLen == 0 || (byteLen % blockSize) != 0) {
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					writeBlocks = byteLen / blockSize;
+					tmpW = (BYTE*)malloc(byteLen);
+					if (tmpW == NULL) {
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					{
+						DWORD wi;
+						for (wi = 0; wi < byteLen; wi++) {
+							tmpW[wi] = Memory_ReadB(srcAddr + wi);
+						}
+					}
+					if (!SCSIU_WriteBlocks(lba, writeBlocks, blockSize, tmpW)) {
+						free(tmpW);
+						result = (DWORD)0xFFFFFFFF;
+						s_spc_status_byte = 0x02;
+						break;
+					}
+					SCSIU_InvalidateBootCacheRange(lba, writeBlocks, blockSize);
+					free(tmpW);
+				} else
+#endif
 				if (s_disk_image_buffer[4] &&
 				    byteOff + byteLen <= (DWORD)s_disk_image_buffer_size[4]) {
 					DWORD wi;
@@ -2630,11 +3870,11 @@ static DWORD SCSI_DetectBootBlockSize(DWORD bootOffset)
 	DWORD size;
 	DWORD i;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() <= 0) {
 		return 0;
 	}
-	buf = s_disk_image_buffer[4];
-	size = (DWORD)s_disk_image_buffer_size[4];
+	buf = SCSI_ImgBuf();
+	size = (DWORD)SCSI_ImgSize();
 	for (i = 0; i < (DWORD)(sizeof(bpbOffsets) / sizeof(bpbOffsets[0])); i++) {
 		DWORD pos = bootOffset + bpbOffsets[i];
 		WORD bytesPerSec;
@@ -2662,11 +3902,11 @@ static DWORD SCSI_FindPartitionBootOffset(void)
 	DWORD partTableOffset;
 	DWORD i;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] < 0x1000) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() < 0x1000) {
 		return 0;
 	}
-	buf = s_disk_image_buffer[4];
-	size = s_disk_image_buffer_size[4];
+	buf = SCSI_ImgBuf();
+	size = SCSI_ImgSize();
 
 	// IOCS/boot pathと同じ判定を使い、raw/X68SCSI1で一貫させる
 	physSectorSize = SCSI_GetImageBlockSize();
@@ -2730,11 +3970,11 @@ static int SCSI_ReadBPBFromImage(BYTE* outBpb, DWORD* outPartOffset)
 	BYTE rawBpb[36];
 	WORD bytesPerSec = 0;
 
-	if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+	if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() <= 0) {
 		return 0;
 	}
-	buf = s_disk_image_buffer[4];
-	size = s_disk_image_buffer_size[4];
+	buf = SCSI_ImgBuf();
+	size = SCSI_ImgSize();
 
 	bootOffset = SCSI_FindPartitionBootOffset();
 	if (bootOffset == 0 || bootOffset + 0x30 > (DWORD)size) {
@@ -3357,7 +4597,7 @@ static void SCSI_HandleDeviceCommand(void)
 		// fixed HDD as $42 here; returning $00 makes apps such as LHES/BASIC think
 		// the drive is unavailable even though plain DOS file I/O still works.
 		drvState = 0x42;
-		if (s_disk_image_buffer[4] == NULL || s_disk_image_buffer_size[4] <= 0) {
+		if (SCSI_ImgBuf() == NULL || SCSI_ImgSize() <= 0) {
 			drvState = 0x00;
 		}
 
@@ -3714,11 +4954,11 @@ static void SCSI_HandleDeviceCommand(void)
 			byteOffset = useRelative ? relByteOffset : absByteOffset;
 		}
 		byteCount = (unsigned long long)count * (unsigned long long)secSize;
-		if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
-			imgSize = (unsigned long long)s_disk_image_buffer_size[4];
+		if (SCSI_ImgBuf() != NULL && SCSI_ImgSize() > 0) {
+			imgSize = (unsigned long long)SCSI_ImgSize();
 		}
-		if (s_disk_image_buffer[4] != NULL &&
-		    s_disk_image_buffer_size[4] > 0 &&
+		if (SCSI_ImgBuf() != NULL &&
+		    SCSI_ImgSize() > 0 &&
 		    (byteOffset + byteCount > imgSize)) {
 			if (useRelative &&
 			    (absByteOffset + byteCount <= imgSize)) {
@@ -3762,12 +5002,53 @@ static void SCSI_HandleDeviceCommand(void)
 		SCSI_LogText(logLine);
 		/* verbose src dump removed for log space */
 
-		if (s_disk_image_buffer[4] == NULL || byteCount == 0) {
+		if (SCSI_ImgBuf() == NULL || byteCount == 0) {
 			SCSI_SetReqStatus(reqpkt, 0, 0x02);
 			SCSI_LogText("SCSI_DEV READ error (no image)");
 			break;
 		}
-		if (byteOffset + byteCount > (unsigned long long)s_disk_image_buffer_size[4]) {
+#ifdef __APPLE__
+		/* SCSI-U モード: 物理 HDD から直接ブロック読み出し */
+		if (X68000_GetStorageBusMode() == 2) {
+			if (!SCSI_IsLinearRamRange(bufAddr, (DWORD)byteCount)) {
+				SCSI_SetReqStatus(reqpkt, 0, 0x02);
+				SCSI_LogText("SCSI_DEV READ SCSIU error (buf range)");
+				break;
+			}
+			{
+				DWORD physLBA   = (DWORD)(byteOffset / secSize);
+				DWORD physBlks  = (DWORD)(byteCount  / secSize);
+				BYTE* tmpBuf    = (BYTE*)malloc((DWORD)byteCount);
+				if (tmpBuf == NULL) {
+					SCSI_SetReqStatus(reqpkt, 0, 0x02);
+					SCSI_LogText("SCSI_DEV READ SCSIU malloc fail");
+					break;
+				}
+				if (SCSIU_ReadBlocks(physLBA, physBlks, secSize, tmpBuf)) {
+					for (i = 0; i < (DWORD)byteCount; i++)
+						Memory_WriteB(bufAddr + i, tmpBuf[i]);
+				} else {
+					free(tmpBuf);
+					SCSI_SetReqStatus(reqpkt, 0, 0x02);
+					SCSI_LogText("SCSI_DEV READ SCSIU failed");
+					break;
+				}
+				free(tmpBuf);
+				SCSI_SetReqStatus(reqpkt, 1, 0x00);
+				{
+					char rl[96];
+					snprintf(rl, sizeof(rl),
+					         "SCSI_DEV READ SCSIU sec=%u lba=%u blks=%u",
+					         (unsigned int)startSec,
+					         (unsigned int)physLBA,
+					         (unsigned int)physBlks);
+					SCSI_LogText(rl);
+				}
+			}
+			break;
+		}
+#endif /* __APPLE__ */
+		if (byteOffset + byteCount > (unsigned long long)SCSI_ImgSize()) {
 			// Out-of-range sector: return zeros instead of error.
 			// The kernel may request sectors beyond the image (e.g. for
 			// clusters at high offsets in large partitions).  Returning
@@ -3784,7 +5065,7 @@ static void SCSI_HandleDeviceCommand(void)
 				snprintf(rl, sizeof(rl),
 				         "SCSI_DEV READ out-of-range sec=%u → zeros (off=0x%llX imgSize=%lld)",
 				         (unsigned int)startSec, byteOffset,
-				         (long long)s_disk_image_buffer_size[4]);
+				         (long long)SCSI_ImgSize());
 				SCSI_LogText(rl);
 			}
 			break;
@@ -3796,8 +5077,11 @@ static void SCSI_HandleDeviceCommand(void)
 			break;
 		}
 
-		for (i = 0; i < (DWORD)byteCount; i++) {
-			Memory_WriteB(bufAddr + i, s_disk_image_buffer[4][(DWORD)byteOffset + i]);
+		{
+			BYTE* imgPtr = SCSI_ImgBuf();
+			for (i = 0; i < (DWORD)byteCount; i++) {
+				Memory_WriteB(bufAddr + i, imgPtr[(DWORD)byteOffset + i]);
+			}
 		}
 
 		// --- FAT16 → FAT12 on-the-fly conversion ---
@@ -3818,7 +5102,7 @@ static void SCSI_HandleDeviceCommand(void)
 				DWORD imgFatBase = (DWORD)s_scsi_partition_byte_offset +
 				                   s_scsi_fat_start_sector * s_scsi_sector_size;
 				unsigned long long imgSize =
-				    (unsigned long long)s_disk_image_buffer_size[4];
+				    (unsigned long long)SCSI_ImgSize();
 
 				// Clear the buffer first
 				for (i = 0; i < (DWORD)byteCount; i++)
@@ -3831,18 +5115,19 @@ static void SCSI_HandleDeviceCommand(void)
 				DWORD lastClus  = (fat12ByteBase + (DWORD)byteCount) * 2 / 3 + 2;
 				if (lastClus > 65535) lastClus = 65535;
 				DWORD clus;
+				BYTE* imgFatPtr = SCSI_ImgBuf();
 				for (clus = firstClus; clus <= lastClus; clus++) {
 					DWORD fat12Pos = clus * 3 / 2;
 					if (fat12Pos + 1 < fat12ByteBase ||
 					    fat12Pos >= fat12ByteBase + (DWORD)byteCount)
 						continue;
 
-					// Read FAT16 entry from image (big-endian 16-bit)
+					// Read FAT16 entry from image/cache
 					DWORD f16off = imgFatBase + clus * 2;
 					WORD entry16 = 0;
-					if (f16off + 1 < imgSize) {
-						entry16 = ((WORD)s_disk_image_buffer[4][f16off] << 8) |
-						          (WORD)s_disk_image_buffer[4][f16off + 1];
+					if (imgFatPtr != NULL && f16off + 1 < (DWORD)imgSize) {
+						entry16 = ((WORD)imgFatPtr[f16off] << 8) |
+						          (WORD)imgFatPtr[f16off + 1];
 					}
 					// Clamp to 12-bit
 					WORD entry12 = entry16;
@@ -3897,11 +5182,13 @@ static void SCSI_HandleDeviceCommand(void)
 		// Verify copy integrity: compare image bytes vs memory for entry 8 (CONFIG.SYS position)
 		if (startSec == s_scsi_root_dir_start_sector && count >= 1) {
 			DWORD entOff = 8 * 32; // entry 8 = CONFIG.SYS
-			if (entOff + 32 <= byteCount) {
+			BYTE* vImgPtr = SCSI_ImgBuf();
+			if (vImgPtr != NULL && entOff + 32 <= byteCount &&
+			    (DWORD)byteOffset + entOff + 32 <= (DWORD)SCSI_ImgSize()) {
 				char vLine[256];
 				int mismatch = 0;
 				for (i = 0; i < 32; i++) {
-					BYTE imgByte = s_disk_image_buffer[4][(DWORD)byteOffset + entOff + i];
+					BYTE imgByte = vImgPtr[(DWORD)byteOffset + entOff + i];
 					BYTE memByte = Memory_ReadB(bufAddr + entOff + i);
 					if (imgByte != memByte) mismatch++;
 				}
@@ -3909,12 +5196,12 @@ static void SCSI_HandleDeviceCommand(void)
 					snprintf(vLine, sizeof(vLine),
 					         "SCSI_VERIFY MISMATCH entry8 count=%d img22-27=%02X%02X%02X%02X%02X%02X mem22-27=%02X%02X%02X%02X%02X%02X",
 					         mismatch,
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 22],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 23],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 24],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 25],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 26],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 27],
+					         vImgPtr[(DWORD)byteOffset + entOff + 22],
+					         vImgPtr[(DWORD)byteOffset + entOff + 23],
+					         vImgPtr[(DWORD)byteOffset + entOff + 24],
+					         vImgPtr[(DWORD)byteOffset + entOff + 25],
+					         vImgPtr[(DWORD)byteOffset + entOff + 26],
+					         vImgPtr[(DWORD)byteOffset + entOff + 27],
 					         Memory_ReadB(bufAddr + entOff + 22),
 					         Memory_ReadB(bufAddr + entOff + 23),
 					         Memory_ReadB(bufAddr + entOff + 24),
@@ -3925,8 +5212,8 @@ static void SCSI_HandleDeviceCommand(void)
 				} else {
 					snprintf(vLine, sizeof(vLine),
 					         "SCSI_VERIFY OK entry8 img26-27=%02X%02X mem26-27=%02X%02X",
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 26],
-					         s_disk_image_buffer[4][(DWORD)byteOffset + entOff + 27],
+					         vImgPtr[(DWORD)byteOffset + entOff + 26],
+					         vImgPtr[(DWORD)byteOffset + entOff + 27],
 					         Memory_ReadB(bufAddr + entOff + 26),
 					         Memory_ReadB(bufAddr + entOff + 27));
 					SCSI_LogText(vLine);
@@ -4108,11 +5395,11 @@ static void SCSI_HandleDeviceCommand(void)
 			byteOffset = useRelative ? relByteOffset : absByteOffset;
 		}
 		byteCount = (unsigned long long)count * (unsigned long long)secSize;
-		if (s_disk_image_buffer[4] != NULL && s_disk_image_buffer_size[4] > 0) {
-			imgSize = (unsigned long long)s_disk_image_buffer_size[4];
+		if (SCSI_ImgBuf() != NULL && SCSI_ImgSize() > 0) {
+			imgSize = (unsigned long long)SCSI_ImgSize();
 		}
-		if (s_disk_image_buffer[4] != NULL &&
-		    s_disk_image_buffer_size[4] > 0 &&
+		if (SCSI_ImgBuf() != NULL &&
+		    SCSI_ImgSize() > 0 &&
 		    (byteOffset + byteCount > imgSize)) {
 			if (useRelative &&
 			    (absByteOffset + byteCount <= imgSize)) {
@@ -4153,35 +5440,74 @@ static void SCSI_HandleDeviceCommand(void)
 		         (unsigned int)s_scsi_partition_byte_offset,
 		         byteCount);
 		SCSI_LogText(logLine);
-		if (s_disk_image_buffer[4] != NULL &&
-		    s_disk_image_buffer_size[4] > 0 &&
-		    byteCount >= 16 &&
-		    byteOffset + 16 <= (unsigned long long)s_disk_image_buffer_size[4]) {
-			snprintf(logLine, sizeof(logLine),
-			         "SCSI_DEV WRITE pre16=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 0],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 1],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 2],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 3],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 4],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 5],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 6],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 7],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 8],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 9],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 10],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 11],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 12],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 13],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 14],
-			         (unsigned int)s_disk_image_buffer[4][(DWORD)byteOffset + 15]);
-			SCSI_LogText(logLine);
+		{
+			BYTE* wImgPtr = SCSI_ImgBuf();
+			if (wImgPtr != NULL &&
+			    SCSI_ImgSize() > 0 &&
+			    byteCount >= 16 &&
+			    byteOffset + 16 <= (unsigned long long)SCSI_ImgSize()) {
+				snprintf(logLine, sizeof(logLine),
+				         "SCSI_DEV WRITE pre16=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 0],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 1],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 2],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 3],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 4],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 5],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 6],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 7],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 8],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 9],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 10],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 11],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 12],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 13],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 14],
+				         (unsigned int)wImgPtr[(DWORD)byteOffset + 15]);
+				SCSI_LogText(logLine);
+			}
 		}
 
-		if (s_disk_image_buffer[4] == NULL ||
-		    byteOffset + byteCount > (unsigned long long)s_disk_image_buffer_size[4] ||
-		    byteCount == 0 ||
+		if (SCSI_ImgBuf() == NULL || byteCount == 0 ||
 		    !SCSI_IsLinearRamRange(bufAddr, (DWORD)byteCount)) {
+			SCSI_SetReqStatus(reqpkt, 0, 0x02);
+			break;
+		}
+#ifdef __APPLE__
+		/* SCSI-U モード: 物理 HDD へ直接ブロック書き込み */
+		if (X68000_GetStorageBusMode() == 2) {
+			DWORD physLBA  = (DWORD)(byteOffset / secSize);
+			DWORD physBlks = (DWORD)(byteCount  / secSize);
+			BYTE* tmpBuf   = (BYTE*)malloc((DWORD)byteCount);
+			if (tmpBuf == NULL) {
+				SCSI_SetReqStatus(reqpkt, 0, 0x02);
+				SCSI_LogText("SCSI_DEV WRITE SCSIU malloc fail");
+				break;
+			}
+			for (i = 0; i < (DWORD)byteCount; i++)
+				tmpBuf[i] = Memory_ReadB(bufAddr + i);
+			if (!SCSIU_WriteBlocks(physLBA, physBlks, secSize, tmpBuf)) {
+				free(tmpBuf);
+				SCSI_SetReqStatus(reqpkt, 0, 0x02);
+				SCSI_LogText("SCSI_DEV WRITE SCSIU failed");
+				break;
+			}
+			SCSIU_InvalidateBootCacheRange(physLBA, physBlks, secSize);
+			free(tmpBuf);
+			SCSI_SetReqStatus(reqpkt, 1, 0x00);
+			{
+				char wl[96];
+				snprintf(wl, sizeof(wl),
+				         "SCSI_DEV WRITE SCSIU sec=%u lba=%u blks=%u",
+				         (unsigned int)startSec,
+				         (unsigned int)physLBA,
+				         (unsigned int)physBlks);
+				SCSI_LogText(wl);
+			}
+			break;
+		}
+#endif /* __APPLE__ */
+		if (byteOffset + byteCount > (unsigned long long)SCSI_ImgSize()) {
 			SCSI_SetReqStatus(reqpkt, 0, 0x02);
 			break;
 		}

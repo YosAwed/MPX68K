@@ -919,8 +919,14 @@ class GameScene: SKScene {
     }
 
     private func startEmulator(with fileSystem: FileSystem) {
+        #if os(macOS)
+        let selectedStorageBusMode = UserDefaults.standard.integer(forKey: "StorageBusMode")
+        #else
+        let selectedStorageBusMode = 0
+        #endif
+
         // Load ROM files FIRST, before any emulator initialization
-        switch fileSystem.loadIPLROM() {
+        switch fileSystem.loadIPLROM(selectedStorageBusMode: selectedStorageBusMode) {
         case .failure(let romError):
             errorLog("CRITICAL: IPLROM load failed: \(romError)", category: .emulation)
             notifyROMLoadError(romError)
@@ -936,18 +942,33 @@ class GameScene: SKScene {
         // Initialize emulator AFTER ROM files are loaded
         X68000_Init(samplingRate)
 
+        #if os(macOS)
+        switch selectedStorageBusMode {
+        case 1, 2:
+            X68000_SetStorageBusMode(Int32(selectedStorageBusMode))
+        default:
+            X68000_SetStorageBusMode(0)
+        }
+        #endif
+
         fileSystem.loadSRAM()
 
         // Use new state restore system for auto-mounting
         debugLog("GameScene: Calling bootWithStateRestore()", category: .fileSystem)
         fileSystem.bootWithStateRestore()
-        var scsiMounted = (X68000_GetStorageBusMode() == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
+        let storageBusMode = X68000_GetStorageBusMode()
+        var scsiMounted = (storageBusMode == 1 && X68000_SCSI_IsMounted(0, 0) != 0)
         if !scsiMounted {
             scsiMounted = restoreScsiFromDefaultsIfNeeded()
         }
         let sasiMounted = (X68000_GetStorageBusMode() == 0 && X68000_IsHDDReady() != 0)
-        if scsiMounted || sasiMounted {
-            infoLog("GameScene: HDD ready after restore (scsi=\(scsiMounted) sasi=\(sasiMounted)), issuing post-restore reset", category: .fileSystem)
+        #if os(macOS)
+        let scsiUMounted = (X68000_GetStorageBusMode() == 2 && X68000_SCSIU_IsConnected() != 0)
+        #else
+        let scsiUMounted = false
+        #endif
+        if scsiMounted || sasiMounted || scsiUMounted {
+            infoLog("GameScene: HDD ready after restore (scsi=\(scsiMounted) sasi=\(sasiMounted) scsiU=\(scsiUMounted)), issuing post-restore reset", category: .fileSystem)
             X68000_Reset()
         }
         if let warmupRaw = ProcessInfo.processInfo.environment["X68_BOOT_WARMUP_STEPS"],
