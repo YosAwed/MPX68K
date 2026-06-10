@@ -23,6 +23,14 @@ provenance of the third-party code vendored in this repository.
   Sega Saturn emulator through which this copy of C68K was distributed.
   Full license text: `LICENSES/GPL-2.0.txt`.
 
+## Debabelizer — M680x0 disassembler (d68k)
+
+- **Location**: `X68000 Shared/px68k/x68k/d68k.c`, `d68k.h`
+- **Author**: Copyright 1999 Karl Stenerud
+- **License**: Freeware. The license header states the code "may be freely
+  used as long as this copyright notice remains unaltered in the source code
+  and any binary files containing this code in compiled form."
+
 ## fmgen — FM Sound Generator
 
 - **Location**: `X68000 Shared/px68k/fmgen/`

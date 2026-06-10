@@ -10,7 +10,9 @@ terms. See ATTRIBUTION.md for the full provenance of each component.
 |-----------|----------|-----------|---------|
 | C68K (M68000 CPU core) | `X68000 Shared/px68k/m68000/c68k/` | Stephane Dallongeville (as distributed with Yabause) | GPL-2.0-or-later (see `LICENSES/GPL-2.0.txt`) |
 | px68k emulator core | `X68000 Shared/px68k/` | hissorii, based on WinX68k by Kenjo (けろぴー) | Terms of the upstream px68k / WinX68k projects |
-| fmgen (FM sound generator) | `X68000 Shared/px68k/fmgen/` | cisc (1998–2003) | cisc's distribution terms (see source file headers) |
+| Debabelizer (d68k disassembler) | `X68000 Shared/px68k/x68k/d68k.c`, `d68k.h` | Karl Stenerud (1999) | Freeware; the copyright notice must remain unaltered in source and binaries (see `d68k.h` header) |
+| fmgen (FM sound generator) | `X68000 Shared/px68k/fmgen/` | cisc (1998–2003) | cisc's distribution terms (copyright notices in source file headers) |
+| win32api compatibility layer | `X68000 Shared/px68k/win32api/` | NONAKA Kimihiro (2003) | BSD-style license with advertising clause (see `win32api/dosio.h`) |
 | MPX68K Swift application layer and modifications | `X68000 Shared/`, `X68000 macOS/` | GOROman, YosAwed, and contributors | Distributed under the terms compatible with the components above |
 
 ## Note on the combined work
