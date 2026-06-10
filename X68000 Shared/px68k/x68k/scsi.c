@@ -469,6 +469,11 @@ SCSIU_InitBridge(void)
 	pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
 
 	if (pthread_create(&s_scsi_u_bridge.interrupt_thread, NULL, SCSIU_InterruptThread, NULL) != 0) {
+		/* pthread_create 失敗時は interrupt_thread が不定値のままになり得る。
+		 * StopBridge が古いスレッド ID を join しないようゼロクリアする */
+		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
+		s_scsi_u_bridge.interrupt_thread = 0;
+		pthread_mutex_unlock(&s_scsi_u_bridge.mutex);
 		SCSIU_StopBridge();
 		pthread_mutex_lock(&s_scsi_u_bridge.mutex);
 		SCSIU_SetStatusLocked("Interrupt thread start failed");
@@ -690,6 +695,7 @@ SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
 	BYTE* readPtr;
 	BYTE cdb[10];
 	int received;
+	unsigned long long totalBytes64;
 
 	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
 		return 0;
@@ -697,7 +703,13 @@ SCSIU_ReadBlocks(DWORD lba, DWORD count, DWORD blockSize, BYTE* buf)
 	if (count == 0 || blockSize == 0) {
 		return 0;
 	}
-	totalBytes = count * blockSize;
+	/* count/blockSize はゲスト制御値。32bit 乗算のラップを防ぎ、
+	 * SPC の転送カウンタ (TCH/TCM/TCL = 24bit) に収まる範囲に制限する */
+	totalBytes64 = (unsigned long long)count * (unsigned long long)blockSize;
+	if (totalBytes64 == 0 || totalBytes64 > 0xFFFFFFULL) {
+		return 0;
+	}
+	totalBytes = (DWORD)totalBytes64;
 
 	/* --- 1. SPC 初期化 --- */
 	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14); /* Arb enable + initiator mode */
@@ -783,6 +795,7 @@ SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
 {
 	DWORD totalBytes;
 	BYTE cdb[10];
+	unsigned long long totalBytes64;
 
 	if (!s_scsi_u_bridge.connected || s_scsi_u_bridge.control_fd < 0) {
 		return 0;
@@ -790,7 +803,13 @@ SCSIU_WriteBlocks(DWORD lba, DWORD count, DWORD blockSize, const BYTE* buf)
 	if (count == 0 || blockSize == 0) {
 		return 0;
 	}
-	totalBytes = count * blockSize;
+	/* count/blockSize はゲスト制御値。32bit 乗算のラップを防ぎ、
+	 * SPC の転送カウンタ (TCH/TCM/TCL = 24bit) に収まる範囲に制限する */
+	totalBytes64 = (unsigned long long)count * (unsigned long long)blockSize;
+	if (totalBytes64 == 0 || totalBytes64 > 0xFFFFFFULL) {
+		return 0;
+	}
+	totalBytes = (DWORD)totalBytes64;
 
 	/* --- 1. SPC 初期化 --- */
 	SCSIU_SendSPCReg(0x03/*SCTL*/, 0x14);
@@ -1783,6 +1802,9 @@ static int SCSI_ResolveTransfer(DWORD lba, DWORD blocks, DWORD blockSize,
 	if (X68000_GetStorageBusMode() == 2) {
 		*imageOffset = 0; /* 未使用 */
 		bytes = (unsigned long long)blocks * (unsigned long long)blockSize;
+		if (bytes > 0xFFFFFFFFULL) {
+			return 0; /* 32bit に収まらない転送量は拒否 (サイレントな切り捨てを防ぐ) */
+		}
 		*transferBytes = (DWORD)bytes;
 		return 1;
 	}
@@ -3130,7 +3152,7 @@ static void SCSI_HandleIOCS(BYTE cmd)
 					SCSI_GetLogPath(probePath, sizeof(probePath));
 					// Change filename to _probe_dump.txt
 					char *sl = strrchr(probePath, '/');
-					if (sl) strcpy(sl + 1, "_probe_dump.txt");
+					if (sl) snprintf(sl + 1, sizeof(probePath) - (size_t)(sl + 1 - probePath), "_probe_dump.txt");
 					FILE *pf = fopen(probePath, "a");
 					if (pf) {
 						fprintf(pf, "fn=$A0 PROBE #%d: retPC=$%06X d0=$%08X d1=$%08X SR=$%04X\n",
