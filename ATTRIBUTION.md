@@ -32,6 +32,14 @@ provenance of the third-party code vendored in this repository.
   (ADPCM-A), DMP-SOFT (OPNB), and KAJA (test program). fmgen is distributed
   under cisc's terms as stated in the upstream distribution.
 
+## win32api compatibility layer / dosio
+
+- **Location**: `X68000 Shared/px68k/win32api/`
+- **Author**: Copyright (c) 2003 NONAKA Kimihiro (file I/O layer originating
+  from NP2/xkeropi)
+- **License**: BSD-style license with advertising clause, as stated in the
+  source file headers (e.g. `win32api/dosio.h`).
+
 ## MPX68K application layer
 
 - **Location**: `X68000 Shared/*.swift`, `X68000 macOS/`

@@ -1751,7 +1751,7 @@ class FileSystem {
             FileSystem.loadingPairLock.lock()
             defer { FileSystem.loadingPairLock.unlock() }
             FileSystem.currentlyLoadingPair = nil
-            print("Debug: Cleared pair loading state for: \(pairIdentifier)")
+            debugLog("Cleared pair loading state for: \(pairIdentifier)", category: .fileSystem)
         }
         
         // Generate A and B filenames with the same separator pattern
@@ -2105,7 +2105,7 @@ class FileSystem {
                 }
             }
         } catch {
-            print("Error: Failed to load file data from \(url.lastPathComponent): \(error)")
+            errorLog("Failed to load file data from \(url.lastPathComponent): \(error)", category: .fileSystem)
             DispatchQueue.main.async { completion(false) }
         }
     }
