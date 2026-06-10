@@ -124,8 +124,24 @@ class GameScene: SKScene {
     private var devices: [X68Device] = []
     var fileSystem: FileSystem?
     
-    // Track currently loading files to prevent duplicate loads
+    // Track currently loading files to prevent duplicate loads.
+    // Accessed from the main thread and background loading queues, so all
+    // access goes through the lock-protected helpers below.
     private static var currentlyLoadingFiles: Set<String> = []
+    private static let loadingFilesLock = NSLock()
+
+    /// Atomically marks a file as loading. Returns false if it was already loading.
+    private static func beginLoadingFile(_ path: String) -> Bool {
+        loadingFilesLock.lock()
+        defer { loadingFilesLock.unlock() }
+        return currentlyLoadingFiles.insert(path).inserted
+    }
+
+    private static func endLoadingFile(_ path: String) {
+        loadingFilesLock.lock()
+        defer { loadingFilesLock.unlock() }
+        currentlyLoadingFiles.remove(path)
+    }
     
     let moveJoystick = TLAnalogJoystick(withDiameter: 200)
     let rotateJoystick = TLAnalogJoystick(withDiameter: 120)
@@ -182,14 +198,11 @@ class GameScene: SKScene {
         // debugLog("GameScene.load() called with: \(url.lastPathComponent)", category: .fileSystem)
         let urlPath = url.path
         
-        // Check if we're already loading this exact file
-        if GameScene.currentlyLoadingFiles.contains(urlPath) {
+        // Atomically check-and-mark to prevent duplicate loads from racing
+        guard GameScene.beginLoadingFile(urlPath) else {
             warningLog("Already loading file: \(url.lastPathComponent), skipping", category: .fileSystem)
             return
         }
-        
-        // Mark this file as loading immediately to prevent duplicates
-        GameScene.currentlyLoadingFiles.insert(urlPath)
         
         Benchmark.measure("load", block: {
             // debugLog("Starting Benchmark.measure for file: \(url.lastPathComponent)", category: .emulation)
@@ -214,7 +227,7 @@ class GameScene: SKScene {
     
     // Method to clear loading file after completion
     func clearLoadingFile(_ url: URL) {
-        GameScene.currentlyLoadingFiles.remove(url.path)
+        GameScene.endLoadingFile(url.path)
     }
     
     // MARK: - FDD Management
@@ -1552,9 +1565,10 @@ class GameScene: SKScene {
         }
 
         // Single memcpy into the reusable Data buffer (avoids per-frame allocation)
-        _ = textureData.withUnsafeMutableBytes { dst in
-            d.withUnsafeBytes { src in
-                memcpy(dst.baseAddress!, src.baseAddress!, byteCount)
+        textureData.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) -> Void in
+            d.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Void in
+                guard let dstAddr = dst.baseAddress, let srcAddr = src.baseAddress else { return }
+                memcpy(dstAddr, srcAddr, byteCount)
             }
         }
 
@@ -2103,14 +2117,14 @@ class GameScene: SKScene {
 
     // MARK: - Superimpose helpers
     func loadBackgroundVideo(url: URL) {
-        print("DEBUG: GameScene.loadBackgroundVideo called for: \(url.lastPathComponent)")
+        debugLog("GameScene.loadBackgroundVideo called for: \(url.lastPathComponent)", category: .ui)
         errorLog("GameScene: Loading background video from \(url.lastPathComponent)", category: .ui)
         do {
             try superManager.loadVideo(url: url)
-            print("DEBUG: superManager.loadVideo completed successfully")
+            debugLog("superManager.loadVideo completed successfully", category: .ui)
             errorLog("GameScene: Video loading initiated successfully", category: .ui)
         } catch {
-            print("DEBUG: superManager.loadVideo failed: \(error)")
+            errorLog("superManager.loadVideo failed: \(error)", category: .ui)
             errorLog("Failed to load background video", error: error, category: .ui)
         }
     }
@@ -2155,7 +2169,7 @@ class GameScene: SKScene {
 
         // Only log when values change significantly (simplified check)
         if currentState.0 != lastLoggedSuperState.0 || fabsf(currentState.1 - lastLoggedSuperState.1) > 0.001 || fabsf(currentState.2 - lastLoggedSuperState.2) > 0.001 || fabsf(currentState.3 - lastLoggedSuperState.3) > 0.001 {
-            print("DEBUG: applySuperimposeUniforms - enabled: \(superManager.settings.enabled), threshold: \(superManager.settings.threshold), softness: \(superManager.settings.softness), alpha: \(superManager.settings.alpha)")
+            debugLog("applySuperimposeUniforms - enabled: \(superManager.settings.enabled), threshold: \(superManager.settings.threshold), softness: \(superManager.settings.softness), alpha: \(superManager.settings.alpha)", category: .ui)
             lastLoggedSuperState = currentState
         }
 
@@ -2301,7 +2315,7 @@ class GameScene: SKScene {
         }
 
         // CRITICAL: Ensure CRT shader is fully initialized and applied to spr
-        print("DEBUG: Applying CRT shader directly to spr for superimpose")
+        debugLog("Applying CRT shader directly to spr for superimpose", category: .ui)
 
         // Force shader creation and uniform update before applying
         crtFilter.setSuperimpose(enabled: superManager.settings.enabled,
@@ -2311,9 +2325,9 @@ class GameScene: SKScene {
 
         if let shader = crtFilter.getShader() {
             spr.shader = shader
-            print("DEBUG: CRT shader applied to spr successfully with uniforms updated")
+            debugLog("CRT shader applied to spr successfully with uniforms updated", category: .ui)
         } else {
-            print("DEBUG: WARNING - No CRT shader available after forced update")
+            warningLog("No CRT shader available after forced update", category: .ui)
             spr.shader = nil
         }
 
@@ -2327,7 +2341,7 @@ class GameScene: SKScene {
 
     private func restoreCRTEffectChainAfterSuperimpose() {
         // Remove shader from spr before putting it back in effect chain
-        print("DEBUG: Restoring CRT effect chain, removing shader from spr")
+        debugLog("Restoring CRT effect chain, removing shader from spr", category: .ui)
         spr.shader = nil
 
         // Rebuild effect chain identical to creation path without changing texture
@@ -2344,7 +2358,7 @@ class GameScene: SKScene {
         crtEffectRoot = curvatureNode
 
         // Apply CRT shader to the appropriate node in the effect chain
-        print("DEBUG: Applying CRT shader to effect chain")
+        debugLog("Applying CRT shader to effect chain", category: .ui)
         crtFilter.attach(to: spr)
 
         applyCIEffectsForCurrentCRT()

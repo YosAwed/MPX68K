@@ -1,0 +1,27 @@
+# MPX68K License Information
+
+MPX68K is a Sharp X68000 emulator for macOS. It is a derivative work that
+combines code from several upstream projects, each with its own license
+terms. See ATTRIBUTION.md for the full provenance of each component.
+
+## Component licenses
+
+| Component | Location | Author(s) | License |
+|-----------|----------|-----------|---------|
+| C68K (M68000 CPU core) | `X68000 Shared/px68k/m68000/c68k/` | Stephane Dallongeville (as distributed with Yabause) | GPL-2.0-or-later (see `LICENSES/GPL-2.0.txt`) |
+| px68k emulator core | `X68000 Shared/px68k/` | hissorii, based on WinX68k by Kenjo (けろぴー) | Terms of the upstream px68k / WinX68k projects |
+| fmgen (FM sound generator) | `X68000 Shared/px68k/fmgen/` | cisc (1998–2003) | cisc's distribution terms (see source file headers) |
+| MPX68K Swift application layer and modifications | `X68000 Shared/`, `X68000 macOS/` | GOROman, YosAwed, and contributors | Distributed under the terms compatible with the components above |
+
+## Note on the combined work
+
+Because the application statically links the C68K CPU core, which is
+licensed under the GNU General Public License version 2 or later, binary
+distributions of MPX68K must comply with the GPL: the corresponding source
+code must be made available, and the combined work is distributed under
+GPL-compatible terms. The full text of the GPL-2.0 is provided in
+`LICENSES/GPL-2.0.txt`.
+
+This file is a good-faith summary by the maintainers. If you are an
+upstream author and believe a component is misattributed or mislicensed
+here, please open an issue.

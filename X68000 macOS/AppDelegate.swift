@@ -357,7 +357,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
 
     private func presentSCSIOpenPanel() {
-        print("MAC_SCSI_OPEN_PANEL v5 presentSCSIOpenPanel entry")
+        debugLog("MAC_SCSI_OPEN_PANEL v5 presentSCSIOpenPanel entry", category: .ui)
         fflush(stdout)
         appendSCSILog("MAC_SCSI_OPEN_PANEL v5 present")
 
@@ -588,15 +588,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             object: nil
         )
 
-        // Disabled: restoreStorageBusStateIfNeeded() used separate
-        // UserDefaults keys (SCSI0Filename etc.) that went out of sync
-        // with DiskStateManager. All state restoration now goes through
-        // DiskStateManager via GameScene.bootWithStateRestore().
-        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-        //     self?.appendSCSILog("MAC_RESTORE_SCHEDULED_CALL")
-        //     self?.restoreStorageBusStateIfNeeded()
-        // }
-
+        // Note: storage bus state restoration goes through DiskStateManager
+        // via GameScene.bootWithStateRestore(); the old UserDefaults-based
+        // restoreStorageBusStateIfNeeded() path (SCSI0Filename keys etc.)
+        // was disabled because it went out of sync with DiskStateManager.
     }
 
     // MARK: - Menu System Rebuild
@@ -1661,12 +1656,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     // MARK: - Background Video Actions
     @objc func setBackgroundVideo(_ sender: Any?) {
-        print("DEBUG: setBackgroundVideo called")
+        debugLog("setBackgroundVideo called", category: .ui)
         guard let gvc = gameViewController else {
-            print("DEBUG: No gameViewController")
+            debugLog("No gameViewController", category: .ui)
             return
         }
-        print("DEBUG: gameViewController exists, gameScene: \(gvc.gameScene != nil)")
+        debugLog("gameViewController exists, gameScene: \(gvc.gameScene != nil)", category: .ui)
 
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -1680,23 +1675,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             panel.allowedFileTypes = ["mp4", "mov", "m4v"]
         }
 
-        print("DEBUG: About to show file panel")
+        debugLog("About to show file panel", category: .ui)
         if panel.runModal() == .OK, let url = panel.url {
-            print("DEBUG: File selected: \(url.lastPathComponent)")
+            debugLog("File selected: \(url.lastPathComponent)", category: .ui)
 
             if let gameScene = gvc.gameScene {
-                print("DEBUG: GameScene exists, calling loadBackgroundVideo")
+                debugLog("GameScene exists, calling loadBackgroundVideo", category: .ui)
                 gameScene.loadBackgroundVideo(url: url)
                 gameScene.setSuperimposeEnabled(true)
-                print("DEBUG: setSuperimposeEnabled(true) called")
+                debugLog("setSuperimposeEnabled(true) called", category: .ui)
             } else {
-                print("DEBUG: ERROR - GameScene is nil!")
+                errorLog("GameScene is nil!", category: .ui)
             }
 
             updateCRTMenuCheckmarks()
-            print("DEBUG: Video loading and enable completed")
+            debugLog("Video loading and enable completed", category: .ui)
         } else {
-            print("DEBUG: File panel cancelled or no URL")
+            debugLog("File panel cancelled or no URL", category: .ui)
         }
     }
     @objc func setBackgroundYouTubeVideo(_ sender: Any?) {
@@ -2188,7 +2183,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // アプリケーションレベルでのファイルオープン処理（ダブルクリックで開いた場合）
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        print("AppDelegate.application(openFile:) called with: \(filename)")
+        infoLog("AppDelegate.application(openFile:) called with: \(filename)", category: .fileSystem)
         let url = URL(fileURLWithPath: filename)
         gameViewController?.load(url)
         updateMenuOnFileOperation()  // Immediate menu update
@@ -2198,7 +2193,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // より新しいファイルオープン処理
     func application(_ application: NSApplication, open urls: [URL]) {
-        print("AppDelegate.application(open urls:) called with: \(urls)")
+        infoLog("AppDelegate.application(open urls:) called with: \(urls)", category: .fileSystem)
         for url in urls {
             gameViewController?.load(url)
         }
@@ -2210,32 +2205,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - FDD Menu Actions
     @IBAction func openFDDDriveA(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.openFDDDriveA called")
         gameViewController?.openFDDDriveA(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func openFDDDriveB(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.openFDDDriveB called")
         gameViewController?.openFDDDriveB(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveA(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectFDDDriveA called")
         gameViewController?.ejectFDDDriveA(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveB(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectFDDDriveB called")
         gameViewController?.ejectFDDDriveB(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
@@ -2253,22 +2240,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
     
     @IBAction func ejectHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.createEmptyHDD called")
         gameViewController?.createEmptyHDD(sender)
     }
     
     @IBAction func saveHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.saveHDD called")
         gameViewController?.gameScene?.saveHDD()
     }
     
@@ -2405,7 +2386,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     @objc func openSCSI0(_ sender: Any?) {
         // Version marker so the log file makes it obvious which build is live.
         // If you see "v3" in the log, the current source is running.
-        print("MAC_SCSI_OPEN_PANEL v3 openSCSI0 entry")
+        debugLog("MAC_SCSI_OPEN_PANEL v3 openSCSI0 entry", category: .ui)
         fflush(stdout)
         appendSCSILog("MAC_SCSI_OPEN_PANEL v3 entry")
 
@@ -2567,23 +2548,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Screen Rotation Menu Actions
     @IBAction func rotateScreen(_ sender: Any) {
-        print("🐛 AppDelegate.rotateScreen called")
+        debugLog("AppDelegate.rotateScreen called", category: .ui)
         gameViewController?.rotateScreen(sender)
     }
     
     @IBAction func setLandscapeMode(_ sender: Any) {
-        print("🐛 AppDelegate.setLandscapeMode called")
+        debugLog("AppDelegate.setLandscapeMode called", category: .ui)
         gameViewController?.setLandscapeMode(sender)
     }
     
     @IBAction func setPortraitMode(_ sender: Any) {
-        print("🐛 AppDelegate.setPortraitMode called")
+        debugLog("AppDelegate.setPortraitMode called", category: .ui)
         gameViewController?.setPortraitMode(sender)
     }
     
     // MARK: - System Menu Actions
     @IBAction func resetSystem(_ sender: Any) {
-        print("🐛 AppDelegate.resetSystem called")
+        debugLog("AppDelegate.resetSystem called", category: .ui)
         gameViewController?.resetSystem(sender)
     }
 

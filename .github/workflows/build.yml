@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  core-tests:
+    name: Core unit tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run emulation-core tests
+        run: make -C tests/core
+
+  macos-build:
+    name: macOS app build
+    # X68000.xcodeproj uses project format 90, which requires Xcode 26
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)/Contents/Developer"
+          xcodebuild -version
+
+      - name: Build C68K static library (c68k mac scheme)
+        run: |
+          xcodebuild -project c68k/c68k.xcodeproj \
+            -scheme "c68k mac" \
+            -configuration Release \
+            SYMROOT="$PWD/c68k/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build X68000 macOS app
+        run: |
+          xcodebuild -project X68000.xcodeproj \
+            -scheme "X68000 macOS" \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            build

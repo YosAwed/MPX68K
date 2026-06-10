@@ -91,6 +91,10 @@ int D88_SetFD(int drv, char* filename)
 //				if ( File_Read(fp, &d88s, sizeof(D88_SECTOR))!=sizeof(D88_SECTOR) ) goto d88_set_error;
 				memcpy( &d88s, Ptr, sizeof(D88_SECTOR));	Ptr += sizeof(D88_SECTOR);
 
+				// Security: Validate sector count from image header
+				if (d88s.sectors == 0 || d88s.sectors > MAX_SECTORS_PER_TRACK) {
+					goto d88_set_error;
+				}
 				// Security: Validate sector size to prevent buffer overflow
 				if (d88s.size > MAX_SECTOR_SIZE) {
 					goto d88_set_error;
@@ -138,6 +142,10 @@ int D88_SetFD(int drv, char* filename)
 			File_Seek(fp, ptr, FSEEK_SET);
 			for (sct=0; sct<d88s.sectors; sct++) {
 				if ( File_Read(fp, &d88s, sizeof(D88_SECTOR))!=sizeof(D88_SECTOR) ) goto d88_set_error;
+				// Security: Validate sector count from image header
+				if (d88s.sectors == 0 || d88s.sectors > MAX_SECTORS_PER_TRACK) {
+					goto d88_set_error;
+				}
 				// Security: Validate sector size to prevent buffer overflow
 				if (d88s.size > MAX_SECTOR_SIZE) {
 					goto d88_set_error;

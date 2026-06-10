@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MPX68K is a Sharp X68000 computer emulator for iOS and macOS platforms, based on the px68k emulator core. The project bridges low-level C emulation code with modern Swift UI frameworks using SpriteKit. This is a multi-platform document-based application with deep integration into Apple's ecosystem.
+MPX68K is a Sharp X68000 computer emulator for macOS, based on the px68k emulator core. The project bridges low-level C emulation code with modern Swift UI frameworks using SpriteKit. This is a document-based application with deep integration into Apple's ecosystem. (An earlier iOS target was removed in August 2025; the only build target today is macOS.)
 
 ## Build Commands
 
@@ -16,34 +16,36 @@ open X68000.xcodeproj
 # List available schemes and targets
 xcodebuild -list -project X68000.xcodeproj
 
-# Build macOS version (current primary target)
+# Build macOS version (the only target)
 xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Debug
 xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Release
 
-# Build iOS version (if needed)
-xcodebuild -project X68000.xcodeproj -scheme "X68000 iOS" -configuration Debug
-
 # Clean build artifacts
 xcodebuild clean -project X68000.xcodeproj -scheme "X68000 macOS"
+```
+
+### Running Tests
+Host-side unit tests for the C emulation core live in `tests/core/` and run
+on any platform with a C compiler (no Xcode required). CI runs them on Linux:
+```bash
+make -C tests/core
 ```
 
 ### Dependencies
 The project has a critical dependency on the c68k CPU emulator that must be built first:
 ```bash
 # Build C68K static library (required dependency)
-xcodebuild -project c68k/c68k.xcodeproj -scheme "c68k" -configuration Debug
+# The macOS app links against libc68k_mac_DEBUG.a / libc68k_mac.a,
+# which are produced by the "c68k mac" scheme (the plain "c68k" scheme is legacy)
 xcodebuild -project c68k/c68k.xcodeproj -scheme "c68k mac" -configuration Debug
-
-# The main project links against libc68k.a from the c68k build output
 ```
 
 ## Architecture
 
-### Multi-Platform Design Pattern
-The project uses a shared core with platform-specific presentation layers:
-- **X68000 Shared/**: Cross-platform business logic and emulation core
-- **X68000 iOS/**: iOS-specific UI, touch controls, and app lifecycle
-- **X68000 macOS/**: macOS-specific UI, menu integration, and window management  
+### Design Pattern
+The project keeps a shared core separated from the platform presentation layer (a layout inherited from the former iOS/macOS dual-target era):
+- **X68000 Shared/**: Business logic and emulation core
+- **X68000 macOS/**: macOS-specific UI, menu integration, and window management
 - **c68k/**: Independent M68000 CPU emulator built as static library
 
 ### Core Components
@@ -77,15 +79,9 @@ The project uses a shared core with platform-specific presentation layers:
 - **Security-Scoped Resources**: Proper sandboxed file access on macOS
 - **ROM Management**: Flexible loading from embedded or external ROM files
 
-## Platform-Specific Implementation
+## Platform Implementation
 
-### iOS Platform
-- **Touch Controls**: Virtual joycard with touch input handling
-- **Document Browser**: iOS document picker integration for file selection
-- **App Store Distribution**: Configured for iOS App Store with proper entitlements
-- **iCloud Integration**: Automatic document synchronization
-
-### macOS Platform  
+### macOS Platform
 - **Native Menu Integration**: File menu with FDD/HDD loading/ejecting shortcuts
 - **Window Management**: Standard macOS document-based app architecture
 - **Keyboard/Mouse Input**: Full support for traditional input methods
@@ -114,9 +110,7 @@ The project uses a shared core with platform-specific presentation layers:
 ### Audio System
 - **AudioStream Class**: Bridges C++ fmgen sound synthesis to AVFoundation
 - **Real-time Audio**: Low-latency audio processing for accurate emulation
-- **Cross-Platform**: Same audio architecture works on both iOS and macOS
 
 ### Input Handling
-- **Unified Input**: Single input system supports keyboard, mouse, touch, and gamepad
-- **Platform-Specific**: Touch controls on iOS, traditional input on macOS
-- **Joycard Emulation**: Virtual joycard provides consistent interface across platforms
+- **Unified Input**: Single input system supports keyboard, mouse, and gamepad
+- **Joycard Emulation**: Virtual joycard provides a consistent controller interface
