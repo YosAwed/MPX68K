@@ -11,8 +11,6 @@
 		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
 		0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
-		0758DC7C243F137E0097E86C /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7A243F137E0097E86C /* Settings.bundle */; };
-		0758DC7F243F1AC80097E86C /* Settings.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC7D243F1AC70097E86C /* Settings.png */; };
 		0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
 		0760DC282434F493004CA0CF /* FDD.png in Resources */ = {isa = PBXBuildFile; fileRef = 0760DC262434F492004CA0CF /* FDD.png */; };
 		0760DC2B24350DDC004CA0CF /* BenchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0760DC2924350DDC004CA0CF /* BenchMark.swift */; };
@@ -125,8 +123,6 @@
 		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
 		0758DC57243EFCE60097E86C /* ConfigScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = ConfigScene.sks; sourceTree = "<group>"; };
 		0758DC5D243EFD830097E86C /* ConfigScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigScene.swift; sourceTree = "<group>"; };
-		0758DC7A243F137E0097E86C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
-		0758DC7D243F1AC70097E86C /* Settings.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Settings.png; sourceTree = "<group>"; };
 		0758DD5924401BA10097E86C /* HDDIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HDDIcon.png; sourceTree = "<group>"; };
 		0760DC262434F492004CA0CF /* FDD.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = FDD.png; sourceTree = "<group>"; };
 		0760DC2924350DDC004CA0CF /* BenchMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchMark.swift; sourceTree = "<group>"; };
@@ -218,7 +214,6 @@
 		07F863BC242F93EA00CBB224 /* X68000.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = X68000.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		07F863C3242F93EA00CBB224 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		07F863C5242F93EA00CBB224 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		07F863D8242F944100CBB224 /* X68000 iOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 iOS-Bridging-Header.h"; sourceTree = "<group>"; };
 		07F86403242F94BB00CBB224 /* dosio.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = dosio.c; sourceTree = "<group>"; };
 		07F86404242F94BB00CBB224 /* peace.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = peace.c; sourceTree = "<group>"; };
 		07F86405242F94BB00CBB224 /* peace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = peace.h; sourceTree = "<group>"; };
@@ -313,8 +308,6 @@
 		07F8639C242F93E800CBB224 = {
 			isa = PBXGroup;
 			children = (
-				0758DC7D243F1AC70097E86C /* Settings.png */,
-				0758DC7A243F137E0097E86C /* Settings.bundle */,
 				073F76FB24323762005B1F18 /* c68k.xcodeproj */,
 				07F863A1242F93E800CBB224 /* X68000 Shared */,
 				07F863BD242F93EA00CBB224 /* X68000 macOS */,
@@ -411,7 +404,6 @@
 				07F4C6D22430664A002CF5CA /* misc.h */,
 				07F4C6CB2430664A002CF5CA /* opm.cpp */,
 				07F4C6D52430664B002CF5CA /* opm.h */,
-				07F863D8242F944100CBB224 /* X68000 iOS-Bridging-Header.h */,
 				535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */,
 			);
 			path = fmgen;
@@ -647,11 +639,9 @@
 				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				0786964C243DBDF7007FCCEA /* jSubstrate.png in Resources */,
-				0758DC7F243F1AC80097E86C /* Settings.png in Resources */,
 				0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */,
 				07869646243DBDF7007FCCEA /* jStick@2x.png in Resources */,
 				07869648243DBDF7007FCCEA /* jStick.png in Resources */,
-				0758DC7C243F137E0097E86C /* Settings.bundle in Resources */,
 				07F863C4242F93EA00CBB224 /* Main.storyboard in Resources */,
 				0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */,
 				07F863CD242F93EA00CBB224 /* Assets.xcassets in Resources */,

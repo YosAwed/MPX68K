@@ -1,13 +1,12 @@
 # MPX68K Software Architecture
 
-This document describes the software architecture of MPX68K, a Sharp X68000 emulator for iOS and macOS platforms.
+This document describes the software architecture of MPX68K, a Sharp X68000 emulator for macOS. (The former iOS target was removed in August 2025; the shared/platform split in the source layout is a legacy of that era.)
 
 ## Overall System Architecture
 
 ```mermaid
 graph TB
     subgraph "User Interface Layer"
-        iOS[iOS App]
         macOS[macOS App]
     end
     
@@ -37,7 +36,6 @@ graph TB
         UTI[UniformTypeIdentifiers]
     end
     
-    iOS --> GameScene
     macOS --> GameScene
     
     GameScene --> SpriteKit
@@ -59,24 +57,16 @@ graph TB
     
     M68K --> C68K
     
-    style iOS fill:#e1f5fe
     style macOS fill:#e8f5e8
     style GameScene fill:#fff3e0
     style PX68K fill:#fce4ec
     style C68K fill:#f3e5f5
 ```
 
-## Platform-Specific Architecture
+## Platform Architecture
 
 ```mermaid
 graph LR
-    subgraph "iOS Platform"
-        iOSUI[iOS UI Layer]
-        TouchInput[Touch Input]
-        DocBrowser[Document Browser]
-        iOSLife[App Lifecycle]
-    end
-    
     subgraph "macOS Platform"
         macOSUI[macOS UI Layer]
         MenuBar[Menu Bar Integration]
@@ -89,18 +79,12 @@ graph LR
         SharedCore[X68000 Shared<br/>Business Logic]
     end
     
-    iOSUI --> SharedCore
-    TouchInput --> SharedCore
-    DocBrowser --> SharedCore
-    iOSLife --> SharedCore
-    
     macOSUI --> SharedCore
     MenuBar --> SharedCore
     KeyMouse --> SharedCore
     DragDrop --> SharedCore
     WindowMgmt --> SharedCore
     
-    style iOSUI fill:#e1f5fe
     style macOSUI fill:#e8f5e8
     style SharedCore fill:#fff3e0
 ```
@@ -116,7 +100,7 @@ sequenceDiagram
     participant C68K_CPU
     participant Audio_System
     
-    User->>Swift_UI: Input (Touch/Keyboard/Mouse)
+    User->>Swift_UI: Input (Keyboard/Mouse/Gamepad)
     Swift_UI->>GameScene: Process Input
     GameScene->>PX68K_Core: Emulation Step
     PX68K_Core->>C68K_CPU: Execute CPU Instructions
