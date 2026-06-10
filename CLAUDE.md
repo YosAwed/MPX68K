@@ -24,6 +24,13 @@ xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Relea
 xcodebuild clean -project X68000.xcodeproj -scheme "X68000 macOS"
 ```
 
+### Running Tests
+Host-side unit tests for the C emulation core live in `tests/core/` and run
+on any platform with a C compiler (no Xcode required). CI runs them on Linux:
+```bash
+make -C tests/core
+```
+
 ### Dependencies
 The project has a critical dependency on the c68k CPU emulator that must be built first:
 ```bash

@@ -110,3 +110,7 @@ _wip_save_*.tar.gz
 
 # Node tooling (if any auxiliary scripts add package.json)
 package-lock.json
+
+# Host-side core test artifacts
+tests/core/test_disk_d88
+tests/core/_test_image.d88
