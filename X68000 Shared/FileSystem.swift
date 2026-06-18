@@ -427,14 +427,16 @@ public class DiskStateManager {
         }
         
         // セキュリティスコープブックマークの復元
-        var needsSecurityScope = false
+        var restoreURL = url
+        var securityScopedURL: URL?
         if let bookmarkData = fddState.bookmarkData {
             do {
                 var isStale = false
                 let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
                 
                 if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
-                    needsSecurityScope = true
+                    restoreURL = resolvedURL
+                    securityScopedURL = resolvedURL
                     infoLog("Security-scoped access restored for FDD drive \(fddState.drive)", category: .fileSystem)
                 }
             } catch {
@@ -443,13 +445,28 @@ public class DiskStateManager {
         }
         
         defer {
-            if needsSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
+            securityScopedURL?.stopAccessingSecurityScopedResource()
         }
-        
+
+        do {
+            let fileSize = try X68Security.validatedDiskImageSize(restoreURL, maximumSize: 2 * 1024 * 1024)
+            guard let buffer = X68000_GetDiskImageBufferPointer(fddState.drive, Int(fileSize)) else {
+                errorLog("Failed to get FDD buffer pointer for restore: drive \(fddState.drive)", category: .fileSystem)
+                return false
+            }
+
+            try X68Security.streamFileContents(restoreURL, to: buffer, expectedSize: fileSize, chunkSize: 256 * 1024)
+        } catch {
+            errorLog("Failed to stream FDD file for restore: \(error)", category: .fileSystem)
+            return false
+        }
+
         // ディスクイメージをロード
-        X68000_LoadFDD(fddState.drive, fddState.filePath)
+        X68000_LoadFDD(fddState.drive, restoreURL.path)
+        mountedFDDFiles[fddState.drive] = restoreURL
+        if let bookmarkData = fddState.bookmarkData {
+            mountedFDDBookmarks[fddState.drive] = bookmarkData
+        }
         infoLog("Restored FDD drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
         return true
     }
