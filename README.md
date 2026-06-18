@@ -367,7 +367,8 @@ MPX68K/
 │   └── c68k.xcodeproj      # Independent build system
 ├── CLAUDE.md               # Development guidelines
 ├── ARCHITECTURE.md         # Detailed architecture docs
-└── Settings.bundle/        # App settings configuration
+├── LICENSE                 # License summary for all components
+└── ATTRIBUTION.md          # Upstream project attribution
 ```
 
 ### Building
@@ -412,13 +413,13 @@ Please refer to `CLAUDE.md` for detailed development guidelines and architectura
 
 ## License
 
-This project is based on px68k emulator. Please refer to the original px68k license terms.
+See [LICENSE](LICENSE) for the license summary and [ATTRIBUTION.md](ATTRIBUTION.md) for full upstream attribution.
 
 # Third-Party Notices
 
-- **px68k** (hissorii/px68k) — upstream emulator core. See upstream license files.
-- **c68k** — MC68000 CPU emulator (via px68k). See upstream.
-- **fmgen** by cisc — FM/PSG implementation (via px68k). See upstream.
+- **px68k** (hissorii/px68k) — upstream emulator core, derived from WinX68k by Kenjo (けろぴー).
+- **C68K** by Stephane Dallongeville — MC68000 CPU emulator, GPL-2.0-or-later (see `LICENSES/GPL-2.0.txt`).
+- **fmgen** by cisc — FM/PSG sound implementation.
 
 No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
 

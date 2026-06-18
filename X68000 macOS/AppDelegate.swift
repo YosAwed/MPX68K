@@ -11,10 +11,11 @@ import UniformTypeIdentifiers
 import os.log
 import SwiftUI
 
-// Storage bus selection (SASI or SCSI). Default is SASI.
+// Storage bus selection. Default is SASI.
 enum StorageBusMode: Int {
     case sasi = 0
     case scsi = 1
+    case scsiU = 2
 }
 
 extension UserDefaults {
@@ -68,13 +69,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     private let sccCompatCheckInterval: TimeInterval = 1.0
 
     // Storage bus / SCSI ID0 cached state
-    private var cachedStorageBusMode: Int = 0 // 0=SASI,1=SCSI
+    private var cachedStorageBusMode: Int = 0 // 0=SASI,1=SCSI image,2=SCSI-U
     private var cachedSCSIReady0: Bool = false
     private var cachedSCSIFilename0: String? = nil
     private var storageRestoreRetryCount: Int = 0
     private let maxStorageRestoreRetries: Int = 5
     private let storageRestoreRetryDelay: TimeInterval = 0.6
     private var isPresentingSCSIOpenPanel = false
+    private var isConnectingSCSIU = false
 
     // MARK: - Core Bridge Helpers
     private func resetSCSILogs() {
@@ -144,17 +146,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     private func coreGetStorageBusMode() -> StorageBusMode {
         let mode = X68000_GetStorageBusMode()
-        return mode == 1 ? .scsi : .sasi
+        switch mode {
+        case 1:
+            return .scsi
+        case 2:
+            return .scsiU
+        default:
+            return .sasi
+        }
     }
 
     private func coreSetStorageBusMode(_ mode: StorageBusMode) {
-        X68000_SetStorageBusMode(mode == .scsi ? 1 : 0)
+        X68000_SetStorageBusMode(Int32(mode.rawValue))
     }
 
     private func coreGetSCSI0State() -> (ready: Bool, path: String?) {
         // If core exposes query APIs, prefer them; otherwise fall back to our cached values
         // Here we reuse our cache variables if core query is not available
         return (X68000_SCSI_IsMounted(0, 0) != 0, X68000_SCSI_GetImagePath(0, 0).flatMap { String(cString: $0) })
+    }
+
+    private func coreGetSCSIUState() -> (connected: Bool, status: String) {
+        let connected = X68000_SCSIU_IsConnected() != 0
+        let status = X68000_SCSIU_GetStatus().flatMap { String(cString: $0) } ?? "Unknown"
+        return (connected, status)
+    }
+
+    private func coreConnectSCSIU() -> Bool {
+        X68000_SCSIU_Connect() != 0
+    }
+
+    private func coreDisconnectSCSIU() {
+        X68000_SCSIU_Disconnect()
+    }
+
+    private func clearPersistedSCSI0State() {
+        let defaults = UserDefaults.standard
+        defaults.scsi0Ready = false
+        defaults.scsi0Filename = nil
     }
 
     private func coreMountSCSI0(path: String) -> Bool {
@@ -328,7 +357,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
 
     private func presentSCSIOpenPanel() {
-        print("MAC_SCSI_OPEN_PANEL v5 presentSCSIOpenPanel entry")
+        debugLog("MAC_SCSI_OPEN_PANEL v5 presentSCSIOpenPanel entry", category: .ui)
         fflush(stdout)
         appendSCSILog("MAC_SCSI_OPEN_PANEL v5 present")
 
@@ -376,6 +405,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             alert.beginSheetModal(for: window, completionHandler: nil)
         } else {
             alert.runModal()
+        }
+    }
+
+    private func showSCSIUConnectionFailureAlert() {
+        let alert = NSAlert()
+        alert.messageText = "SCSI-U に接続できませんでした"
+        alert.informativeText = coreGetSCSIUState().status
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        if let window = gameViewController?.view.window ?? NSApplication.shared.mainWindow {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
+    }
+
+    private func performSCSIUConnect(rollbackToSASIOnFailure: Bool,
+                                     onSuccess: (() -> Void)? = nil) {
+        guard !isConnectingSCSIU else { return }
+
+        isConnectingSCSIU = true
+        updateMenuTitles()
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            let connected = self.coreConnectSCSIU()
+
+            DispatchQueue.main.async {
+                self.isConnectingSCSIU = false
+
+                if connected {
+                    onSuccess?()
+                } else {
+                    if rollbackToSASIOnFailure {
+                        self.coreSetStorageBusMode(.sasi)
+                        UserDefaults.standard.storageBusMode = .sasi
+                        self.cachedStorageBusMode = StorageBusMode.sasi.rawValue
+                        DiskStateManager.shared.saveCurrentState()
+                    }
+                    self.showSCSIUConnectionFailureAlert()
+                }
+
+                self.updateMenuTitles()
+            }
         }
     }
 
@@ -514,15 +588,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             object: nil
         )
 
-        // Disabled: restoreStorageBusStateIfNeeded() used separate
-        // UserDefaults keys (SCSI0Filename etc.) that went out of sync
-        // with DiskStateManager. All state restoration now goes through
-        // DiskStateManager via GameScene.bootWithStateRestore().
-        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-        //     self?.appendSCSILog("MAC_RESTORE_SCHEDULED_CALL")
-        //     self?.restoreStorageBusStateIfNeeded()
-        // }
-
+        // Note: storage bus state restoration goes through DiskStateManager
+        // via GameScene.bootWithStateRestore(); the old UserDefaults-based
+        // restoreStorageBusStateIfNeeded() path (SCSI0Filename keys etc.)
+        // was disabled because it went out of sync with DiskStateManager.
     }
 
     // MARK: - Menu System Rebuild
@@ -649,6 +718,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         busSCSI.identifier = NSUserInterfaceItemIdentifier("HDD-bus-SCSI")
         busMenu.addItem(busSCSI)
 
+        let busSCSIU = NSMenuItem(title: "SCSI-U", action: #selector(setStorageBusSCSIU(_:)), keyEquivalent: "")
+        busSCSIU.target = self
+        busSCSIU.identifier = NSUserInterfaceItemIdentifier("HDD-bus-SCSIU")
+        busMenu.addItem(busSCSIU)
+
         hddMenu.addItem(busMenuItem)
 
         // SCSI Devices submenu (ID 0 only for now).
@@ -672,6 +746,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         scsiDevicesMenu.addItem(scsiEject0)
 
         hddMenu.addItem(scsiDevicesMenuItem)
+
+        let scsiUDevicesMenuItem = NSMenuItem(title: "SCSI-U Device", action: nil, keyEquivalent: "")
+        scsiUDevicesMenuItem.identifier = NSUserInterfaceItemIdentifier("SCSIU-device")
+        let scsiUDevicesMenu = NSMenu(title: "SCSI-U Device")
+        scsiUDevicesMenuItem.submenu = scsiUDevicesMenu
+
+        let scsiUStatus = NSMenuItem(title: "Status: Disconnected", action: nil, keyEquivalent: "")
+        scsiUStatus.identifier = NSUserInterfaceItemIdentifier("SCSIU-status")
+        scsiUStatus.isEnabled = false
+        scsiUDevicesMenu.addItem(scsiUStatus)
+
+        let scsiUConnect = NSMenuItem(title: "Connect SCSI-U", action: #selector(connectSCSIU(_:)), keyEquivalent: "")
+        scsiUConnect.target = self
+        scsiUConnect.identifier = NSUserInterfaceItemIdentifier("SCSIU-connect")
+        scsiUDevicesMenu.addItem(scsiUConnect)
+
+        let scsiUDisconnect = NSMenuItem(title: "Disconnect SCSI-U", action: #selector(disconnectSCSIU(_:)), keyEquivalent: "")
+        scsiUDisconnect.target = self
+        scsiUDisconnect.identifier = NSUserInterfaceItemIdentifier("SCSIU-disconnect")
+        scsiUDevicesMenu.addItem(scsiUDisconnect)
+
+        hddMenu.addItem(scsiUDevicesMenuItem)
 
         mainMenu.addItem(hddMenuItem)
 
@@ -1560,12 +1656,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     // MARK: - Background Video Actions
     @objc func setBackgroundVideo(_ sender: Any?) {
-        print("DEBUG: setBackgroundVideo called")
+        debugLog("setBackgroundVideo called", category: .ui)
         guard let gvc = gameViewController else {
-            print("DEBUG: No gameViewController")
+            debugLog("No gameViewController", category: .ui)
             return
         }
-        print("DEBUG: gameViewController exists, gameScene: \(gvc.gameScene != nil)")
+        debugLog("gameViewController exists, gameScene: \(gvc.gameScene != nil)", category: .ui)
 
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -1579,23 +1675,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             panel.allowedFileTypes = ["mp4", "mov", "m4v"]
         }
 
-        print("DEBUG: About to show file panel")
+        debugLog("About to show file panel", category: .ui)
         if panel.runModal() == .OK, let url = panel.url {
-            print("DEBUG: File selected: \(url.lastPathComponent)")
+            debugLog("File selected: \(url.lastPathComponent)", category: .ui)
 
             if let gameScene = gvc.gameScene {
-                print("DEBUG: GameScene exists, calling loadBackgroundVideo")
+                debugLog("GameScene exists, calling loadBackgroundVideo", category: .ui)
                 gameScene.loadBackgroundVideo(url: url)
                 gameScene.setSuperimposeEnabled(true)
-                print("DEBUG: setSuperimposeEnabled(true) called")
+                debugLog("setSuperimposeEnabled(true) called", category: .ui)
             } else {
-                print("DEBUG: ERROR - GameScene is nil!")
+                errorLog("GameScene is nil!", category: .ui)
             }
 
             updateCRTMenuCheckmarks()
-            print("DEBUG: Video loading and enable completed")
+            debugLog("Video loading and enable completed", category: .ui)
         } else {
-            print("DEBUG: File panel cancelled or no URL")
+            debugLog("File panel cancelled or no URL", category: .ui)
         }
     }
     @objc func setBackgroundYouTubeVideo(_ sender: Any?) {
@@ -1720,6 +1816,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                     logger.debug("Updating HDD menu")
                     self.updateHDDMenuTitles(submenu: submenu)
                     self.updateSCSIMenuTitles(hddSubmenu: submenu)
+                    self.updateSCSIUMenuTitles(hddSubmenu: submenu)
                 } else if menuItem.title == "Display" {
                     logger.debug("Updating Display menu - skipping mouse checkmark update to prevent infinite loop")
                     // Commented out to prevent infinite loop:
@@ -1772,6 +1869,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                     item.title = "Eject SCSI (ID 0)"
                     item.isEnabled = false
                 }
+            }
+        }
+    }
+
+    private func updateSCSIUMenuTitles(hddSubmenu: NSMenu) {
+        guard let scsiUDevicesItem = hddSubmenu.items.first(where: { $0.submenu?.title == "SCSI-U Device" }) else { return }
+        guard let scsiUSub = scsiUDevicesItem.submenu else { return }
+
+        let busMode = coreGetStorageBusMode()
+        let scsiU = coreGetSCSIUState()
+        let statusText = isConnectingSCSIU ? "Connecting..." : scsiU.status
+
+        scsiUDevicesItem.isEnabled = (busMode == .scsiU)
+
+        for item in scsiUSub.items {
+            let itemId = item.identifier?.rawValue ?? ""
+            switch itemId {
+            case "SCSIU-status":
+                item.title = "Status: \(statusText)"
+                item.isEnabled = false
+            case "SCSIU-connect":
+                item.title = isConnectingSCSIU ? "Connecting SCSI-U..." :
+                             (scsiU.connected ? "Reconnect SCSI-U" : "Connect SCSI-U")
+                item.isEnabled = (busMode == .scsiU && !isConnectingSCSIU)
+            case "SCSIU-disconnect":
+                item.title = "Disconnect SCSI-U"
+                item.isEnabled = (busMode == .scsiU && scsiU.connected && !isConnectingSCSIU)
+            default:
+                break
             }
         }
     }
@@ -2057,7 +2183,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // アプリケーションレベルでのファイルオープン処理（ダブルクリックで開いた場合）
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        print("AppDelegate.application(openFile:) called with: \(filename)")
+        infoLog("AppDelegate.application(openFile:) called with: \(filename)", category: .fileSystem)
         let url = URL(fileURLWithPath: filename)
         gameViewController?.load(url)
         updateMenuOnFileOperation()  // Immediate menu update
@@ -2067,7 +2193,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // より新しいファイルオープン処理
     func application(_ application: NSApplication, open urls: [URL]) {
-        print("AppDelegate.application(open urls:) called with: \(urls)")
+        infoLog("AppDelegate.application(open urls:) called with: \(urls)", category: .fileSystem)
         for url in urls {
             gameViewController?.load(url)
         }
@@ -2079,32 +2205,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - FDD Menu Actions
     @IBAction func openFDDDriveA(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.openFDDDriveA called")
         gameViewController?.openFDDDriveA(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func openFDDDriveB(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.openFDDDriveB called")
         gameViewController?.openFDDDriveB(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveA(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectFDDDriveA called")
         gameViewController?.ejectFDDDriveA(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func ejectFDDDriveB(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectFDDDriveB called")
         gameViewController?.ejectFDDDriveB(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
@@ -2122,22 +2240,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
     
     @IBAction func ejectHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.ejectHDD called")
         gameViewController?.ejectHDD(sender)
         updateMenuOnFileOperation()  // Immediate menu update
         autoSaveDiskStateIfNeeded()
     }
     
     @IBAction func createEmptyHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.createEmptyHDD called")
         gameViewController?.createEmptyHDD(sender)
     }
     
     @IBAction func saveHDD(_ sender: Any) {
-        // Reduced logging for performance
-        // print("🐛 AppDelegate.saveHDD called")
         gameViewController?.gameScene?.saveHDD()
     }
     
@@ -2145,8 +2257,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     @objc func setStorageBusSASI(_ sender: Any?) {
         guard coreGetStorageBusMode() != .sasi else { return }
 
-        // If SCSI(ID0) is mounted, confirm unmount
-        if coreGetSCSI0State().ready {
+        let currentMode = coreGetStorageBusMode()
+
+        if currentMode == .scsiU && coreGetSCSIUState().connected {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SASI Mode?"
+            alert.informativeText = "SCSI-U を切断して SASI に切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            coreDisconnectSCSIU()
+        }
+
+        if currentMode == .scsi && coreGetSCSI0State().ready {
             let alert = NSAlert()
             alert.messageText = "Switch to SASI Mode?"
             alert.informativeText = "SCSI (ID 0) をアンマウントして SASI に切り替えます。よろしいですか？"
@@ -2154,11 +2278,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             alert.addButton(withTitle: "Switch")
             alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return }
-            // Eject SCSI state via core
             if coreEjectSCSI0() {
-                let defaults = UserDefaults.standard
-                defaults.scsi0Ready = false
-                defaults.scsi0Filename = nil
+                clearPersistedSCSI0State()
                 DiskStateManager.shared.recordHDDEject()
             }
         }
@@ -2175,9 +2296,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     @objc func setStorageBusSCSI(_ sender: Any?) {
         guard coreGetStorageBusMode() != .scsi else { return }
+        let currentMode = coreGetStorageBusMode()
 
-        // If SASI HDD is mounted, confirm unmount
-        if getCachedHDDReady() {
+        if currentMode == .scsiU && coreGetSCSIUState().connected {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SCSI Mode?"
+            alert.informativeText = "SCSI-U を切断して SCSI イメージに切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            coreDisconnectSCSIU()
+        }
+
+        if currentMode == .sasi && getCachedHDDReady() {
             let alert = NSAlert()
             alert.messageText = "Switch to SCSI Mode?"
             alert.informativeText = "SASI のハードディスクをアンマウントして SCSI に切り替えます。よろしいですか？"
@@ -2185,13 +2317,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             alert.addButton(withTitle: "Switch")
             alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return }
-            // Eject SASI HDD via existing action
             gameViewController?.ejectHDD(self)
         }
 
         coreSetStorageBusMode(.scsi)
         UserDefaults.standard.storageBusMode = .scsi
         cachedStorageBusMode = StorageBusMode.scsi.rawValue
+        DiskStateManager.shared.saveCurrentState()
+        updateMenuTitles()
+    }
+
+    @objc func setStorageBusSCSIU(_ sender: Any?) {
+        guard coreGetStorageBusMode() != .scsiU else { return }
+
+        if coreGetSCSI0State().ready {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SCSI-U Mode?"
+            alert.informativeText = "SCSI イメージをアンマウントして SCSI-U に切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            if coreEjectSCSI0() {
+                clearPersistedSCSI0State()
+                DiskStateManager.shared.recordHDDEject()
+            }
+        } else if getCachedHDDReady() {
+            let alert = NSAlert()
+            alert.messageText = "Switch to SCSI-U Mode?"
+            alert.informativeText = "SASI のハードディスクをアンマウントして SCSI-U に切り替えます。よろしいですか？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Switch")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return }
+            gameViewController?.ejectHDD(self)
+        }
+
+        coreSetStorageBusMode(.scsiU)
+        performSCSIUConnect(rollbackToSASIOnFailure: true) { [weak self] in
+            guard let self = self else { return }
+            self.clearPersistedSCSI0State()
+            UserDefaults.standard.storageBusMode = .scsiU
+            self.cachedStorageBusMode = StorageBusMode.scsiU.rawValue
+            DiskStateManager.shared.saveCurrentState()
+        }
+    }
+
+    @objc func connectSCSIU(_ sender: Any?) {
+        guard coreGetStorageBusMode() == .scsiU else { return }
+        if coreGetSCSIUState().connected {
+            coreDisconnectSCSIU()
+        }
+        performSCSIUConnect(rollbackToSASIOnFailure: false)
+    }
+
+    @objc func disconnectSCSIU(_ sender: Any?) {
+        guard coreGetStorageBusMode() == .scsiU else { return }
+        guard coreGetSCSIUState().connected else { return }
+
+        coreDisconnectSCSIU()
+        UserDefaults.standard.storageBusMode = .sasi
+        cachedStorageBusMode = StorageBusMode.sasi.rawValue
+        DiskStateManager.shared.saveCurrentState()
         updateMenuTitles()
     }
 
@@ -2199,7 +2386,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     @objc func openSCSI0(_ sender: Any?) {
         // Version marker so the log file makes it obvious which build is live.
         // If you see "v3" in the log, the current source is running.
-        print("MAC_SCSI_OPEN_PANEL v3 openSCSI0 entry")
+        debugLog("MAC_SCSI_OPEN_PANEL v3 openSCSI0 entry", category: .ui)
         fflush(stdout)
         appendSCSILog("MAC_SCSI_OPEN_PANEL v3 entry")
 
@@ -2237,9 +2424,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         guard coreGetStorageBusMode() == .scsi else { return }
         if coreGetSCSI0State().ready {
             if coreEjectSCSI0() {
-                let defaults = UserDefaults.standard
-                defaults.scsi0Ready = false
-                defaults.scsi0Filename = nil
+                clearPersistedSCSI0State()
                 infoLog("SCSI(ID0) image ejected", category: .fileSystem)
                 NotificationCenter.default.post(name: .diskImageLoaded, object: nil)
                 updateMenuOnFileOperation()
@@ -2363,23 +2548,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Screen Rotation Menu Actions
     @IBAction func rotateScreen(_ sender: Any) {
-        print("🐛 AppDelegate.rotateScreen called")
+        debugLog("AppDelegate.rotateScreen called", category: .ui)
         gameViewController?.rotateScreen(sender)
     }
     
     @IBAction func setLandscapeMode(_ sender: Any) {
-        print("🐛 AppDelegate.setLandscapeMode called")
+        debugLog("AppDelegate.setLandscapeMode called", category: .ui)
         gameViewController?.setLandscapeMode(sender)
     }
     
     @IBAction func setPortraitMode(_ sender: Any) {
-        print("🐛 AppDelegate.setPortraitMode called")
+        debugLog("AppDelegate.setPortraitMode called", category: .ui)
         gameViewController?.setPortraitMode(sender)
     }
     
     // MARK: - System Menu Actions
     @IBAction func resetSystem(_ sender: Any) {
-        print("🐛 AppDelegate.resetSystem called")
+        debugLog("AppDelegate.resetSystem called", category: .ui)
         gameViewController?.resetSystem(sender)
     }
 
@@ -2885,6 +3070,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 menuItem.state = (busMode == .sasi) ? .on : .off
             case "HDD-bus-SCSI":
                 menuItem.state = (busMode == .scsi) ? .on : .off
+            case "HDD-bus-SCSIU":
+                menuItem.state = (busMode == .scsiU) ? .on : .off
             case "HDD-open", "HDD-create":
                 return busMode == .sasi
             case "HDD-eject", "HDD-save":
@@ -2893,6 +3080,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 return busMode == .scsi
             case "SCSI0-eject":
                 return busMode == .scsi && coreGetSCSI0State().ready
+            case "SCSIU-status":
+                return false
+            case "SCSIU-connect":
+                return busMode == .scsiU && !isConnectingSCSIU
+            case "SCSIU-disconnect":
+                return busMode == .scsiU && coreGetSCSIUState().connected && !isConnectingSCSIU
             default:
                 break
             }
@@ -2915,6 +3108,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             $0.identifier?.rawValue == "SCSI-devices"
         }) else { return }
         scsiDevicesItem.isEnabled = (coreGetStorageBusMode() == .scsi)
+        if let scsiUDevicesItem = menu.items.first(where: {
+            $0.identifier?.rawValue == "SCSIU-device"
+        }) {
+            scsiUDevicesItem.isEnabled = (coreGetStorageBusMode() == .scsiU)
+        }
     }
 
 }

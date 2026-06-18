@@ -87,9 +87,18 @@ FILEH Sasi_Open(const char* filename) {
 
 int Sasi_Read( HANDLE fp, void* buf, int size ) {
 //	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
-	if (s_disk_image_buffer[4] == NULL) {
+	if (s_disk_image_buffer[4] == NULL || size <= 0) {
+		ZeroMemory(buf, (size > 0) ? size : 0);
+		return 0;
+	}
+	// Bounds check: s_Sasi_pos comes from guest-controlled seek offsets
+	if (s_Sasi_pos < 0 || (long)s_Sasi_pos >= s_disk_image_buffer_size[4]) {
 		ZeroMemory(buf, size);
 		return 0;
+	}
+	if ((long)s_Sasi_pos + (long)size > s_disk_image_buffer_size[4]) {
+		ZeroMemory(buf, size);
+		size = (int)(s_disk_image_buffer_size[4] - (long)s_Sasi_pos);
 	}
 	BYTE* pos = s_disk_image_buffer[4];
 	pos += s_Sasi_pos;
@@ -100,8 +109,15 @@ int Sasi_Read( HANDLE fp, void* buf, int size ) {
 }
 int Sasi_Write( HANDLE fp, void* buf, int size ) {
 //	printf( "%s( %p, %p, %d )\n", __FUNCTION__, fp, buf, size );
-	if (s_disk_image_buffer[4] == NULL) {
+	if (s_disk_image_buffer[4] == NULL || size <= 0) {
 		return 0;
+	}
+	// Bounds check: s_Sasi_pos comes from guest-controlled seek offsets
+	if (s_Sasi_pos < 0 || (long)s_Sasi_pos >= s_disk_image_buffer_size[4]) {
+		return 0;
+	}
+	if ((long)s_Sasi_pos + (long)size > s_disk_image_buffer_size[4]) {
+		size = (int)(s_disk_image_buffer_size[4] - (long)s_Sasi_pos);
 	}
 	BYTE* pos = s_disk_image_buffer[4];
 	pos += s_Sasi_pos;
@@ -114,7 +130,7 @@ int Sasi_Write( HANDLE fp, void* buf, int size ) {
 int Sasi_Seek( HANDLE fp, int pos, int type ) {
 	switch(type) {
 		case FSEEK_SET:
-			s_Sasi_pos = pos;
+			s_Sasi_pos = (pos >= 0) ? pos : 0;
 			break;
 		default:
 			printf("***Unknown Type***\n");
@@ -343,8 +359,9 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 	{
 		if ((SASI_Phase==3)&&(SASI_RW))	// データリード中～
 		{
-			ret = SASI_Buf[SASI_BufPtr++];
-			if (SASI_BufPtr==SASI_BufSize)
+			if ((SASI_BufPtr >= 0) && (SASI_BufPtr < (short)sizeof(SASI_Buf)) && (SASI_BufPtr < (short)SASI_BufSize))
+				ret = SASI_Buf[SASI_BufPtr++];
+			if (SASI_BufPtr>=SASI_BufSize)
 			{
 				SASI_Blocks--;
 				if (SASI_Blocks)		// まだ読むブロックがある？
@@ -377,8 +394,9 @@ BYTE FASTCALL SASI_Read(DWORD adr)
 		}
 		else if (SASI_Phase==9)				// DataPhase(SenseStat専用)
 		{
-			ret = SASI_SenseStatBuf[SASI_SenseStatPtr++];
-			if (SASI_SenseStatPtr==4)
+			if (SASI_SenseStatPtr < (BYTE)sizeof(SASI_SenseStatBuf))
+				ret = SASI_SenseStatBuf[SASI_SenseStatPtr++];
+			if (SASI_SenseStatPtr>=4)
 			{
 				SASI_Error = 0;
 				SASI_Phase = 4;				// StatusPhaseへ
@@ -690,8 +708,9 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 	{
 		if (SASI_Phase==2)
 		{
-			SASI_Cmd[SASI_CmdPtr++] = data;
-			if (SASI_CmdPtr==6)			// コマンド発行終了
+			if (SASI_CmdPtr < (BYTE)sizeof(SASI_Cmd))
+				SASI_Cmd[SASI_CmdPtr++] = data;
+			if (SASI_CmdPtr>=6)			// コマンド発行終了
 			{
 //				SASI_Phase++;
 				SASI_CheckCmd();
@@ -699,8 +718,9 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 		}
 		else if ((SASI_Phase==3)&&(!SASI_RW))		// データライト中～
 		{
-			SASI_Buf[SASI_BufPtr++] = data;
-			if (SASI_BufPtr==SASI_BufSize)
+			if ((SASI_BufPtr >= 0) && (SASI_BufPtr < (short)sizeof(SASI_Buf)) && (SASI_BufPtr < (short)SASI_BufSize))
+				SASI_Buf[SASI_BufPtr++] = data;
+			if (SASI_BufPtr>=SASI_BufSize)
 			{
 				result = SASI_Flush();		// 現在のバッファを書き出す
 				SASI_Blocks--;

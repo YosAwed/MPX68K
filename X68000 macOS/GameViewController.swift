@@ -1638,7 +1638,7 @@ private extension View {
     func presetCapsuleStyle(isSelected: Bool) -> some View {
         if #available(macOS 26.0, iOS 26.0, *) {
             if isSelected {
-                self.glassEffect(.prominent.tint(.accentColor).interactive(), in: .capsule)
+                self.glassEffect(.regular.tint(.accentColor).interactive(), in: .capsule)
             } else {
                 self.glassEffect(.regular.interactive(), in: .capsule)
             }

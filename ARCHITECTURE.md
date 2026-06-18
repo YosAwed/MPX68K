@@ -1,13 +1,12 @@
 # MPX68K Software Architecture
 
-This document describes the software architecture of MPX68K, a Sharp X68000 emulator for iOS and macOS platforms.
+This document describes the software architecture of MPX68K, a Sharp X68000 emulator for macOS. (The former iOS target was removed in August 2025; the shared/platform split in the source layout is a legacy of that era.)
 
 ## Overall System Architecture
 
 ```mermaid
 graph TB
     subgraph "User Interface Layer"
-        iOS[iOS App]
         macOS[macOS App]
     end
     
@@ -37,7 +36,6 @@ graph TB
         UTI[UniformTypeIdentifiers]
     end
     
-    iOS --> GameScene
     macOS --> GameScene
     
     GameScene --> SpriteKit
@@ -59,24 +57,16 @@ graph TB
     
     M68K --> C68K
     
-    style iOS fill:#e1f5fe
     style macOS fill:#e8f5e8
     style GameScene fill:#fff3e0
     style PX68K fill:#fce4ec
     style C68K fill:#f3e5f5
 ```
 
-## Platform-Specific Architecture
+## Platform Architecture
 
 ```mermaid
 graph LR
-    subgraph "iOS Platform"
-        iOSUI[iOS UI Layer]
-        TouchInput[Touch Input]
-        DocBrowser[Document Browser]
-        iOSLife[App Lifecycle]
-    end
-    
     subgraph "macOS Platform"
         macOSUI[macOS UI Layer]
         MenuBar[Menu Bar Integration]
@@ -89,18 +79,12 @@ graph LR
         SharedCore[X68000 Shared<br/>Business Logic]
     end
     
-    iOSUI --> SharedCore
-    TouchInput --> SharedCore
-    DocBrowser --> SharedCore
-    iOSLife --> SharedCore
-    
     macOSUI --> SharedCore
     MenuBar --> SharedCore
     KeyMouse --> SharedCore
     DragDrop --> SharedCore
     WindowMgmt --> SharedCore
     
-    style iOSUI fill:#e1f5fe
     style macOSUI fill:#e8f5e8
     style SharedCore fill:#fff3e0
 ```
@@ -116,7 +100,7 @@ sequenceDiagram
     participant C68K_CPU
     participant Audio_System
     
-    User->>Swift_UI: Input (Touch/Keyboard/Mouse)
+    User->>Swift_UI: Input (Keyboard/Mouse/Gamepad)
     Swift_UI->>GameScene: Process Input
     GameScene->>PX68K_Core: Emulation Step
     PX68K_Core->>C68K_CPU: Execute CPU Instructions
@@ -226,10 +210,9 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Input Sources"
-        Touch[Touch Input<br/>iOS]
         Keyboard[Keyboard Input<br/>macOS]
         Mouse[Mouse Input<br/>macOS]
-        GameController[Game Controller<br/>Both Platforms]
+        GameController[Game Controller]
     end
     
     subgraph "Swift Input Processing"
@@ -245,7 +228,6 @@ graph TB
         MouseEmu[Mouse Emulation]
     end
     
-    Touch --> JoyCard
     Keyboard --> JoyCard
     Mouse --> JoyCard
     GameController --> GameplayKit
@@ -258,7 +240,6 @@ graph TB
     X68KInput --> KeyboardEmu
     X68KInput --> MouseEmu
     
-    style Touch fill:#e1f5fe
     style Keyboard fill:#e8f5e8
     style Mouse fill:#e8f5e8
     style JoyCard fill:#fff3e0
@@ -284,7 +265,6 @@ graph TD
     
     subgraph "Output"
         C68KLib[libc68k.a]
-        iOSApp[iOS App Bundle]
         macOSApp[macOS App Bundle]
     end
     
@@ -297,7 +277,6 @@ graph TD
     C68KLib --> MainBuild
     BridgingHeaders --> MainBuild
     
-    MainBuild --> iOSApp
     MainBuild --> macOSApp
     
     style C68KBuild fill:#f3e5f5
@@ -309,7 +288,7 @@ graph TD
 
 ### 1. Multi-Platform Strategy
 - **Shared Core**: Common business logic and emulation engine
-- **Platform-Specific UI**: Separate iOS and macOS presentation layers
+- **Platform UI**: macOS presentation layer kept separate from the shared core
 - **Conditional Compilation**: Platform-specific code using `#if os()` directives
 
 ### 2. Document-Based Architecture
@@ -359,4 +338,4 @@ The server runs on a dedicated POSIX thread and is lifecycle-managed by `AppDele
 
 `SO_NOSIGPIPE` is set on each accepted client fd so that a disconnecting client cannot deliver `SIGPIPE` to the main emulator process.  Memory writes are guarded: the protocol requires `PAUSE` before any `WRITE*` command to prevent mid-frame data races.
 
-This architecture enables MPX68K to provide authentic X68000 emulation while maintaining modern iOS and macOS user experience standards.
+This architecture enables MPX68K to provide authentic X68000 emulation while maintaining modern macOS user experience standards.
