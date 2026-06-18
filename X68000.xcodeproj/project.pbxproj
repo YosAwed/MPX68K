@@ -79,8 +79,6 @@
 		535D07B02E685E0300CF5265 /* ppi.c in Sources */ = {isa = PBXBuildFile; fileRef = 535D07AF2E685E0300CF5265 /* ppi.c */; };
 		535D07B22E685E1D00CF5265 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B12E685E1D00CF5265 /* AppDelegate.swift */; };
 		535D07B42E685E2900CF5265 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 535D07B32E685E2900CF5265 /* GameViewController.swift */; };
-		AA000001300000000000AA01 /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002300000000000AA01 /* MonitorView.swift */; };
-		AA000003300000000000AA01 /* MonitorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004300000000000AA01 /* MonitorWindowController.swift */; };
 		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
 		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
@@ -91,6 +89,8 @@
 		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
 		53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1052E50050000AAA001 /* SuperimposeManager.swift */; };
 		53D1C1A72F1B7E2C00BEEF01 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 53D1C1A62F1B7E2C00BEEF01 /* YouTubeKit */; };
+		AA000001300000000000AA01 /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002300000000000AA01 /* MonitorView.swift */; };
+		AA000003300000000000AA01 /* MonitorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004300000000000AA01 /* MonitorWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -257,8 +257,6 @@
 		535D07AF2E685E0300CF5265 /* ppi.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ppi.c; sourceTree = "<group>"; };
 		535D07B12E685E1D00CF5265 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		535D07B32E685E2900CF5265 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		AA000002300000000000AA01 /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
-		AA000004300000000000AA01 /* MonitorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorWindowController.swift; sourceTree = "<group>"; };
 		535D07B52E685E4600CF5265 /* X68000 macOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "X68000 macOS-Bridging-Header.h"; sourceTree = "<group>"; };
 		535D07B72E686CB300CF5265 /* ppi_8255.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ppi_8255.h; sourceTree = "<group>"; };
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
@@ -268,6 +266,8 @@
 		53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTFilterManager.swift; sourceTree = "<group>"; };
 		53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTOverlay.swift; sourceTree = "<group>"; };
 		53C0A1052E50050000AAA001 /* SuperimposeManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuperimposeManager.swift; sourceTree = "<group>"; };
+		AA000002300000000000AA01 /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
+		AA000004300000000000AA01 /* MonitorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -882,7 +882,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 919;
+				CURRENT_PROJECT_VERSION = 926;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
@@ -936,7 +936,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 919;
+				CURRENT_PROJECT_VERSION = 926;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = DQR9HH7KUY;
 				ENABLE_APP_SANDBOX = YES;
