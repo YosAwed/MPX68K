@@ -1407,7 +1407,7 @@ class GameScene: SKScene {
             self.lastSpriteKitUpdateWallTime = CFAbsoluteTimeGetCurrent()
 
             // Fallback emulator tick: only active when SpriteKit update has stalled.
-            self.timer = Timer.scheduledTimer(withTimeInterval: self.targetFrameTime, repeats: true) { [weak self] _ in
+            self.timer = Timer.scheduledTimer(withTimeInterval: self.targetFrameTime, repeats: true) { [weak self = self] _ in
                 guard let self = self else { return }
                 guard self.isEmulatorInitialized else { return }
                 let now = CFAbsoluteTimeGetCurrent()

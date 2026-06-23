@@ -57,7 +57,7 @@ struct MonitorView: View {
                         .padding(6)
                         .id("bottom")
                 }
-                .onChange(of: output) { _ in
+                .onChange(of: output) {
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }
