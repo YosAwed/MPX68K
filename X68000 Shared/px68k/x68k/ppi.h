@@ -33,7 +33,7 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data);
 extern int joyport_ukun_mode;
 void PPI_SetJoyportUMode(int mode);
 int PPI_GetJoyportUMode(void);
-int PPI_JoyportU_IsActive(void);
+int PPI_JoyportU_InCommandMode(void);
 
 #ifdef __cplusplus
 }

@@ -261,6 +261,12 @@ static int SendJoyportUData(BYTE cmd, BYTE data)
             if (data & 0x80) {
                 send_byte = ((data & 0x78) >> 1) | (data & 0x03) | 0x40;
             } else {
+                // Port C bit set/reset: suppress duplicate sends, matching
+                // the ppi_8255.h reference (ADPCM pan control hits this path
+                // frequently via $E9A007)
+                static BYTE last_bit_setreset = 0xFF;
+                if (data == last_bit_setreset) return 1;
+                last_bit_setreset = data;
                 send_byte = (data & 0x0F) | 0x10;
             }
             break;
@@ -443,8 +449,9 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 			
 		case 2:  // Port C
 			if (joyport_device.active) {
-				// Send upper 4 bits to JoyportU
-				SendJoyportUData(0x4C, data >> 4);
+				// SendJoyportUData extracts the upper 4 bits itself;
+				// pass the raw value (matches ppi_8255.h reference)
+				SendJoyportUData(0x4C, data);
 				// Keep lower 4 bits for internal use
 				ppi_portc = (ppi_portc & 0xF0) | (data & 0x0F);
 			} else {
@@ -453,6 +460,11 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 			break;
 			
 		case 3:  // Control register
+			if (joyport_device.active) {
+				// Forward both control-word and bit set/reset forms;
+				// SendJoyportUData converts each per the protocol
+				SendJoyportUData(0x4D, data);
+			}
 			if (data < 0x80) {
 				// Bit set/reset mode
 				int bit = (data >> 1) & 0x07;
@@ -463,7 +475,7 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 					ppi_portc &= ~mask;
 				}
 			} else {
-				// Mode control (not fully implemented)
+				// Mode control (not fully implemented locally; forwarded above)
 			}
 			break;
 	}
@@ -492,11 +504,11 @@ int PPI_GetJoyportUMode(void)
 
 //---------------------------------------------------------------------------
 //
-//	Query whether a JoyportU device is connected and active
+//	Query whether a JoyportU device is connected in command mode
 //
 //---------------------------------------------------------------------------
-int PPI_JoyportU_IsActive(void)
+int PPI_JoyportU_InCommandMode(void)
 {
-	return joyport_device.active;
+	return joyport_device.active && !joyport_device.notify_mode;
 }
 

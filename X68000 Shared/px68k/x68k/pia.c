@@ -37,10 +37,13 @@ void FASTCALL PIA_Write(DWORD adr, BYTE data)
 {
 	BYTE mask, bit, portc = pia.PortC;
 
-	// When a JoyportU device is connected, mirror joyport register writes
-	// to it (ppi.c forwards them over the serial link). Internal side
-	// effects (ADPCM pan, strobe lines) are still handled below.
-	if (PPI_JoyportU_IsActive()) {
+	// JoyportU command mode: forward joyport register writes to the
+	// device (ppi.c converts them to the serial protocol). Notify mode
+	// is intentionally excluded — its data path is the receive thread
+	// feeding X68000_Joystick_Set(), and its send path blocks waiting
+	// for an ack, which must not stall high-frequency port C writes
+	// (ADPCM pan). Internal side effects are still handled below.
+	if (PPI_JoyportU_InCommandMode()) {
 		PPI_Write(adr, data);
 	}
 
@@ -74,15 +77,14 @@ void FASTCALL PIA_Write(DWORD adr, BYTE data)
 // -----------------------------------------------------------------------
 //   I/O Read
 // -----------------------------------------------------------------------
+// Reads are NOT redirected to ppi.c: port C is an output latch on the
+// X68000 (control word $92), so readback must reflect internal PIA state
+// (e.g. ADPCM pan read-modify-write). Ports A/B keep using Joystick_Read()
+// — in notify mode the JoyportU receive thread already feeds it via
+// X68000_Joystick_Set(), and command-mode read queries (0x3A/0x3B) are
+// not implemented in ppi.c.
 BYTE FASTCALL PIA_Read(DWORD adr)
 {
-	// When a JoyportU device is connected, joyport reads come from the
-	// device state maintained by ppi.c (command-mode responses etc.).
-	if (PPI_JoyportU_IsActive() &&
-	    (adr == 0xe9a001 || adr == 0xe9a003 || adr == 0xe9a005)) {
-		return PPI_Read(adr);
-	}
-
 	if ( adr == 0xe9a001 ) return Joystick_Read(0);
 	if ( adr == 0xe9a003 ) return Joystick_Read(1);
 	if ( adr == 0xe9a005 ) return pia.PortC;
