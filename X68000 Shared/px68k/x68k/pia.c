@@ -5,6 +5,7 @@
 #include "common.h"
 #include "joystick.h"
 #include "pia.h"
+#include "ppi.h"
 #include "adpcm.h"
 #include "m68000.h"
 
@@ -35,6 +36,14 @@ void PIA_Init(void)
 void FASTCALL PIA_Write(DWORD adr, BYTE data)
 {
 	BYTE mask, bit, portc = pia.PortC;
+
+	// When a JoyportU device is connected, mirror joyport register writes
+	// to it (ppi.c forwards them over the serial link). Internal side
+	// effects (ADPCM pan, strobe lines) are still handled below.
+	if (PPI_JoyportU_IsActive()) {
+		PPI_Write(adr, data);
+	}
+
 	if ( adr==0xe9a005 ) {
 		portc = pia.PortC;
 		pia.PortC = data;
@@ -67,6 +76,13 @@ void FASTCALL PIA_Write(DWORD adr, BYTE data)
 // -----------------------------------------------------------------------
 BYTE FASTCALL PIA_Read(DWORD adr)
 {
+	// When a JoyportU device is connected, joyport reads come from the
+	// device state maintained by ppi.c (command-mode responses etc.).
+	if (PPI_JoyportU_IsActive() &&
+	    (adr == 0xe9a001 || adr == 0xe9a003 || adr == 0xe9a005)) {
+		return PPI_Read(adr);
+	}
+
 	if ( adr == 0xe9a001 ) return Joystick_Read(0);
 	if ( adr == 0xe9a003 ) return Joystick_Read(1);
 	if ( adr == 0xe9a005 ) return pia.PortC;

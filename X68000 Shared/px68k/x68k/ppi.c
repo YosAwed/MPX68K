@@ -490,3 +490,13 @@ int PPI_GetJoyportUMode(void)
 	return joyport_ukun_mode;
 }
 
+//---------------------------------------------------------------------------
+//
+//	Query whether a JoyportU device is connected and active
+//
+//---------------------------------------------------------------------------
+int PPI_JoyportU_IsActive(void)
+{
+	return joyport_device.active;
+}
+

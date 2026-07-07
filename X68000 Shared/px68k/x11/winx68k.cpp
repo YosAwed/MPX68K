@@ -1141,6 +1141,7 @@ void Finalize() {
 
         OPM_Cleanup();
 
+        PPI_Cleanup();
         Joystick_Cleanup();
         SRAM_Cleanup();
         FDD_Cleanup();
