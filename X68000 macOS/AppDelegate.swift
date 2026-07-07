@@ -1075,12 +1075,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         let debugMenuItem = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
         let debugMenu = NSMenu(title: "Debug")
         debugMenuItem.submenu = debugMenu
+        // Note: ⌘⇧M is taken by "Use X68000 Mouse" (System menu), so the
+        // monitor uses ⌥⌘M to avoid a key-equivalent conflict.
         let monitorItem = NSMenuItem(
             title: "Machine Monitor",
             action: #selector(showMachineMonitor),
             keyEquivalent: "m"
         )
-        monitorItem.keyEquivalentModifierMask = [.command, .shift]
+        monitorItem.keyEquivalentModifierMask = [.command, .option]
         debugMenu.addItem(monitorItem)
         mainMenu.addItem(debugMenuItem)
 
