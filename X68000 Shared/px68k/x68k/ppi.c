@@ -43,9 +43,21 @@ typedef struct {
     BYTE port_a, port_b, port_c; // Port values
     volatile int recv_end_mark; // End mark received flag
     volatile BYTE recv_data;    // Received data
+    int rx_thread_running;     // Receive thread exists (notify mode only)
+    int old_command_mode;      // Firmware < v2 command protocol
 } JoyportU_Device;
 
-static JoyportU_Device joyport_device = {-1, 0, PTHREAD_MUTEX_INITIALIZER, 0, 0, 0xFF, 0xFF, 0x00, 0, 0};
+static JoyportU_Device joyport_device = {-1, 0, PTHREAD_MUTEX_INITIALIZER, 0, 0, 0xFF, 0xFF, 0x00, 0, 0, 0, 0};
+
+// Command-mode protocol state (mirrors the ppi_8255.h reference impl).
+// In command mode there is NO receive thread: every response is read
+// synchronously on the caller's thread, exactly like the reference,
+// which stops its thread once command mode is confirmed.
+static BYTE ppi_control = 0x92;    // 8255 control word (A/B input, C output)
+static BYTE cmd_prefetch[256];     // Port A burst prefetch buffer
+static int  cmd_prefetch_len = 0;
+static int  cmd_prefetch_pos = 0;
+static BYTE last_joyport_cmd = 0;
 
 //---------------------------------------------------------------------------
 //
@@ -96,6 +108,25 @@ static char* FindJoyportUDevice(void)
     }
     IOObjectRelease(iterator);
     return devicePath;
+}
+
+//---------------------------------------------------------------------------
+//
+//	Synchronous single-byte read with timeout (command mode / handshake)
+//
+//---------------------------------------------------------------------------
+static int JoyportU_ReadByte(BYTE* out, int timeout_us)
+{
+    int waited = 0;
+    while (joyport_device.fd >= 0) {
+        ssize_t n = read(joyport_device.fd, out, 1);
+        if (n == 1) return 1;
+        if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return 0;
+        if (waited >= timeout_us) return 0;
+        usleep(100);
+        waited += 100;
+    }
+    return 0;
 }
 
 //---------------------------------------------------------------------------
@@ -189,26 +220,79 @@ static int InitJoyportU(int notify_mode)
         return 0;
     }
     
-    joyport_device.active = 1;
     joyport_device.notify_mode = notify_mode;
+    joyport_device.old_command_mode = 0;
     joyport_device.recv_end_mark = 0;
-    
-    // Send initialization command
-    BYTE init_cmd = notify_mode ? 0x31 : 0x32;  // 0x31: notify mode, 0x32: command mode
-    write(joyport_device.fd, &init_cmd, 1);
-    
-    // Wait for response
-    usleep(100000); // 100ms
-    
-    // Start receive thread
-    if (pthread_create(&joyport_device.rx_thread, NULL, JoyportU_ReceiveThread, NULL) != 0) {
+    cmd_prefetch_len = 0;
+    cmd_prefetch_pos = 0;
+    last_joyport_cmd = 0;
+    ppi_control = 0x92;
+
+    BYTE init_cmd;
+    if (notify_mode) {
+        init_cmd = 0x31;
+    } else {
+        // Probe the firmware version: v2+ answers the 'v' query and takes
+        // the 0x37 command-mode init; older firmware only knows the 0x31
+        // handshake ("command(old) mode" in the ppi_8255.h reference)
+        BYTE version[7] = {0};
+        BYTE query = 'v';
+        write(joyport_device.fd, &query, 1);
+        usleep(100000); // 100ms
+        ssize_t vlen = read(joyport_device.fd, version, sizeof(version));
+        tcflush(joyport_device.fd, TCIFLUSH);
+        if (vlen >= 2 && version[1] < '2') {
+            init_cmd = 0x31;
+            joyport_device.old_command_mode = 1;
+        } else {
+            init_cmd = 0x37;
+        }
+    }
+
+    if (write(joyport_device.fd, &init_cmd, 1) != 1) {
         close(joyport_device.fd);
         joyport_device.fd = -1;
-        joyport_device.active = 0;
         return 0;
     }
-    
-    printf("JoyportU initialized in %s mode\n", notify_mode ? "notify" : "command");
+
+    if (notify_mode) {
+        // Keep the historically working permissive handshake: give the
+        // device time to answer, then let the receive thread take over.
+        usleep(100000); // 100ms
+
+        joyport_device.active = 1;
+        if (pthread_create(&joyport_device.rx_thread, NULL, JoyportU_ReceiveThread, NULL) != 0) {
+            close(joyport_device.fd);
+            joyport_device.fd = -1;
+            joyport_device.active = 0;
+            return 0;
+        }
+        joyport_device.rx_thread_running = 1;
+        printf("JoyportU initialized in notify mode\n");
+    } else {
+        // Command mode runs WITHOUT a receive thread — every response is
+        // read synchronously. Wait for the end-mark echo of the init
+        // command (0x37 = v2 protocol confirmed, 0x31 = old protocol).
+        BYTE resp = 0;
+        int ok = 0;
+        int scan;
+        for (scan = 0; scan < 64; scan++) {
+            if (!JoyportU_ReadByte(&resp, 2000000)) break;
+            if ((resp & 0xF0) == 0x30) { ok = 1; break; }
+        }
+        if (!ok || (resp != 0x37 && resp != 0x31)) {
+            printf("JoyportU command mode handshake failed (resp=0x%02X)\n", resp);
+            close(joyport_device.fd);
+            joyport_device.fd = -1;
+            return 0;
+        }
+        if (resp == 0x31) {
+            joyport_device.old_command_mode = 1;
+        }
+        joyport_device.active = 1;
+        printf("JoyportU initialized in command mode (%s protocol)\n",
+               joyport_device.old_command_mode ? "old" : "v2");
+    }
     return 1;
 }
 
@@ -221,12 +305,17 @@ static void StopJoyportU(void)
 {
     if (joyport_device.active) {
         joyport_device.active = 0;
-        if (joyport_device.fd >= 0) {
+        if (joyport_device.rx_thread_running) {
             pthread_join(joyport_device.rx_thread, NULL);
+            joyport_device.rx_thread_running = 0;
+        }
+        if (joyport_device.fd >= 0) {
             close(joyport_device.fd);
             joyport_device.fd = -1;
         }
     }
+    cmd_prefetch_len = 0;
+    cmd_prefetch_pos = 0;
 }
 
 //---------------------------------------------------------------------------
@@ -265,7 +354,10 @@ static int SendJoyportUData(BYTE cmd, BYTE data)
                 // the ppi_8255.h reference (ADPCM pan control hits this path
                 // frequently via $E9A007)
                 static BYTE last_bit_setreset = 0xFF;
-                if (data == last_bit_setreset) return 1;
+                if (data == last_bit_setreset) {
+                    last_joyport_cmd = cmd;
+                    return 1;
+                }
                 last_bit_setreset = data;
                 send_byte = (data & 0x0F) | 0x10;
             }
@@ -275,16 +367,43 @@ static int SendJoyportUData(BYTE cmd, BYTE data)
     }
     
     if (!joyport_device.notify_mode) {
-        // Command mode - just send
-        return (write(joyport_device.fd, &send_byte, 1) == 1) ? 1 : 0;
+        // Command mode - send without waiting for an ack
+        if (write(joyport_device.fd, &send_byte, 1) != 1) {
+            last_joyport_cmd = cmd;
+            return 0;
+        }
+        // REQ line toggle (port C bit 4 set/reset, used by analog sticks):
+        // v2 firmware answers with a status byte; 0xFF invalidates the
+        // port A prefetch (reference: "STAT LUSTER" workaround)
+        if (!joyport_device.old_command_mode && cmd == 0x4D &&
+            (data == 0x08 || data == 0x09)) {
+            BYTE status = 0;
+            if (JoyportU_ReadByte(&status, 500000)) {
+                if (status == 0xFF && cmd_prefetch_len > 0) {
+                    if (last_joyport_cmd == 0x4D || cmd_prefetch_pos >= 35) {
+                        cmd_prefetch_len = 0;
+                        cmd_prefetch_pos = 0;
+                    }
+                }
+            } else {
+                printf("JoyportU REQ status read timeout\n");
+            }
+        }
+        last_joyport_cmd = cmd;
+        return 1;
     } else {
         // Notify mode - send and wait for acknowledgment
+        pthread_mutex_lock(&joyport_device.mutex);
+        joyport_device.recv_end_mark = 0;   // discard stale end marks
+        pthread_mutex_unlock(&joyport_device.mutex);
         if (write(joyport_device.fd, &send_byte, 1) == 1) {
             // Wait for acknowledgment
             for (int i = 0; i < 50000; i++) {
                 pthread_mutex_lock(&joyport_device.mutex);
                 if (joyport_device.recv_end_mark) {
+                    joyport_device.recv_end_mark = 0;   // consume the ack
                     pthread_mutex_unlock(&joyport_device.mutex);
+                    last_joyport_cmd = cmd;
                     return 1;
                 }
                 pthread_mutex_unlock(&joyport_device.mutex);
@@ -309,15 +428,21 @@ void PPI_Init(void)
 	ppi_porta = 0xFF;
 	ppi_portb = 0xFF;
 	ppi_portc = 0x00;
+	ppi_control = 0x92;
 	
 	// Initialize JoyportU device state
 	joyport_device.active = 0;
 	joyport_device.fd = -1;
 	joyport_device.notify_mode = 0;
+	joyport_device.old_command_mode = 0;
+	joyport_device.rx_thread_running = 0;
 	joyport_device.recv_end_mark = 0;
 	joyport_device.port_a = 0xFF;
 	joyport_device.port_b = 0xFF;
 	joyport_device.port_c = 0x00;
+	cmd_prefetch_len = 0;
+	cmd_prefetch_pos = 0;
+	last_joyport_cmd = 0;
 }
 
 //---------------------------------------------------------------------------
@@ -338,6 +463,7 @@ void PPI_Cleanup(void)
 void PPI_Reset(void)
 {
 	ppi_portc = 0x00;
+	ppi_control = 0x92;
 	
 	// Stop current JoyportU connection
 	StopJoyportU();
@@ -452,11 +578,8 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 				// SendJoyportUData extracts the upper 4 bits itself;
 				// pass the raw value (matches ppi_8255.h reference)
 				SendJoyportUData(0x4C, data);
-				// Keep lower 4 bits for internal use
-				ppi_portc = (ppi_portc & 0xF0) | (data & 0x0F);
-			} else {
-				ppi_portc = data;
 			}
+			ppi_portc = data;   // output latch cache (reference: m_portC)
 			break;
 			
 		case 3:  // Control register
@@ -475,7 +598,9 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 					ppi_portc &= ~mask;
 				}
 			} else {
-				// Mode control (not fully implemented locally; forwarded above)
+				// Direction/mode control word — command-mode reads use it
+				// to decide which ports are device inputs
+				ppi_control = data;
 			}
 			break;
 	}
@@ -510,5 +635,90 @@ int PPI_GetJoyportUMode(void)
 int PPI_JoyportU_InCommandMode(void)
 {
 	return joyport_device.active && !joyport_device.notify_mode;
+}
+
+//---------------------------------------------------------------------------
+//
+//	Command-mode port read (synchronous 0x3A/0x3B/0x3C query round-trip,
+//	mirroring ExecCmd in the ppi_8255.h reference).
+//	port: 0=A, 1=B, 2=C.  Returns 0-255, or -1 when the caller should use
+//	the internal/emulated value instead (device inactive, port is an
+//	output per the control word, or communication failure).
+//
+//---------------------------------------------------------------------------
+int PPI_JoyportU_CmdRead(int port)
+{
+	BYTE cmd;
+
+	if (!joyport_device.active || joyport_device.notify_mode) {
+		return -1;
+	}
+
+	// 8255 direction check: output ports read back the internal latch,
+	// which pia.c owns — only query the device for input ports
+	switch (port) {
+		case 0:
+			if (!(ppi_control & 0x10)) return -1;
+			cmd = 0x3A;
+			break;
+		case 1:
+			if (!(ppi_control & 0x02)) return -1;
+			cmd = 0x3B;
+			break;
+		case 2:
+			if (!(ppi_control & 0x08)) return -1;
+			cmd = 0x3C;
+			break;
+		default:
+			return -1;
+	}
+
+	// Drain the port A burst prefetch first (v2 protocol)
+	if (cmd == 0x3A && cmd_prefetch_len > 0) {
+		if (cmd_prefetch_pos < cmd_prefetch_len) {
+			last_joyport_cmd = cmd;
+			return cmd_prefetch[cmd_prefetch_pos++];
+		}
+		cmd_prefetch_len = 0;
+		cmd_prefetch_pos = 0;
+	}
+
+	if (write(joyport_device.fd, &cmd, 1) != 1) {
+		printf("JoyportU command read send failed - device deactivated\n");
+		StopJoyportU();
+		return -1;
+	}
+
+	BYTE b1 = 0;
+	if (!JoyportU_ReadByte(&b1, 500000)) {
+		printf("JoyportU command read timeout (cmd=0x%02X) - device deactivated\n", cmd);
+		StopJoyportU();
+		return -1;
+	}
+
+	// Port A burst response (v2 protocol): a leading length byte
+	// (> 0, high bit clear) is followed by that many data bytes which
+	// are prefetched and drained by subsequent port A reads
+	if (cmd == 0x3A && !joyport_device.old_command_mode &&
+	    (b1 & 0x80) == 0 && b1 > 0) {
+		int len = b1;
+		int got = 0;
+		while (got < len) {
+			BYTE d = 0;
+			if (!JoyportU_ReadByte(&d, 500000)) {
+				printf("JoyportU burst read timeout (%d/%d) - device deactivated\n", got, len);
+				StopJoyportU();
+				return -1;
+			}
+			cmd_prefetch[got++] = d;
+		}
+		cmd_prefetch_len = len;
+		cmd_prefetch_pos = 1;
+		last_joyport_cmd = cmd;
+		return cmd_prefetch[0];
+	}
+
+	last_joyport_cmd = cmd;
+	return b1;
 }
 

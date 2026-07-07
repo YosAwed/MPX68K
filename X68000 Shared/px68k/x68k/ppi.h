@@ -34,6 +34,9 @@ extern int joyport_ukun_mode;
 void PPI_SetJoyportUMode(int mode);
 int PPI_GetJoyportUMode(void);
 int PPI_JoyportU_InCommandMode(void);
+// Command-mode synchronous port read. port: 0=A, 1=B, 2=C.
+// Returns 0-255, or -1 when the internal/emulated value should be used.
+int PPI_JoyportU_CmdRead(int port);
 
 #ifdef __cplusplus
 }

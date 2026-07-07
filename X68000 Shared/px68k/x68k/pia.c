@@ -77,14 +77,24 @@ void FASTCALL PIA_Write(DWORD adr, BYTE data)
 // -----------------------------------------------------------------------
 //   I/O Read
 // -----------------------------------------------------------------------
-// Reads are NOT redirected to ppi.c: port C is an output latch on the
-// X68000 (control word $92), so readback must reflect internal PIA state
-// (e.g. ADPCM pan read-modify-write). Ports A/B keep using Joystick_Read()
-// — in notify mode the JoyportU receive thread already feeds it via
-// X68000_Joystick_Set(), and command-mode read queries (0x3A/0x3B) are
-// not implemented in ppi.c.
+// JoyportU command mode: input ports (per the 8255 control word) are
+// queried from the device synchronously; PPI_JoyportU_CmdRead returns -1
+// for output ports, device failure, or notify mode, in which case the
+// emulated path below is used. Port C is an output under the default
+// control word $92, so its readback stays on the internal latch
+// (pia.PortC) and ADPCM pan read-modify-write is unaffected. In notify
+// mode the receive thread already feeds Joystick_Read() via
+// X68000_Joystick_Set().
 BYTE FASTCALL PIA_Read(DWORD adr)
 {
+	if (PPI_JoyportU_InCommandMode()) {
+		int v = -1;
+		if (adr == 0xe9a001) v = PPI_JoyportU_CmdRead(0);
+		else if (adr == 0xe9a003) v = PPI_JoyportU_CmdRead(1);
+		else if (adr == 0xe9a005) v = PPI_JoyportU_CmdRead(2);
+		if (v >= 0) return (BYTE)v;
+	}
+
 	if ( adr == 0xe9a001 ) return Joystick_Read(0);
 	if ( adr == 0xe9a003 ) return Joystick_Read(1);
 	if ( adr == 0xe9a005 ) return pia.PortC;
