@@ -88,7 +88,7 @@ static char* FindJoyportUDevice(void)
                         CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, (const SInt32[]){0xE6B3}));
     
     io_iterator_t iterator;
-    if (IOServiceGetMatchingServices(kIOMasterPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+    if (IOServiceGetMatchingServices(MACH_PORT_NULL, matchDict, &iterator) != KERN_SUCCESS) {
         return NULL;
     }
     
@@ -299,16 +299,14 @@ static int InitJoyportU(int notify_mode)
 //---------------------------------------------------------------------------
 static void StopJoyportU(void)
 {
-    if (joyport_device.active) {
-        joyport_device.active = 0;
-        if (joyport_device.rx_thread_running) {
-            pthread_join(joyport_device.rx_thread, NULL);
-            joyport_device.rx_thread_running = 0;
-        }
-        if (joyport_device.fd >= 0) {
-            close(joyport_device.fd);
-            joyport_device.fd = -1;
-        }
+    joyport_device.active = 0;
+    if (joyport_device.rx_thread_running) {
+        pthread_join(joyport_device.rx_thread, NULL);
+        joyport_device.rx_thread_running = 0;
+    }
+    if (joyport_device.fd >= 0) {
+        close(joyport_device.fd);
+        joyport_device.fd = -1;
     }
     cmd_prefetch_len = 0;
     cmd_prefetch_pos = 0;
@@ -611,8 +609,25 @@ void FASTCALL PPI_Write(DWORD addr, BYTE data)
 //---------------------------------------------------------------------------
 void PPI_SetJoyportUMode(int mode)
 {
+	if (mode < 0 || mode > 2) {
+		mode = 0;
+	}
+	if (joyport_ukun_mode == mode) {
+		if (mode == 0) {
+			StopJoyportU();
+			return;
+		}
+		if (!joyport_device.active) {
+			PPI_Reset();
+		}
+		return;
+	}
 	joyport_ukun_mode = mode;
-	PPI_Reset();  // Reset to apply new mode
+	if (mode == 0) {
+		StopJoyportU();
+		return;
+	}
+	PPI_Reset();  // Reset to apply new active mode
 }
 
 //---------------------------------------------------------------------------
@@ -632,7 +647,7 @@ int PPI_GetJoyportUMode(void)
 //---------------------------------------------------------------------------
 int PPI_JoyportU_InCommandMode(void)
 {
-	return joyport_device.active && !joyport_device.notify_mode;
+	return joyport_ukun_mode == 2 && joyport_device.active && !joyport_device.notify_mode;
 }
 
 //---------------------------------------------------------------------------

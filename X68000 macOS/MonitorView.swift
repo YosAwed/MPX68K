@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Tuple → indexed access bridge
 // Swift imports C fixed-size arrays (e.g. unsigned int d[8]) as 8-tuples.
@@ -57,7 +58,7 @@ struct MonitorView: View {
                         .padding(6)
                         .id("bottom")
                 }
-                .onChange(of: output) { _ in
+                .onReceive(Just(output)) { _ in
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }

@@ -253,7 +253,7 @@ SCSIU_FindCandidatePorts(char paths[SCSIU_MAX_PORTS][SCSIU_PATH_LEN], int maxPor
 	CFRelease(vendorRef);
 	CFRelease(productRef);
 
-	if (IOServiceGetMatchingServices(kIOMasterPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+	if (IOServiceGetMatchingServices(MACH_PORT_NULL, matchDict, &iterator) != KERN_SUCCESS) {
 		return 0;
 	}
 
