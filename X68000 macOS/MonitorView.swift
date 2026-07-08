@@ -44,7 +44,7 @@ struct MonitorView: View {
         VStack(alignment: .leading, spacing: 0) {
             cpuRegisterPanel
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.12))
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.12))
 
             Divider()
 
@@ -57,7 +57,7 @@ struct MonitorView: View {
                         .padding(6)
                         .id("bottom")
                 }
-                .onChange(of: output) {
+                .onChange(of: output) { _ in
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }
@@ -69,11 +69,10 @@ struct MonitorView: View {
                 Text(">")
                     .font(.system(.body, design: .monospaced))
                     .foregroundColor(.green)
-                TextField("", text: $input)
+                TextField("", text: $input, onCommit: submitCommand)
                     .font(.system(.body, design: .monospaced))
                     .foregroundColor(.green)
                     .textFieldStyle(.plain)
-                    .onSubmit { submitCommand() }
                 Button(isPaused ? "Resume (G)" : "Pause (P)") { togglePause() }
                     .controlSize(.small)
                 Text(writeUnlocked ? "WRITE UNLOCKED" : "WRITE LOCKED")
@@ -100,7 +99,7 @@ struct MonitorView: View {
                 ForEach(0..<4, id: \.self) { i in
                     Text(String(format: "D%d:%08X", i, cpuState.dArr[i]))
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(Color(red: 0.0, green: 1.0, blue: 1.0))
                 }
                 Spacer()
                 ForEach(0..<4, id: \.self) { i in
@@ -113,7 +112,7 @@ struct MonitorView: View {
                 ForEach(4..<8, id: \.self) { i in
                     Text(String(format: "D%d:%08X", i, cpuState.dArr[i]))
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(Color(red: 0.0, green: 1.0, blue: 1.0))
                 }
                 Spacer()
                 ForEach(4..<8, id: \.self) { i in

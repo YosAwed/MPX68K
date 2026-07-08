@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <sys/termios.h>
 #include <pthread.h>
+#include <os/log.h>
 #include <IOKit/IOKitLib.h>
 
 // External function declaration
@@ -58,6 +59,17 @@ static BYTE cmd_prefetch[256];     // Port A burst prefetch buffer
 static int  cmd_prefetch_len = 0;
 static int  cmd_prefetch_pos = 0;
 static BYTE last_joyport_cmd = 0;
+static int  cmd_timeout_log_count = 0;
+static int  cmd_read_log_count = 0;
+
+static os_log_t JoyportULog(void)
+{
+    static os_log_t log;
+    if (!log) {
+        log = os_log_create("com.goroman.x68mac", "joyportu");
+    }
+    return log;
+}
 
 //---------------------------------------------------------------------------
 //
@@ -76,7 +88,7 @@ static char* FindJoyportUDevice(void)
                         CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, (const SInt32[]){0xE6B3}));
     
     io_iterator_t iterator;
-    if (IOServiceGetMatchingServices(kIOMainPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
+    if (IOServiceGetMatchingServices(kIOMasterPortDefault, matchDict, &iterator) != KERN_SUCCESS) {
         return NULL;
     }
     
@@ -226,30 +238,27 @@ static int InitJoyportU(int notify_mode)
     cmd_prefetch_len = 0;
     cmd_prefetch_pos = 0;
     last_joyport_cmd = 0;
+    cmd_timeout_log_count = 0;
+    cmd_read_log_count = 0;
     ppi_control = 0x92;
 
     BYTE init_cmd;
     if (notify_mode) {
         init_cmd = 0x31;
     } else {
-        // Probe the firmware version: v2+ answers the 'v' query and takes
-        // the 0x37 command-mode init; older firmware only knows the 0x31
-        // handshake ("command(old) mode" in the ppi_8255.h reference)
-        BYTE version[7] = {0};
-        BYTE query = 'v';
-        write(joyport_device.fd, &query, 1);
-        usleep(100000); // 100ms
-        ssize_t vlen = read(joyport_device.fd, version, sizeof(version));
-        tcflush(joyport_device.fd, TCIFLUSH);
-        if (vlen >= 2 && version[1] < '2') {
-            init_cmd = 0x31;
-            joyport_device.old_command_mode = 1;
-        } else {
-            init_cmd = 0x37;
-        }
+        init_cmd = 0x32;
+        joyport_device.old_command_mode = 1;
     }
 
+    os_log_info(JoyportULog(), "send init cmd=0x%{public}02X notify=%{public}d",
+                init_cmd, notify_mode);
     if (write(joyport_device.fd, &init_cmd, 1) != 1) {
+        os_log_error(JoyportULog(), "init write failed");
+        if (joyport_device.rx_thread_running) {
+            joyport_device.active = 0;
+            pthread_join(joyport_device.rx_thread, NULL);
+            joyport_device.rx_thread_running = 0;
+        }
         close(joyport_device.fd);
         joyport_device.fd = -1;
         return 0;
@@ -269,29 +278,16 @@ static int InitJoyportU(int notify_mode)
         }
         joyport_device.rx_thread_running = 1;
         printf("JoyportU initialized in notify mode\n");
+        os_log_info(JoyportULog(), "initialized notify mode");
     } else {
-        // Command mode runs WITHOUT a receive thread — every response is
-        // read synchronously. Wait for the end-mark echo of the init
-        // command (0x37 = v2 protocol confirmed, 0x31 = old protocol).
-        BYTE resp = 0;
-        int ok = 0;
-        int scan;
-        for (scan = 0; scan < 64; scan++) {
-            if (!JoyportU_ReadByte(&resp, 2000000)) break;
-            if ((resp & 0xF0) == 0x30) { ok = 1; break; }
-        }
-        if (!ok || (resp != 0x37 && resp != 0x31)) {
-            printf("JoyportU command mode handshake failed (resp=0x%02X)\n", resp);
-            close(joyport_device.fd);
-            joyport_device.fd = -1;
-            return 0;
-        }
-        if (resp == 0x31) {
-            joyport_device.old_command_mode = 1;
-        }
+        // Command mode (0x32) may not produce an immediate ack; some units
+        // return the 0x32 end mark with the first 0x3A read. CmdRead skips
+        // end marks before returning joystick data.
+        usleep(100000);
+        tcflush(joyport_device.fd, TCIFLUSH);
         joyport_device.active = 1;
-        printf("JoyportU initialized in command mode (%s protocol)\n",
-               joyport_device.old_command_mode ? "old" : "v2");
+        printf("JoyportU initialized in command mode (0x32 protocol)\n");
+        os_log_info(JoyportULog(), "initialized command mode protocol=0x32");
     }
     return 1;
 }
@@ -378,7 +374,7 @@ static int SendJoyportUData(BYTE cmd, BYTE data)
         if (!joyport_device.old_command_mode && cmd == 0x4D &&
             (data == 0x08 || data == 0x09)) {
             BYTE status = 0;
-            if (JoyportU_ReadByte(&status, 500000)) {
+            if (JoyportU_ReadByte(&status, 5000)) {
                 if (status == 0xFF && cmd_prefetch_len > 0) {
                     if (last_joyport_cmd == 0x4D || cmd_prefetch_pos >= 35) {
                         cmd_prefetch_len = 0;
@@ -442,6 +438,8 @@ void PPI_Init(void)
 	joyport_device.port_c = 0x00;
 	cmd_prefetch_len = 0;
 	cmd_prefetch_pos = 0;
+	cmd_timeout_log_count = 0;
+	cmd_read_log_count = 0;
 	last_joyport_cmd = 0;
 }
 
@@ -662,9 +660,9 @@ int PPI_JoyportU_CmdRead(int port)
 			cmd = 0x3A;
 			break;
 		case 1:
-			if (!(ppi_control & 0x02)) return -1;
-			cmd = 0x3B;
-			break;
+			// JoyportU is currently wired as the 1P joyport. Polling 0x3B
+			// produces spurious 2P input on some units and can stall reads.
+			return 0xFF;
 		case 2:
 			if (!(ppi_control & 0x08)) return -1;
 			cmd = 0x3C;
@@ -690,10 +688,40 @@ int PPI_JoyportU_CmdRead(int port)
 	}
 
 	BYTE b1 = 0;
-	if (!JoyportU_ReadByte(&b1, 500000)) {
-		printf("JoyportU command read timeout (cmd=0x%02X) - device deactivated\n", cmd);
-		StopJoyportU();
-		return -1;
+	int got_data = 0;
+	for (int attempt = 0; attempt < 8; attempt++) {
+		if (!JoyportU_ReadByte(&b1, 5000)) {
+			break;
+		}
+		if ((b1 & 0xF0) == 0x30) {
+			if (cmd_read_log_count < 32) {
+				os_log_info(JoyportULog(),
+				            "command read skipped endmark cmd=0x%{public}02X mark=0x%{public}02X",
+				            cmd, b1);
+				cmd_read_log_count++;
+			}
+			continue;
+		}
+		got_data = 1;
+		break;
+	}
+	if (!got_data) {
+		if (cmd_timeout_log_count < 8) {
+			printf("JoyportU command read timeout (cmd=0x%02X)\n", cmd);
+			os_log_error(JoyportULog(), "command read timeout cmd=0x%{public}02X port=%{public}d",
+			             cmd, port);
+			cmd_timeout_log_count++;
+		}
+		switch (port) {
+			case 0:
+				return joyport_device.port_a;
+			case 1:
+				return joyport_device.port_b;
+			case 2:
+				return joyport_device.port_c;
+			default:
+				return -1;
+		}
 	}
 
 	// Port A burst response (v2 protocol): a leading length byte
@@ -705,20 +733,50 @@ int PPI_JoyportU_CmdRead(int port)
 		int got = 0;
 		while (got < len) {
 			BYTE d = 0;
-			if (!JoyportU_ReadByte(&d, 500000)) {
-				printf("JoyportU burst read timeout (%d/%d) - device deactivated\n", got, len);
-				StopJoyportU();
-				return -1;
+			if (!JoyportU_ReadByte(&d, 5000)) {
+				if (cmd_timeout_log_count < 8) {
+					printf("JoyportU burst read timeout (%d/%d)\n", got, len);
+					os_log_error(JoyportULog(),
+					             "burst read timeout got=%{public}d len=%{public}d",
+					             got, len);
+					cmd_timeout_log_count++;
+				}
+				return joyport_device.port_a;
 			}
 			cmd_prefetch[got++] = d;
 		}
 		cmd_prefetch_len = len;
 		cmd_prefetch_pos = 1;
 		last_joyport_cmd = cmd;
+		joyport_device.port_a = cmd_prefetch[0];
+		if (cmd_read_log_count < 32) {
+			os_log_info(JoyportULog(),
+			            "command read burst cmd=0x%{public}02X len=%{public}d first=0x%{public}02X",
+			            cmd, len, cmd_prefetch[0]);
+			cmd_read_log_count++;
+		}
 		return cmd_prefetch[0];
 	}
 
+	switch (port) {
+		case 0:
+			joyport_device.port_a = b1;
+			break;
+		case 1:
+			joyport_device.port_b = b1;
+			break;
+		case 2:
+			joyport_device.port_c = b1;
+			break;
+		default:
+			break;
+	}
+
 	last_joyport_cmd = cmd;
+	if (cmd_read_log_count < 32) {
+		os_log_info(JoyportULog(), "command read cmd=0x%{public}02X port=%{public}d data=0x%{public}02X",
+		            cmd, port, b1);
+		cmd_read_log_count++;
+	}
 	return b1;
 }
-

@@ -1381,6 +1381,9 @@ class CRTSettingsWindowController: NSWindowController {
             },
             onPresetChanged: { [weak gameScene] newPreset in
                 gameScene?.setCRTDisplayPreset(newPreset)
+            },
+            onClose: { [weak window] in
+                window?.close()
             }
         )
 
@@ -1392,7 +1395,7 @@ class CRTSettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
 
-        // Handle close button in SwiftUI (dismiss environment)
+        // Handle close button in SwiftUI.
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
@@ -1406,8 +1409,6 @@ class CRTSettingsWindowController: NSWindowController {
 
 /// Modern SwiftUI-based CRT settings panel with macOS design language
 struct CRTSettingsPanel: View {
-    @Environment(\.dismiss) private var dismiss
-
     @State private var scanlineIntensity: Double
     @State private var curvature: Double
     @State private var chromatic: Double
@@ -1421,11 +1422,13 @@ struct CRTSettingsPanel: View {
     let initialSettings: CRTSettings
     let onSettingsChanged: (CRTSettings) -> Void
     let onPresetChanged: (CRTPreset) -> Void
+    let onClose: () -> Void
 
-    init(settings: CRTSettings, preset: CRTPreset, onSettingsChanged: @escaping (CRTSettings) -> Void, onPresetChanged: @escaping (CRTPreset) -> Void) {
+    init(settings: CRTSettings, preset: CRTPreset, onSettingsChanged: @escaping (CRTSettings) -> Void, onPresetChanged: @escaping (CRTPreset) -> Void, onClose: @escaping () -> Void) {
         self.initialSettings = settings
         self.onSettingsChanged = onSettingsChanged
         self.onPresetChanged = onPresetChanged
+        self.onClose = onClose
 
         _scanlineIntensity = State(initialValue: Double(settings.scanlineIntensity))
         _curvature = State(initialValue: Double(settings.curvature))
@@ -1447,11 +1450,10 @@ struct CRTSettingsPanel: View {
 
                 Spacer()
 
-                Button(action: { dismiss() }) {
+                Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundStyle(.secondary)
-                        .symbolRenderingMode(.hierarchical)
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Close settings")
@@ -1555,7 +1557,7 @@ struct CRTSettingsPanel: View {
             }
         }
         .frame(width: 500, height: 600)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     private func applyPreset(_ preset: CRTPreset) {
@@ -1646,11 +1648,11 @@ private extension View {
             self
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                        .fill(isSelected ? Color.accentColor : Color(NSColor.controlBackgroundColor))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: isSelected ? 0 : 1)
+                        .stroke(Color(NSColor.separatorColor), lineWidth: isSelected ? 0 : 1)
                 )
         }
     }
@@ -1676,9 +1678,8 @@ private struct SettingSlider: View {
                 Spacer()
 
                 Text(formattedValue)
-                    .font(.system(size: 12, weight: .regular))
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
                     .foregroundColor(.secondary)
-                    .monospacedDigit()
             }
 
             Slider(
@@ -1691,7 +1692,7 @@ private struct SettingSlider: View {
                     }
                 }
             )
-            .tint(.accentColor)
+            .accentColor(.accentColor)
         }
     }
 
