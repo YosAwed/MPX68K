@@ -646,6 +646,70 @@ class GameViewController: NSViewController {
     @IBAction func setPortraitMode(_ sender: Any) {
         gameScene?.setScreenRotation(.portrait)
     }
+
+    @IBAction func takeScreenshot(_ sender: Any) {
+        guard let pngData = gameScene?.makeScreenshotPNGData() else {
+            showScreenshotAlert(message: "スクリーンショットを作成できませんでした。エミュレータ画面の初期化後にもう一度お試しください。")
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.title = "Save Screenshot"
+        savePanel.nameFieldStringValue = defaultScreenshotFilename()
+        if #available(macOS 11.0, *) {
+            savePanel.allowedContentTypes = [.png]
+        } else {
+            savePanel.allowedFileTypes = ["png"]
+        }
+        savePanel.canCreateDirectories = true
+
+        if let picturesURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first {
+            savePanel.directoryURL = picturesURL
+        } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            savePanel.directoryURL = documentsURL
+        }
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard response == .OK, let url = savePanel.url else {
+                return
+            }
+
+            do {
+                try pngData.write(to: url, options: .atomic)
+                infoLog("Saved screenshot: \(url.path)", category: .fileSystem)
+            } catch {
+                errorLog("Failed to save screenshot", error: error, category: .fileSystem)
+                self?.showScreenshotAlert(message: "スクリーンショットの保存に失敗しました。")
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            savePanel.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            savePanel.begin(completionHandler: handleResponse)
+        }
+    }
+
+    private func defaultScreenshotFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "X68000 Screenshot \(formatter.string(from: Date())).png"
+    }
+
+    private func showScreenshotAlert(message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Screenshot"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window) { _ in }
+        } else {
+            alert.runModal()
+        }
+    }
     
     // MARK: - Clock Management
     @IBAction func setClock1MHz(_ sender: Any) {

@@ -1569,6 +1569,37 @@ class GameScene: SKScene {
         guard let buffer = X68000_GetMIDIBuffer() else { return }
         midiController.Send(buffer, Int(size))
     }
+
+    #if os(macOS)
+    func makeScreenshotPNGData() -> Data? {
+        guard w > 0 && h > 0 else { return nil }
+
+        let byteCount = w * h * 4
+        guard byteCount > 0 && byteCount <= d.count else { return nil }
+
+        let bitmapData = Data(d.prefix(byteCount))
+        guard let provider = CGDataProvider(data: bitmapData as CFData) else { return nil }
+
+        guard let cgImage = CGImage(
+            width: w,
+            height: h,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: w * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        ) else {
+            return nil
+        }
+
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        return rep.representation(using: .png, properties: [:])
+    }
+    #endif
     
     private func updateScreenTexture() {
         let cgsize = CGSize(width: w, height: h)

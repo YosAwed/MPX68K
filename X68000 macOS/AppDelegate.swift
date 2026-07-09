@@ -829,6 +829,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
         displayMenu.addItem(NSMenuItem.separator())
 
+        let screenshotItem = NSMenuItem(title: "Take Screenshot...", action: #selector(takeScreenshot(_:)), keyEquivalent: "p")
+        screenshotItem.keyEquivalentModifierMask = [.command, .shift]
+        screenshotItem.target = self
+        screenshotItem.identifier = NSUserInterfaceItemIdentifier("Display-take-screenshot")
+        displayMenu.addItem(screenshotItem)
+
+        displayMenu.addItem(NSMenuItem.separator())
+
         let crtSettingsItem = NSMenuItem(title: "CRT Settings...", action: #selector(showCRTSettings(_:)), keyEquivalent: ",")
         crtSettingsItem.keyEquivalentModifierMask = [.command, .shift]
         crtSettingsItem.target = self
@@ -2562,6 +2570,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     @IBAction func setPortraitMode(_ sender: Any) {
         debugLog("AppDelegate.setPortraitMode called", category: .ui)
         gameViewController?.setPortraitMode(sender)
+    }
+
+    @IBAction func takeScreenshot(_ sender: Any) {
+        debugLog("AppDelegate.takeScreenshot called", category: .ui)
+        gameViewController?.takeScreenshot(sender)
     }
     
     // MARK: - System Menu Actions
