@@ -1348,10 +1348,8 @@ void SCSI_Init(void)
 	ZeroMemory(SCSIIPL, 0x2000);
 	if (SCSI_HasExternalROM()) {
 		p6logd("SCSI_Init: SCSIEXROM.DAT detected, will activate after kernel boot\n");
-		memcpy(SCSIIPL, SCSIROM_DAT, 0x2000);
-	} else {
-		memcpy(SCSIIPL, SCSIIMG, sizeof(SCSIIMG));
 	}
+	memcpy(SCSIIPL, SCSIIMG, sizeof(SCSIIMG));
 	for (i=0; i<0x2000; i+=2)
 	{
 		tmp = SCSIIPL[i];

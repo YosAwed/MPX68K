@@ -25,7 +25,8 @@ class X68Security {
     /// ROMファイルの期待サイズ
     static let expectedROMSizes: [String: Int] = [
         "CGROM.DAT": 768 * 1024,    // 768KB
-        "IPLROM.DAT": 128 * 1024    // 128KB
+        "IPLROM.DAT": 128 * 1024,   // 128KB
+        "SCSIEXROM.DAT": 8 * 1024   // 8KB
     ]
     
     /// ファイル形式の検証

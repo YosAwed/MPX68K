@@ -941,6 +941,22 @@ class GameScene: SKScene {
         // Load ROM files FIRST, before any emulator initialization
         switch fileSystem.loadIPLROM(selectedStorageBusMode: selectedStorageBusMode) {
         case .failure(let romError):
+            #if os(macOS)
+            if case .missingFile(let filename) = romError,
+               filename.uppercased() == "SCSIEXROM.DAT",
+               let controller = GameViewController.shared {
+                controller.promptForMissingROMFiles([filename]) { [weak self] success in
+                    guard let self = self else { return }
+                    guard success else {
+                        errorLog("SCSIEXROM.DAT is still missing - emulator initialization aborted", category: .emulation)
+                        self.notifyROMLoadError(romError)
+                        return
+                    }
+                    self.startEmulator(with: fileSystem)
+                }
+                return
+            }
+            #endif
             errorLog("CRITICAL: IPLROM load failed: \(romError)", category: .emulation)
             notifyROMLoadError(romError)
             return
