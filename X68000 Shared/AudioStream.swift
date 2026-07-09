@@ -114,6 +114,7 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
     
     let audioData = buffer.pointee.mAudioData
     let size = buffer.pointee.mAudioDataBytesCapacity / 4  // Size in 16-bit stereo frames
+    let stream: AudioStream? = data.map { bridge($0) }
     
     // Safety check for reasonable buffer size
     if size > 0 && size <= 8192 {
@@ -121,12 +122,14 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
         
         // Let the X68000 audio core fill the buffer directly
         X68000_AudioCallBack(mAudioDataPtr, UInt32(size))
+        stream?.tapRenderedAudio(audioData, frameCount: Int(size))
         
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
     } else {
         // Fallback: clear and enqueue if size is invalid
         memset(audioData, 0, Int(buffer.pointee.mAudioDataBytesCapacity))
+        stream?.tapRenderedAudio(audioData, frameCount: Int(size))
         buffer.pointee.mAudioDataByteSize = buffer.pointee.mAudioDataBytesCapacity
         AudioQueueEnqueueBuffer(queue, buffer, 0, nil)
     }
@@ -134,6 +137,8 @@ func outputCallback(_ data: UnsafeMutableRawPointer?, queue: AudioQueueRef, buff
 
 
 class AudioStream {
+    static var recordingTap: ((UnsafeRawPointer, Int, Int) -> Void)?
+
     var dataFormat:     AudioStreamBasicDescription
     var queue:          AudioQueueRef? = nil
 
@@ -183,6 +188,16 @@ class AudioStream {
         
         load()
     
+    }
+
+    func tapRenderedAudio(_ audioData: UnsafeMutableRawPointer?, frameCount: Int) {
+        guard frameCount > 0,
+              let audioData = audioData,
+              let recordingTap = AudioStream.recordingTap else {
+            return
+        }
+
+        recordingTap(UnsafeRawPointer(audioData), frameCount, samplingrate)
     }
 
     func load()

@@ -10,6 +10,7 @@ import Cocoa
 import SpriteKit
 import GameplayKit
 import UniformTypeIdentifiers
+import AVFoundation
 
 // MARK: - Serial Communication Support
 
@@ -26,6 +27,292 @@ public enum SCCMode: Int32 {
 @_silgen_name("SCC_SetMode") func SCC_SetMode(_ mode: Int32, _ config: UnsafePointer<CChar>?) -> Int32
 @_silgen_name("SCC_CloseSerial") func SCC_CloseSerial()
 @_silgen_name("SCC_GetSlavePath") func SCC_GetSlavePath() -> UnsafePointer<CChar>?
+
+private final class ScreenRecorder {
+    private let writer: AVAssetWriter
+    private let input: AVAssetWriterInput
+    private let audioInput: AVAssetWriterInput
+    private let adaptor: AVAssetWriterInputPixelBufferAdaptor
+    private let width: Int
+    private let height: Int
+    private let frameRate: Int32
+    private let audioSampleRate: Int
+    private let audioQueue = DispatchQueue(label: "X68000.ScreenRecorder.audio")
+    private let audioFormatDescription: CMAudioFormatDescription
+    private var frameIndex: Int64 = 0
+    private var audioFrameIndex: Int64 = 0
+    private var timer: Timer?
+    private var completion: ((Result<URL, Error>) -> Void)?
+    private var isStopping = false
+
+    var outputURL: URL {
+        writer.outputURL
+    }
+
+    init(url: URL, width: Int, height: Int, frameRate: Int32, audioSampleRate: Int) throws {
+        self.width = width
+        self.height = height
+        self.frameRate = frameRate
+        self.audioSampleRate = audioSampleRate
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+
+        writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: max(2_000_000, width * height * 12),
+                AVVideoExpectedSourceFrameRateKey: frameRate
+            ]
+        ]
+        input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = true
+
+        let audioSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: audioSampleRate,
+            AVNumberOfChannelsKey: 2,
+            AVEncoderBitRateKey: 128_000
+        ]
+        audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+        audioInput.expectsMediaDataInRealTime = true
+
+        var audioDescription = AudioStreamBasicDescription(
+            mSampleRate: Float64(audioSampleRate),
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kLinearPCMFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: 2,
+            mBitsPerChannel: 16,
+            mReserved: 0
+        )
+        var formatDescription: CMAudioFormatDescription?
+        let formatStatus = CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault,
+                                                          asbd: &audioDescription,
+                                                          layoutSize: 0,
+                                                          layout: nil,
+                                                          magicCookieSize: 0,
+                                                          magicCookie: nil,
+                                                          extensions: nil,
+                                                          formatDescriptionOut: &formatDescription)
+        guard formatStatus == noErr, let formatDescription = formatDescription else {
+            throw NSError(domain: "X68000.ScreenRecorder", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "Cannot create audio format description"
+            ])
+        }
+        audioFormatDescription = formatDescription
+
+        let attributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
+                                                       sourcePixelBufferAttributes: attributes)
+
+        guard writer.canAdd(input) else {
+            throw NSError(domain: "X68000.ScreenRecorder", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Cannot add video input"
+            ])
+        }
+        writer.add(input)
+
+        guard writer.canAdd(audioInput) else {
+            throw NSError(domain: "X68000.ScreenRecorder", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Cannot add audio input"
+            ])
+        }
+        writer.add(audioInput)
+    }
+
+    func start(initialFrame: Data,
+               frameProvider: @escaping () -> (data: Data, width: Int, height: Int)?,
+               completion: @escaping (Result<URL, Error>) -> Void) {
+        self.completion = completion
+        guard writer.startWriting() else {
+            let error = writer.error ?? NSError(domain: "X68000.ScreenRecorder", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "Cannot start writing recording"
+            ])
+            completion(.failure(error))
+            self.completion = nil
+            return
+        }
+        writer.startSession(atSourceTime: .zero)
+        append(initialFrame)
+        appendSilentAudio(frameCount: max(1, audioSampleRate / 20))
+
+        AudioStream.recordingTap = { [weak self] samples, frameCount, sampleRate in
+            guard sampleRate == self?.audioSampleRate else { return }
+            self?.appendAudio(samples, frameCount: frameCount)
+        }
+
+        timer = Timer(timeInterval: 1.0 / Double(frameRate), repeats: true) { [weak self] _ in
+            guard let self = self, !self.isStopping else { return }
+            guard let frame = frameProvider(),
+                  frame.width == self.width,
+                  frame.height == self.height else {
+                return
+            }
+            self.append(frame.data)
+        }
+        if let timer = timer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+    }
+
+    func stop() {
+        guard !isStopping else { return }
+        isStopping = true
+        timer?.invalidate()
+        timer = nil
+        AudioStream.recordingTap = nil
+
+        input.markAsFinished()
+        audioQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.audioInput.markAsFinished()
+            self.writer.finishWriting { [weak self] in
+                guard let self = self else { return }
+                if let error = self.writer.error {
+                    self.completion?(.failure(error))
+                } else {
+                    self.completion?(.success(self.outputURL))
+                    infoLog("Saved screen recording: \(self.outputURL.path)", category: .fileSystem)
+                }
+                self.completion = nil
+            }
+        }
+    }
+
+    private func append(_ rgbaData: Data) {
+        guard input.isReadyForMoreMediaData else { return }
+
+        var pixelBuffer: CVPixelBuffer?
+        if let pool = adaptor.pixelBufferPool {
+            CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+        }
+        if pixelBuffer == nil {
+            let attributes: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+            CVPixelBufferCreate(kCFAllocatorDefault,
+                                width,
+                                height,
+                                kCVPixelFormatType_32BGRA,
+                                attributes as CFDictionary,
+                                &pixelBuffer)
+        }
+        guard let pixelBuffer = pixelBuffer else {
+            return
+        }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let srcBytesPerRow = width * 4
+
+        rgbaData.withUnsafeBytes { src in
+            guard let srcBase = src.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+            let dstBase = baseAddress.assumingMemoryBound(to: UInt8.self)
+            for y in 0..<height {
+                let srcRow = srcBase.advanced(by: y * srcBytesPerRow)
+                let dstRow = dstBase.advanced(by: y * bytesPerRow)
+                for x in 0..<width {
+                    let si = x * 4
+                    let di = x * 4
+                    dstRow[di + 0] = srcRow[si + 2]
+                    dstRow[di + 1] = srcRow[si + 1]
+                    dstRow[di + 2] = srcRow[si + 0]
+                    dstRow[di + 3] = srcRow[si + 3]
+                }
+            }
+        }
+
+        let time = CMTime(value: frameIndex, timescale: frameRate)
+        if adaptor.append(pixelBuffer, withPresentationTime: time) {
+            frameIndex += 1
+        }
+    }
+
+    private func appendAudio(_ samples: UnsafeRawPointer, frameCount: Int) {
+        guard frameCount > 0, !isStopping else { return }
+
+        let byteCount = frameCount * 4
+        let pcmData = Data(bytes: samples, count: byteCount)
+        audioQueue.async { [weak self] in
+            self?.appendAudioData(pcmData, frameCount: frameCount)
+        }
+    }
+
+    private func appendSilentAudio(frameCount: Int) {
+        guard frameCount > 0 else { return }
+
+        let pcmData = Data(count: frameCount * 4)
+        audioQueue.async { [weak self] in
+            self?.appendAudioData(pcmData, frameCount: frameCount)
+        }
+    }
+
+    private func appendAudioData(_ pcmData: Data, frameCount: Int) {
+        guard audioInput.isReadyForMoreMediaData,
+              writer.status == .writing else {
+            return
+        }
+
+        var blockBuffer: CMBlockBuffer?
+        let createStatus = CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault,
+                                                              memoryBlock: nil,
+                                                              blockLength: pcmData.count,
+                                                              blockAllocator: kCFAllocatorDefault,
+                                                              customBlockSource: nil,
+                                                              offsetToData: 0,
+                                                              dataLength: pcmData.count,
+                                                              flags: 0,
+                                                              blockBufferOut: &blockBuffer)
+        guard createStatus == kCMBlockBufferNoErr, let blockBuffer = blockBuffer else { return }
+
+        let replaceStatus = pcmData.withUnsafeBytes { rawBuffer in
+            CMBlockBufferReplaceDataBytes(with: rawBuffer.baseAddress!,
+                                          blockBuffer: blockBuffer,
+                                          offsetIntoDestination: 0,
+                                          dataLength: pcmData.count)
+        }
+        guard replaceStatus == kCMBlockBufferNoErr else { return }
+
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: CMTimeScale(audioSampleRate)),
+                                        presentationTimeStamp: CMTime(value: audioFrameIndex,
+                                                                      timescale: CMTimeScale(audioSampleRate)),
+                                        decodeTimeStamp: .invalid)
+        var sampleSize = 4
+        var sampleBuffer: CMSampleBuffer?
+        let sampleStatus = CMSampleBufferCreateReady(allocator: kCFAllocatorDefault,
+                                                     dataBuffer: blockBuffer,
+                                                     formatDescription: audioFormatDescription,
+                                                     sampleCount: frameCount,
+                                                     sampleTimingEntryCount: 1,
+                                                     sampleTimingArray: &timing,
+                                                     sampleSizeEntryCount: 1,
+                                                     sampleSizeArray: &sampleSize,
+                                                     sampleBufferOut: &sampleBuffer)
+        guard sampleStatus == noErr, let sampleBuffer = sampleBuffer else { return }
+
+        if audioInput.append(sampleBuffer) {
+            audioFrameIndex += Int64(frameCount)
+        }
+    }
+}
 
 // MARK: - Custom SKView for Mouse Event Forwarding
 
@@ -690,6 +977,86 @@ class GameViewController: NSViewController {
         }
     }
 
+    var isScreenRecording: Bool {
+        screenRecorder != nil
+    }
+
+    @IBAction func toggleScreenRecording(_ sender: Any) {
+        if screenRecorder != nil {
+            stopScreenRecording()
+        } else {
+            beginScreenRecording()
+        }
+    }
+
+    private var screenRecorder: ScreenRecorder?
+
+    private func beginScreenRecording() {
+        guard let frame = gameScene?.copyCurrentFrameRGBAData() else {
+            showRecordingAlert(message: "録画を開始できませんでした。エミュレータ画面の初期化後にもう一度お試しください。")
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.title = "Save Recording"
+        savePanel.nameFieldStringValue = defaultRecordingFilename()
+        if #available(macOS 11.0, *) {
+            savePanel.allowedContentTypes = [.quickTimeMovie]
+        } else {
+            savePanel.allowedFileTypes = ["mov"]
+        }
+        savePanel.canCreateDirectories = true
+
+        if let moviesURL = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first {
+            savePanel.directoryURL = moviesURL
+        } else if let picturesURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first {
+            savePanel.directoryURL = picturesURL
+        }
+
+        let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self = self else { return }
+            guard response == .OK, let url = savePanel.url else {
+                return
+            }
+
+            do {
+                let audioSampleRate = self.gameScene?.audioSampleRateForRecording ?? 22_050
+                let recorder = try ScreenRecorder(url: url,
+                                                  width: frame.width,
+                                                  height: frame.height,
+                                                  frameRate: 30,
+                                                  audioSampleRate: audioSampleRate)
+                self.screenRecorder = recorder
+                recorder.start(initialFrame: frame.data, frameProvider: { [weak self] in
+                    self?.gameScene?.copyCurrentFrameRGBAData()
+                }, completion: { [weak self] result in
+                    DispatchQueue.main.async {
+                        self?.screenRecorder = nil
+                        if case .failure(let error) = result {
+                            errorLog("Screen recording failed", error: error, category: .fileSystem)
+                            self?.showRecordingAlert(message: "録画の保存に失敗しました。")
+                        }
+                    }
+                })
+                infoLog("Started screen recording: \(url.path)", category: .fileSystem)
+            } catch {
+                errorLog("Failed to start screen recording", error: error, category: .fileSystem)
+                self.showRecordingAlert(message: "録画を開始できませんでした。")
+            }
+        }
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            savePanel.beginSheetModal(for: window, completionHandler: handleResponse)
+        } else {
+            savePanel.begin(completionHandler: handleResponse)
+        }
+    }
+
+    private func stopScreenRecording() {
+        guard let recorder = screenRecorder else { return }
+        recorder.stop()
+    }
+
     private func defaultScreenshotFilename() -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -697,9 +1064,30 @@ class GameViewController: NSViewController {
         return "X68000 Screenshot \(formatter.string(from: Date())).png"
     }
 
+    private func defaultRecordingFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "X68000 Recording \(formatter.string(from: Date())).mov"
+    }
+
     private func showScreenshotAlert(message: String) {
         let alert = NSAlert()
         alert.messageText = "Screenshot"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+
+        if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window) { _ in }
+        } else {
+            alert.runModal()
+        }
+    }
+
+    private func showRecordingAlert(message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Recording"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")

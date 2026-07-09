@@ -835,6 +835,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         screenshotItem.identifier = NSUserInterfaceItemIdentifier("Display-take-screenshot")
         displayMenu.addItem(screenshotItem)
 
+        let recordingItem = NSMenuItem(title: "Start Recording...", action: #selector(toggleScreenRecording(_:)), keyEquivalent: "r")
+        recordingItem.keyEquivalentModifierMask = [.command, .shift]
+        recordingItem.target = self
+        recordingItem.identifier = NSUserInterfaceItemIdentifier("Display-toggle-recording")
+        displayMenu.addItem(recordingItem)
+
         displayMenu.addItem(NSMenuItem.separator())
 
         let crtSettingsItem = NSMenuItem(title: "CRT Settings...", action: #selector(showCRTSettings(_:)), keyEquivalent: ",")
@@ -2576,6 +2582,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         debugLog("AppDelegate.takeScreenshot called", category: .ui)
         gameViewController?.takeScreenshot(sender)
     }
+
+    @IBAction func toggleScreenRecording(_ sender: Any) {
+        debugLog("AppDelegate.toggleScreenRecording called", category: .ui)
+        gameViewController?.toggleScreenRecording(sender)
+    }
     
     // MARK: - System Menu Actions
     @IBAction func resetSystem(_ sender: Any) {
@@ -3042,6 +3053,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             // Always enable the mouse toggle menu item
             menuItem.state = isMouseCaptureEnabled ? .on : .off
             debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
+            return true
+        } else if menuItem.identifier?.rawValue == "Display-toggle-recording" {
+            let isRecording = gameViewController?.isScreenRecording ?? false
+            menuItem.title = isRecording ? "Stop Recording" : "Start Recording..."
             return true
         } else if menuItem.menu?.title == "Clock" {
             // Reflect current clock selection via checkmark

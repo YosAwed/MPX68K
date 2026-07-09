@@ -1599,6 +1599,19 @@ class GameScene: SKScene {
         let rep = NSBitmapImageRep(cgImage: cgImage)
         return rep.representation(using: .png, properties: [:])
     }
+
+    func copyCurrentFrameRGBAData() -> (data: Data, width: Int, height: Int)? {
+        guard w > 0 && h > 0 else { return nil }
+
+        let byteCount = w * h * 4
+        guard byteCount > 0 && byteCount <= d.count else { return nil }
+
+        return (Data(d.prefix(byteCount)), w, h)
+    }
+
+    var audioSampleRateForRecording: Int {
+        samplingRate
+    }
     #endif
     
     private func updateScreenTexture() {
