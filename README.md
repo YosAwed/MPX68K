@@ -29,7 +29,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
   - Presets: Off / Subtle / Standard / Enhanced
   - Dedicated SwiftUI settings panel (⌘,)
 - **Screen Rotation**: 90-degree rotation for vertical games (tate mode)
-- **Background Video Superimpose**: Overlay a local video file or a YouTube URL as a luma-keyed background, with adjustable threshold / softness / intensity
+- **Background Video Superimpose**: Overlay a local video file as a luma-keyed background, with adjustable threshold / softness / intensity
 
 ### Input
 - **Keyboard & Mouse**: Full macOS-native input with SCC compatibility mode for VS.X double-click reliability
@@ -143,7 +143,7 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Landscape Mode** / **Portrait Mode**: Set orientation directly
 - **CRT Settings…** (⌘,): Open the SwiftUI CRT configuration panel
 - **CRT Display Mode → Off / Subtle / Standard / Enhanced**: Quick CRT preset selection
-- **Background Video → Set Video File… / Set YouTube URL…**: Pick a background source
+- **Background Video → Set Video File…**: Pick a local background video
 - **Background Video → Superimpose**: Toggle luma-key overlay on/off
 - **Background Video → Threshold / Softness / Intensity**: Fine-tune the luma key
 
@@ -335,7 +335,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 #### New Features
 - **SASI / SCSI Dual-Boot**: Switch the hard disk bus between SASI and SCSI at runtime. SCSI boot uses an IPL-ROM-first architecture with the external CZ-6BS1 ROM mapped at `$EA0000-$EA1FFF`
 - **CRT Display Pipeline**: Full shader chain with scanlines, bloom, vignette, noise, curvature, chromatic aberration, and persistence — plus a dedicated SwiftUI settings panel (⌘,) and Off / Subtle / Standard / Enhanced presets
-- **Background Video Superimpose**: Overlay a local video file or a YouTube URL as a luma-keyed background, with adjustable threshold / softness / intensity
+- **Background Video Superimpose**: Overlay a local video file as a luma-keyed background, with adjustable threshold / softness / intensity
 - **Adjustable CPU Clock**: 1 / 10 / 16 / 24 / 40 / 50 MHz selection from the Clock menu
 - **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, and TCP server backends
 - **MIDI Output with Delay**: External MIDI output with configurable delay and buffering

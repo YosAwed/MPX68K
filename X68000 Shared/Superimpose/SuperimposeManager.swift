@@ -6,11 +6,6 @@
 import Foundation
 import SpriteKit
 import AVFoundation
-import YouTubeKit
-
-enum SuperimposeError: Error {
-    case noPlayableStream
-}
 
 final class SuperimposeManager: NSObject {
     struct Settings: Codable, Equatable {
@@ -126,24 +121,6 @@ final class SuperimposeManager: NSObject {
                 }
             }
         }
-    }
-
-    func loadVideoFromYouTube(url: URL) async throws {
-        errorLog("Loading YouTube video: \(url.absoluteString)", category: .ui)
-
-        let youtube = YouTube(url: url, methods: [.local, .remote])
-        let streams = try await youtube.streams
-
-        guard let stream = streams
-            .filterVideoAndAudio()
-            .filter({ $0.isNativelyPlayable })
-            .highestResolutionStream() else {
-            throw SuperimposeError.noPlayableStream
-        }
-
-        errorLog("Selected stream: \(stream.url.absoluteString)", category: .ui)
-
-        try loadVideo(url: stream.url)
     }
 
     func removeVideo() {

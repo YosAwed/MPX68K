@@ -888,10 +888,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         setVideo.target = self
         bgMenu.addItem(setVideo)
 
-        let setYouTubeVideo = NSMenuItem(title: "Set YouTube URL…", action: #selector(setBackgroundYouTubeVideo(_:)), keyEquivalent: "")
-        setYouTubeVideo.target = self
-        bgMenu.addItem(setYouTubeVideo)
-
         let removeVideo = NSMenuItem(title: "Remove Video", action: #selector(removeBackgroundVideo(_:)), keyEquivalent: "")
         removeVideo.target = self
         bgMenu.addItem(removeVideo)
@@ -1708,38 +1704,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             debugLog("Video loading and enable completed", category: .ui)
         } else {
             debugLog("File panel cancelled or no URL", category: .ui)
-        }
-    }
-    @objc func setBackgroundYouTubeVideo(_ sender: Any?) {
-        guard let gvc = gameViewController else { return }
-
-        let alert = NSAlert()
-        alert.messageText = "YouTube Video URL"
-        alert.informativeText = "Enter the YouTube video URL:"
-        alert.alertStyle = .informational
-
-        let inputField = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        inputField.placeholderString = "https://www.youtube.com/watch?v=..."
-        alert.accessoryView = inputField
-
-        alert.addButton(withTitle: "Load")
-        alert.addButton(withTitle: "Cancel")
-
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return }
-
-        let urlString = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: urlString), url.scheme?.hasPrefix("http") == true else {
-            showSimpleAlert(title: "Invalid URL", message: "Please enter a valid YouTube URL.")
-            return
-        }
-
-        Task { @MainActor in
-            if let gameScene = gvc.gameScene {
-                await gameScene.loadBackgroundVideoFromYouTube(url: url)
-                gameScene.setSuperimposeEnabled(true)
-                self.updateCRTMenuCheckmarks()
-            }
         }
     }
     @objc func removeBackgroundVideo(_ sender: Any?) {
