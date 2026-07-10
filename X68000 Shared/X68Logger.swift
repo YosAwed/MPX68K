@@ -44,18 +44,20 @@ struct X68LogConfig {
 
 /// デバッグ専用のログ関数
 /// リリースビルドでは出力されない
-func debugLog(_ message: String, category: Logger = .x68mac) {
+func debugLog(_ message: @autoclosure () -> String, category: Logger = .x68mac) {
     #if DEBUG
     if X68LogConfig.enableDebugLogs {
-        category.debug("\(message)")
+        let evaluatedMessage = message()
+        category.debug("\(evaluatedMessage)")
     }
     #endif
 }
 
 /// 情報ログ関数
-func infoLog(_ message: String, category: Logger = .x68mac) {
+func infoLog(_ message: @autoclosure () -> String, category: Logger = .x68mac) {
     if X68LogConfig.enableInfoLogs {
-        category.info("\(message)")
+        let evaluatedMessage = message()
+        category.info("\(evaluatedMessage)")
     }
 }
 

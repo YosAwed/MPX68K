@@ -640,6 +640,10 @@ class FileSystem {
     // Track currently loading disk pairs to prevent duplicate operations (static to work across instances)
     private static var currentlyLoadingPair: String?
     private static let loadingPairLock = NSLock()
+    private let diskLoadQueue = DispatchQueue(
+        label: "com.goroman.x68mac.disk-loading",
+        qos: .userInitiated
+    )
     
     // File search cache for performance optimization
     private static var fileSearchCache: [String: URL] = [:]
@@ -1296,8 +1300,9 @@ class FileSystem {
         debugLog("loadAsynchronously called with: \(url.lastPathComponent)", category: .fileSystem)
         debugLog("Loading file: \(url.path)", category: .fileSystem)
         
-        // Use a simple approach without complex queue nesting
-        self.handleiCloudFileLoading(url: url)
+        diskLoadQueue.async { [weak self] in
+            self?.handleiCloudFileLoading(url: url)
+        }
     }
     
     private func handleiCloudFileLoading(url: URL) {
@@ -1659,7 +1664,7 @@ class FileSystem {
         debugLog("Attempting to load companion disk: \(companionUrl.lastPathComponent)", category: .fileSystem)
         
         // Load companion with fallback - don't block if it fails
-        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        diskLoadQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.loadCompanionDiskWithFallback(companionUrl: companionUrl) {
                 // Cleanup regardless of success/failure (thread-safe)
                 FileSystem.loadingPairLock.lock()
@@ -1828,7 +1833,7 @@ class FileSystem {
         debugLog("loadDiskPairWithSharedSecurityScope called", category: .fileSystem)
         debugLog("Using original URL for security scope: \(originalUrl.lastPathComponent)", category: .fileSystem)
         
-        DispatchQueue.global(qos: .background).async { [weak self] in
+        diskLoadQueue.async { [weak self] in
             guard let self = self else {
                 DispatchQueue.main.async { completion() }
                 return
@@ -1983,7 +1988,7 @@ class FileSystem {
     // Load disk image with completion callback
     private func loadDiskImageWithCallback(_ url: URL, completion: @escaping (Bool) -> Void) {
         debugLog("loadDiskImageWithCallback called for: \(url.lastPathComponent)", category: .fileSystem)
-        DispatchQueue.global(qos: .background).async { [weak self] in
+        diskLoadQueue.async { [weak self] in
             debugLog("Background queue started for: \(url.lastPathComponent)", category: .fileSystem)
             guard let self = self else {
                 debugLog("Self is nil, completing with false", category: .fileSystem)

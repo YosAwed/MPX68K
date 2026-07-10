@@ -1149,11 +1149,16 @@ struct MonitorDiagnosticSnapshot {
 
 static pthread_mutex_t s_monitor_diagnostic_mutex = PTHREAD_MUTEX_INITIALIZER;
 static MonitorDiagnosticSnapshot s_monitor_diagnostic_snapshot = {};
+static std::atomic<int> s_monitor_diagnostics_enabled(0);
 
 // Capture all no-pause DIAG data on the emulation thread. The socket thread
 // only reads this copy under the mutex and never races the CPU or Config data.
 static void MonitorDiagnosticSnapshot_Update(void)
 {
+    if (!s_monitor_diagnostics_enabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+
     MonitorDiagnosticSnapshot next = {};
 
     pthread_mutex_lock(&s_monitor_diagnostic_mutex);
@@ -2903,10 +2908,12 @@ extern "C" void MonitorSocket_Start(void) {
         unlink(s_monitor_socket_path);
         return;
     }
+    s_monitor_diagnostics_enabled.store(1, std::memory_order_release);
     fprintf(stderr,"[MPX68K] Machine Monitor socket: %s\n",s_monitor_socket_path);
 }
 
 extern "C" void MonitorSocket_Stop(void) {
+    s_monitor_diagnostics_enabled.store(0, std::memory_order_release);
     s_running.store(0, std::memory_order_release);
     pthread_mutex_lock(&s_client_fd_mutex);
     if (s_client_fd>=0) { shutdown(s_client_fd,SHUT_RDWR); close(s_client_fd); s_client_fd=-1; }

@@ -72,6 +72,8 @@ class GameScene: SKScene {
     private var crtEffectRoot: SKNode?
     private var scanlineOverlay: SKSpriteNode?
     private var noiseOverlay: SKSpriteNode?
+    private var noiseUpdateFrameCount = 0
+    private let noiseUpdateIntervalFrames = 4
     private var lastOverlaySize: CGSize = .zero
     private var chromaRedNode: SKEffectNode?
     private var chromaRedSprite: SKSpriteNode?
@@ -585,6 +587,7 @@ class GameScene: SKScene {
             rebuildOverlaysIfNeeded(size: spr.size)
             rebuildCornerVignetteIfNeeded(size: spr.size, intensity: s.vignetteIntensity)
             applyChromaticSettings() // disables chroma base/filter when strength is 0 (OFF)
+            updateNoiseOverlay(force: true)
         }
         // Small on-screen notice
         let note = SKLabelNode(text: "CRT: \(preset.rawValue.capitalized)")
@@ -620,6 +623,7 @@ class GameScene: SKScene {
             noiseOverlay?.alpha = CGFloat(max(0.0, min(1.0, settings.noiseIntensity * 0.25)))
             rebuildOverlaysIfNeeded(size: spr.size)
             rebuildCornerVignetteIfNeeded(size: spr.size, intensity: settings.vignetteIntensity)
+            updateNoiseOverlay(force: true)
         }
         // Update chromatic overlays
         applyChromaticSettings()
@@ -1915,9 +1919,19 @@ class GameScene: SKScene {
         return cgimg.map { SKTexture(cgImage: $0) }
     }
 
-    private func updateNoiseOverlay() {
-        guard let node = noiseOverlay else { return }
-        // Refresh a small noise texture periodically for movement
+    private func updateNoiseOverlay(force: Bool = false) {
+        guard let node = noiseOverlay, node.alpha > 0.001 else {
+            noiseUpdateFrameCount = 0
+            return
+        }
+
+        if !force {
+            noiseUpdateFrameCount += 1
+            guard noiseUpdateFrameCount >= noiseUpdateIntervalFrames else { return }
+        }
+        noiseUpdateFrameCount = 0
+
+        // Refresh the animated noise at roughly 15 Hz instead of every frame.
         if let tex = makeNoiseTexture(width: 128, height: 128) {
             node.texture = tex
         }

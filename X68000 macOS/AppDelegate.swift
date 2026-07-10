@@ -562,10 +562,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
         resetSCSILogs()
         appendSCSILog("MAC_APP_DID_FINISH")
-        // Enable verbose logs for troubleshooting
+        // Enable verbose logs only in development builds.
+        #if DEBUG
         X68LogConfig.enableInfoLogs = true
         X68LogConfig.enableDebugLogs = true
         infoLog("Verbose logging enabled (info/debug)", category: .ui)
+        #endif
 
         // Defer menu setup to next runloop to ensure storyboard menu is fully loaded.
         // Build a consistent menu to avoid AppKit validating an incomplete storyboard menu.
