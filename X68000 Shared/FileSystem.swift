@@ -899,26 +899,9 @@ class FileSystem {
 #endif
         
         createDocumentsFolder()
-        
-        
-        DispatchQueue.main.async {
-            // Download iCloud documents only when a ubiquity container is
-            // available.  Calling startDownloadingUbiquitousItem on a local
-            // path produces "couldn't be saved" errors.
-            guard let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
-                return
-            }
-            do {
-                try FileManager.default.startDownloadingUbiquitousItem(at: containerURL)
-            } catch let error as NSError {
-                errorLog("Error accessing iCloud container", error: error, category: .fileSystem)
-            }
-        }
     }
     
     func createDocumentsFolder() {
-        // iCloudコンテナのURL
-        //        let url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         guard let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true) else {
             errorLog("Failed to get documents directory URL", category: .fileSystem)
             return
@@ -949,8 +932,6 @@ class FileSystem {
     }
     
     func getDocumentsPath(_ filename: String )->URL? {
-        // for iCloud
-        //      let containerURL = FileManager.default.url(forUbiquityContainerIdentifier: nil)
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
         let documentsURL = containerURL?.appendingPathComponent("X68000")
@@ -1273,11 +1254,6 @@ class FileSystem {
         if let downloadsURL = try? FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false) {
             allowedPaths.append(downloadsURL)
             debugLog("Added Downloads directory: \(downloadsURL.path)", category: .fileSystem)
-        }
-        
-        // Also allow iCloud Drive Downloads folder (common for shared files)
-        if let iCloudURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) {
-            allowedPaths.append(iCloudURL.appendingPathComponent("Downloads"))
         }
         
         // Check if the file URL is within any of the allowed directories
