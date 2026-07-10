@@ -73,32 +73,13 @@ private func makeIcon(size: Int) -> NSImage {
     return image
 }
 
-private func makeLogo(width: Int, height: Int) -> NSImage {
-    let image = NSImage(size: NSSize(width: width, height: height))
-    image.lockFocus()
-    guard let context = NSGraphicsContext.current?.cgContext else { return image }
-    let scale = CGFloat(height) / 236.0
-    // Keep the two parts as a single, centered wordmark instead of leaving
-    // a logo-sized gap between them.
-    drawText("MPX", at: CGPoint(x: 300 * scale, y: 78 * scale), size: 92 * scale, color: cyan, in: context)
-    drawText("68K", at: CGPoint(x: 495 * scale, y: 78 * scale), size: 92 * scale, color: amber, in: context)
-    context.setStrokeColor(cyan.withAlphaComponent(0.8).cgColor)
-    context.setLineWidth(max(2, 5 * scale))
-    context.move(to: CGPoint(x: 300 * scale, y: 54 * scale))
-    context.addLine(to: CGPoint(x: 690 * scale, y: 54 * scale))
-    context.strokePath()
-    image.unlockFocus()
-    return image
-}
-
 let arguments = CommandLine.arguments
-guard arguments.count == 3 else {
-    fputs("usage: GenerateMPX68KArtwork <icon-directory> <logo-file>\n", stderr)
+guard arguments.count == 2 else {
+    fputs("usage: GenerateMPX68KArtwork <icon-directory>\n", stderr)
     exit(2)
 }
 
 let iconDirectory = URL(fileURLWithPath: arguments[1], isDirectory: true)
-let logoURL = URL(fileURLWithPath: arguments[2])
 let iconSizes: [(String, Int)] = [
     ("16.png", 16), ("32.png", 32), ("32-1.png", 32), ("64.png", 64),
     ("128.png", 128), ("256.png", 256), ("256-1.png", 256), ("512.png", 512),
@@ -109,7 +90,6 @@ do {
     for (name, size) in iconSizes {
         try savePNG(makeIcon(size: size), to: iconDirectory.appendingPathComponent(name))
     }
-    try savePNG(makeLogo(width: 1000, height: 236), to: logoURL)
 } catch {
     fputs("generation failed: \(error)\n", stderr)
     exit(1)
