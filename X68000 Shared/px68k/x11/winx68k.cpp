@@ -135,6 +135,7 @@ static int g_scsi0_mounted = 0;
 static char g_scsi0_path[MAX_PATH] = {0};
 static int g_scsi_boot_pending = 0;
 static int g_enable_scsi_dev_driver = 0;
+static unsigned int g_scsi_link_scan_slice_count = 0;
 static int g_scsi_boot_watchdog_ticks = 0;
 static int g_scsi_boot_forced_once = 0;
 static int g_scsi_boot_handoff_ticks = 0;
@@ -512,6 +513,7 @@ WinX68k_Reset(void)
         ClkUsed = 0;
         FrameSkipCount = 0;
         FrameSkipQueue = 0;
+        g_scsi_link_scan_slice_count = 0;
     }
     
     OPM_Reset();
@@ -915,9 +917,14 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 #if defined(HAVE_C68K)
 	                        // Lightweight SCSI boot checks (IPL-ROM-first architecture)
 	                        if (g_scsi_boot_pending) {
-                            // Device driver chain linking
+                            // SCSI_LinkDeviceDriver scans a large guest-RAM range.
+                            // This block runs once per CPU clock slice, so scanning
+                            // every time can starve rendering during Human68k boot.
+                            // Check once per 256 slices until the NUL device appears.
                             if (g_enable_scsi_dev_driver && !SCSI_IsDeviceLinked()) {
-                                SCSI_LinkDeviceDriver();
+                                if ((g_scsi_link_scan_slice_count++ & 0xffU) == 0U) {
+                                    SCSI_LinkDeviceDriver();
+                                }
                             }
                             // IOCS[$F5] safety pin: ensure SCSI IOCS handler stays patched
                             DWORD f5 = Memory_ReadD(0x7D4) & 0x00FFFFFFU;
@@ -1121,14 +1128,81 @@ int original_main(int argc, const char *argv[], const long samplingrate )
 
 extern "C" int X68000_Monitor_ConsumePauseRequest(void);
 
+struct MonitorDiagnosticSnapshot {
+    unsigned long frameCount;
+    int valid;
+    int storageBusMode;
+    int scsi0Mounted;
+    long scsiImageBytes;
+    int scsiBootPending;
+    int scsiDeviceDriverEnabled;
+    int scsiDeviceLinked;
+    int scsiRomPresent;
+    unsigned int sramBootDevice;
+    unsigned int pc;
+    unsigned int sr;
+    unsigned int a7;
+    char fdd0[MAX_PATH];
+    char fdd1[MAX_PATH];
+    char hd0[MAX_PATH];
+};
+
+static pthread_mutex_t s_monitor_diagnostic_mutex = PTHREAD_MUTEX_INITIALIZER;
+static MonitorDiagnosticSnapshot s_monitor_diagnostic_snapshot = {};
+
+// Capture all no-pause DIAG data on the emulation thread. The socket thread
+// only reads this copy under the mutex and never races the CPU or Config data.
+static void MonitorDiagnosticSnapshot_Update(void)
+{
+    MonitorDiagnosticSnapshot next = {};
+
+    pthread_mutex_lock(&s_monitor_diagnostic_mutex);
+    next.frameCount = s_monitor_diagnostic_snapshot.frameCount + 1;
+    pthread_mutex_unlock(&s_monitor_diagnostic_mutex);
+
+    next.valid = 1;
+    next.storageBusMode = g_storage_bus_mode;
+    next.scsi0Mounted = g_scsi0_mounted;
+    next.scsiImageBytes = s_disk_image_buffer_size[4];
+    next.scsiBootPending = g_scsi_boot_pending;
+    next.scsiDeviceDriverEnabled = g_enable_scsi_dev_driver;
+    next.scsiDeviceLinked = SCSI_IsDeviceLinked();
+    next.scsiRomPresent = SCSI_IsROMPresent();
+    next.sramBootDevice = SRAM[0x18 ^ 1];
+    next.pc = m68000_get_reg(M68K_PC);
+    next.sr = m68000_get_reg(M68K_SR);
+    next.a7 = m68000_get_reg(M68K_A7);
+    snprintf(next.fdd0, sizeof(next.fdd0), "%s",
+             Config.FDDImage[0][0] ? Config.FDDImage[0] : "(none)");
+    snprintf(next.fdd1, sizeof(next.fdd1), "%s",
+             Config.FDDImage[1][0] ? Config.FDDImage[1] : "(none)");
+    snprintf(next.hd0, sizeof(next.hd0), "%s",
+             Config.HDImage[0][0] ? Config.HDImage[0] : "(none)");
+
+    pthread_mutex_lock(&s_monitor_diagnostic_mutex);
+    s_monitor_diagnostic_snapshot = next;
+    pthread_mutex_unlock(&s_monitor_diagnostic_mutex);
+}
+
+static MonitorDiagnosticSnapshot MonitorDiagnosticSnapshot_Read(void)
+{
+    pthread_mutex_lock(&s_monitor_diagnostic_mutex);
+    MonitorDiagnosticSnapshot snapshot = s_monitor_diagnostic_snapshot;
+    pthread_mutex_unlock(&s_monitor_diagnostic_mutex);
+    return snapshot;
+}
+
 void Update(const long clockMHz, const int vsync ) {
     if (X68000_Monitor_ConsumePauseRequest()) {
+        MonitorDiagnosticSnapshot_Update();
         return;
     }
 
 	if ((Config.NoWaitMode || Timer_GetCount()) || vsync == 0) {
-        WinX68k_Exec(clockMHz, vsync);
-    }
+		WinX68k_Exec(clockMHz, vsync);
+	}
+
+    MonitorDiagnosticSnapshot_Update();
 
  }
 
@@ -2343,7 +2417,7 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
 /* ─────────────────────────────────────────────────────────────────────────
  * Machine Monitor UNIX socket server
  *
- * Exposes the X68000_Monitor_* API over /tmp/mpx68k_monitor.sock so that
+ * Exposes the X68000_Monitor_* API over a sandbox-writable UNIX socket so that
  * external tools (Python test harness, shell scripts, etc.) can pause the
  * emulator, read/write memory, and inspect CPU state without using the GUI.
  *
@@ -2356,25 +2430,71 @@ void X68000_Monitor_GetHardwareState(int section, char* out, int outSize)
  * Each response is one or more lines followed by "OK\n" on success or
  * "ERROR <message>\n" on failure.
  *
- * Commands: PAUSE, RESUME, STATUS, REGS, READ, READB, READW, READD,
- *           WRITE, WRITEW, WRITED, MOUNTFDD, EJECTFDD, HW, HELP, QUIT
+ * Commands: DIAG, PAUSE, RESUME, STATUS, REGS, READ, READB, READW, READD,
+ *           WRITE, WRITEW, WRITED, SETPC, SETD, SETA, SETSR, TRACE, TRACER,
+ *           STEPTO, MOUNTFDD, EJECTFDD, HW, HELP, QUIT
  * ───────────────────────────────────────────────────────────────────────── */
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
 
-#define MONITOR_SOCKET_PATH "/tmp/mpx68k_monitor.sock"
+#define MONITOR_SOCKET_FILENAME "mpx68k_monitor.sock"
 
 static int          s_server_fd = -1;
 static pthread_t    s_thread;
-static volatile int s_running   = 0;
+static std::atomic<int> s_running(0);
 static int          s_thread_started = 0;
 static int          s_client_fd = -1;
 static pthread_mutex_t s_client_fd_mutex = PTHREAD_MUTEX_INITIALIZER;
+static char s_monitor_socket_path[sizeof(((struct sockaddr_un*)0)->sun_path)] = {0};
+
+static int ms_copy_path(char* destination, size_t destinationSize, const char* source) {
+    if (!source || !source[0]) return 0;
+    int length = snprintf(destination, destinationSize, "%s", source);
+    return length >= 0 && (size_t)length < destinationSize;
+}
+
+static int ms_join_path(char* destination, size_t destinationSize,
+                        const char* directory, const char* filename) {
+    if (!directory || !directory[0]) return 0;
+    const char* separator = directory[strlen(directory) - 1] == '/' ? "" : "/";
+    int length = snprintf(destination, destinationSize, "%s%s%s",
+                          directory, separator, filename);
+    return length >= 0 && (size_t)length < destinationSize;
+}
+
+static int ms_resolve_socket_path(void) {
+    const char* overridePath = getenv("MPX68K_MONITOR_SOCK");
+    if (overridePath && overridePath[0]) {
+        if (ms_copy_path(s_monitor_socket_path, sizeof(s_monitor_socket_path), overridePath)) {
+            return 1;
+        }
+        errno = ENAMETOOLONG;
+        return 0;
+    }
+
+    if (ms_join_path(s_monitor_socket_path, sizeof(s_monitor_socket_path),
+                     getenv("HOME"), MONITOR_SOCKET_FILENAME)) {
+        return 1;
+    }
+    if (ms_join_path(s_monitor_socket_path, sizeof(s_monitor_socket_path),
+                     getenv("TMPDIR"), MONITOR_SOCKET_FILENAME)) {
+        return 1;
+    }
+    if (ms_join_path(s_monitor_socket_path, sizeof(s_monitor_socket_path),
+                     "/tmp", MONITOR_SOCKET_FILENAME)) {
+        return 1;
+    }
+
+    errno = ENAMETOOLONG;
+    return 0;
+}
 
 static void ms_send(int fd, const char* s) {
     size_t len = strlen(s), sent = 0;
@@ -2413,9 +2533,41 @@ static int ms_split(char* buf, char** parts, int max) {
     return n;
 }
 
+static int ms_parse_u32_hex(const char* text, unsigned int* value) {
+    if (!text || !text[0] || !value) return 0;
+    errno = 0;
+    char* end = nullptr;
+    unsigned long parsed = strtoul(text, &end, 16);
+    if (errno != 0 || !end || *end != '\0' || parsed > UINT_MAX) return 0;
+    *value = (unsigned int)parsed;
+    return 1;
+}
+
+static int ms_parse_long_range(const char* text, long minimum, long maximum, long* value) {
+    if (!text || !text[0] || !value) return 0;
+    errno = 0;
+    char* end = nullptr;
+    long parsed = strtol(text, &end, 10);
+    if (errno != 0 || !end || *end != '\0' || parsed < minimum || parsed > maximum) return 0;
+    *value = parsed;
+    return 1;
+}
+
+#if defined(HAVE_C68K)
+static void ms_step_c68k_instruction(void) {
+    // A one-cycle budget retires one instruction because every 68000
+    // instruction consumes more than one cycle. Timers intentionally do not
+    // advance while the monitor owns the paused CPU.
+    C68k_Exec(&C68K, 1);
+    if (SCSI_HasDeferredBoot()) {
+        SCSI_CommitDeferredBoot();
+    }
+}
+#endif
+
 static void ms_handle(int fd) {
     char line[1024];
-#define MS_REQUIRE_STOP_ACK(MSG) do { if (!X68000_Monitor_IsStopAcked()) { ms_err(fd, MSG); continue; } } while (0)
+#define MS_REQUIRE_STOP_ACK(MSG) if (!X68000_Monitor_IsStopAcked()) { ms_err(fd, MSG); continue; }
     while (ms_readline(fd, line, sizeof(line))) {
         char cb[1024]; strncpy(cb, line, sizeof(cb)-1); cb[sizeof(cb)-1] = '\0';
         for (int i = 0; cb[i] && cb[i] != ' '; i++) cb[i] = (char)toupper((unsigned char)cb[i]);
@@ -2433,6 +2585,128 @@ static void ms_handle(int fd) {
         }
         if (strcmp(cmd,"RESUME")==0) { X68000_Monitor_SetPaused(0); ms_ok(fd); continue; }
         if (strcmp(cmd,"STATUS")==0) { ms_send(fd, X68000_Monitor_IsPaused() ? "PAUSED\n" : "RUNNING\n"); ms_ok(fd); continue; }
+
+        if (strcmp(cmd,"DIAG")==0) {
+            MonitorDiagnosticSnapshot snapshot = MonitorDiagnosticSnapshot_Read();
+            const char* busName =
+                (snapshot.storageBusMode == 0) ? "SASI" :
+                (snapshot.storageBusMode == 1) ? "SCSI" :
+                (snapshot.storageBusMode == 2) ? "SCSI-U" : "?";
+            char out[1600];
+            snprintf(out, sizeof(out),
+                "frame=%lu snapshot_valid=%d paused=%d\n"
+                "bus=%s(%d) scsi0_mounted=%d scsi_img_bytes=%ld\n"
+                "scsi_boot_pending=%d scsi_dev_driver_enabled=%d scsi_dev_linked=%d scsi_rom_present=%d\n"
+                "sram_ED0018=0x%02X (boot: %s)\n"
+                "PC=%08X SR=%04X A7=%08X\n"
+                "FDD0=%s\n"
+                "FDD1=%s\n"
+                "HD0=%s\n",
+                snapshot.frameCount, snapshot.valid, X68000_Monitor_IsPaused(),
+                busName, snapshot.storageBusMode, snapshot.scsi0Mounted,
+                snapshot.scsiImageBytes, snapshot.scsiBootPending,
+                snapshot.scsiDeviceDriverEnabled, snapshot.scsiDeviceLinked,
+                snapshot.scsiRomPresent, snapshot.sramBootDevice,
+                (snapshot.sramBootDevice & 0x80U) ? "HDD" : "FDD/STD",
+                snapshot.pc, snapshot.sr, snapshot.a7,
+                snapshot.fdd0[0] ? snapshot.fdd0 : "(unavailable)",
+                snapshot.fdd1[0] ? snapshot.fdd1 : "(unavailable)",
+                snapshot.hd0[0] ? snapshot.hd0 : "(unavailable)");
+            ms_send(fd,out); ms_ok(fd); continue;
+        }
+
+        if (strcmp(cmd,"SETPC")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before SETPC");
+            unsigned int pc = 0;
+            if (np < 2 || !ms_parse_u32_hex(parts[1], &pc) || pc > 0x00ffffffU) {
+                ms_err(fd,"usage: SETPC <24-bit addr_hex>"); continue;
+            }
+            X68000_Monitor_SetPC(pc);
+            ms_ok(fd); continue;
+        }
+
+        if (strcmp(cmd,"SETD")==0 || strcmp(cmd,"SETA")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before SETD/SETA");
+            long registerNumber = -1;
+            unsigned int value = 0;
+            if (np < 3 || !ms_parse_long_range(parts[1], 0, 7, &registerNumber) ||
+                !ms_parse_u32_hex(parts[2], &value)) {
+                ms_err(fd,"usage: SETD/SETA <0-7> <value_hex>"); continue;
+            }
+            if (cmd[3] == 'D') {
+                X68000_Monitor_SetDReg((int)registerNumber, value);
+            } else {
+                X68000_Monitor_SetAReg((int)registerNumber, value);
+            }
+            ms_ok(fd); continue;
+        }
+
+        if (strcmp(cmd,"SETSR")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before SETSR");
+            unsigned int sr = 0;
+            if (np < 2 || !ms_parse_u32_hex(parts[1], &sr) || sr > 0xffffU) {
+                ms_err(fd,"usage: SETSR <16-bit value_hex>"); continue;
+            }
+            X68000_Monitor_SetSR(sr);
+            ms_ok(fd); continue;
+        }
+
+        if (strcmp(cmd,"TRACE")==0 || strcmp(cmd,"TRACER")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before TRACE/TRACER");
+#if defined(HAVE_C68K)
+            long count = 16;
+            long maximum = (strcmp(cmd,"TRACER")==0) ? 2000 : 4000;
+            if (np >= 2 && !ms_parse_long_range(parts[1], 1, maximum, &count)) {
+                ms_err(fd,"instruction count out of range"); continue;
+            }
+            char out[160];
+            for (long i = 0; i < count; ++i) {
+                unsigned int pc = C68k_Get_PC(&C68K) & 0x00ffffffU;
+                unsigned int opcode = cpu_readmem24_word(pc);
+                if (strcmp(cmd,"TRACER")==0) {
+                    snprintf(out, sizeof(out),
+                             "%06X %04X D0=%08X D1=%08X A0=%08X A1=%08X\n",
+                             pc, opcode, C68k_Get_DReg(&C68K, 0),
+                             C68k_Get_DReg(&C68K, 1), C68k_Get_AReg(&C68K, 0),
+                             C68k_Get_AReg(&C68K, 1));
+                } else {
+                    snprintf(out, sizeof(out), "%06X %04X\n", pc, opcode);
+                }
+                ms_send(fd, out);
+                ms_step_c68k_instruction();
+            }
+            ms_ok(fd); continue;
+#else
+            ms_err(fd,"TRACE/TRACER requires C68K core"); continue;
+#endif
+        }
+
+        if (strcmp(cmd,"STEPTO")==0) {
+            MS_REQUIRE_STOP_ACK("must PAUSE before STEPTO");
+#if defined(HAVE_C68K)
+            unsigned int target = 0;
+            long maximumSteps = 5000;
+            if (np < 2 || !ms_parse_u32_hex(parts[1], &target) || target > 0x00ffffffU) {
+                ms_err(fd,"usage: STEPTO <24-bit pc_hex> [maxsteps]"); continue;
+            }
+            if (np >= 3 && !ms_parse_long_range(parts[2], 1, 1000000, &maximumSteps)) {
+                ms_err(fd,"maxsteps must be 1..1000000"); continue;
+            }
+            long steps = 0;
+            while (steps < maximumSteps &&
+                   (C68k_Get_PC(&C68K) & 0x00ffffffU) != target) {
+                ms_step_c68k_instruction();
+                ++steps;
+            }
+            int hit = ((C68k_Get_PC(&C68K) & 0x00ffffffU) == target);
+            char out[80];
+            snprintf(out, sizeof(out), "hit=%d pc=%06X steps=%ld\n",
+                     hit, C68k_Get_PC(&C68K) & 0x00ffffffU, steps);
+            ms_send(fd, out); ms_ok(fd); continue;
+#else
+            ms_err(fd,"STEPTO requires C68K core"); continue;
+#endif
+        }
 
         if (strcmp(cmd,"REGS")==0) {
             MS_REQUIRE_STOP_ACK("must PAUSE before REGS");
@@ -2530,17 +2804,25 @@ static void ms_handle(int fd) {
         if (strcmp(cmd,"HELP")==0) {
             ms_send(fd,
                 "Commands:\n"
+                "  DIAG               read-only boot snapshot (no PAUSE needed)\n"
                 "  PAUSE              pause emulation\n"
                 "  RESUME             resume emulation\n"
                 "  STATUS             show PAUSED/RUNNING\n"
-                "  REGS               dump CPU registers\n"
-                "  READ <addr> <n>    hex dump n bytes at addr\n"
-                "  READB/READW/READD  read byte/word/dword\n"
+                "  REGS               dump CPU registers (requires PAUSE)\n"
+                "  SETPC <addr>       set program counter (requires PAUSE)\n"
+                "  SETD/SETA <n> <v>  set data/address register (requires PAUSE)\n"
+                "  SETSR <value>      set status register (requires PAUSE)\n"
+                "  TRACE [n]          step and show PC/opcode (requires PAUSE)\n"
+                "  TRACER [n]         TRACE with registers (requires PAUSE)\n"
+                "  STEPTO <pc> [maxsteps]  step to PC or limit (requires PAUSE)\n"
+                "  READ <addr> <n>    hex dump n bytes (requires PAUSE)\n"
+                "  READB/READW/READD <addr>  read value (requires PAUSE)\n"
                 "  WRITE <addr> <b...>  write bytes (requires PAUSE)\n"
-                "  WRITEW/WRITED      write word/dword (requires PAUSE)\n"
-                "  HW [section]       hardware state snapshot\n"
-                "  MOUNTFDD <drive> <path>  hot-swap disk image into FDD 0 or 1\n"
-                "  EJECTFDD <drive>         eject disk image from FDD 0 or 1\n"
+                "  WRITEW/WRITED <addr> <value>  write value (requires PAUSE)\n"
+                "  HW [section]       hardware snapshot (requires PAUSE)\n"
+                "  MOUNTFDD <drive> <path>  mount FDD image (requires PAUSE)\n"
+                "  EJECTFDD <drive>   eject FDD image (requires PAUSE)\n"
+                "  HELP               show this help\n"
                 "  QUIT               close connection\n");
             ms_ok(fd); continue;
         }
@@ -2559,11 +2841,11 @@ static void ms_handle(int fd) {
 }
 
 static void* ms_server_thread(void*) {
-    while (s_running) {
+    while (s_running.load(std::memory_order_acquire)) {
         struct sockaddr_storage peer; socklen_t plen=sizeof(peer);
         int client=accept(s_server_fd,(struct sockaddr*)&peer,&plen);
         if (client<0) {
-            if (s_running) perror("mpx68k monitor: accept");
+            if (s_running.load(std::memory_order_relaxed)) perror("mpx68k monitor: accept");
             break;
         }
         /* SO_NOSIGPIPE prevents write() to a broken socket from delivering SIGPIPE
@@ -2581,40 +2863,59 @@ static void* ms_server_thread(void*) {
 }
 
 extern "C" void MonitorSocket_Start(void) {
-    unlink(MONITOR_SOCKET_PATH);
+    if (s_thread_started || s_server_fd >= 0) return;
+    if (!ms_resolve_socket_path()) {
+        perror("mpx68k monitor: socket path");
+        return;
+    }
+    if (unlink(s_monitor_socket_path) < 0 && errno != ENOENT) {
+        perror("mpx68k monitor: unlink");
+        s_monitor_socket_path[0] = '\0';
+        return;
+    }
     s_server_fd=socket(AF_UNIX,SOCK_STREAM,0);
     if (s_server_fd<0) { perror("mpx68k monitor: socket"); return; }
     struct sockaddr_un addr; memset(&addr,0,sizeof(addr));
     addr.sun_family=AF_UNIX;
-    strncpy(addr.sun_path,MONITOR_SOCKET_PATH,sizeof(addr.sun_path)-1);
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", s_monitor_socket_path);
     if (bind(s_server_fd,(struct sockaddr*)&addr,sizeof(addr))<0) {
         perror("mpx68k monitor: bind"); close(s_server_fd); s_server_fd=-1; return;
     }
-    if (listen(s_server_fd,4)<0) {
-        perror("mpx68k monitor: listen"); close(s_server_fd); s_server_fd=-1; return;
+    if (chmod(s_monitor_socket_path, S_IRUSR | S_IWUSR) < 0) {
+        perror("mpx68k monitor: chmod");
+        close(s_server_fd); s_server_fd=-1;
+        unlink(s_monitor_socket_path);
+        return;
     }
-    s_running=1;
+    if (listen(s_server_fd,4)<0) {
+        perror("mpx68k monitor: listen");
+        close(s_server_fd); s_server_fd=-1;
+        unlink(s_monitor_socket_path);
+        return;
+    }
+    s_running.store(1, std::memory_order_release);
     s_thread_started = (pthread_create(&s_thread,nullptr,ms_server_thread,nullptr) == 0);
     if (!s_thread_started) {
         perror("mpx68k monitor: pthread_create");
-        s_running = 0;
+        s_running.store(0, std::memory_order_release);
         close(s_server_fd);
         s_server_fd = -1;
-        unlink(MONITOR_SOCKET_PATH);
+        unlink(s_monitor_socket_path);
         return;
     }
-    fprintf(stderr,"[MPX68K] Machine Monitor socket: %s\n",MONITOR_SOCKET_PATH);
+    fprintf(stderr,"[MPX68K] Machine Monitor socket: %s\n",s_monitor_socket_path);
 }
 
 extern "C" void MonitorSocket_Stop(void) {
-    s_running=0;
+    s_running.store(0, std::memory_order_release);
     pthread_mutex_lock(&s_client_fd_mutex);
     if (s_client_fd>=0) { shutdown(s_client_fd,SHUT_RDWR); close(s_client_fd); s_client_fd=-1; }
     pthread_mutex_unlock(&s_client_fd_mutex);
     if (s_server_fd>=0) { shutdown(s_server_fd,SHUT_RDWR); close(s_server_fd); s_server_fd=-1; }
-    unlink(MONITOR_SOCKET_PATH);
+    if (s_monitor_socket_path[0]) unlink(s_monitor_socket_path);
     if (s_thread_started) {
         pthread_join(s_thread,nullptr);
         s_thread_started = 0;
     }
+    s_monitor_socket_path[0] = '\0';
 }

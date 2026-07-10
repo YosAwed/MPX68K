@@ -326,7 +326,7 @@ graph LR
         PX68K[px68k]
     end
 
-    Client -- /tmp/mpx68k_monitor.sock --> Thread
+    Client -- sandbox HOME/mpx68k_monitor.sock --> Thread
     Thread --> Parser
     Parser --> MonitorAPI
     MonitorAPI --> PX68K
@@ -336,6 +336,6 @@ The server runs on a dedicated POSIX thread and is lifecycle-managed by `AppDele
 - **Start**: `applicationDidFinishLaunching` calls `MonitorSocket_Start()` when `UserDefaults["monitorSocketEnabled"]` is `true` (default: `false`)
 - **Stop**: `applicationWillTerminate` calls `MonitorSocket_Stop()`, which shuts down the listener, removes the socket file, and joins the thread
 
-`SO_NOSIGPIPE` is set on each accepted client fd so that a disconnecting client cannot deliver `SIGPIPE` to the main emulator process.  Memory writes are guarded: the protocol requires `PAUSE` before any `WRITE*` command to prevent mid-frame data races.
+The socket is placed in the sandbox-writable home directory, restricted to mode `0600`, and can be overridden with `MPX68K_MONITOR_SOCK`. `SO_NOSIGPIPE` is set on each accepted client fd so that a disconnecting client cannot deliver `SIGPIPE` to the main emulator process. Live CPU, memory, and device commands require an acknowledged `PAUSE`. The no-pause `DIAG` command reads a mutex-protected snapshot produced by the emulation thread instead of racing live core state.
 
 This architecture enables MPX68K to provide authentic X68000 emulation while maintaining modern macOS user experience standards.

@@ -166,7 +166,7 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ## Machine Monitor Socket
 
-The Machine Monitor socket exposes the emulator's internal state over a UNIX domain socket at `/tmp/mpx68k_monitor.sock`, allowing external tools (scripts, test harnesses, debuggers) to pause/resume emulation, read and write memory, inspect CPU registers, and hot-swap disk images — all without using the GUI.
+The Machine Monitor socket exposes the emulator's internal state over a UNIX domain socket, allowing external tools (scripts, test harnesses, debuggers) to pause/resume emulation, read and write memory, inspect CPU registers, and hot-swap disk images — all without using the GUI.
 
 The socket is **disabled by default**. To enable it, set the `monitorSocketEnabled` user default before launching the app:
 
@@ -180,9 +180,9 @@ To disable it again:
 defaults delete NANKIN.X68000 monitorSocketEnabled
 ```
 
-When enabled, the socket is created at launch and removed on quit.  A log line confirms the path:
+When enabled, the socket is created at launch with mode `0600` and removed on quit. The default path is `$HOME/mpx68k_monitor.sock`; for a sandboxed app, `$HOME` is the app container's `Data` directory. Set `MPX68K_MONITOR_SOCK` in the launch environment to override it. A log line confirms the resolved path:
 ```text
-[MPX68K] Machine Monitor socket: /tmp/mpx68k_monitor.sock
+[MPX68K] Machine Monitor socket: /Users/name/Library/Containers/NANKIN.X68000/Data/mpx68k_monitor.sock
 ```
 
 ### Protocol
@@ -191,10 +191,17 @@ The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request 
 
 | Command | Description |
 |---------|-------------|
+| `DIAG` | Read a boot-state snapshot without pausing |
 | `PAUSE` | Pause emulation (required before writes) |
 | `RESUME` | Resume emulation |
 | `STATUS` | Returns `PAUSED` or `RUNNING` |
 | `REGS` | Dump D0–D7, A0–A7, PC, SR (hex) |
+| `SETPC <addr>` | Set PC (requires `PAUSE`) |
+| `SETD/SETA <n> <val>` | Set a data/address register (requires `PAUSE`) |
+| `SETSR <val>` | Set SR (requires `PAUSE`) |
+| `TRACE [n]` | Step instructions and print PC/opcode (requires `PAUSE`) |
+| `TRACER [n]` | `TRACE` with D0/D1/A0/A1 (requires `PAUSE`) |
+| `STEPTO <pc> [maxsteps]` | Step until PC reaches the target or limit (requires `PAUSE`) |
 | `READ <addr> <n>` | Hex-dump `n` bytes starting at `addr` |
 | `READB/READW/READD <addr>` | Read byte / 16-bit word / 32-bit dword |
 | `WRITE <addr> <b0> [b1…]` | Write bytes (requires `PAUSE`) |
@@ -207,7 +214,7 @@ The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request 
 All addresses and values are hexadecimal.  A simple session:
 
 ```console
-$ nc -U /tmp/mpx68k_monitor.sock
+$ nc -U /Users/name/Library/Containers/NANKIN.X68000/Data/mpx68k_monitor.sock
 PAUSE
 OK
 READD 00ed0018
@@ -219,7 +226,7 @@ QUIT
 OK
 ```
 
-Multiple concurrent clients are supported.  Memory reads are allowed at any time; writes require `PAUSE` first to avoid data races.
+The server handles one client at a time. `DIAG` reads a synchronized snapshot while emulation runs; commands that access live CPU, memory, or device state require `PAUSE` first to avoid data races.
 
 ### FDD disk swapping
 

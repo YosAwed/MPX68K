@@ -298,7 +298,7 @@ void m68000_set_reg(int regnum, UINT32 val)
 		
 		default: break;
 	}	
-#elif defined (HAVE_C68k)
+#elif defined (HAVE_C68K)
 	switch (regnum)
 	{
 #if 0
