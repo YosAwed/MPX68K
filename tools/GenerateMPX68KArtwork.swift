@@ -78,12 +78,14 @@ private func makeLogo(width: Int, height: Int) -> NSImage {
     image.lockFocus()
     guard let context = NSGraphicsContext.current?.cgContext else { return image }
     let scale = CGFloat(height) / 236.0
-    drawText("MPX", at: CGPoint(x: 40 * scale, y: 78 * scale), size: 92 * scale, color: cyan, in: context)
-    drawText("68K", at: CGPoint(x: 390 * scale, y: 78 * scale), size: 92 * scale, color: amber, in: context)
+    // Keep the two parts as a single, centered wordmark instead of leaving
+    // a logo-sized gap between them.
+    drawText("MPX", at: CGPoint(x: 300 * scale, y: 78 * scale), size: 92 * scale, color: cyan, in: context)
+    drawText("68K", at: CGPoint(x: 495 * scale, y: 78 * scale), size: 92 * scale, color: amber, in: context)
     context.setStrokeColor(cyan.withAlphaComponent(0.8).cgColor)
     context.setLineWidth(max(2, 5 * scale))
-    context.move(to: CGPoint(x: 40 * scale, y: 54 * scale))
-    context.addLine(to: CGPoint(x: 930 * scale, y: 54 * scale))
+    context.move(to: CGPoint(x: 300 * scale, y: 54 * scale))
+    context.addLine(to: CGPoint(x: 690 * scale, y: 54 * scale))
     context.strokePath()
     image.unlockFocus()
     return image
