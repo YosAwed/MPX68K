@@ -78,7 +78,7 @@ class MIDIController {
     init() {
         Connect()
     }
-    let clientName: CFString = "X68000" as CFString
+    let clientName: CFString = "MPX68K" as CFString
     deinit {
         if outPortRef2 != 0 {
             MIDIPortDispose( outPortRef2 )
@@ -121,25 +121,25 @@ class MIDIController {
     func Connect() {
         var status: OSStatus = noErr
         
-        status = MIDIClientCreateWithBlock( "X68000" as CFString, &clientRef, MIDINotifyBlock )
+        status = MIDIClientCreateWithBlock( "MPX68K" as CFString, &clientRef, MIDINotifyBlock )
         if status != noErr {
             errorLog("Cannot create MIDI client!", category: .network)
             return
         }
         #if false
-        status = MIDIInputPortCreateWithBlock( clientRef, "X68000 MIDI In" as CFString, &inPortRef, MyMIDIReadBlock )
+        status = MIDIInputPortCreateWithBlock( clientRef, "MPX68K MIDI In" as CFString, &inPortRef, MyMIDIReadBlock )
         if status != noErr {
             errorLog("Cannot create MIDI In!", category: .network)
             return
         }
         #endif
-        status = MIDIOutputPortCreate( clientRef, "X68000 MIDI Out" as CFString, &outPortRef )
+        status = MIDIOutputPortCreate( clientRef, "MPX68K MIDI Out" as CFString, &outPortRef )
         
         if status != noErr {
             errorLog("Cannot create MIDI Out!", category: .network)
             return
         }
-        status = MIDIOutputPortCreate( clientRef, "X68000 MIDI Out" as CFString, &outPortRef2 )
+        status = MIDIOutputPortCreate( clientRef, "MPX68K MIDI Out" as CFString, &outPortRef2 )
         
         if status != noErr {
             errorLog("Cannot create MIDI Out 2!", category: .network)

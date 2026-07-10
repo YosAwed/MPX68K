@@ -631,6 +631,10 @@ public class DiskStateManager {
 }
 
 class FileSystem {
+    static let displayName = "MPX68K"
+    static let documentsDirectoryName = "MPX68K"
+    private static let legacyDocumentsDirectoryName = "X68000"
+
     weak var gameScene: GameScene?
     
     // Track currently loading disk pairs to prevent duplicate operations (static to work across instances)
@@ -906,7 +910,7 @@ class FileSystem {
             errorLog("Failed to get documents directory URL", category: .fileSystem)
             return
         }
-        let path = url.appendingPathComponent("X68000")
+        let path = url.appendingPathComponent(FileSystem.documentsDirectoryName)
         do {
             try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
         } catch let error as NSError {
@@ -918,7 +922,7 @@ class FileSystem {
             errorLog("Failed to get README.txt path", category: .fileSystem)
             return
         }
-        let todayText = "POWER TO MAKE YOUR DREAM COME TRUE. Please put CGROM.DAT, IPLROM.DAT, and disk images here.\nSRAM.DAT (save data) will also be saved in this directory."
+        let todayText = "MPX68K is ready. Put CGROM.DAT, IPLROM.DAT, and disk images here.\nSRAM.DAT (save data) is also saved in this directory."
         if ( FileManager.default.fileExists( atPath: fileURL.path ) == true ) {
         } else {
             do {
@@ -934,7 +938,7 @@ class FileSystem {
     func getDocumentsPath(_ filename: String )->URL? {
         let containerURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         
-        let documentsURL = containerURL?.appendingPathComponent("X68000")
+        let documentsURL = containerURL?.appendingPathComponent(FileSystem.documentsDirectoryName)
         let url = documentsURL?.appendingPathComponent(filename)
         return url
     }
@@ -1002,11 +1006,13 @@ class FileSystem {
         
         // Priority search directories
         let priorityDirs = [
-            containerURL.appendingPathComponent("X68000"),
+            containerURL.appendingPathComponent(FileSystem.documentsDirectoryName),
+            containerURL.appendingPathComponent(FileSystem.legacyDocumentsDirectoryName),
             containerURL.appendingPathComponent("Documents"), // Legacy compatibility
             containerURL.appendingPathComponent("Inbox"),
             containerURL, // Direct in documents root
-            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent("X68000")
+            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent(FileSystem.documentsDirectoryName),
+            containerURL.appendingPathComponent("Data").appendingPathComponent("Documents").appendingPathComponent(FileSystem.legacyDocumentsDirectoryName)
         ]
         
         // Add existing directories only
@@ -1019,18 +1025,24 @@ class FileSystem {
         
         // Add user Documents directory if accessible
         if let userHome = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first {
-            let userDocsX68000 = userHome.appendingPathComponent("Documents").appendingPathComponent("X68000")
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: userDocsX68000.path, isDirectory: &isDirectory) && isDirectory.boolValue {
-                directories.append(userDocsX68000)
+            let userDocuments = userHome.appendingPathComponent("Documents")
+            for directoryName in [FileSystem.documentsDirectoryName, FileSystem.legacyDocumentsDirectoryName] {
+                let userDocumentsDirectory = userDocuments.appendingPathComponent(directoryName)
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: userDocumentsDirectory.path, isDirectory: &isDirectory) && isDirectory.boolValue {
+                    directories.append(userDocumentsDirectory)
+                }
             }
         }
         
         // Add common user Documents location
-        let commonUserDocs = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents").appendingPathComponent("X68000")
-        var isDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: commonUserDocs.path, isDirectory: &isDirectory) && isDirectory.boolValue {
-            directories.append(commonUserDocs)
+        let commonDocuments = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+        for directoryName in [FileSystem.documentsDirectoryName, FileSystem.legacyDocumentsDirectoryName] {
+            let commonUserDocs = commonDocuments.appendingPathComponent(directoryName)
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: commonUserDocs.path, isDirectory: &isDirectory) && isDirectory.boolValue {
+                directories.append(commonUserDocs)
+            }
         }
         
         return directories
@@ -1245,7 +1257,8 @@ class FileSystem {
         }
         
         var allowedPaths = [
-            documentsURL.appendingPathComponent("X68000"),
+            documentsURL.appendingPathComponent(FileSystem.documentsDirectoryName),
+            documentsURL.appendingPathComponent(FileSystem.legacyDocumentsDirectoryName),
             documentsURL.appendingPathComponent("Documents"), // Legacy path for backward compatibility
             documentsURL.appendingPathComponent("Inbox")
         ]

@@ -81,13 +81,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     // MARK: - Core Bridge Helpers
     private func resetSCSILogs() {
         let home = NSHomeDirectory()
-        let logDir = "\(home)/Documents/X68000"
+        let logDir = "\(home)/Documents/\(FileSystem.documentsDirectoryName)"
         let fileManager = FileManager.default
         try? fileManager.createDirectory(atPath: logDir, withIntermediateDirectories: true)
 
         let logPaths = [
             "\(logDir)/_scsi_iocs.txt",
-            "/tmp/x68000_scsi_iocs.txt",
+            "/tmp/mpx68k_scsi_iocs.txt",
             "/tmp/x68_restore_trace.log"
         ]
 
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         let fileManager = FileManager.default
         let maxLogSize = 512 * 1024
         let paths = [
-            "\(home)/Documents/X68000/_scsi_iocs.txt",
+            "\(home)/Documents/\(FileSystem.documentsDirectoryName)/_scsi_iocs.txt",
             "/tmp/x68_restore_trace.log"
         ]
         for logPath in paths {
@@ -304,9 +304,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             }
         }
 
-        let sandboxDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
-        if fileManager.fileExists(atPath: sandboxDocumentsX68000.path) {
-            return sandboxDocumentsX68000
+        let sandboxDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if fileManager.fileExists(atPath: sandboxDocumentsMPX68K.path) {
+            return sandboxDocumentsMPX68K
         }
 
         if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
@@ -601,13 +601,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         // Create new main menu
         let mainMenu = NSMenu(title: "Main Menu")
 
-        // App Menu (X68000)
-        let appMenuItem = NSMenuItem(title: "X68000", action: nil, keyEquivalent: "")
-        let appMenu = NSMenu(title: "X68000")
+        // App Menu (MPX68K)
+        let appMenuItem = NSMenuItem(title: FileSystem.displayName, action: nil, keyEquivalent: "")
+        let appMenu = NSMenu(title: FileSystem.displayName)
         appMenuItem.submenu = appMenu
 
-        // About X68000
-        let aboutItem = NSMenuItem(title: "About X68000", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        // About MPX68K
+        let aboutItem = NSMenuItem(title: "About \(FileSystem.displayName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(aboutItem)
 
         appMenu.addItem(NSMenuItem.separator())
@@ -622,7 +622,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         appMenu.addItem(NSMenuItem.separator())
 
         // Hide/Show items
-        let hideItem = NSMenuItem(title: "Hide X68000", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideItem = NSMenuItem(title: "Hide \(FileSystem.displayName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(hideItem)
 
         let hideOthersItem = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -635,7 +635,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         appMenu.addItem(NSMenuItem.separator())
 
         // Quit
-        let quitItem = NSMenuItem(title: "Quit X68000", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit \(FileSystem.displayName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenu.addItem(quitItem)
 
         mainMenu.addItem(appMenuItem)
@@ -928,7 +928,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         resetItem.target = self
         systemMenu.addItem(resetItem)
 
-        let mouseToggleItem = NSMenuItem(title: "Use X68000 Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "m")
+        let mouseToggleItem = NSMenuItem(title: "Use MPX68K Mouse", action: #selector(toggleMouseMode(_:)), keyEquivalent: "m")
         mouseToggleItem.keyEquivalentModifierMask = [.command, .shift]
         mouseToggleItem.target = self
         mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
@@ -1085,7 +1085,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         let debugMenuItem = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
         let debugMenu = NSMenu(title: "Debug")
         debugMenuItem.submenu = debugMenu
-        // Note: ⌘⇧M is taken by "Use X68000 Mouse" (System menu), so the
+        // Note: ⌘⇧M is taken by "Use MPX68K Mouse" (System menu), so the
         // monitor uses ⌥⌘M to avoid a key-equivalent conflict.
         let monitorItem = NSMenuItem(
             title: "Machine Monitor",
@@ -1101,7 +1101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         let helpMenu = NSMenu(title: "Help")
         helpMenuItem.submenu = helpMenu
 
-        let helpItem = NSMenuItem(title: "X68000 Help", action: #selector(NSApplication.showHelp(_:)), keyEquivalent: "?")
+        let helpItem = NSMenuItem(title: "MPX68K Help", action: #selector(NSApplication.showHelp(_:)), keyEquivalent: "?")
         helpMenu.addItem(helpItem)
 
         mainMenu.addItem(helpMenuItem)
@@ -1312,7 +1312,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 if submenu.title.contains("Settings") || 
                    submenu.title.contains("Preferences") ||
                    submenu.title.contains("Options") ||
-                   submenu.title.contains("X68000") {
+                   submenu.title.contains("MPX68K") {
                     
                     // debugLog("Found settings menu: \(submenu.title)", category: .ui)
                     addAutoMountMenuItem(to: submenu)
@@ -1740,7 +1740,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return nil
         }
-        return documentsURL.appendingPathComponent("X68000").appendingPathComponent(filename)
+        return documentsURL.appendingPathComponent(FileSystem.documentsDirectoryName).appendingPathComponent(filename)
     }
 
     private func showSimpleAlert(title: String, message: String) {
@@ -2592,7 +2592,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
 
     @IBAction func deleteIPLROM(_ sender: Any) {
         guard let romURL = romFileURL("IPLROM.DAT") else {
-            showSimpleAlert(title: "Delete IPLROM.DAT", message: "Documents/X68000 の場所を取得できませんでした。")
+            showSimpleAlert(title: "Delete IPLROM.DAT", message: "Documents/MPX68K の場所を取得できませんでした。")
             return
         }
 
@@ -2678,7 +2678,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         for menuItem in mainMenu.items {
             guard let submenu = menuItem.submenu else { continue }
             for item in submenu.items {
-                if item.identifier?.rawValue == "Display-mouse-mode" || item.title.contains("Use X68000 Mouse") {
+                if item.identifier?.rawValue == "Display-mouse-mode" || item.title.contains("Use MPX68K Mouse") {
                     item.state = isMouseCaptureEnabled ? .on : .off
                     debugLog("Updated mouse menu checkmark: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)
                     return
@@ -3013,7 +3013,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             return true
         }
         // Enable all menu items by default
-        if menuItem.identifier?.rawValue == "Display-mouse-mode" || menuItem.title.contains("Use X68000 Mouse") {
+        if menuItem.identifier?.rawValue == "Display-mouse-mode" || menuItem.title.contains("Use MPX68K Mouse") {
             // Always enable the mouse toggle menu item
             menuItem.state = isMouseCaptureEnabled ? .on : .off
             debugLog("Validating mouse menu item - enabled: true, state: \(isMouseCaptureEnabled ? "ON" : "OFF")", category: .ui)

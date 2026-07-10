@@ -54,7 +54,7 @@ enum X68MacError: LocalizedError {
     var recoverySuggestion: String? {
         switch self {
         case .romFileNotFound:
-            return "X68000の実機からROMファイルを取得し、適切な場所に配置してください。"
+            return "対応実機からROMファイルを取得し、適切な場所に配置してください。"
         case .diskImageCorrupted:
             return "別のディスクイメージファイルを試すか、元のファイルを再取得してください。"
         case .insufficientMemory:
@@ -82,11 +82,11 @@ enum ROMLoadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingFile(let name):
-            return "\(name) が見つかりません。\nDocuments/X68000 に正しい ROM ファイルを配置してください。"
+            return "\(name) が見つかりません。\nDocuments/MPX68K に正しい ROM ファイルを配置してください。"
         case .invalidSize(let name, let expected, let actual):
-            return "\(name) のサイズが不正です。\n期待: \(expected) バイト / 実際: \(actual) バイト\n正しい X68000 の ROM ファイルを使用してください。"
+            return "\(name) のサイズが不正です。\n期待: \(expected) バイト / 実際: \(actual) バイト\n対応機種用の正しい ROM ファイルを使用してください。"
         case .blankContent(let name):
-            return "\(name) が空または未初期化です（全バイトが同一値）。\n正しい X68000 の ROM ファイルを使用してください。"
+            return "\(name) が空または未初期化です（全バイトが同一値）。\n対応機種用の正しい ROM ファイルを使用してください。"
         case .invalidHeader(let name):
             return "\(name) は有効な SCSI 拡張 ROM ではありません。\nCZ-6BS1 互換の SCSIEXROM.DAT を使用してください。"
         }

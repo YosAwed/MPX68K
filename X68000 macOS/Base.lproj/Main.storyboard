@@ -12,9 +12,9 @@
                 <application id="hnw-xV-0zn" sceneMemberID="viewController">
                     <menu key="mainMenu" title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
                         <items>
-                            <menuItem title="X68000 macOS" id="1Xt-HY-uBw">
+                            <menuItem title="MPX68K" id="1Xt-HY-uBw">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <menu key="submenu" title="X68000 macOS" systemMenu="apple" id="uQy-DD-JDr">
+                                <menu key="submenu" title="MPX68K" systemMenu="apple" id="uQy-DD-JDr">
                                     <items>
                                         <menuItem title="About..." id="5kV-Vb-QxS">
                                             <modifierMask key="keyEquivalentModifierMask"/>
@@ -189,7 +189,7 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="Display-mouse-separator"/>
-                                        <menuItem title="Use X68000 Mouse" id="Display-mouse-mode">
+                                        <menuItem title="Use MPX68K Mouse" id="Display-mouse-mode">
                                             <connections>
                                                 <action selector="toggleMouseMode:" target="Ady-hI-5gd" id="Display-mouse-action"/>
                                             </connections>
@@ -241,7 +241,7 @@
         <scene sceneID="R2V-B0-nI4">
             <objects>
                 <windowController id="B8D-0N-5wS" sceneMemberID="viewController">
-                    <window key="window" title="X68000 macOS" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="none" id="IQv-IB-iLA">
+                    <window key="window" title="MPX68K" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="none" id="IQv-IB-iLA">
                         <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
                         <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
                         <rect key="contentRect" x="196" y="240" width="480" height="270"/>

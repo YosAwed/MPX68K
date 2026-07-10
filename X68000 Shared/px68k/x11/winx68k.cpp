@@ -204,9 +204,9 @@ static void DebugLog(const char* msg) {
     const char* home = getenv("HOME");
     char path[512];
     if (home && home[0] != '\0')
-        snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+		snprintf(path, sizeof(path), "%s/Documents/MPX68K/_scsi_iocs.txt", home);
     else
-        snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
+        snprintf(path, sizeof(path), "MPX68K/_scsi_iocs.txt");
     fp = fopen(path, "a");
     if (fp) { fprintf(fp, "%s\n", msg); fclose(fp); }
 }
@@ -223,16 +223,16 @@ X68000_AppendSCSILog(const char* message)
     const char* home = getenv("HOME");
     char path[512];
     if (home && home[0] != '\0') {
-        snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+		snprintf(path, sizeof(path), "%s/Documents/MPX68K/_scsi_iocs.txt", home);
     } else {
-        snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
+        snprintf(path, sizeof(path), "MPX68K/_scsi_iocs.txt");
     }
     FILE* fp = fopen(path, "a");
     if (fp) {
         fprintf(fp, "%s\n", message);
         fclose(fp);
     }
-    fp = fopen("/tmp/x68000_scsi_iocs.txt", "a");
+    fp = fopen("/tmp/mpx68k_scsi_iocs.txt", "a");
     if (fp) {
         fprintf(fp, "%s\n", message);
         fclose(fp);
@@ -1235,7 +1235,7 @@ extern "C" {
 
 void X68000_Init( const long samplingrate) {
 	const char* arg[] = {
-		"X68000",
+		"MPX68K",
 	};
 	
 	original_main(1, arg, samplingrate );

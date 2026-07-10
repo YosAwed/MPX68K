@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>MPX68K</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -19,7 +21,7 @@
 			<key>CFBundleTypeIconFile</key>
 			<string>FDD</string>
 			<key>CFBundleTypeName</key>
-			<string>X68000 Disk Image</string>
+			<string>MPX68K Disk Image</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -60,7 +62,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>X68000のROMファイルとディスクイメージにアクセスするために必要です</string>
+	<string>MPX68KのROMファイルとディスクイメージにアクセスするために必要です</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>ダウンロードフォルダからディスクイメージを読み込むために必要です</string>
 	<key>UISupportsDocumentBrowser</key>
@@ -73,7 +75,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>X68000 Floppy Disk Image</string>
+			<string>MPX68K Floppy Disk Image</string>
 			<key>UTTypeIconFile</key>
 			<string>FDD</string>
 			<key>UTTypeIdentifier</key>
@@ -95,7 +97,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>X68000 Hard Disk Image</string>
+			<string>MPX68K Hard Disk Image</string>
 			<key>UTTypeIconFile</key>
 			<string>HDDIcon</string>
 			<key>UTTypeIdentifier</key>

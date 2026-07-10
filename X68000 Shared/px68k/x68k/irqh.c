@@ -26,7 +26,7 @@ static void IRQH_LogText(const char* text)
 	if (!home || home[0] == '\0') {
 		return;
 	}
-	snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+	snprintf(path, sizeof(path), "%s/Documents/MPX68K/_scsi_iocs.txt", home);
 	fp = fopen(path, "a");
 	if (!fp) {
 		return;

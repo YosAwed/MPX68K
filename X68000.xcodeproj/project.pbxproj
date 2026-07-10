@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		073F76E62431F438005B1F18 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 073F76E42431F438005B1F18 /* GameScene.sks */; };
-		0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */ = {isa = PBXBuildFile; fileRef = 0753E5AB2431DF4600E14A81 /* X68000LogoW.png */; };
 		0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 0758DC57243EFCE60097E86C /* ConfigScene.sks */; };
 		0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0758DC5D243EFD830097E86C /* ConfigScene.swift */; };
 		0758DD5D24401BA20097E86C /* HDDIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 0758DD5924401BA10097E86C /* HDDIcon.png */; };
@@ -119,7 +118,6 @@
 /* Begin PBXFileReference section */
 		073F76E42431F438005B1F18 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
 		073F76FB24323762005B1F18 /* c68k.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = c68k.xcodeproj; path = c68k/c68k.xcodeproj; sourceTree = "<group>"; };
-		0753E5AB2431DF4600E14A81 /* X68000LogoW.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = X68000LogoW.png; sourceTree = "<group>"; };
 		0758DC57243EFCE60097E86C /* ConfigScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = ConfigScene.sks; sourceTree = "<group>"; };
 		0758DC5D243EFD830097E86C /* ConfigScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigScene.swift; sourceTree = "<group>"; };
 		0758DD5924401BA10097E86C /* HDDIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HDDIcon.png; sourceTree = "<group>"; };
@@ -376,7 +374,6 @@
 				07869644243DBDF7007FCCEA /* jSubstrate.png */,
 				07869643243DBDF7007FCCEA /* jSubstrate@2x.png */,
 				0760DC262434F492004CA0CF /* FDD.png */,
-				0753E5AB2431DF4600E14A81 /* X68000LogoW.png */,
 				07F8648F242F97A700CBB224 /* x11 */,
 				07F86421242F970100CBB224 /* x68k */,
 				07F86411242F967D00CBB224 /* m68000 */,
@@ -632,7 +629,6 @@
 			isa = PBXResourcesBuildPhase;
 			files = (
 				0760DC282434F493004CA0CF /* FDD.png in Resources */,
-				0753E5AD2431DF4600E14A81 /* X68000LogoW.png in Resources */,
 				07F864D5242F97BE00CBB224 /* menu_str_sjis.txt in Resources */,
 				0786964C243DBDF7007FCCEA /* jSubstrate.png in Resources */,
 				0758DC59243EFCE60097E86C /* ConfigScene.sks in Resources */,
@@ -913,7 +909,8 @@
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
-				PRODUCT_NAME = X68000;
+				PRODUCT_MODULE_NAME = X68000;
+				PRODUCT_NAME = MPX68K;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 macOS-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -966,7 +963,8 @@
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-lc68k_mac";
 				PRODUCT_BUNDLE_IDENTIFIER = NANKIN.X68000;
-				PRODUCT_NAME = X68000;
+				PRODUCT_MODULE_NAME = X68000;
+				PRODUCT_NAME = MPX68K;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = "X68000 Shared/px68k/fmgen/X68000 macOS-Bridging-Header.h";

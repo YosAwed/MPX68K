@@ -1453,17 +1453,17 @@ static SCSI_LOGFN_ATTR void SCSI_GetLogPath(char* outPath, size_t outSize)
 #ifdef __APPLE__
 	const char* home = getenv("HOME");
 	if (home && home[0] != '\0') {
-		snprintf(outPath, outSize, "%s/Documents/X68000/_scsi_iocs.txt", home);
+		snprintf(outPath, outSize, "%s/Documents/MPX68K/_scsi_iocs.txt", home);
 		return;
 	}
 #endif
-	snprintf(outPath, outSize, "X68000/_scsi_iocs.txt");
+	snprintf(outPath, outSize, "MPX68K/_scsi_iocs.txt");
 }
 
 static SCSI_LOGFN_ATTR FILE* SCSI_OpenMirrorLog(const char* mode)
 {
 #ifdef __APPLE__
-	return fopen("/tmp/x68000_scsi_iocs.txt", mode);
+	return fopen("/tmp/mpx68k_scsi_iocs.txt", mode);
 #else
 	(void)mode;
 	return NULL;
@@ -1476,7 +1476,7 @@ static SCSI_LOGFN_ATTR void SCSI_EnsureLogDir(void)
 	const char* home = getenv("HOME");
 	if (home && home[0] != '\0') {
 		char dirPath[512];
-		snprintf(dirPath, sizeof(dirPath), "%s/Documents/X68000", home);
+		snprintf(dirPath, sizeof(dirPath), "%s/Documents/MPX68K", home);
 		mkdir(dirPath, 0755);
 	}
 #endif

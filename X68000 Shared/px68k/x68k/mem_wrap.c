@@ -171,9 +171,9 @@ Memory_LogRuntimeEvent(const char* fmt, ...)
 	va_list ap;
 
 	if (home && home[0] != '\0') {
-		snprintf(path, sizeof(path), "%s/Documents/X68000/_scsi_iocs.txt", home);
+		snprintf(path, sizeof(path), "%s/Documents/MPX68K/_scsi_iocs.txt", home);
 	} else {
-		snprintf(path, sizeof(path), "X68000/_scsi_iocs.txt");
+		snprintf(path, sizeof(path), "MPX68K/_scsi_iocs.txt");
 	}
 	fp = fopen(path, "a");
 	if (!fp) {

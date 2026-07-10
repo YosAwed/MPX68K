@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "07F863BB242F93EA00CBB224"
-               BuildableName = "X68000.app"
+               BuildableName = "MPX68K.app"
                BlueprintName = "X68000 macOS"
                ReferencedContainer = "container:X68000.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "07F863BB242F93EA00CBB224"
-            BuildableName = "X68000.app"
+            BuildableName = "MPX68K.app"
             BlueprintName = "X68000 macOS"
             ReferencedContainer = "container:X68000.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "07F863BB242F93EA00CBB224"
-            BuildableName = "X68000.app"
+            BuildableName = "MPX68K.app"
             BlueprintName = "X68000 macOS"
             ReferencedContainer = "container:X68000.xcodeproj">
          </BuildableReference>
@@ -84,7 +84,7 @@
                   <BuildableReference
                      BuildableIdentifier = "primary"
                      BlueprintIdentifier = "07F863BB242F93EA00CBB224"
-                     BuildableName = "X68000.app"
+                     BuildableName = "MPX68K.app"
                      BlueprintName = "X68000 macOS"
                      ReferencedContainer = "container:X68000.xcodeproj">
                   </BuildableReference>

@@ -30,10 +30,10 @@ private extension X68000MonitorCPUState {
 // MARK: - View
 
 struct MonitorView: View {
-    private static let initialOutput = "X68000 Machine Monitor\nType HELP for commands.\n"
+    private static let initialOutput = "MPX68K Machine Monitor\nType HELP for commands.\n"
     private static let maxOutputCharacters = 200_000
 
-    @State private var output: String = "X68000 Machine Monitor\nType HELP for commands.\n"
+    @State private var output: String = "MPX68K Machine Monitor\nType HELP for commands.\n"
     @State private var input: String = ""
     @State private var isPaused: Bool = false
     @State private var writeUnlocked: Bool = false

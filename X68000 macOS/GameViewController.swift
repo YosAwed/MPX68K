@@ -37,7 +37,7 @@ private final class ScreenRecorder {
     private let height: Int
     private let frameRate: Int32
     private let audioSampleRate: Int
-    private let audioQueue = DispatchQueue(label: "X68000.ScreenRecorder.audio")
+    private let audioQueue = DispatchQueue(label: "MPX68K.ScreenRecorder.audio")
     private let audioFormatDescription: CMAudioFormatDescription
     private var frameIndex: Int64 = 0
     private var audioFrameIndex: Int64 = 0
@@ -102,7 +102,7 @@ private final class ScreenRecorder {
                                                           extensions: nil,
                                                           formatDescriptionOut: &formatDescription)
         guard formatStatus == noErr, let formatDescription = formatDescription else {
-            throw NSError(domain: "X68000.ScreenRecorder", code: 3, userInfo: [
+            throw NSError(domain: "MPX68K.ScreenRecorder", code: 3, userInfo: [
                 NSLocalizedDescriptionKey: "Cannot create audio format description"
             ])
         }
@@ -118,14 +118,14 @@ private final class ScreenRecorder {
                                                        sourcePixelBufferAttributes: attributes)
 
         guard writer.canAdd(input) else {
-            throw NSError(domain: "X68000.ScreenRecorder", code: 1, userInfo: [
+            throw NSError(domain: "MPX68K.ScreenRecorder", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Cannot add video input"
             ])
         }
         writer.add(input)
 
         guard writer.canAdd(audioInput) else {
-            throw NSError(domain: "X68000.ScreenRecorder", code: 4, userInfo: [
+            throw NSError(domain: "MPX68K.ScreenRecorder", code: 4, userInfo: [
                 NSLocalizedDescriptionKey: "Cannot add audio input"
             ])
         }
@@ -137,7 +137,7 @@ private final class ScreenRecorder {
                completion: @escaping (Result<URL, Error>) -> Void) {
         self.completion = completion
         guard writer.startWriting() else {
-            let error = writer.error ?? NSError(domain: "X68000.ScreenRecorder", code: 2, userInfo: [
+            let error = writer.error ?? NSError(domain: "MPX68K.ScreenRecorder", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "Cannot start writing recording"
             ])
             completion(.failure(error))
@@ -422,8 +422,8 @@ class GameViewController: NSViewController {
         }
 
         let openPanel = NSOpenPanel()
-        openPanel.title = "Select X68000 ROM Files"
-        openPanel.message = "Select \(missing.joined(separator: " and ")) to import into Documents/X68000."
+        openPanel.title = "Select MPX68K ROM Files"
+        openPanel.message = "Select \(missing.joined(separator: " and ")) to import into Documents/MPX68K."
         if #available(macOS 11.0, *) {
             openPanel.allowedContentTypes = [UTType(filenameExtension: "dat") ?? .data]
         } else {
@@ -435,9 +435,9 @@ class GameViewController: NSViewController {
         openPanel.treatsFilePackagesAsDirectories = false
 
         var defaultDirectory: URL?
-        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
-        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
-            defaultDirectory = userDocumentsX68000
+        let userDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if FileManager.default.fileExists(atPath: userDocumentsMPX68K.path) {
+            defaultDirectory = userDocumentsMPX68K
         } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             if FileManager.default.fileExists(atPath: userDocuments.path) {
                 defaultDirectory = userDocuments
@@ -586,12 +586,12 @@ class GameViewController: NSViewController {
         // Try to set default directory to user's actual Documents folder first
         var defaultDirectory: URL?
         
-        // Priority 1: User's actual Documents/X68000 folder
-        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
-        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
-            defaultDirectory = userDocumentsX68000
+        // Priority 1: User's actual Documents/MPX68K folder
+        let userDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if FileManager.default.fileExists(atPath: userDocumentsMPX68K.path) {
+            defaultDirectory = userDocumentsMPX68K
             // Reduced logging for performance
-            // print("🔧 Using user Documents/X68000 as default: \(userDocumentsX68000.path)")
+            // print("🔧 Using user Documents/MPX68K as default: \(userDocumentsMPX68K.path)")
         }
         // Priority 2: User's Documents folder
         else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
@@ -669,9 +669,9 @@ class GameViewController: NSViewController {
         openPanel.treatsFilePackagesAsDirectories = false
         
         var defaultDirectory: URL?
-        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
-        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
-            defaultDirectory = userDocumentsX68000
+        let userDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if FileManager.default.fileExists(atPath: userDocumentsMPX68K.path) {
+            defaultDirectory = userDocumentsMPX68K
         } else if let userDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                   FileManager.default.fileExists(atPath: userDocuments.path) {
             defaultDirectory = userDocuments
@@ -893,9 +893,9 @@ class GameViewController: NSViewController {
         // Set default directory - same logic as openHDD
         var defaultDirectory: URL?
         
-        let userDocumentsX68000 = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/X68000")
-        if FileManager.default.fileExists(atPath: userDocumentsX68000.path) {
-            defaultDirectory = userDocumentsX68000
+        let userDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if FileManager.default.fileExists(atPath: userDocumentsMPX68K.path) {
+            defaultDirectory = userDocumentsMPX68K
         } else {
             let userDocuments = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
             if FileManager.default.fileExists(atPath: userDocuments.path) {
@@ -1061,14 +1061,14 @@ class GameViewController: NSViewController {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return "X68000 Screenshot \(formatter.string(from: Date())).png"
+        return "MPX68K Screenshot \(formatter.string(from: Date())).png"
     }
 
     private func defaultRecordingFilename() -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return "X68000 Recording \(formatter.string(from: Date())).mov"
+        return "MPX68K Recording \(formatter.string(from: Date())).mov"
     }
 
     private func showScreenshotAlert(message: String) {
