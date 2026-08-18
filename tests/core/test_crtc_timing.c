@@ -22,6 +22,7 @@
 #include "crtc_timing.h"
 
 /* ---- stubs for crtc.c link dependencies ---- */
+BYTE SysPort[7];   /* HRL bit lives in SysPort[4]; 0 here means HRL=0 */
 BYTE TVRAM[0x80000];
 BYTE TextDirtyLine[1024];
 BYTE BG_Regs[0x12];
@@ -368,6 +369,54 @@ static void test_readback_zero_restore(void)
     CHECK(HSYNC_CLK > 0, "zeroed R04: HSYNC_CLK still positive");
 }
 
+/* HSYNC_CLK must be the real raster period. The old formula divided a
+ * fixed frame budget by VLINE_TOTAL, so the vertical registers cancelled
+ * themselves out and never reached real time: the 525-line 60Hz setup
+ * shares its horizontal timing with plain 512x512/31kHz and must therefore
+ * get the same HSYNC_CLK, but the old formula returned 344 instead of 317
+ * (8% off) purely because R04 changed. mfp.c derives the GPIP HSYNC
+ * position from this value, so the error was guest-visible. */
+static void check_hsync_clk(const char *label, const BYTE *regs)
+{
+    CrtcTiming t;
+    unsigned long long num, den;
+    char name[128];
+
+    write_regs_to_crtc(regs);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CrtcTiming_CyclesPerRaster(&t, 10000000, &num, &den);
+
+    snprintf(name, sizeof(name), "%s: HSYNC_CLK == model cycles/raster", label);
+    CHECK_EQ(HSYNC_CLK, (long long)(num / den), name);
+}
+
+static void test_hsync_clk_from_registers(void)
+{
+    BYTE regs[48];
+
+    CRTC_Init();
+
+    preset_768x512_31k(regs);
+    check_hsync_clk("768x512/31k", regs);
+
+    preset_512x512_31k(regs);
+    check_hsync_clk("512x512/31k", regs);
+    {
+        long long standard = HSYNC_CLK;
+
+        /* Same horizontal timing, 525-line vertical layout: the raster
+         * period must not move when only R04-R07 change. */
+        set_reg(regs, 4, 0x20c); set_reg(regs, 5, 0x001);
+        set_reg(regs, 6, 0x022); set_reg(regs, 7, 0x202);
+        check_hsync_clk("60Hz/525", regs);
+        CHECK_EQ(HSYNC_CLK, standard,
+                 "60Hz/525: raster period unchanged by vertical registers");
+    }
+
+    preset_256x240_15k(regs);
+    check_hsync_clk("256/15k", regs);
+}
+
 static void test_cycle_rationals(void)
 {
     BYTE regs[48];
@@ -462,6 +511,7 @@ int main(void)
     test_invalid_window();
     test_cycle_rationals();
     test_readback_zero_restore();
+    test_hsync_clk_from_registers();
     test_legacy_agreement();
 
     if (g_failures) {

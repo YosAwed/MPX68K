@@ -10,6 +10,8 @@
 #include	"bg.h"
 #include	"m68000.h"
 #include	"crtc.h"
+#include	"crtc_timing.h"
+#include	"sysport.h"
 
 
 static WORD FastClearMask[16] = {
@@ -40,6 +42,32 @@ static WORD FastClearMask[16] = {
 	int HSYNC_CLK = 324;
 //    extern int VID_MODE, CHANGEAV_TIMING;
  int VID_MODE, CHANGEAV_TIMING;
+
+
+// -----------------------------------------------------------------------
+//   1ラスタあたりのCPUクロック数（名目10MHz単位）
+// -----------------------------------------------------------------------
+// 旧実装は「固定フレーム長 / VLINE_TOTAL」だった。フレーム長が固定なので
+// 垂直レジスタを増やすと1ラスタが短くなって打ち消し合い、垂直設定が実時間の
+// ラスタ周期に届かなかった（525ライン60Hz設定では真値317に対し344＝約8%誤差。
+// mfp.cのGPIP水平位置がこの値から求まるためゲストから見える誤差になる）。
+//
+// ラスタ周期は物理的に水平タイミング（R00とドットクロック＝R20・HRL）だけで
+// 決まり、垂直レジスタには依存しない。フレーム全体のvalid判定で門を作ると、
+// レジスタを順に書き換える途中で一時的に不正となり古い値が残ってしまうため、
+// ここでは水平パラメータのみを見る（h_totalは常に1以上）。
+void CRTC_UpdateHSyncClock(void)
+{
+	CrtcTiming t;
+	unsigned long long num, den;
+
+	CrtcTiming_FromRegs(CRTC_Regs, (SysPort[4] >> 1) & 1, &t);
+	CrtcTiming_CyclesPerRaster(&t, 10000000, &num, &den);
+	if (den && (num / den) > 0)
+		HSYNC_CLK = (int)(num / den);
+	else	// 退避経路：ドットクロックが異常なときだけ従来式に戻す
+		HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
+}
 
 
 // -----------------------------------------------------------------------
@@ -349,6 +377,12 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		TVRAM_SetAllDirty();
 		switch(reg)
 		{
+		case 0x00:
+		case 0x01:
+			// R00 (h_total) sets the raster period; the old fixed-frame
+			// formula ignored it entirely.
+			CRTC_UpdateHSyncClock();
+			break;
 		case 0x04:
 		case 0x05:
 			CRTC_HSTART = (((WORD)CRTC_Regs[0x4]<<8)+CRTC_Regs[0x5]);
@@ -365,9 +399,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x08:
 		case 0x09:
 			VLINE_TOTAL = (((WORD)CRTC_Regs[8]<<8)+CRTC_Regs[9]);
-			// R04=0 reaches here from guests that restore a read-back of
-			// the write-only registers (reads return 0); never divide by 0.
-			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
+			CRTC_UpdateHSyncClock();
 			break;
 		case 0x0c:
 		case 0x0d:
@@ -410,7 +442,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			TVRAM_SetAllDirty();
 			break;
 		case 0x29:
-			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
+			CRTC_UpdateHSyncClock();
 			VID_MODE = CRTC_Regs[0x29]&0x10;
 			TextDotY = CRTC_VEND-CRTC_VSTART;
 			if ((CRTC_Regs[0x29]&0x14)==0x10)

@@ -164,11 +164,17 @@ BYTE FASTCALL MFP_Read(DWORD adr)
 				ret = 0x13;
 			else
 				ret = 0x03;
-			hpos = (int)(ICount%HSYNC_CLK);
-			if ( (hpos>=((int)CRTC_Regs[5]*HSYNC_CLK/CRTC_Regs[1]))&&(hpos<((int)CRTC_Regs[7]*HSYNC_CLK/CRTC_Regs[1])) )
-				ret &= 0x7f;
-			else
-				ret |= 0x80;
+			// CRTC_Regs[1] is R00's low byte and can legitimately be 0
+			// (e.g. R00 = 0x100); scale by 1 raster then instead of
+			// dividing by zero. HSYNC_CLK is always positive.
+			{
+				int htotal = CRTC_Regs[1] ? CRTC_Regs[1] : 1;
+				hpos = (int)(ICount%HSYNC_CLK);
+				if ( (hpos>=((int)CRTC_Regs[5]*HSYNC_CLK/htotal))&&(hpos<((int)CRTC_Regs[7]*HSYNC_CLK/htotal)) )
+					ret &= 0x7f;
+				else
+					ret |= 0x80;
+			}
 			if (vline!=CRTC_IntLine)
 				ret |= 0x40;
 			break;
