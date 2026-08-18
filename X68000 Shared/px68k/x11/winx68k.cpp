@@ -40,6 +40,7 @@ extern "C" {
 #include "bg.h"
 #include "palette.h"
 #include "crtc.h"
+#include "crtc_timing.h"
 #include "pia.h"
 #include "ppi.h"
 #include "scc.h"
@@ -776,6 +777,30 @@ WinX68k_Cleanup(void)
 }
 
 #define CLOCK_SLICE 1500
+
+// Per-field CPU cycle budget at the legacy 10MHz base (the caller rescales
+// by the configured clock), derived from the CRTC registers instead of the
+// fixed VSYNC_HIGH/VSYNC_NORM pair. The fractional remainder carries over
+// to the next field so long runs do not drift; a stale remainder from a
+// different mode (>= the new denominator) is dropped. Register sets the
+// timing model rejects fall back to the legacy fixed budget, so a guest
+// mid-way through reprogramming the CRTC keeps the old cadence.
+static int WinX68k_FieldCycles10M(void)
+{
+    static unsigned long long rem = 0;
+    CrtcTiming t;
+    unsigned long long num, den, acc;
+
+    CrtcTiming_FromRegs(CRTC_Regs, (SysPort[4] >> 1) & 1, &t);
+    if (!t.valid)
+        return (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
+
+    CrtcTiming_CyclesPerField(&t, 10000000, &num, &den);
+    acc = num + ((rem < den) ? rem : 0);
+    rem = acc % den;
+    return (int)(acc / den);
+}
+
 // -----------------------------------------------------------------------------------
 //  �����Τᤤ��롼��
 // -----------------------------------------------------------------------------------
@@ -810,7 +835,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 
     vline = 0;
     clk_count = -ICount;
-    clk_total = (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
+    clk_total = WinX68k_FieldCycles10M();
 #if 0 // GOROman
     if (Config.XVIMode == 1) {
         clk_total = (clk_total*16)/10;
