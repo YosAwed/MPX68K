@@ -1515,11 +1515,9 @@ class GameScene: SKScene {
                 joycard?.Update(currentTime)
             }
             
-            // Update screen dimensions first, then configure mouse controller
-            w = Int(X68000_GetScreenWidth())
-            h = Int(X68000_GetScreenHeight())
-            
-            // Only update mouse controller when in capture mode
+            // Mouse controller uses the previous frame's geometry; the
+            // authoritative size for presentation comes from
+            // X68000_GetFrameInfo after the emulation step.
             if let mouseController = mouseController, mouseController.isCaptureMode {
                 mouseController.SetScreenSize(width: Float(w), height: Float(h))
                 mouseController.Update()
@@ -1543,10 +1541,20 @@ class GameScene: SKScene {
         
         // Only update display when new emulator frame is ready
         if newFrameReady {
-            // Security: Validate screen dimensions
-            guard w > 0 && h > 0 && w <= 1024 && h <= 1024 else {
+            // Take one consistent geometry snapshot after the emulation
+            // step: a mid-step CRTC mode change can no longer pair a stale
+            // size with new pixels (the old pre-step GetScreenWidth/Height
+            // read overflowed the pixel buffer on 768->1024 dot switches).
+            var frameInfo = X68FrameInfo()
+            X68000_GetFrameInfo(&frameInfo)
+
+            let newWidth = Int(frameInfo.width)
+            let newHeight = Int(frameInfo.height)
+            guard newWidth > 0 && newHeight > 0 && newWidth <= 1024 && newHeight <= 1024 else {
                 return
             }
+            w = newWidth
+            h = newHeight
 
             let screenSizeChanged = (w != lastScreenWidth || h != lastScreenHeight)
             let frameDirty = (X68000_IsFrameDirty() != 0)
@@ -1559,8 +1567,9 @@ class GameScene: SKScene {
             frameBufferByteCount = requiredBytes
 
             if needsTextureUpdate {
-                X68000_GetImage(&d)
-                updateScreenTexture()
+                if X68000_GetImageInto(&d, UInt(d.count)) != 0 {
+                    updateScreenTexture()
+                }
             } else {
                 updateScreenEffectsWithoutNewTexture()
             }
