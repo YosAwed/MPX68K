@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "winx68k.h"	/* vline / VLINE_TOTAL externs (vline -> HOGEvline) */
+#include "winx68k.h"   /* vline / VLINE_TOTAL externs (vline -> HOGEvline) */
 #include "windraw.h"
 #include "tvram.h"
 #include "bg.h"
@@ -22,13 +22,13 @@
 #include "crtc_timing.h"
 
 /* ---- stubs for crtc.c link dependencies ---- */
-BYTE	TVRAM[0x80000];
-BYTE	TextDirtyLine[1024];
-BYTE	BG_Regs[0x12];
-long	BG_HAdjust = 0;
-long	BG_VLINE = 0;
-WORD	VLINE_TOTAL = 0;
-DWORD	vline = 0;
+BYTE TVRAM[0x80000];
+BYTE TextDirtyLine[1024];
+BYTE BG_Regs[0x12];
+long BG_HAdjust = 0;
+long BG_VLINE = 0;
+WORD VLINE_TOTAL = 0;
+DWORD vline = 0;
 
 void TVRAM_SetAllDirty(void) {}
 void FASTCALL TVRAM_RCUpdate(void) {}
@@ -154,9 +154,12 @@ static void test_timing_768x512(void)
     CHECK_EQ(t.height, 512, "768x512: height");
     CHECK_EQ(t.h_total, 138, "768x512: h_total columns");
     CHECK_EQ(t.v_total, 568, "768x512: v_total rasters");
-    CHECK_EQ(t.osc_hz, CRTC_OSC_31K_HZ, "768x512: 69.552MHz oscillator");
+    CHECK_EQ(t.v_disp_first, 0x28 + 1, "768x512: first raster is R06+1");
+    CHECK_EQ(t.v_disp_end, 0x228, "768x512: last raster is R07");
+    CHECK_EQ(t.osc_hz, CRTC_OSC_31K_HZ, "768x512: 69.5519MHz oscillator");
     CHECK_EQ(t.clock_div, 2, "768x512: divide-by-2 dot clock");
-    CHECK_EQ(t.v_step, 2, "768x512: normal scan");
+    CHECK_EQ(t.scan_mode, CRTC_SCAN_NORMAL, "768x512: normal scan");
+    CHECK_EQ(t.v_step, 2, "768x512: legacy v_step 2");
     CHECK_NEAR(t.h_freq_hz, 31500.0, 20.0, "768x512: ~31.5kHz hsync");
     CHECK_NEAR(t.v_freq_hz, 55.46, 0.01, "768x512: ~55.46Hz vsync");
 }
@@ -204,8 +207,9 @@ static void test_timing_15k(void)
 
     CHECK(t.valid, "256/15k: valid");
     CHECK_EQ(t.width, 256, "256/15k: width");
-    CHECK_EQ(t.osc_hz, CRTC_OSC_15K_HZ, "256/15k: 38.864MHz oscillator");
+    CHECK_EQ(t.osc_hz, CRTC_OSC_15K_HZ, "256/15k: 38.8636MHz oscillator");
     CHECK_EQ(t.clock_div, 8, "256/15k: divide-by-8 dot clock");
+    CHECK_EQ(t.scan_mode, CRTC_SCAN_SLIT, "256/15k: slit scan");
     CHECK_NEAR(t.h_freq_hz, 15980.0, 20.0, "256/15k: ~15.98kHz hsync");
     CHECK_NEAR(t.v_freq_hz, 61.46, 0.01, "256/15k: ~61.46Hz vsync");
 }
@@ -251,6 +255,22 @@ static void test_hrl_and_vga(void)
     CHECK_EQ(t.clock_div, 2, "HRES=3: divide-by-2");
 }
 
+static void test_1024line_interlace(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+
+    /* HF=1 with VRES=2 (1024-line content) interlaces on hardware; the
+     * legacy (R20 & 0x14) decode misreads it as double-read. The model
+     * reports the hardware scan mode while pinning the legacy v_step. */
+    preset_768x512_31k(regs);
+    set_reg(regs, 20, 0x19);   /* HF=1, VRES=2, HRES=1 */
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK_EQ(t.scan_mode, CRTC_SCAN_INTERLACE, "31k/VRES=2: interlace scan");
+    CHECK_EQ(t.v_step, 1, "31k/VRES=2: legacy v_step stays 1 (known-wrong)");
+    CHECK_EQ(t.height, 1024, "31k/VRES=2: doubled height");
+}
+
 static void test_invalid_window(void)
 {
     BYTE regs[48];
@@ -263,9 +283,24 @@ static void test_invalid_window(void)
     CHECK_EQ(t.width, 0, "reversed horizontal window: width clamped to 0");
 
     preset_768x512_31k(regs);
-    set_reg(regs, 7, 0x300);   /* v_disp_end > v_total */
+    set_reg(regs, 0, 0xff);    /* widen h_total so only the column count trips */
+    set_reg(regs, 2, 0x00);
+    set_reg(regs, 3, 0x90);    /* 144 columns > 128-column line buffer */
     CrtcTiming_FromRegs(regs, 0, &t);
-    CHECK(!t.valid, "display window past v_total: invalid");
+    CHECK(!t.valid, "display wider than 128 columns: invalid");
+
+    preset_768x512_31k(regs);
+    set_reg(regs, 5, 0x30);    /* R05 > R06: sync runs into the display */
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(!t.valid, "vertical sync overlapping display: invalid");
+
+    preset_768x512_31k(regs);
+    set_reg(regs, 7, 0x237);   /* R07 == R04: no vertical front porch left */
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(t.valid, "R07 == R04: still scannable");
+    set_reg(regs, 7, 0x238);   /* R07 > R04 */
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(!t.valid, "display window past R04: invalid");
 }
 
 static void test_cycle_rationals(void)
@@ -356,6 +391,7 @@ int main(void)
     test_timing_256x256_double_read();
     test_timing_15k();
     test_timing_interlace();
+    test_1024line_interlace();
     test_hrl_and_vga();
     test_invalid_window();
     test_cycle_rationals();

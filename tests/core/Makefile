@@ -8,7 +8,9 @@ CFLAGS += -Wall -g \
 	-I "$(PX68K)/x68k" -I "$(PX68K)/x11" \
 	-I "$(PX68K)/win32api" -I "$(PX68K)/m68000"
 
-.PHONY: all run clean
+# Test binaries are phony so edits to the (space-containing) core source
+# paths always trigger a rebuild; the builds are cheap.
+.PHONY: all run clean test_disk_d88 test_crtc_timing
 
 all: run
 
