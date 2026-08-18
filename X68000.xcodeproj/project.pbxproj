@@ -35,6 +35,7 @@
 		07F4C7242430667D002CF5CA /* sasi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6ED2430667A002CF5CA /* sasi.c */; };
 		07F4C7262430667D002CF5CA /* midi.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6EE2430667A002CF5CA /* midi.c */; };
 		07F4C7282430667D002CF5CA /* crtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F12430667A002CF5CA /* crtc.c */; };
+		AC10FEED2508190000000001 /* crtc_timing.c in Sources */ = {isa = PBXBuildFile; fileRef = AC10FEED2508190000000002 /* crtc_timing.c */; };
 		07F4C72A2430667D002CF5CA /* irqh.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F32430667A002CF5CA /* irqh.c */; };
 		07F4C72C2430667D002CF5CA /* d68k.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F52430667A002CF5CA /* d68k.c */; };
 		07F4C72E2430667D002CF5CA /* adpcm.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C6F62430667A002CF5CA /* adpcm.c */; };
@@ -66,6 +67,7 @@
 		07F86410242F94BB00CBB224 /* fake.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86408242F94BB00CBB224 /* fake.c */; };
 		07F864B9242F97BE00CBB224 /* joystick.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86491242F97BC00CBB224 /* joystick.c */; };
 		07F864BD242F97BE00CBB224 /* windraw.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F86494242F97BC00CBB224 /* windraw.c */; };
+		AC10FEED2508190000000004 /* scrbuf.c in Sources */ = {isa = PBXBuildFile; fileRef = AC10FEED2508190000000005 /* scrbuf.c */; };
 		07F864BF242F97BE00CBB224 /* winx68k.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07F8649B242F97BC00CBB224 /* winx68k.cpp */; };
 		07F864C3242F97BE00CBB224 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A3242F97BD00CBB224 /* keyboard.c */; };
 		07F864C5242F97BE00CBB224 /* dswin.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F864A5242F97BD00CBB224 /* dswin.c */; };
@@ -160,6 +162,8 @@
 		07F4C6EF2430667A002CF5CA /* scc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = scc.h; sourceTree = "<group>"; };
 		07F4C6F02430667A002CF5CA /* crtc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = crtc.h; sourceTree = "<group>"; };
 		07F4C6F12430667A002CF5CA /* crtc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = crtc.c; sourceTree = "<group>"; };
+		AC10FEED2508190000000002 /* crtc_timing.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = crtc_timing.c; sourceTree = "<group>"; };
+		AC10FEED2508190000000003 /* crtc_timing.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = crtc_timing.h; sourceTree = "<group>"; };
 		07F4C6F22430667A002CF5CA /* gvram.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gvram.h; sourceTree = "<group>"; };
 		07F4C6F32430667A002CF5CA /* irqh.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = irqh.c; sourceTree = "<group>"; };
 		07F4C6F42430667A002CF5CA /* palette.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = palette.h; sourceTree = "<group>"; };
@@ -222,6 +226,8 @@
 		07F86490242F97BC00CBB224 /* common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = common.h; path = ../m68000/common.h; sourceTree = "<group>"; };
 		07F86491242F97BC00CBB224 /* joystick.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = joystick.c; sourceTree = "<group>"; };
 		07F86494242F97BC00CBB224 /* windraw.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = windraw.c; sourceTree = "<group>"; };
+		AC10FEED2508190000000005 /* scrbuf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = scrbuf.c; sourceTree = "<group>"; };
+		AC10FEED2508190000000006 /* scrbuf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = scrbuf.h; sourceTree = "<group>"; };
 		07F86495242F97BC00CBB224 /* cdrom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cdrom.h; sourceTree = "<group>"; };
 		07F86496242F97BC00CBB224 /* winx68k.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = winx68k.h; sourceTree = "<group>"; };
 		07F86497242F97BC00CBB224 /* status.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = status.h; sourceTree = "<group>"; };
@@ -439,6 +445,8 @@
 				07F4C7162430667C002CF5CA /* cpu_glue.c */,
 				07F4C6F12430667A002CF5CA /* crtc.c */,
 				07F4C6F02430667A002CF5CA /* crtc.h */,
+				AC10FEED2508190000000002 /* crtc_timing.c */,
+				AC10FEED2508190000000003 /* crtc_timing.h */,
 				07F4C6F52430667A002CF5CA /* d68k.c */,
 				07F4C6FE2430667A002CF5CA /* d68k.h */,
 				07F4C6F82430667A002CF5CA /* d68kconf.h */,
@@ -523,6 +531,8 @@
 				07F86498242F97BC00CBB224 /* timer.h */,
 				07F864AE242F97BD00CBB224 /* version.h */,
 				07F86494242F97BC00CBB224 /* windraw.c */,
+				AC10FEED2508190000000005 /* scrbuf.c */,
+				AC10FEED2508190000000006 /* scrbuf.h */,
 				07F864A4242F97BD00CBB224 /* windraw.h */,
 				07F8649B242F97BC00CBB224 /* winx68k.cpp */,
 				07F86496242F97BC00CBB224 /* winx68k.h */,
@@ -668,6 +678,7 @@
 				07F4C73E2430667D002CF5CA /* pia.c in Sources */,
 				07F4C7502430667D002CF5CA /* gvram.c in Sources */,
 				07F4C7282430667D002CF5CA /* crtc.c in Sources */,
+				AC10FEED2508190000000001 /* crtc_timing.c in Sources */,
 				07869626243D9A8E007FCCEA /* X68Device.swift in Sources */,
 				07F4C7242430667D002CF5CA /* sasi.c in Sources */,
 				0758DC5F243EFD830097E86C /* ConfigScene.swift in Sources */,
@@ -706,6 +717,7 @@
 				07F4C6DF2430664B002CF5CA /* fmtimer.cpp in Sources */,
 				07F4C7562430667D002CF5CA /* disk_xdf.c in Sources */,
 				07F864BD242F97BE00CBB224 /* windraw.c in Sources */,
+				AC10FEED2508190000000004 /* scrbuf.c in Sources */,
 				07F864D3242F97BE00CBB224 /* common.c in Sources */,
 				07F4C72E2430667D002CF5CA /* adpcm.c in Sources */,
 				07F4C7382430667D002CF5CA /* palette.c in Sources */,

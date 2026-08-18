@@ -9,9 +9,6 @@ extern BYTE Draw_ClrMenu;
 extern WORD FrameCount;
 extern WORD WinDraw_Pal16B, WinDraw_Pal16R, WinDraw_Pal16G;
 
-extern	BYTE	Draw_BitMask[800];
-extern	BYTE	Draw_TextBitMask[800];
-
 extern	int	WindowX;
 extern	int	WindowY;
 extern	int	kbd_x, kbd_y, kbd_w, kbd_h;
@@ -22,6 +19,7 @@ int WinDraw_Init(void);
 void WinDraw_Cleanup(void);
 void WinDraw_Redraw(void);
 void FASTCALL WinDraw_Draw(unsigned char* data);
+int X68000_GetImageInto(unsigned char* data, unsigned long capacityBytes);
 void WinDraw_ShowMenu(int flag);
 void WinDraw_DrawLine(void);
 void WinDraw_ChangeSize(void);

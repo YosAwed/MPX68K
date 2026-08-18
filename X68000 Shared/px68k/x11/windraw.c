@@ -37,21 +37,15 @@
 #include "tvram.h"
 #include "joystick.h"
 #include "keyboard.h"
+#include "scrbuf.h"
 
 
 BYTE    Debug_Text=1, Debug_Grp=1, Debug_Sp=1;
-
-WORD *ScrBuf = 0;
-
-
 
 int Draw_Opaque;
 int FullScreenFlag = 0;
 extern BYTE Draw_RedrawAllFlag;
 BYTE Draw_DrawFlag = 1;
-
-BYTE Draw_BitMask[800];
-BYTE Draw_TextBitMask[800];
 
 int winx = 0, winy = 0;
 DWORD winh = 0, winw = 0;
@@ -95,6 +89,7 @@ void WinDraw_ChangeSize(void)
 	DWORD oldx = WindowX, oldy = WindowY;
 	int dif;
 
+	Scrbuf_NoteGeometry();
 	Mouse_ChangePos();
 
 	switch (Config.WinStrech) {
@@ -157,9 +152,7 @@ void WinDraw_ChangeSize(void)
 	Mouse_ChangePos();
 
 	// Clear render buffer on mode/size change to avoid stale garbage frames.
-	if (ScrBuf) {
-		memset(ScrBuf, 0, 800 * 600 * 2);
-	}
+	Scrbuf_Clear();
 	Draw_DrawFlag = 1;
 	TVRAM_SetAllDirty();
 }
@@ -183,8 +176,6 @@ void WinDraw_ChangeMode(int flag)
 
 int WinDraw_Init(void)
 {
-	int i, j;
-
 	WindowX = 768;
 	WindowY = 512;
 
@@ -192,16 +183,13 @@ int WinDraw_Init(void)
 	WinDraw_Pal16G = 0x07e0;
 	WinDraw_Pal16B = 0x001f;
 
-	ScrBuf = malloc(800 * 600 * 2);
-
-	return TRUE;
+	return Scrbuf_Init();
 }
 
 void
 WinDraw_Cleanup(void)
 {
-    free( ScrBuf );
-    ScrBuf = 0;
+    Scrbuf_Cleanup();
 }
 
 void
@@ -233,22 +221,24 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
 
 
-//    const int Bpp = 3;
-
-    WORD* src = ScrBuf;
+    // Clamp to the buffer so out-of-spec register values can never read
+    // outside ScrBuf; the line renderer skips such lines anyway.
+    int w = (TextDotX > SCRBUF_STRIDE) ? SCRBUF_STRIDE : (int)TextDotX;
+    int h = (TextDotY > SCRBUF_LINES) ? SCRBUF_LINES : (int)TextDotY;
+    WORD* src;
     BYTE* dst = data;
 
-    for (int y = 0; y < TextDotY; y++) {
-        src = ScrBuf + SCREEN_WIDTH * y;
+    for (int y = 0; y < h; y++) {
+        src = ScrBuf + SCRBUF_STRIDE * y;
 
-        for (int x = 0; x < TextDotX; x++) {
+        for (int x = 0; x < w; x++) {
             *dst++ /*R*/= (*src   & 0xf800)>>8; // R
             *dst++ /*G*/= (*src   & 0x07e0)>>3; // G
             *dst++ /*B*/= (*src++ & 0x001f)<<3; // B
             *dst++ /*A*/= 0xff;
         }
     }
-	
+
 	FrameCount++;
     if (!Draw_DrawFlag/* && is_installed_idle_process()*/) {
 		return;
@@ -256,6 +246,37 @@ void FASTCALL WinDraw_Draw(unsigned char* data)
 
     Draw_DrawFlag = 0;
 
+}
+
+// Bounded variant for hosts using X68000_GetFrameInfo: refuses to write
+// beyond capacityBytes instead of trusting the caller to have sized the
+// buffer from a screen size captured before the emulation step.
+// Returns 1 when the frame was converted, 0 when capacity was too small.
+int X68000_GetImageInto(unsigned char* data, unsigned long capacityBytes)
+{
+    int w = (TextDotX > SCRBUF_STRIDE) ? SCRBUF_STRIDE : (int)TextDotX;
+    int h = (TextDotY > SCRBUF_LINES) ? SCRBUF_LINES : (int)TextDotY;
+
+    if (w <= 0 || h <= 0)
+        return 0;
+    if (capacityBytes < (unsigned long)w * (unsigned long)h * 4UL)
+        return 0;
+
+    for (int y = 0; y < h; y++) {
+        WORD* src = ScrBuf + SCRBUF_STRIDE * y;
+        BYTE* dst = data + (unsigned long)y * (unsigned long)w * 4UL;
+
+        for (int x = 0; x < w; x++) {
+            *dst++ = (*src   & 0xf800)>>8; // R
+            *dst++ = (*src   & 0x07e0)>>3; // G
+            *dst++ = (*src++ & 0x001f)<<3; // B
+            *dst++ = 0xff;                 // A
+        }
+    }
+
+    FrameCount++;
+    Draw_DrawFlag = 0;
+    return 1;
 }
 
 
@@ -280,7 +301,7 @@ INLINE void WinDraw_DrawGrpLine(int opaq)
 {
 #define _DGL_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBuf_Active[i] : Grp_LineBuf[i]))
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	WORD w;
 	int i;
 
@@ -299,7 +320,7 @@ INLINE void WinDraw_DrawGrpLineNonSP(int opaq)
 {
 #define _DGL_NSP_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBufSP2_Active[i] : Grp_LineBufSP2[i]))
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	WORD w;
 	int i;
 
@@ -324,7 +345,7 @@ INLINE void WinDraw_DrawTextLine(int opaq, int td)
 	}				\
 }	
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	WORD w;
 	int i;
 
@@ -385,7 +406,7 @@ INLINE void WinDraw_DrawTextLineTR(int opaq)
 	}						\
 }
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	DWORD v;
 	WORD w;
 	int i;
@@ -407,7 +428,7 @@ INLINE void WinDraw_DrawBGLine(int opaq, int td)
 	} \
 }
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	WORD w;
 	int i;
 
@@ -474,7 +495,7 @@ INLINE void WinDraw_DrawBGLineTR(int opaq)
 	}						\
 }
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	DWORD v;
 	WORD w;
 	int i;
@@ -491,7 +512,7 @@ INLINE void WinDraw_DrawPriLine(void)
 {
 #define _DPL_SUB(SUFFIX) WD_SUB(SUFFIX, (Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]))
 
-	DWORD adr = VLINE*FULLSCREEN_WIDTH;
+	DWORD adr = VLINE*SCRBUF_STRIDE;
 	WORD w;
 	int i;
 
@@ -503,7 +524,12 @@ void WinDraw_DrawLine(void)
 	int opaq, ton=0, gon=0, bgon=0, tron=0, pron=0, tdrawed=0;
 //@    printf("%d\n", VLINE);
     if((signed int)VLINE<0 )return; //@GOROman
-    
+    // Never scan outside the buffer: lines past the row count and lines
+    // wider than the stride are dropped (the timing model flags such
+    // register settings as invalid).
+    if (VLINE >= SCRBUF_LINES) return;
+    if (TextDotX > SCRBUF_STRIDE) return;
+
 	if (!TextDirtyLine[VLINE]) return;
 	TextDirtyLine[VLINE] = 0;
 	Draw_DrawFlag = 1;
@@ -904,7 +930,7 @@ void WinDraw_DrawLine(void)
 		ScrBuf##SUFFIX[adr] = (w & Pal_HalfMask) >> 1;	\
 }
 
-			DWORD adr = VLINE*FULLSCREEN_WIDTH;
+			DWORD adr = VLINE*SCRBUF_STRIDE;
 			WORD w;
 			int i;
 
@@ -929,7 +955,7 @@ void WinDraw_DrawLine(void)
 
 	if (opaq)
 	{
-		DWORD adr = VLINE*FULLSCREEN_WIDTH;
-		bzero(&ScrBuf[adr], TextDotX * 2);
+		DWORD adr = VLINE*SCRBUF_STRIDE;
+		memset(&ScrBuf[adr], 0, TextDotX * 2);
 	}
 }
