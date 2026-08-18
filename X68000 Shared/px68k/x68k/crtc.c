@@ -365,7 +365,9 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x08:
 		case 0x09:
 			VLINE_TOTAL = (((WORD)CRTC_Regs[8]<<8)+CRTC_Regs[9]);
-			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/VLINE_TOTAL;
+			// R04=0 reaches here from guests that restore a read-back of
+			// the write-only registers (reads return 0); never divide by 0.
+			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
 			break;
 		case 0x0c:
 		case 0x0d:
@@ -408,7 +410,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			TVRAM_SetAllDirty();
 			break;
 		case 0x29:
-			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/VLINE_TOTAL;
+			HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
 			VID_MODE = CRTC_Regs[0x29]&0x10;
 			TextDotY = CRTC_VEND-CRTC_VSTART;
 			if ((CRTC_Regs[0x29]&0x14)==0x10)

@@ -334,6 +334,40 @@ static void test_invalid_window(void)
     CHECK(!t.valid, "R07 == R04: invalid");
 }
 
+/* Only R20 and R21 are readable on real hardware (bytes 0x28-0x2b); every
+ * other CRTC register reads back as 0. A guest that "saves" R04-R07 by
+ * reading them therefore restores zeros, which must leave the timing model
+ * invalid (so the frame scheduler keeps its previous budget) rather than
+ * producing a degenerate frame or a division by zero. */
+static void test_readback_zero_restore(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    int i;
+
+    CRTC_Init();
+    preset_512x512_31k(regs);
+    write_regs_to_crtc(regs);
+
+    for (i = 0x00; i < 0x30; i++) {
+        BYTE expect = (i >= 0x28 && i <= 0x2b) ? CRTC_Regs[i] : 0x00;
+        char name[96];
+        snprintf(name, sizeof(name), "readback: byte 0x%02x", i);
+        CHECK_EQ(CRTC_Read(0xe80000 + i), expect, name);
+    }
+
+    /* What such a guest writes back: R04-R07 zeroed, R20 preserved. */
+    set_reg(regs, 4, 0x000); set_reg(regs, 5, 0x000);
+    set_reg(regs, 6, 0x000); set_reg(regs, 7, 0x000);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(!t.valid, "zeroed vertical registers: invalid");
+
+    /* crtc.c must survive the same writes (VLINE_TOTAL becomes 0). */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(VLINE_TOTAL, 0, "zeroed R04: VLINE_TOTAL 0");
+    CHECK(HSYNC_CLK > 0, "zeroed R04: HSYNC_CLK still positive");
+}
+
 static void test_cycle_rationals(void)
 {
     BYTE regs[48];
@@ -427,6 +461,7 @@ int main(void)
     test_hrl_and_vga();
     test_invalid_window();
     test_cycle_rationals();
+    test_readback_zero_restore();
     test_legacy_agreement();
 
     if (g_failures) {
