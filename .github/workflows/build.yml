@@ -3,8 +3,8 @@ name: Build
 on:
   push:
     branches: [master]
+  # No branch filter: stacked PRs (base != master) must run CI too.
   pull_request:
-    branches: [master]
 
 jobs:
   core-tests:

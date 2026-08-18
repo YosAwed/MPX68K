@@ -10,6 +10,24 @@ unsigned char* X68000_GetDiskImageBufferPointer( const long drive, const long si
 void X68000_Reset();
 void X68000_Quit();
 void X68000_GetImage( unsigned char* data );
+
+// Frame snapshot API. Mirrors px68k/x11/scrbuf.h (X68FrameInfo layout and
+// the two functions) because the bridging header cannot resolve common.h;
+// keep both in sync.
+typedef struct {
+    const unsigned short *buffer;   // SCRBUF_STRIDE-word rows, RGB565
+    int          width;             // rendered dots per row
+    int          height;            // rendered rows
+    int          stride_words;      // words from one row to the next
+    int          scan_mode;         // CrtcScanMode the renderer applied
+    int          field_parity;      // interlace field (0 for now)
+    double       refresh_hz;        // field rate implied by CRTC registers
+    int          timing_valid;      // CrtcTiming.valid for the registers
+    unsigned int generation;        // bumped on every geometry change
+} X68FrameInfo;
+void X68000_GetFrameInfo(X68FrameInfo *out);
+int X68000_GetImageInto(unsigned char* data, unsigned long capacityBytes);
+
 const int X68000_IsFrameDirty(void);
 void X68000_AudioCallBack(void* buffer, const unsigned int sample);
 void X68000_Key_Down( unsigned int vkcode );
