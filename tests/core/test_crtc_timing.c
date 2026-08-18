@@ -180,6 +180,31 @@ static void test_timing_512x512(void)
     CHECK_NEAR(t.v_freq_hz, 55.46, 0.01, "512x512: ~55.46Hz vsync");
 }
 
+static void test_timing_crtc60hz_525line(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+
+    /* 512x512/31kHz horizontal timing with a VGA-like 525-line vertical
+     * layout (VSYNC 2, back porch 33, display 480, front porch 10). The
+     * crtc60hz program measured this at ~60.00Hz on real hardware via
+     * V-DISP + IOCS _ONTIME over 600 frames
+     * (https://github.com/renatus-novus-x/crtc60hz), so the model must
+     * reproduce it once the scheduler follows register timing. */
+    preset_512x512_31k(regs);
+    set_reg(regs, 4, 0x20c); set_reg(regs, 5, 0x01);
+    set_reg(regs, 6, 0x22);  set_reg(regs, 7, 0x202);
+    CrtcTiming_FromRegs(regs, 0, &t);
+
+    CHECK(t.valid, "60Hz/525: valid");
+    CHECK_EQ(t.v_total, 525, "60Hz/525: v_total rasters");
+    CHECK_EQ(t.height, 480, "60Hz/525: 480 displayed lines");
+    CHECK_EQ(t.v_disp_first, 0x22 + 1, "60Hz/525: first raster is R06+1");
+    CHECK_EQ(t.v_disp_end, 0x202, "60Hz/525: last raster is R07");
+    CHECK_NEAR(t.h_freq_hz, 31500.0, 20.0, "60Hz/525: ~31.5kHz hsync");
+    CHECK_NEAR(t.v_freq_hz, 60.00, 0.01, "60Hz/525: ~60.00Hz vsync");
+}
+
 static void test_timing_256x256_double_read(void)
 {
     BYTE regs[48];
@@ -394,6 +419,7 @@ int main(void)
 {
     test_timing_768x512();
     test_timing_512x512();
+    test_timing_crtc60hz_525line();
     test_timing_256x256_double_read();
     test_timing_15k();
     test_timing_interlace();
