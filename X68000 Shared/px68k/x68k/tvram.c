@@ -19,7 +19,7 @@
 	BYTE	TextDrawPattern[2048*4];
 
 //	WORD	Text_LineBuf[1024];	// →BGのを使うように変更
-	BYTE	Text_TrFlag[1024];
+	BYTE	Text_TrFlag[SCRBUF_STRIDE + 16];
 
 INLINE void TVRAM_WriteByteMask(DWORD adr, BYTE data);
 

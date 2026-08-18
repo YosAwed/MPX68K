@@ -4,7 +4,10 @@
 
 CC ?= cc
 PX68K = ../../X68000 Shared/px68k
-CFLAGS += -Wall -g \
+# Sanitizers catch renderer buffer overruns (e.g. 1024-dot line rendering
+# into Text_TrFlag/ScrBuf). Override with SAN= on toolchains without them.
+SAN ?= -fsanitize=address,undefined
+CFLAGS += -Wall -g $(SAN) \
 	-I "$(PX68K)/x68k" -I "$(PX68K)/x11" \
 	-I "$(PX68K)/win32api" -I "$(PX68K)/m68000"
 

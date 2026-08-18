@@ -32,7 +32,7 @@
 Win68Conf Config;
 BYTE TVRAM[0x80000];
 BYTE TextDirtyLine[1024];
-BYTE Text_TrFlag[1024];
+BYTE Text_TrFlag[SCRBUF_STRIDE + 16];
 WORD TextPal[256];
 WORD Ibit, Pal_HalfMask, Pal_Ix2;
 WORD Grp_LineBuf[1024];
@@ -200,6 +200,60 @@ static void test_line_render_stride(void)
     CHECK_EQ(TextDirtyLine[5], 0, "dirty flag consumed");
 }
 
+static void test_line_render_1024(void)
+{
+    BYTE regs[48];
+    int i;
+    X68FrameInfo info;
+
+    /* full 128-column (1024-dot) mode; under ASan this also proves the
+     * Text_TrFlag headroom (the renderer clears TextDotX + 16 bytes) */
+    memset(regs, 0, sizeof(regs));
+    set_reg(regs, 0, 0x89);  set_reg(regs, 1, 0x0e);
+    set_reg(regs, 2, 0x00);  set_reg(regs, 3, 0x80);
+    set_reg(regs, 4, 0x237); set_reg(regs, 5, 0x05);
+    set_reg(regs, 6, 0x28);  set_reg(regs, 7, 0x228);
+    set_reg(regs, 8, 0x1b);  set_reg(regs, 20, 0x16);
+    write_regs_to_crtc(regs);
+    Scrbuf_Clear();
+
+    X68000_GetFrameInfo(&info);
+    CHECK_EQ(info.width, 1024, "1024-dot: frame info width");
+
+    VCReg0[1] = 3;
+    VCReg1[0] = 0x02;
+    VCReg2[1] = 0x01;
+    for (i = 0; i < 1024; i++)
+        Grp_LineBuf[i] = (WORD)(0x2000 + i);
+
+    VLINE = 9;
+    TextDirtyLine[9] = 1;
+    WinDraw_DrawLine();
+
+    CHECK_EQ(ScrBuf[9 * SCRBUF_STRIDE + 1023], 0x2000 + 1023,
+             "1024-dot: last column rendered");
+    CHECK_EQ(ScrBuf[10 * SCRBUF_STRIDE], 0, "1024-dot: next row untouched");
+}
+
+static void test_frame_info_legacy_consistency(void)
+{
+    X68FrameInfo info;
+    CrtcTiming t;
+
+    /* HF=1, VRES=2: hardware interlaces, but the legacy renderer
+     * double-reads and halves TextDotY. The snapshot must describe what
+     * was actually rendered, so all its fields follow the renderer. */
+    apply_768x512_31k();
+    CRTC_Write(0xe80029, 0x19);
+    X68000_GetFrameInfo(&info);
+    CHECK_EQ(info.height, 256, "VRES=2: snapshot height matches renderer");
+    CHECK_EQ(info.scan_mode, CRTC_SCAN_DOUBLE,
+             "VRES=2: snapshot scan mode matches renderer");
+    CrtcTiming_FromRegs(CRTC_Regs, 0, &t);
+    CHECK_EQ(t.scan_mode, CRTC_SCAN_INTERLACE,
+             "VRES=2: hardware model still reports interlace");
+}
+
 static void test_draw_guards(void)
 {
     DWORD saved_x = TextDotX;
@@ -257,6 +311,8 @@ int main(void)
     test_init_and_alloc();
     test_frame_info_and_generation();
     test_line_render_stride();
+    test_line_render_1024();
+    test_frame_info_legacy_consistency();
     test_draw_guards();
     test_image_conversion();
 
