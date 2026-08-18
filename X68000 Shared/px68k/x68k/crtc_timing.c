@@ -114,14 +114,14 @@ void CrtcTiming_FromRegs(const BYTE regs[48], int hrl, CrtcTiming *out)
     out->v_freq_hz = out->h_freq_hz / out->v_total;
 
     // The CRTC line buffer holds 128 columns (1024 dots); wider settings
-    // cannot be scanned. Vertically, sync + back porch must end at or
-    // before the display (R05 <= R06), the display window must be
-    // non-empty (R06 < R07) and a front porch must remain (R07 <= R04).
+    // cannot be scanned. Vertically XEiJ requires the strict ordering
+    // R05 < R06 < R07 < R04: sync + back porch end before the display,
+    // the display window is non-empty, and a front porch remains.
     out->valid = (disp_cols > 0) && (disp_cols <= 128) &&
                  (out->h_disp_end <= out->h_total) &&
-                 (out->v_sync_end - 1 <= out->v_disp_start) &&
+                 (out->v_sync_end - 1 < out->v_disp_start) &&
                  (out->v_disp_end > out->v_disp_start) &&
-                 (out->v_disp_end <= out->v_total - 1);
+                 (out->v_disp_end < out->v_total - 1);
 }
 
 // cycles/raster = cpu_hz * (8 * h_total * clock_div / osc_hz) seconds

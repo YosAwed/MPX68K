@@ -294,13 +294,19 @@ static void test_invalid_window(void)
     CrtcTiming_FromRegs(regs, 0, &t);
     CHECK(!t.valid, "vertical sync overlapping display: invalid");
 
+    /* XEiJ requires strict R05 < R06 and R07 < R04 */
     preset_768x512_31k(regs);
-    set_reg(regs, 7, 0x237);   /* R07 == R04: no vertical front porch left */
+    set_reg(regs, 5, 0x28);    /* R05 == R06: no back porch */
     CrtcTiming_FromRegs(regs, 0, &t);
-    CHECK(t.valid, "R07 == R04: still scannable");
-    set_reg(regs, 7, 0x238);   /* R07 > R04 */
+    CHECK(!t.valid, "R05 == R06: invalid");
+
+    preset_768x512_31k(regs);
+    set_reg(regs, 7, 0x236);   /* R07 == R04 - 1: minimal front porch */
     CrtcTiming_FromRegs(regs, 0, &t);
-    CHECK(!t.valid, "display window past R04: invalid");
+    CHECK(t.valid, "R07 == R04 - 1: still scannable");
+    set_reg(regs, 7, 0x237);   /* R07 == R04: no front porch */
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(!t.valid, "R07 == R04: invalid");
 }
 
 static void test_cycle_rationals(void)

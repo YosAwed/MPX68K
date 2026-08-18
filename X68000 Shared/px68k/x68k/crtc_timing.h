@@ -107,9 +107,9 @@ typedef struct {
 
     // Nonzero when the register combination describes a scannable frame:
     //   - displayed width is 1..128 columns and fits inside h_total
-    //   - vertical sync + back porch end at or before the display
-    //     (R05 <= R06), the display window is non-empty (R06 < R07),
-    //     and a vertical front porch remains (R07 <= R04)
+    //   - the vertical registers keep XEiJ's strict ordering
+    //     R05 < R06 < R07 < R04 (sync + back porch end before the
+    //     display, non-empty display window, front porch remains)
     // When zero, the CRTC should stop scanning; the CPU keeps running.
     int valid;
 } CrtcTiming;
