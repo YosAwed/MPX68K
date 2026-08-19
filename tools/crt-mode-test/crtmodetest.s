@@ -56,7 +56,6 @@ wide1024:
         move.w  #0x00a9,0xe80000        | R00: h_total-1 = 169
         move.w  #0x009c,0xe80006        | R03: HEND $9c -> ($9c-$1c)*8 = 1024
         bsr     delay
-        bsr     delay
         bra.s   mainloop
 
 | print the NUL-terminated label at modetab + d6

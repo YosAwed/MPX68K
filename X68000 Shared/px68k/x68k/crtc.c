@@ -370,6 +370,11 @@ void FASTCALL VCtrl_Write(DWORD adr, BYTE data)
 void CRTC_Init(void)
 {
 	ZeroMemory(CRTC_Regs, 48);
+	// Derived from R20, so it has to follow the registers back to zero.
+	// The draw routines used to read R20 directly and so reset implicitly;
+	// now that the stride is cached, a reset out of the 1024-line mode
+	// would otherwise keep reading every second VRAM row.
+	CRTC_VramRowStep = 1;
     TextScrollX = 0;
     TextScrollY = 0;
 	ZeroMemory(GrphScrollX, sizeof(GrphScrollX));

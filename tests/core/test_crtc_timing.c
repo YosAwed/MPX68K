@@ -569,6 +569,30 @@ static void test_vram_row_step(void)
     preset_256x240_15k(regs);           /* HF=0, VRES=0: slit */
     write_regs_to_crtc(regs);
     CHECK_EQ(CRTC_VramRowStep, 1, "15k slit: rows are sequential");
+
+    /* Derived state has to follow the registers back to zero on reset. The
+     * draw routines used to read R20 directly, so zeroing the registers
+     * reset the stride implicitly; a cached value can go stale instead and
+     * keep reading every second VRAM row after a reset out of 1024-line. */
+    set_reg(regs, 20, 0x1d);
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 2, "before reset: stride is 2");
+    CRTC_Init();
+    CHECK_EQ(CRTC_VramRowStep, 1, "after reset: stride follows R20 to 1");
+}
+
+/* Write a 16-bit CRTC register so that both byte handlers actually run.
+ * CRTC_Write returns early when a byte already holds the value being
+ * written, so passing the current value is a no-op; go via a scratch value
+ * that differs in both bytes first. */
+static void rewrite_word_reg(int n, WORD value)
+{
+    WORD scratch = (WORD)(value ^ 0x0101);
+
+    CRTC_Write(0xe80000 + n * 2,     (BYTE)(scratch >> 8));
+    CRTC_Write(0xe80000 + n * 2 + 1, (BYTE)(scratch & 0xff));
+    CRTC_Write(0xe80000 + n * 2,     (BYTE)(value >> 8));
+    CRTC_Write(0xe80000 + n * 2 + 1, (BYTE)(value & 0xff));
 }
 
 /* All three CRTC registers that feed the vertical scan must produce the same
@@ -588,15 +612,27 @@ static void test_vertical_scan_decode_is_single_sourced(void)
     height_via_r20 = (int)TextDotY;
     CHECK_EQ(via_r20, 1, "R20 last: double-read");
 
-    /* ...then reach the same state by rewriting R06/R07 afterwards. */
-    CRTC_Write(0xe8000c, 0x00); CRTC_Write(0xe8000d, 0x00);
-    CRTC_Write(0xe8000c, (BYTE)(0x28 >> 8)); CRTC_Write(0xe8000d, 0x28);
-    CHECK_EQ(CRTC_VStep, via_r20, "R06 last: same v_step");
-    CHECK_EQ((int)TextDotY, height_via_r20, "R06 last: same TextDotY");
+    /* ...then reach the same state again through each register in turn.
+     * CRTC_VStep and TextDotY are clobbered first, so a write that never
+     * reaches the decode -- e.g. because CRTC_Write early-returned on an
+     * unchanged byte -- fails instead of passing on the leftover value. */
+    CRTC_VStep = 0xff;
+    TextDotY = 0;
+    rewrite_word_reg(6, 0x28);
+    CHECK_EQ(CRTC_VStep, via_r20, "R06 rewrite: decode ran, same v_step");
+    CHECK_EQ((int)TextDotY, height_via_r20, "R06 rewrite: same TextDotY");
 
-    CRTC_Write(0xe8000e, 0x02); CRTC_Write(0xe8000f, 0x28);
-    CHECK_EQ(CRTC_VStep, via_r20, "R07 last: same v_step");
-    CHECK_EQ((int)TextDotY, height_via_r20, "R07 last: same TextDotY");
+    CRTC_VStep = 0xff;
+    TextDotY = 0;
+    rewrite_word_reg(7, 0x228);
+    CHECK_EQ(CRTC_VStep, via_r20, "R07 rewrite: decode ran, same v_step");
+    CHECK_EQ((int)TextDotY, height_via_r20, "R07 rewrite: same TextDotY");
+
+    CRTC_VStep = 0xff;
+    TextDotY = 0;
+    rewrite_word_reg(20, 0x10);
+    CHECK_EQ(CRTC_VStep, via_r20, "R20 rewrite: decode ran, same v_step");
+    CHECK_EQ((int)TextDotY, height_via_r20, "R20 rewrite: same TextDotY");
 }
 
 static void test_cycle_rationals(void)
