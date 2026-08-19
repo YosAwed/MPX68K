@@ -11,6 +11,7 @@
  */
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
@@ -20,12 +21,14 @@
 #include "bg.h"
 #include "crtc.h"
 #include "crtc_timing.h"
+#include "sysport.h"
+#include "prop.h"
 
-/* ---- stubs for crtc.c link dependencies ---- */
-BYTE SysPort[7];   /* HRL bit lives in SysPort[4]; 0 here means HRL=0 */
+/* ---- stubs for crtc.c/sysport.c link dependencies ---- */
 BYTE TVRAM[0x80000];
 BYTE TextDirtyLine[1024];
 BYTE BG_Regs[0x12];
+Win68Conf Config;
 long BG_HAdjust = 0;
 long BG_VLINE = 0;
 WORD VLINE_TOTAL = 0;
@@ -34,6 +37,7 @@ DWORD vline = 0;
 void TVRAM_SetAllDirty(void) {}
 void FASTCALL TVRAM_RCUpdate(void) {}
 void WinDraw_ChangeSize(void) {}
+void Pal_ChangeContrast(int num) { (void)num; }
 
 static int g_failures = 0;
 
@@ -417,6 +421,65 @@ static void test_hsync_clk_from_registers(void)
     check_hsync_clk("256/15k", regs);
 }
 
+static void test_hrl_write_updates_hsync_clock(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    unsigned long long num, den;
+    int before;
+
+    SysPort_Init();
+    CRTC_Init();
+    preset_512x512_31k(regs);
+    write_regs_to_crtc(regs);
+    before = HSYNC_CLK;
+
+    SysPort_Write(0xe8e007, 0x02);
+    CrtcTiming_FromRegs(CRTC_Regs, 1, &t);
+    CrtcTiming_CyclesPerRaster(&t, 10000000, &num, &den);
+
+    CHECK(HSYNC_CLK != before, "HRL write: raster period changed");
+    CHECK_EQ(HSYNC_CLK, (long long)(num / den),
+             "HRL write: HSYNC_CLK follows new divider");
+    SysPort_Write(0xe8e007, 0x00);
+}
+
+static void test_field_clock_preserves_last_valid_mode(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    CrtcFieldClock clock;
+    int active_lines;
+    int valid_cycles, invalid_cycles;
+
+    CrtcFieldClock_Init(&clock, VSYNC_HIGH, 567);
+    memset(regs, 0, sizeof(regs));
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK_EQ(CrtcFieldClock_Next(&clock, &t, 10000000, 0,
+                                &active_lines),
+             VSYNC_HIGH, "field clock: initial fallback budget");
+    CHECK_EQ(active_lines, 567, "field clock: initial fallback rasters");
+
+    preset_512x512_31k(regs);
+    set_reg(regs, 4, 0x20c); set_reg(regs, 5, 0x001);
+    set_reg(regs, 6, 0x022); set_reg(regs, 7, 0x202);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    valid_cycles = CrtcFieldClock_Next(&clock, &t, 10000000, 0x20c,
+                                       &active_lines);
+    CHECK_EQ(active_lines, 0x20c, "field clock: latches valid rasters");
+
+    set_reg(regs, 4, 0); set_reg(regs, 5, 0);
+    set_reg(regs, 6, 0); set_reg(regs, 7, 0);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    invalid_cycles = CrtcFieldClock_Next(&clock, &t, 10000000, 0,
+                                         &active_lines);
+    CHECK(!t.valid, "field clock: zero restore is invalid");
+    CHECK_EQ(active_lines, 0x20c,
+             "field clock: invalid restore keeps nonzero rasters");
+    CHECK(abs(invalid_cycles - valid_cycles) <= 1,
+          "field clock: invalid restore keeps prior cycle budget");
+}
+
 static void test_cycle_rationals(void)
 {
     BYTE regs[48];
@@ -512,6 +575,8 @@ int main(void)
     test_cycle_rationals();
     test_readback_zero_restore();
     test_hsync_clk_from_registers();
+    test_hrl_write_updates_hsync_clock();
+    test_field_clock_preserves_last_valid_mode();
     test_legacy_agreement();
 
     if (g_failures) {

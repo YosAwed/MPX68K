@@ -114,6 +114,17 @@ typedef struct {
     int valid;
 } CrtcTiming;
 
+// Active field clock used by the execution scheduler. A guest programs the
+// CRTC one byte at a time, so the raw register set can be transiently invalid.
+// In that interval the hardware keeps running from the last complete setup;
+// this state preserves its exact cycle fraction and nonzero raster count.
+typedef struct {
+    unsigned long long numerator;
+    unsigned long long denominator;
+    unsigned long long remainder;
+    int vline_total;
+} CrtcFieldClock;
+
 // Compute the timing implied by a 48-byte CRTC register file and the HRL
 // bit. Pure function: never reads or writes emulator state.
 void CrtcTiming_FromRegs(const BYTE regs[48], int hrl, CrtcTiming *out);
@@ -125,5 +136,10 @@ void CrtcTiming_CyclesPerRaster(const CrtcTiming *t, DWORD cpu_hz,
     unsigned long long *num, unsigned long long *den);
 void CrtcTiming_CyclesPerField(const CrtcTiming *t, DWORD cpu_hz,
     unsigned long long *num, unsigned long long *den);
+
+void CrtcFieldClock_Init(CrtcFieldClock *clock, int fallback_cycles,
+    int fallback_vline_total);
+int CrtcFieldClock_Next(CrtcFieldClock *clock, const CrtcTiming *timing,
+    DWORD cpu_hz, int current_vline_total, int *active_vline_total);
 
 #endif

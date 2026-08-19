@@ -22,7 +22,8 @@ test_disk_d88:
 
 test_crtc_timing:
 	$(CC) $(CFLAGS) -o $@ test_crtc_timing.c \
-		"$(PX68K)/x68k/crtc_timing.c" "$(PX68K)/x68k/crtc.c" -lm
+		"$(PX68K)/x68k/crtc_timing.c" "$(PX68K)/x68k/crtc.c" \
+		"$(PX68K)/x68k/sysport.c" -lm
 
 test_scrbuf:
 	$(CC) $(CFLAGS) -o $@ test_scrbuf.c \

@@ -98,6 +98,7 @@ DWORD skippedframes = 0;
 
 static int ClkUsed = 0;
 static int FrameSkipCount = 0;
+static CrtcFieldClock FieldClock10M;
 static int FrameSkipQueue = 0;
 static int g_storage_bus_mode = 0; // 0 = SASI, 1 = SCSI image, 2 = SCSI-U
 static unsigned char SASI_IPLROM[0x20000] = {0};
@@ -500,6 +501,7 @@ WinX68k_Reset(void)
         VLINE_TOTAL = 567;
         VLINE = 0;
         vline = 0;
+        CrtcFieldClock_Init(&FieldClock10M, VSYNC_HIGH, VLINE_TOTAL);
 
 
         DispFrame = 0;
@@ -779,26 +781,21 @@ WinX68k_Cleanup(void)
 #define CLOCK_SLICE 1500
 
 // Per-field CPU cycle budget at the legacy 10MHz base (the caller rescales
-// by the configured clock), derived from the CRTC registers instead of the
-// fixed VSYNC_HIGH/VSYNC_NORM pair. The fractional remainder carries over
-// to the next field so long runs do not drift; a stale remainder from a
-// different mode (>= the new denominator) is dropped. Register sets the
-// timing model rejects fall back to the legacy fixed budget, so a guest
-// mid-way through reprogramming the CRTC keeps the old cadence.
-static int WinX68k_FieldCycles10M(void)
+// by the configured clock), derived from the CRTC registers. Invalid raw
+// register sets occur while a guest writes a mode or restores write-only
+// registers; keep the last complete field budget and raster count then.
+static int WinX68k_FieldCycles10M(int *active_vline_total)
 {
-    static unsigned long long rem = 0;
     CrtcTiming t;
-    unsigned long long num, den, acc;
 
     CrtcTiming_FromRegs(CRTC_Regs, (SysPort[4] >> 1) & 1, &t);
-    if (!t.valid)
-        return (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
-
-    CrtcTiming_CyclesPerField(&t, 10000000, &num, &den);
-    acc = num + ((rem < den) ? rem : 0);
-    rem = acc % den;
-    return (int)(acc / den);
+    if (FieldClock10M.denominator == 0) {
+        int fallback = (CRTC_Regs[0x29] & 0x10) ? VSYNC_HIGH : VSYNC_NORM;
+        CrtcFieldClock_Init(&FieldClock10M, fallback,
+            VLINE_TOTAL ? VLINE_TOTAL : 567);
+    }
+    return CrtcFieldClock_Next(&FieldClock10M, &t, 10000000,
+        VLINE_TOTAL, active_vline_total);
 }
 
 // -----------------------------------------------------------------------------------
@@ -808,6 +805,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 {
     //char *test = NULL;
     int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
+    int active_vline_total;
     int KeyIntCnt = 0, MouseIntCnt = 0;
     DWORD t_start = timeGetTime(), t_end;
 
@@ -835,7 +833,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 
     vline = 0;
     clk_count = -ICount;
-    clk_total = WinX68k_FieldCycles10M();
+    clk_total = WinX68k_FieldCycles10M(&active_vline_total);
 #if 0 // GOROman
     if (Config.XVIMode == 1) {
         clk_total = (clk_total*16)/10;
@@ -856,7 +854,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     clk_total = (clk_total * clkdiv) / 10;
 #endif
     ICount += clk_total;
-    clk_next = (clk_total/VLINE_TOTAL);
+    clk_next = (clk_total/active_vline_total);
     hsync = 1;
     do {
         int m, n = (ICount > CLOCK_SLICE) ? CLOCK_SLICE : ICount;
@@ -876,10 +874,10 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 if ( vline==CRTC_VSTART )
                     MFP_Int(9);
             } else {
-                if ( CRTC_VEND>=VLINE_TOTAL ) {
-                    if ( (long)vline==(CRTC_VEND-VLINE_TOTAL) ) MFP_Int(9);        // ���������ƥ��󥰥���Ȥ���TOTAL<VEND��
+                if ( CRTC_VEND>=active_vline_total ) {
+                    if ( (long)vline==(CRTC_VEND-active_vline_total) ) MFP_Int(9);        // ���������ƥ��󥰥���Ȥ���TOTAL<VEND��
                 } else {
-                    if ( (long)vline==(VLINE_TOTAL-1) ) MFP_Int(9);            // ���쥤�������饤�ޡ��ϥ���Ǥʤ��ȥ��ᡩ
+                    if ( (long)vline==(active_vline_total-1) ) MFP_Int(9);            // ���쥤�������饤�ޡ��ϥ���Ǥʤ��ȥ��ᡩ
                 }
             }
         }
@@ -991,22 +989,22 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             MIDI_Timer(clk_line);
 
             KeyIntCnt++;
-            if ( KeyIntCnt>(VLINE_TOTAL/4) ) {
+            if ( KeyIntCnt>(active_vline_total/4) ) {
                 KeyIntCnt = 0;
                 Keyboard_Int();
             }
             MouseIntCnt++;
-            if ( MouseIntCnt>(VLINE_TOTAL/8) ) {  // 修正: 元の頻度に戻す
+            if ( MouseIntCnt>(active_vline_total/8) ) {  // 修正: 元の頻度に戻す
                 MouseIntCnt = 0;
                 SCC_IntCheck();
             }
             DSound_Send0(clk_line);
 
             vline++;
-            clk_next  = (clk_total*(vline+1))/VLINE_TOTAL;
+            clk_next  = (clk_total*(vline+1))/active_vline_total;
             hsync = 1;
         }
-    } while ( vline<VLINE_TOTAL );
+    } while ( vline<(DWORD)active_vline_total );
 
     if ( CRTC_Mode&2 ) {        // FastClr�ӥåȤ�Ĵ����PITAPAT��
         if ( CRTC_FastClr ) {    // FastClr=1 ��� CRTC_Mode&2 �ʤ� ��λ
