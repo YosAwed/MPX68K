@@ -71,6 +71,36 @@ void CRTC_UpdateHSyncClock(void)
 
 
 // -----------------------------------------------------------------------
+//   垂直走査の展開: TextDotY と CRTC_VStep
+// -----------------------------------------------------------------------
+// R06/R07/R20 のいずれが変わっても同じ導出をするため、3箇所に重複していた
+// 同一コードを1つにまとめたもの。挙動は従来と完全に同じ。
+//
+// 注意: 判定は (R20 & 0x14) すなわち HF と VRES の下位ビットだけを見ており、
+// VRES 上位ビット(0x08)を無視する。このためハードウェアと乖離する組合せが
+// 残っている(crtc_timing.h の scan_mode 参照。テストで固定してある):
+//   HF=1,VRES=2 (R20=$18) … ハードはインターレースだがここは二度読みと解釈し
+//                            高さを1/2にする(本来は2倍)
+//   HF=1,VRES=3 (R20=$1c) … ここでは通常走査になり、1024ライン化は各描画
+//                            ルーチン側の (R20&0x1c)==0x1c 分岐が担当する
+//   HF=0,VRES=0           … スリットだが通常走査と同一に扱う(CRT上の
+//                            見え方の違いで、行の対応は通常と同じ)
+void CRTC_UpdateVerticalScan(void)
+{
+	TextDotY = CRTC_VEND - CRTC_VSTART;
+	if ((CRTC_Regs[0x29] & 0x14) == 0x10) {
+		TextDotY /= 2;
+		CRTC_VStep = 1;
+	} else if ((CRTC_Regs[0x29] & 0x14) == 0x04) {
+		TextDotY *= 2;
+		CRTC_VStep = 4;
+	} else {
+		CRTC_VStep = 2;
+	}
+}
+
+
+// -----------------------------------------------------------------------
 //   らすたーこぴー
 // -----------------------------------------------------------------------
 void CRTC_RasterCopy(void)
@@ -405,37 +435,13 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x0d:
 			CRTC_VSTART = (((WORD)CRTC_Regs[0xc]<<8)+CRTC_Regs[0xd]);
 			BG_VLINE = ((long)BG_Regs[0x0f]-CRTC_VSTART)/((BG_Regs[0x11]&4)?1:2);	// BGとその他がずれてる時の差分
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			WinDraw_ChangeSize();
 			break;
 		case 0x0e:
 		case 0x0f:
 			CRTC_VEND = (((WORD)CRTC_Regs[0xe]<<8)+CRTC_Regs[0xf]);
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			WinDraw_ChangeSize();
 			break;
 		case 0x28:
@@ -444,19 +450,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x29:
 			CRTC_UpdateHSyncClock();
 			VID_MODE = CRTC_Regs[0x29]&0x10;
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			if (VID_MODE != old_vidmode)
 			{
 				old_vidmode = VID_MODE;

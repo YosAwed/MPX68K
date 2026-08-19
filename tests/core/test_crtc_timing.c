@@ -480,6 +480,95 @@ static void test_field_clock_preserves_last_valid_mode(void)
           "field clock: invalid restore keeps prior cycle budget");
 }
 
+/* The legacy vertical scan decode looks only at (R20 & 0x14) -- HF and the
+ * low VRES bit -- so it cannot see VRES bit 3. Walk all eight HF/VRES
+ * combinations and pin both what the emulator does today and where that
+ * disagrees with the hardware model, so stage 6/7 work has a baseline that
+ * fails loudly if either side moves.
+ *
+ * The renderer covers 1024-line modes through a second, independent path
+ * ((R20 & 0x1c) == 0x1c inside the draw routines) rather than through
+ * CRTC_VStep, which is why VRES=3 legitimately decodes as "normal" here. */
+static void test_vertical_scan_decode_all_vres(void)
+{
+    static const struct {
+        int hf, vres;
+        int want_vstep;
+        int want_height;        /* legacy TextDotY for a 512-raster window */
+        CrtcScanMode want_scan; /* what the hardware model reports */
+        const char *note;
+    } cases[] = {
+        { 0, 0, 2,  512, CRTC_SCAN_SLIT,      "15k slit: drawn like normal" },
+        { 0, 1, 4, 1024, CRTC_SCAN_INTERLACE, "15k interlace" },
+        { 0, 2, 2,  512, CRTC_SCAN_INTERLACE, "15k VRES=2: legacy normal" },
+        { 0, 3, 4, 1024, CRTC_SCAN_INTERLACE, "15k VRES=3" },
+        { 1, 0, 1,  256, CRTC_SCAN_DOUBLE,    "31k double-read" },
+        { 1, 1, 2,  512, CRTC_SCAN_NORMAL,    "31k normal" },
+        { 1, 2, 1,  256, CRTC_SCAN_INTERLACE, "31k VRES=2: legacy halves, hw doubles" },
+        { 1, 3, 2,  512, CRTC_SCAN_INTERLACE, "31k VRES=3: 1024 lines via draw path" },
+    };
+    size_t i;
+
+    CRTC_Init();
+
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        BYTE regs[48];
+        CrtcTiming t;
+        char name[160];
+        BYTE r20;
+
+        /* A 512-raster display window keeps the expected heights readable. */
+        preset_512x512_31k(regs);
+        r20 = (BYTE)((cases[i].hf << 4) | (cases[i].vres << 2) | 0x01);
+        set_reg(regs, 20, r20);
+        write_regs_to_crtc(regs);
+        CrtcTiming_FromRegs(regs, 0, &t);
+
+        snprintf(name, sizeof(name), "R20=$%02x %s: CRTC_VStep", r20, cases[i].note);
+        CHECK_EQ(CRTC_VStep, cases[i].want_vstep, name);
+
+        snprintf(name, sizeof(name), "R20=$%02x %s: TextDotY", r20, cases[i].note);
+        CHECK_EQ(TextDotY, cases[i].want_height, name);
+
+        snprintf(name, sizeof(name), "R20=$%02x %s: model scan_mode", r20, cases[i].note);
+        CHECK_EQ(t.scan_mode, cases[i].want_scan, name);
+
+        /* The model's v_step field must keep mirroring the legacy decode,
+         * since that is its whole purpose. */
+        snprintf(name, sizeof(name), "R20=$%02x %s: model mirrors legacy v_step",
+                 r20, cases[i].note);
+        CHECK_EQ(t.v_step, CRTC_VStep, name);
+    }
+}
+
+/* All three CRTC registers that feed the vertical scan must produce the same
+ * decode; they used to carry three copies of it. */
+static void test_vertical_scan_decode_is_single_sourced(void)
+{
+    BYTE regs[48];
+    int via_r20, height_via_r20;
+
+    CRTC_Init();
+
+    /* Arrive at 31k double-read by writing R20 last... */
+    preset_512x512_31k(regs);
+    set_reg(regs, 20, 0x10);
+    write_regs_to_crtc(regs);
+    via_r20 = CRTC_VStep;
+    height_via_r20 = (int)TextDotY;
+    CHECK_EQ(via_r20, 1, "R20 last: double-read");
+
+    /* ...then reach the same state by rewriting R06/R07 afterwards. */
+    CRTC_Write(0xe8000c, 0x00); CRTC_Write(0xe8000d, 0x00);
+    CRTC_Write(0xe8000c, (BYTE)(0x28 >> 8)); CRTC_Write(0xe8000d, 0x28);
+    CHECK_EQ(CRTC_VStep, via_r20, "R06 last: same v_step");
+    CHECK_EQ((int)TextDotY, height_via_r20, "R06 last: same TextDotY");
+
+    CRTC_Write(0xe8000e, 0x02); CRTC_Write(0xe8000f, 0x28);
+    CHECK_EQ(CRTC_VStep, via_r20, "R07 last: same v_step");
+    CHECK_EQ((int)TextDotY, height_via_r20, "R07 last: same TextDotY");
+}
+
 static void test_cycle_rationals(void)
 {
     BYTE regs[48];
@@ -577,6 +666,8 @@ int main(void)
     test_hsync_clk_from_registers();
     test_hrl_write_updates_hsync_clock();
     test_field_clock_preserves_last_valid_mode();
+    test_vertical_scan_decode_all_vres();
+    test_vertical_scan_decode_is_single_sourced();
     test_legacy_agreement();
 
     if (g_failures) {

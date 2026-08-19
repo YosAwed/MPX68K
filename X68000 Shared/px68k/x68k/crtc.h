@@ -27,6 +27,10 @@ extern  int		HSYNC_CLK;
 // current CRTC registers. Call after changing R00, R04, R20 or the HRL bit.
 void CRTC_UpdateHSyncClock(void);
 
+// Recompute TextDotY and CRTC_VStep from R06/R07/R20. Call after changing
+// any of them.
+void CRTC_UpdateVerticalScan(void);
+
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];
 
