@@ -20,7 +20,7 @@ typedef struct {
     int          height;            // rendered rows
     int          stride_words;      // words from one row to the next
     int          scan_mode;         // CrtcScanMode the renderer applied
-    int          field_parity;      // interlace field (0 for now)
+    int          field_parity;      // parity of the most recently rendered field
     double       refresh_hz;        // field rate implied by CRTC registers
     int          timing_valid;      // CrtcTiming.valid for the registers
     unsigned int generation;        // bumped on every geometry change

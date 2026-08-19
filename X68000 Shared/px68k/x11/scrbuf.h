@@ -43,21 +43,17 @@ void Scrbuf_NoteGeometry(void);
 // One consistent frame description for the host presentation layer.
 //
 // Contract: buffer/width/height/stride/scan_mode all describe the frame
-// AS THE CURRENT RENDERER PRODUCED IT (TextDotX/TextDotY semantics,
-// including the legacy (R20 & 0x14) scan decode), so they are always
-// mutually consistent -- even for register combinations where the legacy
-// renderer deviates from hardware (HF=1, VRES>=2). Only refresh_hz and
-// timing_valid report the hardware timing model, because frame pacing and
-// scannability are properties of the real CRTC, not of the renderer.
-// Callers needing the hardware scan structure use CrtcTiming_FromRegs.
+// as the current renderer produced it. In interlace modes the buffer is a
+// persistent weave: rows of field_parity are from the latest field and the
+// opposite rows remain from the preceding field. refresh_hz and timing_valid
+// report the hardware timing model used for frame pacing and scannability.
 typedef struct {
     const WORD  *buffer;        // SCRBUF_STRIDE-word rows, RGB565
     int          width;         // rendered dots per row (<= SCRBUF_STRIDE)
     int          height;        // rendered rows (<= SCRBUF_LINES)
     int          stride_words;  // words from one row to the next
     int          scan_mode;     // CrtcScanMode the renderer applied
-    int          field_parity;  // interlace field, always 0 until the
-                                // cycle-based scheduler lands
+    int          field_parity;  // parity of the most recently rendered field
     double       refresh_hz;    // field rate implied by the CRTC registers
     int          timing_valid;  // CrtcTiming.valid for the registers
     unsigned int generation;    // bumped on every geometry change

@@ -33,11 +33,15 @@ static WORD FastClearMask[16] = {
 	WORD	CRTC_FastClrMask = 0;
 	WORD	CRTC_IntLine = 0;
 	BYTE	CRTC_VStep = 2;
+    BYTE CRTC_FieldParity = 0;
 	// Register-derived; deliberately not in crtc.h so nothing outside this
 	// file can read it and pick up a stride the current raster is not being
 	// drawn with. Callers use CRTC_VramRowStepActive.
 	static BYTE	CRTC_VramRowStep = 1;
 	BYTE	CRTC_VramRowStepActive = 1;
+    static CrtcScanMode CRTC_ScanMode = CRTC_SCAN_SLIT;
+    static BYTE CRTC_NextFieldParity = 0;
+    static BYTE CRTC_FieldInterlaceActive = 0;
 
 	BYTE	VCReg0[2] = {0, 0};
 	BYTE	VCReg1[2] = {0, 0};
@@ -78,50 +82,60 @@ void CRTC_UpdateHSyncClock(void)
 //   垂直走査の展開: TextDotY と CRTC_VStep
 // -----------------------------------------------------------------------
 // R06/R07/R20 のいずれが変わっても同じ導出をするため、3箇所に重複していた
-// 同一コードを1つにまとめたもの。挙動は従来と完全に同じ。
+// 同一コードを1つにまとめ、XEiJと同じ VRES>HF のインターレース判定を使う。
 //
-// 注意: 判定は (R20 & 0x14) すなわち HF と VRES の下位ビットだけを見ており、
-// VRES 上位ビット(0x08)を無視する。このためハードウェアと乖離する組合せが
-// 残っている(crtc_timing.h の scan_mode 参照。テストで固定してある):
-//   HF=1,VRES=2 (R20=$18) … ハードはインターレースだがここは二度読みと解釈し
-//                            高さを1/2にする(本来は2倍)
-//   HF=1,VRES=3 (R20=$1c) … ここでは通常走査になり、1024ライン化は各描画
-//                            ルーチン側の (R20&0x1c)==0x1c 分岐が担当する
-//   HF=0,VRES=0           … スリットだが通常走査と同一に扱う(CRT上の
-//                            見え方の違いで、行の対応は通常と同じ)
 void CRTC_UpdateVerticalScan(void)
 {
-	// VRAM rows consumed per rendered row. The 31kHz 1024-line mode
-	// (HF=1, VRES=3) shows one field by taking every second VRAM row into
-	// a normal-height buffer; every other mode walks VRAM row by row.
-	// This used to be an open-coded (R20 & 0x1c) == 0x1c test repeated in
-	// fourteen places across gvram.c and tvram.c.
-	CRTC_VramRowStep = ((CRTC_Regs[0x29] & 0x1c) == 0x1c) ? 2 : 1;
+    CRTC_ScanMode = CrtcTiming_DecodeScanMode(CRTC_Regs[0x29]);
+    CRTC_VramRowStep = 1;
 
-	TextDotY = CRTC_VEND - CRTC_VSTART;
-	if ((CRTC_Regs[0x29] & 0x14) == 0x10) {
-		TextDotY /= 2;
-		CRTC_VStep = 1;
-	} else if ((CRTC_Regs[0x29] & 0x14) == 0x04) {
-		TextDotY *= 2;
-		CRTC_VStep = 4;
-	} else {
-		CRTC_VStep = 2;
-	}
+    TextDotY = CRTC_VEND - CRTC_VSTART;
+    if (CRTC_ScanMode == CRTC_SCAN_DOUBLE) {
+        TextDotY /= 2;
+        CRTC_VStep = 1;
+    } else if (CRTC_ScanMode == CRTC_SCAN_INTERLACE) {
+        TextDotY *= 2;
+        CRTC_VStep = 4;
+    } else {
+        CRTC_VStep = 2;
+    }
 }
 
 
 // -----------------------------------------------------------------------
-//   1ラスタ分のVRAM行ストライドを確定する
+//   1ラスタ分の走査状態を確定する
 // -----------------------------------------------------------------------
 // 描画ルーチンは行ストライドを引数ではなくグローバル経由で読むため、
 // ラスタ開始時にここで確定させる。レジスタ由来の値を crtc.c の外から
 // 読ませないためにこの関数を置いている(ヘッダの不変条件)。
-// 確定させるのはストライドだけで、CRTC_VStep/VSTART/VEND はフレーム
-// ループが自前のローカルに取る。
-void CRTC_LatchVramRowStep(void)
+// 走査モードとストライドを同時に確定する。VSTART/VEND はフレーム
+// ループが同じ hsync で自前のローカルに取る。
+CrtcScanMode CRTC_LatchScanState(void)
 {
-	CRTC_VramRowStepActive = CRTC_VramRowStep;
+    CRTC_VramRowStepActive = CRTC_VramRowStep;
+    return CRTC_ScanMode;
+}
+
+
+// -----------------------------------------------------------------------
+//   フィールドパリティ
+// -----------------------------------------------------------------------
+int CRTC_BeginField(void)
+{
+    BYTE interlace = CRTC_ScanMode == CRTC_SCAN_INTERLACE;
+    int changed = interlace != CRTC_FieldInterlaceActive;
+
+    if (changed)
+        CRTC_NextFieldParity = 0;
+    CRTC_FieldInterlaceActive = interlace;
+    CRTC_FieldParity = interlace ? CRTC_NextFieldParity : 0;
+    return changed;
+}
+
+void CRTC_EndField(void)
+{
+    CRTC_NextFieldParity = CRTC_FieldInterlaceActive
+        ? (CRTC_FieldParity ^ 1) : 0;
 }
 
 
@@ -402,9 +416,13 @@ void CRTC_Init(void)
 	// Derived from R20, so it has to follow the registers back to zero.
 	// The draw routines used to read R20 directly and so reset implicitly;
 	// now that the stride is cached, a reset out of the 1024-line mode
-	// would otherwise keep reading every second VRAM row.
-	CRTC_VramRowStep = 1;
-	CRTC_VramRowStepActive = 1;
+    // would otherwise keep stale scan state after leaving interlace.
+    CRTC_VramRowStep = 1;
+    CRTC_VramRowStepActive = 1;
+    CRTC_ScanMode = CRTC_SCAN_SLIT;
+    CRTC_FieldParity = 0;
+    CRTC_NextFieldParity = 0;
+    CRTC_FieldInterlaceActive = 0;
     TextScrollX = 0;
     TextScrollY = 0;
 	ZeroMemory(GrphScrollX, sizeof(GrphScrollX));

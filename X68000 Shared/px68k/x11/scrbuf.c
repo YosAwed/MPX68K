@@ -71,26 +71,8 @@ void X68000_GetFrameInfo(X68FrameInfo *out)
     out->height = TextDotY > SCRBUF_LINES ? SCRBUF_LINES : (int)TextDotY;
     out->stride_words = SCRBUF_STRIDE;
 
-    // The snapshot describes the frame the current renderer produced, so
-    // scan_mode must come from the same legacy (R20 & 0x14) decode that
-    // sized TextDotY (v_step) -- not from the hardware model, which
-    // disagrees for HF=1 && VRES>=2 (hardware interlaces, the legacy
-    // renderer double-reads). Renderer and snapshot switch to the
-    // hardware scan mode together in a later stage.
-    switch (t.v_step) {
-    case 1:
-        out->scan_mode = CRTC_SCAN_DOUBLE;
-        break;
-    case 4:
-        out->scan_mode = CRTC_SCAN_INTERLACE;
-        break;
-    default:
-        out->scan_mode = (t.hf == 0 && t.vres == 0) ? CRTC_SCAN_SLIT
-                                                    : CRTC_SCAN_NORMAL;
-        break;
-    }
-
-    out->field_parity = 0;
+    out->scan_mode = t.scan_mode;
+    out->field_parity = CRTC_FieldParity;
     out->refresh_hz = t.v_freq_hz;
     out->timing_valid = t.valid;
     out->generation = s_generation;

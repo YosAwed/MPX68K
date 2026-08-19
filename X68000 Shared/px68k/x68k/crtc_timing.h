@@ -12,10 +12,8 @@
 // fixed-frame values (VSYNC_HIGH / VSYNC_NORM split by VLINE_TOTAL), shown
 // in a debug monitor, and unit-tested on the host.
 //
-// It is the first step of the CRTC rework:
+// It is the shared timing/scan decoder used by the CRTC rework:
 //   raw registers -> pending timing -> active timing snapshot -> scheduler.
-// Nothing in the emulator behaves differently until a caller starts feeding
-// these values into the frame loop.
 
 #ifndef PX68K_CRTC_TIMING_H
 #define PX68K_CRTC_TIMING_H
@@ -54,6 +52,19 @@ typedef enum {
 } CrtcScanMode;
 
 typedef struct {
+    int line;       // destination and VRAM data row in the woven buffer
+    int draw;       // nonzero when this physical raster produces a row
+} CrtcRasterMap;
+
+// Decode the scan structure directly from R20.
+CrtcScanMode CrtcTiming_DecodeScanMode(BYTE r20);
+
+// Map one physical display raster to the row rendered for this field.
+// Interlace updates one parity of a persistent woven buffer per field.
+void CrtcTiming_MapRaster(CrtcScanMode mode, int raster_offset,
+                          int field_parity, CrtcRasterMap *out);
+
+typedef struct {
     // Horizontal geometry, in character columns (1 column = 8 dots).
     // The displayed columns are [h_disp_start, h_disp_end).
     int h_total;        // columns per raster incl. blanking: R00 + 1
@@ -81,11 +92,8 @@ typedef struct {
     int hrl;            // $E8E007 bit1
     CrtcScanMode scan_mode;
 
-    // Legacy CRTC_VStep value as crtc.c computes it from (R20 & 0x14):
-    // 1 = double-read, 2 = normal, 4 = interlace. Kept for comparison with
-    // the current implementation. For HF=1 with VRES>=2 the legacy decode
-    // says double-read but the hardware actually interlaces (see
-    // scan_mode); the legacy renderer is known-wrong there.
+    // Renderer mapping step: 1 = double-read, 2 = normal/slit,
+    // 4 = interlace. This mirrors scan_mode.
     int v_step;
 
     // Dot clock as an exact rational: osc_hz / clock_div

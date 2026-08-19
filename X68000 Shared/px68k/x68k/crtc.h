@@ -2,6 +2,7 @@
 #define _winx68k_crtc
 
 #include "common.h"
+#include "crtc_timing.h"
 
 #define	VSYNC_HIGH	180310L
 #define	VSYNC_NORM	162707L
@@ -21,12 +22,12 @@ extern	BYTE	CRTC_DispScan;
 extern	DWORD	CRTC_FastClrLine;
 extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
-// VRAM rows consumed per rendered row: 1, or 2 in the 31kHz 1024-line mode
-// where only one field is shown. This is what everything that turns VLINE
-// into a VRAM source row must multiply by.
+extern BYTE CRTC_FieldParity;
+// VRAM rows consumed per woven-buffer row. Interlace advances VLINE itself
+// by two, so this remains one for all currently supported scan modes.
 //
 // Split like the field clock. The value R20 implies is private to crtc.c;
-// CRTC_LatchVramRowStep() adopts it for the raster about to be drawn, and the
+// CRTC_LatchScanState() adopts it for the raster about to be drawn, and the
 // frame loop calls that at hsync. A mid-raster R20 write therefore cannot
 // move the source row under a row mapping that already assumed the other
 // stride -- and because the pending value is not declared here, that is
@@ -38,15 +39,18 @@ extern  int		HSYNC_CLK;
 // current CRTC registers. Call after changing R00, R04, R20 or the HRL bit.
 void CRTC_UpdateHSyncClock(void);
 
-// Recompute TextDotY, CRTC_VStep and CRTC_VramRowStep from R06/R07/R20.
+// Recompute TextDotY, CRTC_VStep and pending scan state from R06/R07/R20.
 // Call after changing any of them.
 void CRTC_UpdateVerticalScan(void);
 
-// Adopt the register-derived VRAM row stride for the raster about to be
-// drawn. Call once per raster, before mapping it to a buffer row. Only the
-// stride: the frame loop latches CRTC_VStep, CRTC_VSTART and CRTC_VEND into
-// its own locals, which is why those stay plain externs here.
-void CRTC_LatchVramRowStep(void);
+// Adopt the register-derived scan state for the raster about to be drawn and
+// return its scan mode. The frame loop separately latches VSTART/VEND.
+CrtcScanMode CRTC_LatchScanState(void);
+
+// Start/end one hardware field. Begin returns nonzero when entering or
+// leaving interlace so the caller can discard incompatible woven pixels.
+int CRTC_BeginField(void);
+void CRTC_EndField(void);
 
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];

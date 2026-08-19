@@ -235,23 +235,29 @@ static void test_line_render_1024(void)
     CHECK_EQ(ScrBuf[10 * SCRBUF_STRIDE], 0, "1024-dot: next row untouched");
 }
 
-static void test_frame_info_legacy_consistency(void)
+static void test_frame_info_interlace_consistency(void)
 {
     X68FrameInfo info;
     CrtcTiming t;
 
-    /* HF=1, VRES=2: hardware interlaces, but the legacy renderer
-     * double-reads and halves TextDotY. The snapshot must describe what
-     * was actually rendered, so all its fields follow the renderer. */
+    /* HF=1, VRES=2 uses alternating fields in a 1024-line weave. */
     apply_768x512_31k();
     CRTC_Write(0xe80029, 0x19);
     X68000_GetFrameInfo(&info);
-    CHECK_EQ(info.height, 256, "VRES=2: snapshot height matches renderer");
-    CHECK_EQ(info.scan_mode, CRTC_SCAN_DOUBLE,
-             "VRES=2: snapshot scan mode matches renderer");
+    CHECK_EQ(info.height, 1024, "VRES=2: snapshot exposes woven height");
+    CHECK_EQ(info.scan_mode, CRTC_SCAN_INTERLACE,
+             "VRES=2: snapshot scan mode matches hardware");
+    CRTC_BeginField();
+    X68000_GetFrameInfo(&info);
+    CHECK_EQ(info.field_parity, 0, "VRES=2: first field reports even parity");
+    CRTC_EndField();
+    CRTC_BeginField();
+    X68000_GetFrameInfo(&info);
+    CHECK_EQ(info.field_parity, 1, "VRES=2: second field reports odd parity");
+    CRTC_EndField();
     CrtcTiming_FromRegs(CRTC_Regs, 0, &t);
     CHECK_EQ(t.scan_mode, CRTC_SCAN_INTERLACE,
-             "VRES=2: hardware model still reports interlace");
+             "VRES=2: hardware model reports interlace");
 }
 
 static void test_draw_guards(void)
@@ -312,7 +318,7 @@ int main(void)
     test_frame_info_and_generation();
     test_line_render_stride();
     test_line_render_1024();
-    test_frame_info_legacy_consistency();
+    test_frame_info_interlace_consistency();
     test_draw_guards();
     test_image_conversion();
 

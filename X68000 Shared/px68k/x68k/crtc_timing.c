@@ -10,6 +10,39 @@ static WORD reg_word(const BYTE *regs, int n)
     return (WORD)(((WORD)regs[n * 2] << 8) | regs[n * 2 + 1]);
 }
 
+CrtcScanMode CrtcTiming_DecodeScanMode(BYTE r20)
+{
+    int hf = (r20 >> 4) & 1;
+    int vres = (r20 >> 2) & 3;
+
+    if (vres > hf)
+        return CRTC_SCAN_INTERLACE;
+    if (hf && vres == 0)
+        return CRTC_SCAN_DOUBLE;
+    if (!hf && vres == 0)
+        return CRTC_SCAN_SLIT;
+    return CRTC_SCAN_NORMAL;
+}
+
+void CrtcTiming_MapRaster(CrtcScanMode mode, int raster_offset,
+                          int field_parity, CrtcRasterMap *out)
+{
+    out->draw = 1;
+    switch (mode) {
+    case CRTC_SCAN_INTERLACE:
+        out->line = raster_offset * 2 + (field_parity & 1);
+        break;
+    case CRTC_SCAN_DOUBLE:
+    case CRTC_SCAN_DOUBLE_EXCEPT_SP:
+        out->line = raster_offset / 2;
+        out->draw = raster_offset & 1;
+        break;
+    default:
+        out->line = raster_offset;
+        break;
+    }
+}
+
 static unsigned long long gcd_ull(unsigned long long a, unsigned long long b)
 {
     while (b) {
@@ -71,21 +104,11 @@ void CrtcTiming_FromRegs(const BYTE regs[48], int hrl, CrtcTiming *out)
     // HF==1 && VRES==0, crtSlit = HF==0 && VRES==0, otherwise normal).
     // DOUBLE_EXCEPT_SP needs sprite-controller state and is never returned
     // by this register-only model.
-    if (out->vres > out->hf)
-        out->scan_mode = CRTC_SCAN_INTERLACE;
-    else if (out->hf && out->vres == 0)
-        out->scan_mode = CRTC_SCAN_DOUBLE;
-    else if (!out->hf && out->vres == 0)
-        out->scan_mode = CRTC_SCAN_SLIT;
-    else
-        out->scan_mode = CRTC_SCAN_NORMAL;
+    out->scan_mode = CrtcTiming_DecodeScanMode(r20);
 
-    // Legacy CRTC_VStep decode of (R20 & 0x14), kept verbatim from crtc.c
-    // for comparison. Diverges from scan_mode for HF=1 && VRES>=2 (legacy
-    // treats it as double-read; the hardware interlaces).
-    if ((r20 & 0x14) == 0x10)
+    if (out->scan_mode == CRTC_SCAN_DOUBLE)
         out->v_step = 1;
-    else if ((r20 & 0x14) == 0x04)
+    else if (out->scan_mode == CRTC_SCAN_INTERLACE)
         out->v_step = 4;
     else
         out->v_step = 2;

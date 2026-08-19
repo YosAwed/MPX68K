@@ -17,6 +17,7 @@ extern "C" {
 //#include "mkcgrom.h"
 #include "winx68k.h"
 #include "windraw.h"
+#include "scrbuf.h"
 //#include "winui.h"
 #include "../x68k/m68000.h" // xxx ����Ϥ����줤��ʤ��ʤ�Ϥ�
 #include "../m68000/m68000.h"
@@ -810,8 +811,9 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     // Vertical scan parameters, latched once per raster (see the hsync
     // block). Same types as the registers they mirror so the comparisons
     // against vline promote exactly as before.
-    BYTE scan_vstep = CRTC_VStep;
     WORD scan_vstart = CRTC_VSTART, scan_vend = CRTC_VEND;
+    CrtcScanMode scan_mode = CRTC_SCAN_NORMAL;
+    CrtcRasterMap scan_map = { 0, 0 };
     int KeyIntCnt = 0, MouseIntCnt = 0;
     DWORD t_start = timeGetTime(), t_end;
 
@@ -835,6 +837,16 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             FrameSkipCount = 0;
             DispFrame = 0;
         }
+    }
+
+    if (CRTC_BeginField()) {
+        // Rows from a non-interlaced image are not the missing parity of an
+        // interlaced one (and vice versa). Start the new weave empty; the
+        // two following fields populate its even and odd rows.
+        Scrbuf_Clear();
+        TVRAM_SetAllDirty();
+        Draw_DrawFlag = 1;
+        DispFrame = 0;
     }
 
     vline = 0;
@@ -872,28 +884,22 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             MFP_Int(0);
             // Latch the vertical scan parameters for this raster. The guest
             // runs thousands of cycles inside a raster and can write
-            // R06/R07/R20 partway through, but the buffer-row mapping just
-            // below, the draw branch further down and the VRAM row stride
-            // the draw routines use are all one decision. Reading any of
-            // them twice can pair a row computed at one vertical scale with
-            // the draw path for another, draw a raster whose mapping said it
-            // lies outside the display window, or fetch the source row at a
-            // stride the row mapping did not assume. Writes still take
-            // effect on the next raster, so deliberate raster-split effects
-            // keep working.
-            scan_vstep = CRTC_VStep;
+            // R06/R07/R20 partway through, but the buffer-row mapping and
+            // VRAM source-row mapping are one decision. Writes still take
+            // effect on the next raster, so deliberate raster splits work.
             scan_vstart = CRTC_VSTART;
             scan_vend = CRTC_VEND;
-            // The VRAM row stride belongs to the same decision, but the draw
-            // routines read it directly rather than taking it as an argument,
-            // so it is latched through a global instead of a local, and the
-            // latch itself lives in crtc.c so nothing outside reads the
-            // register-derived value.
-            CRTC_LatchVramRowStep();
-            if ( (vline>=scan_vstart)&&(vline<scan_vend) )
-                VLINE = ((vline-scan_vstart)*scan_vstep)/2;
-            else
+            // The draw routines read the row stride globally, so crtc.c
+            // latches it together with the scan mode returned here.
+            scan_mode = CRTC_LatchScanState();
+            if ( (vline>=scan_vstart)&&(vline<scan_vend) ) {
+                CrtcTiming_MapRaster(scan_mode, (int)(vline - scan_vstart),
+                                     CRTC_FieldParity, &scan_map);
+                VLINE = (DWORD)scan_map.line;
+            } else {
+                scan_map.draw = 0;
                 VLINE = (DWORD)-1;
+            }
             if ( (!(MFP[MFP_AER]&0x40))&&(vline==CRTC_IntLine) )
                 MFP_Int(1);
             if ( MFP[MFP_AER]&0x10 ) {
@@ -997,20 +1003,11 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             MFP_TimerA();
             if ( (MFP[MFP_AER]&0x40)&&(vline==CRTC_IntLine) )
                 MFP_Int(1);
-            // Same latched values the row mapping used at hsync, so the
-            // scale that placed VLINE is the scale that draws it.
-            if ( (!DispFrame)&&(vline>=scan_vstart)&&(vline<scan_vend) ) {
-                if ( scan_vstep==1 ) {                // HighReso 256dot��2���ɤߡ�
-                    if ( vline%2 )
-                        WinDraw_DrawLine();
-                } else if ( scan_vstep==4 ) {        // LowReso 512dot
-                    WinDraw_DrawLine();                // 1��������2�������ʥ��󥿡��졼����
-                    VLINE++;
-                    WinDraw_DrawLine();
-                } else {                            // High 512dot / Low 256dot
-                    WinDraw_DrawLine();
-                }
-            }
+            // Interlace must render every field. Applying the ordinary
+            // every-N-fields frame skip would repeatedly select the same
+            // parity when N is even and leave half of the weave stale.
+            if (scan_map.draw && (!DispFrame || scan_mode == CRTC_SCAN_INTERLACE))
+                WinDraw_DrawLine();
 
             // Raster copy is level-controlled and runs after this raster's
             // display period, before the next raster's hsync.
@@ -1037,6 +1034,8 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             hsync = 1;
         }
     } while ( vline<(DWORD)active_vline_total );
+
+    CRTC_EndField();
 
     if ( CRTC_Mode&2 ) {        // FastClr�ӥåȤ�Ĵ����PITAPAT��
         if ( CRTC_FastClr ) {    // FastClr=1 ��� CRTC_Mode&2 �ʤ� ��λ
