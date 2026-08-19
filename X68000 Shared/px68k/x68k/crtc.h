@@ -21,7 +21,15 @@ extern	BYTE	CRTC_DispScan;
 extern	DWORD	CRTC_FastClrLine;
 extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
-extern	BYTE	CRTC_VramRowStep;	// VRAM rows per rendered row (1 or 2)
+// VRAM rows consumed per rendered row (1, or 2 in the 31kHz 1024-line mode).
+// Split like the field clock: CRTC_VramRowStep follows the registers, and
+// CRTC_VramRowStepActive is what the current raster is being drawn with. The
+// frame loop latches one from the other at hsync, so a mid-raster R20 write
+// cannot leave the row mapping and the VRAM source row on different
+// settings. Code that runs on the register write rather than inside a
+// raster's draw (CRTC_RasterCopy) uses the register-derived value.
+extern	BYTE	CRTC_VramRowStep;
+extern	BYTE	CRTC_VramRowStepActive;
 extern  int		HSYNC_CLK;
 
 // Recompute HSYNC_CLK (CPU cycles per raster, nominal 10MHz units) from the

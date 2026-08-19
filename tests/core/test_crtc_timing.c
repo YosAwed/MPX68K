@@ -579,6 +579,20 @@ static void test_vram_row_step(void)
     CHECK_EQ(CRTC_VramRowStep, 2, "before reset: stride is 2");
     CRTC_Init();
     CHECK_EQ(CRTC_VramRowStep, 1, "after reset: stride follows R20 to 1");
+    CHECK_EQ(CRTC_VramRowStepActive, 1, "after reset: active stride too");
+
+    /* A register write must move only the pending stride. The frame loop
+     * copies it into the active one at hsync, so that a guest writing R20
+     * partway through a raster cannot change the source row under a mapping
+     * that already assumed the other stride. */
+    preset_512x512_31k(regs);
+    write_regs_to_crtc(regs);
+    CRTC_VramRowStepActive = 1;
+    set_reg(regs, 20, 0x1d);
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 2, "R20 write: pending stride moves");
+    CHECK_EQ(CRTC_VramRowStepActive, 1,
+             "R20 write: active stride waits for the raster latch");
 }
 
 /* Write a 16-bit CRTC register so that both byte handlers actually run.

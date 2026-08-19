@@ -872,15 +872,21 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             // Latch the vertical scan parameters for this raster. The guest
             // runs thousands of cycles inside a raster and can write
             // R06/R07/R20 partway through, but the buffer-row mapping just
-            // below and the draw branch further down are two halves of one
-            // decision. Reading the registers twice can pair a row computed
-            // at one vertical scale with the draw path for another, or draw
-            // a raster whose mapping said it lies outside the display
-            // window. Writes still take effect on the next raster, so
-            // deliberate raster-split effects keep working.
+            // below, the draw branch further down and the VRAM row stride
+            // the draw routines use are all one decision. Reading any of
+            // them twice can pair a row computed at one vertical scale with
+            // the draw path for another, draw a raster whose mapping said it
+            // lies outside the display window, or fetch the source row at a
+            // stride the row mapping did not assume. Writes still take
+            // effect on the next raster, so deliberate raster-split effects
+            // keep working.
             scan_vstep = CRTC_VStep;
             scan_vstart = CRTC_VSTART;
             scan_vend = CRTC_VEND;
+            // The VRAM row stride belongs to the same decision, but the draw
+            // routines read it directly rather than taking it as an argument,
+            // so it is latched through a global instead of a local.
+            CRTC_VramRowStepActive = CRTC_VramRowStep;
             if ( (vline>=scan_vstart)&&(vline<scan_vend) )
                 VLINE = ((vline-scan_vstart)*scan_vstep)/2;
             else

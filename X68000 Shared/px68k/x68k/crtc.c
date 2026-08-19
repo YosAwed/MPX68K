@@ -34,6 +34,7 @@ static WORD FastClearMask[16] = {
 	WORD	CRTC_IntLine = 0;
 	BYTE	CRTC_VStep = 2;
 	BYTE	CRTC_VramRowStep = 1;
+	BYTE	CRTC_VramRowStepActive = 1;
 
 	BYTE	VCReg0[2] = {0, 0};
 	BYTE	VCReg1[2] = {0, 0};
@@ -375,6 +376,7 @@ void CRTC_Init(void)
 	// now that the stride is cached, a reset out of the 1024-line mode
 	// would otherwise keep reading every second VRAM row.
 	CRTC_VramRowStep = 1;
+	CRTC_VramRowStepActive = 1;
     TextScrollX = 0;
     TextScrollY = 0;
 	ZeroMemory(GrphScrollX, sizeof(GrphScrollX));

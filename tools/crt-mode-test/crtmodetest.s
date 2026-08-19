@@ -64,13 +64,17 @@ wide1024:
 
 | Change the vertical scan setting from inside the visible area, over and
 | over, so writes land partway through a raster instead of between frames.
-| R20 alternates between HF=1 (31kHz, one row per raster) and HF=0 (15.98kHz
-| interlace, two rows per raster), the pair whose draw paths differ most, so
-| an incoherent read pairs a single-row mapping with the double-row draw
-| path. It also moves the frame height, the dot clock and the frame period at
-| once. The gap between writes is well under one raster, so successive writes
-| drift across the whole raster, including the window between the point where
-| the emulator maps a raster to a buffer row and the point where it draws it.
+| R20 rotates through three settings that differ in both halves of the scan
+| decision:
+|   $16  HF=1 VRES=1  one row per raster,  VRAM stride 1
+|   $06  HF=0 VRES=1  two rows per raster, VRAM stride 1  (draw paths differ)
+|   $1e  HF=1 VRES=3  one row per raster,  VRAM stride 2  (source row differs)
+| so an incoherent read can pair a single-row mapping with the double-row
+| draw path, or a row mapping with the other stride's source row. The
+| transitions also move the frame height, the dot clock and the frame period.
+| The gap between writes is well under one raster, so successive writes drift
+| across the whole raster, including the window between the point where the
+| emulator maps a raster to a buffer row and the point where it draws it.
 |
 | The picture is expected to be a mess during this phase. What matters is
 | that nothing crashes, no sanitizer fires, and a row is never placed at one
@@ -85,17 +89,26 @@ midraster:
         bsr     pattern
         move.l  #600,%d5                | bounded so the host log stays usable
 mrl:
-        move.w  #0x0016,0xe80028        | R20: HF=1 VRES=1 -> 1 row / raster
-        move.w  #0x0006,0xe80028        | R20: HF=0 VRES=1 -> 2 rows / raster
-        move.w  #37,%d4                 | sub-raster gap; drifts the phase
-mrw:
-        subq.w  #1,%d4
-        bne.s   mrw
+        move.w  #0x0016,0xe80028        | HF=1 VRES=1: 1 row/raster, stride 1
+        bsr.s   mrgap
+        move.w  #0x0006,0xe80028        | HF=0 VRES=1: 2 rows/raster, stride 1
+        bsr.s   mrgap
+        move.w  #0x001e,0xe80028        | HF=1 VRES=3: 1 row/raster, stride 2
+        bsr.s   mrgap
         subq.l  #1,%d5
         bne.s   mrl
         move.w  #0x0016,0xe80028        | leave a sane mode behind
         bsr     delay
         bra     mainloop
+
+| sub-raster gap between scan-setting writes, so successive writes drift
+| across the raster instead of always landing at the same point in it
+mrgap:
+        move.w  #37,%d4
+mrw:
+        subq.w  #1,%d4
+        bne.s   mrw
+        rts
 
 | print the NUL-terminated label at modetab + d6
 announce:

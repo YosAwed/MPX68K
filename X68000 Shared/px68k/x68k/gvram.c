@@ -264,7 +264,7 @@ LABEL void Grp_DrawLine16(void)
 	DWORD i;
 	WORD v, v0;
 
-	y = GrphScrollY[0] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[0] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
 
 	x = GrphScrollX[0] & 0x1ff;
@@ -317,8 +317,8 @@ LABEL void FASTCALL Grp_DrawLine8(int page, int opaq)
 
 	page &= 1;
 
-	y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStep;
-	y0 = GrphScrollY[page * 2 + 1] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStepActive;
+	y0 = GrphScrollY[page * 2 + 1] + VLINE * CRTC_VramRowStepActive;
 	y = ((y & 0x1ff) << 10) + page;
 	y0 = ((y0 & 0x1ff) << 10) + page;
 
@@ -402,7 +402,7 @@ LABEL void FASTCALL Grp_DrawLine4(DWORD page, int opaq)
 
 	page &= 3;
 
-	y = GrphScrollY[page] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[page] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
 
 	x = GrphScrollX[page] & 0x1ff;
@@ -504,7 +504,7 @@ void FASTCALL Grp_DrawLine4h(void)
 	WORD v;
 	int bits;
 
-	y = GrphScrollY[0] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[0] + VLINE * CRTC_VramRowStepActive;
 	y &= 0x3ff;
 
 	if ((y & 0x200) == 0x000) {
@@ -544,7 +544,7 @@ void FASTCALL Grp_DrawLine16SP(void)
 	DWORD i;
 	WORD v;
 
-	y = GrphScrollY[0] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[0] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
 
 	x = GrphScrollX[0] & 0x1ff;
@@ -588,8 +588,8 @@ void FASTCALL Grp_DrawLine8SP(int page)
 
 	page &= 1;
 
-	y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStep;
-	y0 = GrphScrollY[page * 2 + 1] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStepActive;
+	y0 = GrphScrollY[page * 2 + 1] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
 	y0 = (y0 & 0x1ff) << 10;
 
@@ -662,7 +662,7 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 	WORD v;
 
 	if (page & 1) {
-		y = scry + VLINE * CRTC_VramRowStep;
+		y = scry + VLINE * CRTC_VramRowStepActive;
 		y = (y & 0x1ff) << 10;
 
 		x = scrx & 0x1ff;
@@ -698,7 +698,7 @@ void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/)
 				off -= 0x400;
 		}
 	} else {
-		y = scry + VLINE * CRTC_VramRowStep;
+		y = scry + VLINE * CRTC_VramRowStepActive;
 		y = (y & 0x1ff) << 10;
 
 		x = scrx & 0x1ff;
@@ -745,7 +745,7 @@ void FASTCALL Grp_DrawLine4hSP(void)
 	int bits;
 	WORD v;
 
-	y = GrphScrollY[0] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[0] + VLINE * CRTC_VramRowStepActive;
 	y &= 0x3ff;
 
 	if ((y & 0x200) == 0x000) {
@@ -808,7 +808,7 @@ Grp_DrawLine8TR(int page, int opaq)
 
 		page &= 1;
 
-		y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStep;
+		y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStepActive;
 		y = ((y & 0x1ff) << 10) + page;
 		x = GrphScrollX[page * 2] & 0x1ff;
 
@@ -848,7 +848,7 @@ Grp_DrawLine4TR(DWORD page, int opaq)
 
 	page &= 3;
 
-	y = GrphScrollY[page] + VLINE * CRTC_VramRowStep;
+	y = GrphScrollY[page] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
 	x = GrphScrollX[page] & 0x1ff;
 
