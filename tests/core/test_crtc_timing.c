@@ -651,11 +651,11 @@ static void test_raster_copy_runs_at_front_porch(void)
     CRTC_Write(0xe8002d, 2);  /* R22 destination block */
     CRTC_Write(0xe80481, 8);  /* raster-copy switch on */
 
-    CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) != 0,
-          "raster copy: enabling switch does not copy immediately");
+    CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) == 0,
+          "raster copy: enabling switch copies immediately for compatibility");
     CRTC_HorizontalFrontPorch();
     CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) == 0,
-          "raster copy: first front porch copies selected block");
+          "raster copy: first front porch keeps selected block current");
     CHECK_EQ(CRTC_Read(0xe80481) & 8, 8,
              "raster copy: operation bit remains set after one copy");
 
@@ -665,11 +665,12 @@ static void test_raster_copy_runs_at_front_porch(void)
           "raster copy: switch remains active on later porches");
 
     CRTC_Write(0xe8002d, 3);  /* change destination while enabled */
-    CHECK(memcmp(&TVRAM[src], &TVRAM[next_dst], 512) != 0,
-          "raster copy: R22 write does not copy immediately");
+    CHECK(memcmp(&TVRAM[src], &TVRAM[next_dst], 512) == 0,
+          "raster copy: R22 write copies immediately for compatibility");
+    TVRAM[src] ^= 0xff;
     CRTC_HorizontalFrontPorch();
     CHECK(memcmp(&TVRAM[src], &TVRAM[next_dst], 512) == 0,
-          "raster copy: next porch uses latest R22 value");
+          "raster copy: next porch keeps the latest R22 destination current");
 
     CRTC_Write(0xe80481, 0);  /* switch off */
     TVRAM[src] ^= 0xff;

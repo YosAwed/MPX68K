@@ -28,6 +28,8 @@ static WORD FastClearMask[16] = {
 	DWORD	GrphScrollY[4] = {0, 0, 0, 0};
 
 	BYTE	CRTC_FastClr = 0;
+	/* Legacy immediate-copy state retained for software compatibility. */
+	static BYTE CRTC_RCFlag[2] = {0, 0};
 	BYTE	CRTC_SispScan = 0;
 	DWORD	CRTC_FastClrLine = 0;
 	WORD	CRTC_FastClrMask = 0;
@@ -149,6 +151,10 @@ static void CRTC_RasterCopy(void)
 	line = (((DWORD)CRTC_Regs[0x2d])<<2);
 	src = (((DWORD)CRTC_Regs[0x2c])<<9);
 	dst = (((DWORD)CRTC_Regs[0x2d])<<9);
+
+	/* No selected plane or an identical source/destination is a no-op. */
+	if (!(CRTC_Regs[0x2b] & 0x0f) || src == dst)
+		return;
 
 #ifdef USE_ASM
 	if (CRTC_Regs[0x2b]&1)
@@ -413,6 +419,12 @@ void FASTCALL VCtrl_Write(DWORD adr, BYTE data)
 void CRTC_Init(void)
 {
 	ZeroMemory(CRTC_Regs, 48);
+	CRTC_Mode = 0;
+	CRTC_FastClr = 0;
+	CRTC_FastClrLine = 0;
+	CRTC_FastClrMask = 0;
+	CRTC_RCFlag[0] = 0;
+	CRTC_RCFlag[1] = 0;
 	// Derived from R20, so it has to follow the registers back to zero.
 	// The draw routines used to read R20 directly and so reset implicitly;
 	// now that the stride is cached, a reset out of the 1024-line mode
@@ -565,14 +577,30 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			break;
 		case 0x2a:
 		case 0x2b:
-		case 0x2c:				// CRTC動作ポートのラスタコピーをONにしておいて（しておいたまま）、
-		case 0x2d:				// Src/Dstだけ次々変えていくのも許されるらしい（ドラキュラとか）
+			break;
+		case 0x2c:				// Keep the legacy R22 completion trigger.  Software such
+		case 0x2d:				// as IOCS updates the source/destination while RC stays on.
+			CRTC_RCFlag[reg-0x2c] = 1;
+			if ((CRTC_Mode & 8) && CRTC_RCFlag[1])
+			{
+				CRTC_RasterCopy();
+				CRTC_RCFlag[0] = 0;
+				CRTC_RCFlag[1] = 0;
+			}
 			break;
 		}
 	}
 	else if (adr==0xe80481)
 	{					// CRTC動作ポート
 		CRTC_Mode = (data|(CRTC_Mode&2));
+		if (CRTC_Mode & 8)
+		{
+			/* Keep the compatibility trigger in addition to the real
+			 * horizontal-front-porch execution in CRTC_HorizontalFrontPorch(). */
+			CRTC_RasterCopy();
+			CRTC_RCFlag[0] = 0;
+			CRTC_RCFlag[1] = 0;
+		}
 		if (CRTC_Mode&2)		// 高速クリア
 		{
 			CRTC_FastClrLine = vline;
