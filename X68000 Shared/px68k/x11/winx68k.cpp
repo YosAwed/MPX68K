@@ -885,8 +885,10 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             scan_vend = CRTC_VEND;
             // The VRAM row stride belongs to the same decision, but the draw
             // routines read it directly rather than taking it as an argument,
-            // so it is latched through a global instead of a local.
-            CRTC_VramRowStepActive = CRTC_VramRowStep;
+            // so it is latched through a global instead of a local, and the
+            // latch itself lives in crtc.c so nothing outside reads the
+            // register-derived value.
+            CRTC_LatchVerticalScan();
             if ( (vline>=scan_vstart)&&(vline<scan_vend) )
                 VLINE = ((vline-scan_vstart)*scan_vstep)/2;
             else

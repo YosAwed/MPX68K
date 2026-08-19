@@ -23,11 +23,15 @@ extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
 // VRAM rows consumed per rendered row (1, or 2 in the 31kHz 1024-line mode).
 // Split like the field clock: CRTC_VramRowStep follows the registers, and
-// CRTC_VramRowStepActive is what the current raster is being drawn with. The
-// frame loop latches one from the other at hsync, so a mid-raster R20 write
-// cannot leave the row mapping and the VRAM source row on different
-// settings. Everything that turns VLINE into a VRAM source row must read the
-// active value; only crtc.c itself touches the register-derived one.
+// CRTC_VramRowStepActive is what the current raster is being drawn with.
+// CRTC_LatchVerticalScan() moves one to the other and the frame loop calls it
+// at hsync, so a mid-raster R20 write cannot move the VRAM source row under a
+// row mapping that already assumed the other stride.
+//
+// Everything that turns VLINE into a VRAM source row reads the active value.
+// The register-derived value is read and written only inside crtc.c -- the
+// latch lives there for that reason, so this stays true rather than being a
+// rule callers have to remember.
 extern	BYTE	CRTC_VramRowStep;
 extern	BYTE	CRTC_VramRowStepActive;
 extern  int		HSYNC_CLK;
@@ -39,6 +43,10 @@ void CRTC_UpdateHSyncClock(void);
 // Recompute TextDotY, CRTC_VStep and CRTC_VramRowStep from R06/R07/R20.
 // Call after changing any of them.
 void CRTC_UpdateVerticalScan(void);
+
+// Adopt the register-derived vertical scan state for the raster about to be
+// drawn. Call once per raster, before mapping it to a buffer row.
+void CRTC_LatchVerticalScan(void);
 
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];
