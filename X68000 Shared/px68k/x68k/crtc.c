@@ -33,6 +33,7 @@ static WORD FastClearMask[16] = {
 	WORD	CRTC_FastClrMask = 0;
 	WORD	CRTC_IntLine = 0;
 	BYTE	CRTC_VStep = 2;
+	BYTE	CRTC_VramRowStep = 1;
 
 	BYTE	VCReg0[2] = {0, 0};
 	BYTE	VCReg1[2] = {0, 0};
@@ -67,6 +68,43 @@ void CRTC_UpdateHSyncClock(void)
 		HSYNC_CLK = (int)(num / den);
 	else	// 退避経路：ドットクロックが異常なときだけ従来式に戻す
 		HSYNC_CLK = ((CRTC_Regs[0x29]&0x10)?VSYNC_HIGH:VSYNC_NORM)/(VLINE_TOTAL?VLINE_TOTAL:1);
+}
+
+
+// -----------------------------------------------------------------------
+//   垂直走査の展開: TextDotY と CRTC_VStep
+// -----------------------------------------------------------------------
+// R06/R07/R20 のいずれが変わっても同じ導出をするため、3箇所に重複していた
+// 同一コードを1つにまとめたもの。挙動は従来と完全に同じ。
+//
+// 注意: 判定は (R20 & 0x14) すなわち HF と VRES の下位ビットだけを見ており、
+// VRES 上位ビット(0x08)を無視する。このためハードウェアと乖離する組合せが
+// 残っている(crtc_timing.h の scan_mode 参照。テストで固定してある):
+//   HF=1,VRES=2 (R20=$18) … ハードはインターレースだがここは二度読みと解釈し
+//                            高さを1/2にする(本来は2倍)
+//   HF=1,VRES=3 (R20=$1c) … ここでは通常走査になり、1024ライン化は各描画
+//                            ルーチン側の (R20&0x1c)==0x1c 分岐が担当する
+//   HF=0,VRES=0           … スリットだが通常走査と同一に扱う(CRT上の
+//                            見え方の違いで、行の対応は通常と同じ)
+void CRTC_UpdateVerticalScan(void)
+{
+	// VRAM rows consumed per rendered row. The 31kHz 1024-line mode
+	// (HF=1, VRES=3) shows one field by taking every second VRAM row into
+	// a normal-height buffer; every other mode walks VRAM row by row.
+	// This used to be an open-coded (R20 & 0x1c) == 0x1c test repeated in
+	// fourteen places across gvram.c and tvram.c.
+	CRTC_VramRowStep = ((CRTC_Regs[0x29] & 0x1c) == 0x1c) ? 2 : 1;
+
+	TextDotY = CRTC_VEND - CRTC_VSTART;
+	if ((CRTC_Regs[0x29] & 0x14) == 0x10) {
+		TextDotY /= 2;
+		CRTC_VStep = 1;
+	} else if ((CRTC_Regs[0x29] & 0x14) == 0x04) {
+		TextDotY *= 2;
+		CRTC_VStep = 4;
+	} else {
+		CRTC_VStep = 2;
+	}
 }
 
 
@@ -332,6 +370,11 @@ void FASTCALL VCtrl_Write(DWORD adr, BYTE data)
 void CRTC_Init(void)
 {
 	ZeroMemory(CRTC_Regs, 48);
+	// Derived from R20, so it has to follow the registers back to zero.
+	// The draw routines used to read R20 directly and so reset implicitly;
+	// now that the stride is cached, a reset out of the 1024-line mode
+	// would otherwise keep reading every second VRAM row.
+	CRTC_VramRowStep = 1;
     TextScrollX = 0;
     TextScrollY = 0;
 	ZeroMemory(GrphScrollX, sizeof(GrphScrollX));
@@ -405,37 +448,13 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x0d:
 			CRTC_VSTART = (((WORD)CRTC_Regs[0xc]<<8)+CRTC_Regs[0xd]);
 			BG_VLINE = ((long)BG_Regs[0x0f]-CRTC_VSTART)/((BG_Regs[0x11]&4)?1:2);	// BGとその他がずれてる時の差分
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			WinDraw_ChangeSize();
 			break;
 		case 0x0e:
 		case 0x0f:
 			CRTC_VEND = (((WORD)CRTC_Regs[0xe]<<8)+CRTC_Regs[0xf]);
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			WinDraw_ChangeSize();
 			break;
 		case 0x28:
@@ -444,19 +463,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 		case 0x29:
 			CRTC_UpdateHSyncClock();
 			VID_MODE = CRTC_Regs[0x29]&0x10;
-			TextDotY = CRTC_VEND-CRTC_VSTART;
-			if ((CRTC_Regs[0x29]&0x14)==0x10)
-			{
-				TextDotY/=2;
-				CRTC_VStep = 1;
-			}
-			else if ((CRTC_Regs[0x29]&0x14)==0x04)
-			{
-				TextDotY*=2;
-				CRTC_VStep = 4;
-			}
-			else
-				CRTC_VStep = 2;
+			CRTC_UpdateVerticalScan();
 			if (VID_MODE != old_vidmode)
 			{
 				old_vidmode = VID_MODE;

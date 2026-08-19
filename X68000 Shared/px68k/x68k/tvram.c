@@ -530,9 +530,7 @@ void FASTCALL Text_DrawLine(int opaq)
 	DWORD i;
 	BYTE t;
 
-	y = TextScrollY + VLINE;
-	if ((CRTC_Regs[0x29] & 0x1c) == 0x1c)
-		y += VLINE;
+	y = TextScrollY + VLINE * CRTC_VramRowStep;
 	y = (y & 0x3ff) << 10;
 
 	x = TextScrollX & 0x3ff;
@@ -598,9 +596,7 @@ void FASTCALL Text_DrawLine_C(int opaq)
 	line = VLINE;
 	
 	// インターレース処理
-	if ((CRTC_Regs[0x29] & 0x1c) == 0x1c) {
-		line <<= 1;
-	}
+	line *= CRTC_VramRowStep;
 	
 	scroll_y = (line + TextScrollY) & 1023;
 	scroll_x = TextScrollX & 1023;
