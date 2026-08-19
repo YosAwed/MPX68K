@@ -72,14 +72,6 @@ void FASTCALL Grp_SwapBuffers(void)
 	memset(Grp_LineBufSP2_Draw, 0, 1024 * sizeof(WORD));
 }
 
-// -----------------------------------------------------------------------
-//   ダブルバッファリングの有効・無効設定
-// -----------------------------------------------------------------------
-void FASTCALL Grp_SetDoubleBuffer(int enable)
-{
-	Grp_DoubleBuffer = enable;
-}
-
 
 // -----------------------------------------------------------------------------------
 //  高速クリア用ルーチン
@@ -843,31 +835,6 @@ Grp_DrawLine8TR(int page, int opaq)
 			} else {
 				Grp_LineBuf[i] = (WORD)v;
 			}
-		}
-	}
-}
-
-LABEL void FASTCALL
-Grp_DrawLine8TR_GT(int page, int opaq)
-{
-	if (opaq) {
-		DWORD x, y;
-		DWORD v, v0;
-		DWORD i;
-
-		page &= 1;
-
-		y = GrphScrollY[page * 2] + VLINE * CRTC_VramRowStep;
-		y = ((y & 0x1ff) << 10) + page;
-		x = GrphScrollX[page * 2] & 0x1ff;
-
-		for (i = 0; i < TextDotX; ++i, x = (x + 1) & 0x1ff) {
-			if (Grp_DoubleBuffer) {
-				Grp_LineBuf_Draw[i] = ((Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]) || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
-			} else {
-				Grp_LineBuf[i] = ((Grp_DoubleBuffer ? Grp_LineBufSP_Active[i] : Grp_LineBufSP[i]) || Grp_LineBufSP_Tr[i]) ? 0 : GrphPal[GVRAM[y + x * 2]];
-			}
-			Grp_LineBufSP_Tr[i] = 0;
 		}
 	}
 }

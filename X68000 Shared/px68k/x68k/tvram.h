@@ -20,7 +20,6 @@ void TVRAM_Cleanup(void);
 BYTE FASTCALL TVRAM_Read(DWORD adr);
 void FASTCALL TVRAM_Write(DWORD adr, BYTE data);
 void FASTCALL TVRAM_RCUpdate(void);
-void FASTCALL Text_DrawLine(int opaq);
 void FASTCALL Text_DrawLine_C(int opaq);
 
 #endif
