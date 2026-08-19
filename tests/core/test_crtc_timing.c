@@ -628,6 +628,8 @@ static void test_raster_copy_runs_at_front_porch(void)
     CRTC_HorizontalFrontPorch();
     CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) == 0,
           "raster copy: first front porch copies selected block");
+    CHECK_EQ(CRTC_Read(0xe80481) & 8, 8,
+             "raster copy: operation bit remains set after one copy");
 
     TVRAM[src] ^= 0xff;
     CRTC_HorizontalFrontPorch();
