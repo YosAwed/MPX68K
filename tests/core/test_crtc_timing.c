@@ -11,6 +11,7 @@
  */
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
@@ -20,11 +21,14 @@
 #include "bg.h"
 #include "crtc.h"
 #include "crtc_timing.h"
+#include "sysport.h"
+#include "prop.h"
 
-/* ---- stubs for crtc.c link dependencies ---- */
+/* ---- stubs for crtc.c/sysport.c link dependencies ---- */
 BYTE TVRAM[0x80000];
 BYTE TextDirtyLine[1024];
 BYTE BG_Regs[0x12];
+Win68Conf Config;
 long BG_HAdjust = 0;
 long BG_VLINE = 0;
 WORD VLINE_TOTAL = 0;
@@ -33,6 +37,7 @@ DWORD vline = 0;
 void TVRAM_SetAllDirty(void) {}
 void FASTCALL TVRAM_RCUpdate(void) {}
 void WinDraw_ChangeSize(void) {}
+void Pal_ChangeContrast(int num) { (void)num; }
 
 static int g_failures = 0;
 
@@ -334,6 +339,147 @@ static void test_invalid_window(void)
     CHECK(!t.valid, "R07 == R04: invalid");
 }
 
+/* Only R20 and R21 are readable on real hardware (bytes 0x28-0x2b); every
+ * other CRTC register reads back as 0. A guest that "saves" R04-R07 by
+ * reading them therefore restores zeros, which must leave the timing model
+ * invalid (so the frame scheduler keeps its previous budget) rather than
+ * producing a degenerate frame or a division by zero. */
+static void test_readback_zero_restore(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    int i;
+
+    CRTC_Init();
+    preset_512x512_31k(regs);
+    write_regs_to_crtc(regs);
+
+    for (i = 0x00; i < 0x30; i++) {
+        BYTE expect = (i >= 0x28 && i <= 0x2b) ? CRTC_Regs[i] : 0x00;
+        char name[96];
+        snprintf(name, sizeof(name), "readback: byte 0x%02x", i);
+        CHECK_EQ(CRTC_Read(0xe80000 + i), expect, name);
+    }
+
+    /* What such a guest writes back: R04-R07 zeroed, R20 preserved. */
+    set_reg(regs, 4, 0x000); set_reg(regs, 5, 0x000);
+    set_reg(regs, 6, 0x000); set_reg(regs, 7, 0x000);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK(!t.valid, "zeroed vertical registers: invalid");
+
+    /* crtc.c must survive the same writes (VLINE_TOTAL becomes 0). */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(VLINE_TOTAL, 0, "zeroed R04: VLINE_TOTAL 0");
+    CHECK(HSYNC_CLK > 0, "zeroed R04: HSYNC_CLK still positive");
+}
+
+/* HSYNC_CLK must be the real raster period. The old formula divided a
+ * fixed frame budget by VLINE_TOTAL, so the vertical registers cancelled
+ * themselves out and never reached real time: the 525-line 60Hz setup
+ * shares its horizontal timing with plain 512x512/31kHz and must therefore
+ * get the same HSYNC_CLK, but the old formula returned 344 instead of 317
+ * (8% off) purely because R04 changed. mfp.c derives the GPIP HSYNC
+ * position from this value, so the error was guest-visible. */
+static void check_hsync_clk(const char *label, const BYTE *regs)
+{
+    CrtcTiming t;
+    unsigned long long num, den;
+    char name[128];
+
+    write_regs_to_crtc(regs);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CrtcTiming_CyclesPerRaster(&t, 10000000, &num, &den);
+
+    snprintf(name, sizeof(name), "%s: HSYNC_CLK == model cycles/raster", label);
+    CHECK_EQ(HSYNC_CLK, (long long)(num / den), name);
+}
+
+static void test_hsync_clk_from_registers(void)
+{
+    BYTE regs[48];
+
+    CRTC_Init();
+
+    preset_768x512_31k(regs);
+    check_hsync_clk("768x512/31k", regs);
+
+    preset_512x512_31k(regs);
+    check_hsync_clk("512x512/31k", regs);
+    {
+        long long standard = HSYNC_CLK;
+
+        /* Same horizontal timing, 525-line vertical layout: the raster
+         * period must not move when only R04-R07 change. */
+        set_reg(regs, 4, 0x20c); set_reg(regs, 5, 0x001);
+        set_reg(regs, 6, 0x022); set_reg(regs, 7, 0x202);
+        check_hsync_clk("60Hz/525", regs);
+        CHECK_EQ(HSYNC_CLK, standard,
+                 "60Hz/525: raster period unchanged by vertical registers");
+    }
+
+    preset_256x240_15k(regs);
+    check_hsync_clk("256/15k", regs);
+}
+
+static void test_hrl_write_updates_hsync_clock(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    unsigned long long num, den;
+    int before;
+
+    SysPort_Init();
+    CRTC_Init();
+    preset_512x512_31k(regs);
+    write_regs_to_crtc(regs);
+    before = HSYNC_CLK;
+
+    SysPort_Write(0xe8e007, 0x02);
+    CrtcTiming_FromRegs(CRTC_Regs, 1, &t);
+    CrtcTiming_CyclesPerRaster(&t, 10000000, &num, &den);
+
+    CHECK(HSYNC_CLK != before, "HRL write: raster period changed");
+    CHECK_EQ(HSYNC_CLK, (long long)(num / den),
+             "HRL write: HSYNC_CLK follows new divider");
+    SysPort_Write(0xe8e007, 0x00);
+}
+
+static void test_field_clock_preserves_last_valid_mode(void)
+{
+    BYTE regs[48];
+    CrtcTiming t;
+    CrtcFieldClock clock;
+    int active_lines;
+    int valid_cycles, invalid_cycles;
+
+    CrtcFieldClock_Init(&clock, VSYNC_HIGH, 567);
+    memset(regs, 0, sizeof(regs));
+    CrtcTiming_FromRegs(regs, 0, &t);
+    CHECK_EQ(CrtcFieldClock_Next(&clock, &t, 10000000, 0,
+                                &active_lines),
+             VSYNC_HIGH, "field clock: initial fallback budget");
+    CHECK_EQ(active_lines, 567, "field clock: initial fallback rasters");
+
+    preset_512x512_31k(regs);
+    set_reg(regs, 4, 0x20c); set_reg(regs, 5, 0x001);
+    set_reg(regs, 6, 0x022); set_reg(regs, 7, 0x202);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    valid_cycles = CrtcFieldClock_Next(&clock, &t, 10000000, 0x20c,
+                                       &active_lines);
+    CHECK_EQ(active_lines, 0x20c, "field clock: latches valid rasters");
+
+    set_reg(regs, 4, 0); set_reg(regs, 5, 0);
+    set_reg(regs, 6, 0); set_reg(regs, 7, 0);
+    CrtcTiming_FromRegs(regs, 0, &t);
+    invalid_cycles = CrtcFieldClock_Next(&clock, &t, 10000000, 0,
+                                         &active_lines);
+    CHECK(!t.valid, "field clock: zero restore is invalid");
+    CHECK_EQ(active_lines, 0x20c,
+             "field clock: invalid restore keeps nonzero rasters");
+    CHECK(abs(invalid_cycles - valid_cycles) <= 1,
+          "field clock: invalid restore keeps prior cycle budget");
+}
+
 static void test_cycle_rationals(void)
 {
     BYTE regs[48];
@@ -427,6 +573,10 @@ int main(void)
     test_hrl_and_vga();
     test_invalid_window();
     test_cycle_rationals();
+    test_readback_zero_restore();
+    test_hsync_clk_from_registers();
+    test_hrl_write_updates_hsync_clock();
+    test_field_clock_preserves_last_valid_mode();
     test_legacy_agreement();
 
     if (g_failures) {

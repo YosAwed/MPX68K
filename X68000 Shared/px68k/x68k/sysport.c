@@ -6,6 +6,7 @@
 #include "prop.h"
 #include "sysport.h"
 #include "palette.h"
+#include "crtc.h"
 
 BYTE	SysPort[7];
 
@@ -40,7 +41,12 @@ void FASTCALL SysPort_Write(DWORD adr, BYTE data)
 		SysPort[3] = data & 0x1f;
 		break;
 	case 0xe8e007:
-		SysPort[4] = data & 0x0e;
+		if ((SysPort[4] ^ data) & 0x02) {
+			SysPort[4] = data & 0x0e;
+			CRTC_UpdateHSyncClock();
+		} else {
+			SysPort[4] = data & 0x0e;
+		}
 		break;
 	case 0xe8e00d:
 		SysPort[5] = data;

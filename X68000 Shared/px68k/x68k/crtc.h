@@ -23,6 +23,10 @@ extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
 extern  int		HSYNC_CLK;
 
+// Recompute HSYNC_CLK (CPU cycles per raster, nominal 10MHz units) from the
+// current CRTC registers. Call after changing R00, R04, R20 or the HRL bit.
+void CRTC_UpdateHSyncClock(void);
+
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];
 

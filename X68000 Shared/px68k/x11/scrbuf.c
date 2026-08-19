@@ -42,6 +42,14 @@ void Scrbuf_Clear(void)
 void Scrbuf_NoteGeometry(void)
 {
     if (TextDotX != s_noted_width || TextDotY != s_noted_height) {
+        // Log the mode change here rather than in the RGBA conversion: the
+        // old "TextDotX:" trace lived in WinDraw_Draw and disappeared from
+        // hosts that switched to X68000_GetImageInto, which left screen-mode
+        // switching with no diagnostic trail. Geometry changes are rare, so
+        // this costs nothing per frame.
+        p6logd("Scrbuf geometry: %lux%lu (gen %u)\n",
+               (unsigned long)TextDotX, (unsigned long)TextDotY,
+               s_generation + 1);
         s_noted_width = TextDotX;
         s_noted_height = TextDotY;
         s_generation++;

@@ -153,3 +153,40 @@ void CrtcTiming_CyclesPerField(const CrtcTiming *t, DWORD cpu_hz,
     *num = n / g;
     *den = d / g;
 }
+
+void CrtcFieldClock_Init(CrtcFieldClock *clock, int fallback_cycles,
+    int fallback_vline_total)
+{
+    ZeroMemory(clock, sizeof(*clock));
+    clock->numerator = fallback_cycles > 0 ?
+        (unsigned long long)fallback_cycles : 1ULL;
+    clock->denominator = 1;
+    clock->vline_total = fallback_vline_total > 0 ? fallback_vline_total : 1;
+}
+
+int CrtcFieldClock_Next(CrtcFieldClock *clock, const CrtcTiming *timing,
+    DWORD cpu_hz, int current_vline_total, int *active_vline_total)
+{
+    unsigned long long num, den, acc;
+
+    if (clock->denominator == 0)
+        CrtcFieldClock_Init(clock, 1, 1);
+
+    if (timing->valid && current_vline_total > 0) {
+        CrtcTiming_CyclesPerField(timing, cpu_hz, &num, &den);
+        if (den != 0 && num != 0) {
+            // A remainder is expressed in units of its denominator. It
+            // cannot be carried unchanged into a different video mode.
+            if (num != clock->numerator || den != clock->denominator)
+                clock->remainder = 0;
+            clock->numerator = num;
+            clock->denominator = den;
+            clock->vline_total = current_vline_total;
+        }
+    }
+
+    acc = clock->numerator + clock->remainder;
+    clock->remainder = acc % clock->denominator;
+    *active_vline_total = clock->vline_total;
+    return (int)(acc / clock->denominator);
+}

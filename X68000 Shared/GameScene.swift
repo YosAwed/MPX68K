@@ -110,7 +110,12 @@ class GameScene: SKScene {
     private var lastUpdateTime: TimeInterval = 0.0
     private var lastSpriteKitUpdateWallTime: TimeInterval = 0.0
     private let emulatorHz: Double = 55.45
-    private let targetFrameTime: Double = 1.0 / 55.45
+    // Emulator field period. Starts at the legacy 55.45Hz and then follows
+    // the CRTC-derived field rate reported by X68000_GetFrameInfo, so
+    // register setups like the 525-line 60Hz mode are paced at their real
+    // cadence. (The fallback Timer keeps the initial period; it only fires
+    // when SpriteKit updates stall, where exact pacing does not matter.)
+    private var targetFrameTime: Double = 1.0 / 55.45
     
     // Remove manual frame rate control - let SpriteKit handle timing
     
@@ -1547,6 +1552,13 @@ class GameScene: SKScene {
             // read overflowed the pixel buffer on 768->1024 dot switches).
             var frameInfo = X68FrameInfo()
             X68000_GetFrameInfo(&frameInfo)
+
+            // Pace the fixed-step loop at the CRTC field rate when the
+            // hardware timing model accepts the registers; clamp to a sane
+            // band so a bogus rate can never stall or spin the loop.
+            if frameInfo.timing_valid != 0 && frameInfo.refresh_hz > 30.0 && frameInfo.refresh_hz < 120.0 {
+                targetFrameTime = 1.0 / frameInfo.refresh_hz
+            }
 
             let newWidth = Int(frameInfo.width)
             let newHeight = Int(frameInfo.height)
