@@ -33,7 +33,11 @@ static WORD FastClearMask[16] = {
 	WORD	CRTC_FastClrMask = 0;
 	WORD	CRTC_IntLine = 0;
 	BYTE	CRTC_VStep = 2;
-	BYTE	CRTC_VramRowStep = 1;
+	// Register-derived; deliberately not in crtc.h so nothing outside this
+	// file can read it and pick up a stride the current raster is not being
+	// drawn with. Callers use CRTC_VramRowStepActive.
+	static BYTE	CRTC_VramRowStep = 1;
+	BYTE	CRTC_VramRowStepActive = 1;
 
 	BYTE	VCReg0[2] = {0, 0};
 	BYTE	VCReg1[2] = {0, 0};
@@ -105,6 +109,20 @@ void CRTC_UpdateVerticalScan(void)
 	} else {
 		CRTC_VStep = 2;
 	}
+}
+
+
+// -----------------------------------------------------------------------
+//   1ラスタ分のVRAM行ストライドを確定する
+// -----------------------------------------------------------------------
+// 描画ルーチンは行ストライドを引数ではなくグローバル経由で読むため、
+// ラスタ開始時にここで確定させる。レジスタ由来の値を crtc.c の外から
+// 読ませないためにこの関数を置いている(ヘッダの不変条件)。
+// 確定させるのはストライドだけで、CRTC_VStep/VSTART/VEND はフレーム
+// ループが自前のローカルに取る。
+void CRTC_LatchVramRowStep(void)
+{
+	CRTC_VramRowStepActive = CRTC_VramRowStep;
 }
 
 
@@ -375,6 +393,7 @@ void CRTC_Init(void)
 	// now that the stride is cached, a reset out of the 1024-line mode
 	// would otherwise keep reading every second VRAM row.
 	CRTC_VramRowStep = 1;
+	CRTC_VramRowStepActive = 1;
     TextScrollX = 0;
     TextScrollY = 0;
 	ZeroMemory(GrphScrollX, sizeof(GrphScrollX));

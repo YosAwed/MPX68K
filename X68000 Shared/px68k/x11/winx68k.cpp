@@ -806,6 +806,11 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     //char *test = NULL;
     int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
     int active_vline_total;
+    // Vertical scan parameters, latched once per raster (see the hsync
+    // block). Same types as the registers they mirror so the comparisons
+    // against vline promote exactly as before.
+    BYTE scan_vstep = CRTC_VStep;
+    WORD scan_vstart = CRTC_VSTART, scan_vend = CRTC_VEND;
     int KeyIntCnt = 0, MouseIntCnt = 0;
     DWORD t_start = timeGetTime(), t_end;
 
@@ -864,18 +869,38 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             hsync = 0;
             clk_line = 0;
             MFP_Int(0);
-            if ( (vline>=CRTC_VSTART)&&(vline<CRTC_VEND) )
-                VLINE = ((vline-CRTC_VSTART)*CRTC_VStep)/2;
+            // Latch the vertical scan parameters for this raster. The guest
+            // runs thousands of cycles inside a raster and can write
+            // R06/R07/R20 partway through, but the buffer-row mapping just
+            // below, the draw branch further down and the VRAM row stride
+            // the draw routines use are all one decision. Reading any of
+            // them twice can pair a row computed at one vertical scale with
+            // the draw path for another, draw a raster whose mapping said it
+            // lies outside the display window, or fetch the source row at a
+            // stride the row mapping did not assume. Writes still take
+            // effect on the next raster, so deliberate raster-split effects
+            // keep working.
+            scan_vstep = CRTC_VStep;
+            scan_vstart = CRTC_VSTART;
+            scan_vend = CRTC_VEND;
+            // The VRAM row stride belongs to the same decision, but the draw
+            // routines read it directly rather than taking it as an argument,
+            // so it is latched through a global instead of a local, and the
+            // latch itself lives in crtc.c so nothing outside reads the
+            // register-derived value.
+            CRTC_LatchVramRowStep();
+            if ( (vline>=scan_vstart)&&(vline<scan_vend) )
+                VLINE = ((vline-scan_vstart)*scan_vstep)/2;
             else
                 VLINE = (DWORD)-1;
             if ( (!(MFP[MFP_AER]&0x40))&&(vline==CRTC_IntLine) )
                 MFP_Int(1);
             if ( MFP[MFP_AER]&0x10 ) {
-                if ( vline==CRTC_VSTART )
+                if ( vline==scan_vstart )
                     MFP_Int(9);
             } else {
-                if ( CRTC_VEND>=active_vline_total ) {
-                    if ( (long)vline==(CRTC_VEND-active_vline_total) ) MFP_Int(9);        // ���������ƥ��󥰥���Ȥ���TOTAL<VEND��
+                if ( scan_vend>=active_vline_total ) {
+                    if ( (long)vline==(scan_vend-active_vline_total) ) MFP_Int(9);        // ���������ƥ��󥰥���Ȥ���TOTAL<VEND��
                 } else {
                     if ( (long)vline==(active_vline_total-1) ) MFP_Int(9);            // ���쥤�������饤�ޡ��ϥ���Ǥʤ��ȥ��ᡩ
                 }
@@ -971,11 +996,13 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             MFP_TimerA();
             if ( (MFP[MFP_AER]&0x40)&&(vline==CRTC_IntLine) )
                 MFP_Int(1);
-            if ( (!DispFrame)&&(vline>=CRTC_VSTART)&&(vline<CRTC_VEND) ) {
-                if ( CRTC_VStep==1 ) {                // HighReso 256dot��2���ɤߡ�
+            // Same latched values the row mapping used at hsync, so the
+            // scale that placed VLINE is the scale that draws it.
+            if ( (!DispFrame)&&(vline>=scan_vstart)&&(vline<scan_vend) ) {
+                if ( scan_vstep==1 ) {                // HighReso 256dot��2���ɤߡ�
                     if ( vline%2 )
                         WinDraw_DrawLine();
-                } else if ( CRTC_VStep==4 ) {        // LowReso 512dot
+                } else if ( scan_vstep==4 ) {        // LowReso 512dot
                     WinDraw_DrawLine();                // 1��������2�������ʥ��󥿡��졼����
                     VLINE++;
                     WinDraw_DrawLine();

@@ -21,7 +21,17 @@ extern	BYTE	CRTC_DispScan;
 extern	DWORD	CRTC_FastClrLine;
 extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
-extern	BYTE	CRTC_VramRowStep;	// VRAM rows per rendered row (1 or 2)
+// VRAM rows consumed per rendered row: 1, or 2 in the 31kHz 1024-line mode
+// where only one field is shown. This is what everything that turns VLINE
+// into a VRAM source row must multiply by.
+//
+// Split like the field clock. The value R20 implies is private to crtc.c;
+// CRTC_LatchVramRowStep() adopts it for the raster about to be drawn, and the
+// frame loop calls that at hsync. A mid-raster R20 write therefore cannot
+// move the source row under a row mapping that already assumed the other
+// stride -- and because the pending value is not declared here, that is
+// enforced by the compiler rather than left to callers to remember.
+extern	BYTE	CRTC_VramRowStepActive;
 extern  int		HSYNC_CLK;
 
 // Recompute HSYNC_CLK (CPU cycles per raster, nominal 10MHz units) from the
@@ -31,6 +41,12 @@ void CRTC_UpdateHSyncClock(void);
 // Recompute TextDotY, CRTC_VStep and CRTC_VramRowStep from R06/R07/R20.
 // Call after changing any of them.
 void CRTC_UpdateVerticalScan(void);
+
+// Adopt the register-derived VRAM row stride for the raster about to be
+// drawn. Call once per raster, before mapping it to a buffer row. Only the
+// stride: the frame loop latches CRTC_VStep, CRTC_VSTART and CRTC_VEND into
+// its own locals, which is why those stay plain externs here.
+void CRTC_LatchVramRowStep(void);
 
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];

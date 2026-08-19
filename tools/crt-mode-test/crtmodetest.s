@@ -4,9 +4,11 @@
 |   CRTMOD 16 (768x512 31kHz), 4 (512x512 31kHz), 8 (512x512 256color),
 |   6 (256x256 31kHz raster double-read), 7 (256x256 15.98kHz),
 |   5 (512x512 15.98kHz interlace)
-| and finally a direct-CRTC 1024-dot wide mode (128 columns, a register
-| combination the CrtcTiming model accepts as valid), drawing color bands
-| and printing a label in each mode. Each mode holds until a key is pressed,
+| then a direct-CRTC 1024-dot wide mode (128 columns, a register combination
+| the CrtcTiming model accepts as valid), and finally a phase that rewrites
+| the vertical scan setting from inside the visible area to exercise
+| mid-raster mode changes. Each phase draws color bands and prints a label,
+| and holds until a key is pressed,
 | or for about eight seconds unattended, so the disk serves both eyeball
 | comparison and unattended sanitizer soaks. Exercises mode-change paths,
 | the 1024-dot rendering, and leaves the text plane accumulating output so
@@ -29,10 +31,12 @@ start:
 mainloop:
         lea     modetab(%pc),%a6
 nextmode:
-        move.w  (%a6)+,%d7              | mode number; negative = wide phase
+        move.w  (%a6)+,%d7              | mode number; negative = special phase
         move.w  (%a6)+,%d6              | label offset from modetab
-        tst.w   %d7
-        bmi.s   wide1024
+        cmpi.w  #-1,%d7
+        beq     wide1024
+        cmpi.w  #-2,%d7
+        beq     midraster
         move.l  #0x10,%d0               | _CRTMOD
         move.l  %d7,%d1
         trap    #15
@@ -56,7 +60,55 @@ wide1024:
         move.w  #0x00a9,0xe80000        | R00: h_total-1 = 169
         move.w  #0x009c,0xe80006        | R03: HEND $9c -> ($9c-$1c)*8 = 1024
         bsr     delay
-        bra.s   mainloop
+        bra     nextmode
+
+| Change the vertical scan setting from inside the visible area, over and
+| over, so writes land partway through a raster instead of between frames.
+| R20 rotates through three settings that differ in both halves of the scan
+| decision:
+|   $16  HF=1 VRES=1  one row per raster,  VRAM stride 1
+|   $06  HF=0 VRES=1  two rows per raster, VRAM stride 1  (draw paths differ)
+|   $1e  HF=1 VRES=3  one row per raster,  VRAM stride 2  (source row differs)
+| so an incoherent read can pair a single-row mapping with the double-row
+| draw path, or a row mapping with the other stride's source row. The
+| transitions also move the frame height, the dot clock and the frame period.
+| The gap between writes is well under one raster, so successive writes drift
+| across the whole raster, including the window between the point where the
+| emulator maps a raster to a buffer row and the point where it draws it.
+|
+| The picture is expected to be a mess during this phase. What matters is
+| that nothing crashes, no sanitizer fires, and a row is never placed at one
+| vertical scale and then drawn through another's path.
+midraster:
+        move.l  #0x10,%d0               | _CRTMOD 16: 768x512 base
+        moveq   #16,%d1
+        trap    #15
+        move.l  #0x90,%d0               | _G_CLR_ON
+        trap    #15
+        bsr     announce
+        bsr     pattern
+        move.l  #600,%d5                | bounded so the host log stays usable
+mrl:
+        move.w  #0x0016,0xe80028        | HF=1 VRES=1: 1 row/raster, stride 1
+        bsr.s   mrgap
+        move.w  #0x0006,0xe80028        | HF=0 VRES=1: 2 rows/raster, stride 1
+        bsr.s   mrgap
+        move.w  #0x001e,0xe80028        | HF=1 VRES=3: 1 row/raster, stride 2
+        bsr.s   mrgap
+        subq.l  #1,%d5
+        bne.s   mrl
+        move.w  #0x0016,0xe80028        | leave a sane mode behind
+        bsr     delay
+        bra     mainloop
+
+| sub-raster gap between scan-setting writes, so successive writes drift
+| across the raster instead of always landing at the same point in it
+mrgap:
+        move.w  #37,%d4
+mrw:
+        subq.w  #1,%d4
+        bne.s   mrw
+        rts
 
 | print the NUL-terminated label at modetab + d6
 announce:
@@ -118,6 +170,7 @@ modetab:
         .word   7,  m7-modetab
         .word   5,  m5-modetab
         .word   -1, mw-modetab
+        .word   -2, mr-modetab
 
 m16:    .asciz  "CRT MODE 16  768x512  16c 31K\r\n"
 m4:     .asciz  "CRT MODE  4  512x512  16c 31K\r\n"
@@ -126,4 +179,5 @@ m6:     .asciz  "CRT MODE  6  256x256  16c 31K DBL\r\n"
 m7:     .asciz  "CRT MODE  7  256x256  16c 15K\r\n"
 m5:     .asciz  "CRT MODE  5  512x512  16c 15K INT\r\n"
 mw:     .asciz  "CRT 1024-DOT WIDE (CRTC R00/R03)\r\n"
+mr:     .asciz  "MID-RASTER R20 SCAN CHANGE STRESS\r\n"
         .even
