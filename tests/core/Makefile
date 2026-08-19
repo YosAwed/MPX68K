@@ -13,7 +13,7 @@ CFLAGS += -Wall -g $(SAN) \
 
 # Test binaries are phony so edits to the (space-containing) core source
 # paths always trigger a rebuild; the builds are cheap.
-.PHONY: all run clean test_disk_d88 test_crtc_timing test_scrbuf
+.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf
 
 all: run
 
@@ -25,15 +25,19 @@ test_crtc_timing:
 		"$(PX68K)/x68k/crtc_timing.c" "$(PX68K)/x68k/crtc.c" \
 		"$(PX68K)/x68k/sysport.c" -lm
 
+test_mfp_hsync:
+	$(CC) $(CFLAGS) -o $@ test_mfp_hsync.c "$(PX68K)/x68k/mfp.c"
+
 test_scrbuf:
 	$(CC) $(CFLAGS) -o $@ test_scrbuf.c \
 		"$(PX68K)/x11/scrbuf.c" "$(PX68K)/x11/windraw.c" \
 		"$(PX68K)/x68k/crtc_timing.c" "$(PX68K)/x68k/crtc.c" -lm
 
-run: test_disk_d88 test_crtc_timing test_scrbuf
+run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf
 	./test_disk_d88
 	./test_crtc_timing
+	./test_mfp_hsync
 	./test_scrbuf
 
 clean:
-	rm -f test_disk_d88 test_crtc_timing test_scrbuf _test_image.d88
+	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf _test_image.d88

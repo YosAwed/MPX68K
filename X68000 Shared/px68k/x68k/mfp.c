@@ -164,16 +164,28 @@ BYTE FASTCALL MFP_Read(DWORD adr)
 				ret = 0x13;
 			else
 				ret = 0x03;
-			// CRTC_Regs[1] is R00's low byte and can legitimately be 0
-			// (e.g. R00 = 0x100); scale by 1 raster then instead of
-			// dividing by zero. HSYNC_CLK is always positive.
+			// Horizontal position within the raster. This used to be
+			// ICount % HSYNC_CLK, which was wrong twice over: ICount is in
+			// clkdiv-scaled units while HSYNC_CLK is nominal 10MHz cycles,
+			// so the position wrapped clkdiv/10 times per raster (measured
+			// at exactly 12x with a 24MHz setting), and ICount counts down,
+			// so it ran backwards and mirrored the display window within
+			// the raster. hclk_line is the same quantity the audio timers
+			// already use: nominal cycles since this raster's hsync,
+			// counting up.
+			//
+			// GPIP7 is high only during the horizontal sync pulse. R00+1
+			// is the raster width in columns and R01+1 is the sync-pulse
+			// width; R02/R03 describe back porch/display and must not be
+			// used as the GPIP7 window. HSYNC_CLK is always positive.
 			{
-				int htotal = CRTC_Regs[1] ? CRTC_Regs[1] : 1;
-				hpos = (int)(ICount%HSYNC_CLK);
-				if ( (hpos>=((int)CRTC_Regs[5]*HSYNC_CLK/htotal))&&(hpos<((int)CRTC_Regs[7]*HSYNC_CLK/htotal)) )
-					ret &= 0x7f;
-				else
+				int htotal = (int)CRTC_Regs[1] + 1;
+				int hsync_end = (int)CRTC_Regs[3] + 1;
+				hpos = hclk_line;
+				if ( hpos<(hsync_end*HSYNC_CLK/htotal) )
 					ret |= 0x80;
+				else
+					ret &= 0x7f;
 			}
 			if (vline!=CRTC_IntLine)
 				ret |= 0x40;

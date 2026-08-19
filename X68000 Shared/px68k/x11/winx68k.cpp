@@ -99,6 +99,7 @@ DWORD skippedframes = 0;
 static int ClkUsed = 0;
 static int FrameSkipCount = 0;
 static CrtcFieldClock FieldClock10M;
+int hclk_line = 0;   // see winx68k.h
 static int FrameSkipQueue = 0;
 static int g_storage_bus_mode = 0; // 0 = SASI, 1 = SCSI image, 2 = SCSI-U
 static unsigned char SASI_IPLROM[0x20000] = {0};
@@ -804,7 +805,7 @@ static int WinX68k_FieldCycles10M(int *active_vline_total)
 void WinX68k_Exec(const long clockMHz, const long vsync)
 {
     //char *test = NULL;
-    int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count, clk_line=0;
+    int clk_total, clkdiv, usedclk, hsync, clk_next, clk_count;
     int active_vline_total;
     // Vertical scan parameters, latched once per raster (see the hsync
     // block). Same types as the registers they mirror so the comparisons
@@ -867,7 +868,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 
         if ( hsync ) {
             hsync = 0;
-            clk_line = 0;
+            hclk_line = 0;
             MFP_Int(0);
             // Latch the vertical scan parameters for this raster. The guest
             // runs thousands of cycles inside a raster and can write
@@ -938,7 +939,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 C68k_Exec(&C68K, C68K.ICount);
             }
             fclose(fp);
-            usedclk = clk_line = HSYNC_CLK;
+            usedclk = hclk_line = HSYNC_CLK;
             clk_count = clk_next;
         }
         else
@@ -958,7 +959,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             //            m = (n-C68K.ICount-m68000_ICountBk);            // clockspeed progress
                         ClkUsed += m*10;
                         usedclk = ClkUsed/clkdiv;
-                        clk_line += usedclk;
+                        hclk_line += usedclk;
                         ClkUsed -= usedclk*clkdiv;
                         ICount -= m;
                         clk_count += m;
@@ -1011,9 +1012,9 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 }
             }
 
-            ADPCM_PreUpdate(clk_line);
-            OPM_Timer(clk_line);
-            MIDI_Timer(clk_line);
+            ADPCM_PreUpdate(hclk_line);
+            OPM_Timer(hclk_line);
+            MIDI_Timer(hclk_line);
 
             KeyIntCnt++;
             if ( KeyIntCnt>(active_vline_total/4) ) {
@@ -1025,7 +1026,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 MouseIntCnt = 0;
                 SCC_IntCheck();
             }
-            DSound_Send0(clk_line);
+            DSound_Send0(hclk_line);
 
             vline++;
             clk_next  = (clk_total*(vline+1))/active_vline_total;

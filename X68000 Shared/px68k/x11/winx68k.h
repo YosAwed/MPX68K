@@ -30,6 +30,11 @@ extern	BYTE*	FONT;
 extern	WORD	VLINE_TOTAL;
 extern	DWORD	VLINE;
 extern	DWORD	vline;
+// Nominal-10MHz CPU cycles elapsed within the current raster, reset at each
+// hsync -- the horizontal counterpart of vline, in the same units as
+// HSYNC_CLK. Advances at CPU-slice granularity, so it steps rather than
+// glides across a raster.
+extern	int	hclk_line;
 
 extern	char	winx68k_dir[MAX_PATH];
 extern	char	winx68k_ini[MAX_PATH];
