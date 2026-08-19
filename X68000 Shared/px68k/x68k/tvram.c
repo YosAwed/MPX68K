@@ -372,7 +372,7 @@ void FASTCALL Text_DrawLine_C(int opaq)
 	line = VLINE;
 	
 	// インターレース処理
-	line *= CRTC_VramRowStep;
+	line *= CRTC_VramRowStepActive;
 	
 	scroll_y = (line + TextScrollY) & 1023;
 	scroll_x = TextScrollX & 1023;

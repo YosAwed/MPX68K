@@ -26,8 +26,8 @@ extern	BYTE	CRTC_VStep;
 // CRTC_VramRowStepActive is what the current raster is being drawn with. The
 // frame loop latches one from the other at hsync, so a mid-raster R20 write
 // cannot leave the row mapping and the VRAM source row on different
-// settings. Code that runs on the register write rather than inside a
-// raster's draw (CRTC_RasterCopy) uses the register-derived value.
+// settings. Everything that turns VLINE into a VRAM source row must read the
+// active value; only crtc.c itself touches the register-derived one.
 extern	BYTE	CRTC_VramRowStep;
 extern	BYTE	CRTC_VramRowStepActive;
 extern  int		HSYNC_CLK;
