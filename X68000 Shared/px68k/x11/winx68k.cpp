@@ -888,7 +888,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
             // so it is latched through a global instead of a local, and the
             // latch itself lives in crtc.c so nothing outside reads the
             // register-derived value.
-            CRTC_LatchVerticalScan();
+            CRTC_LatchVramRowStep();
             if ( (vline>=scan_vstart)&&(vline<scan_vend) )
                 VLINE = ((vline-scan_vstart)*scan_vstep)/2;
             else

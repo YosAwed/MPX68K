@@ -541,11 +541,22 @@ static void test_vertical_scan_decode_all_vres(void)
     }
 }
 
-/* CRTC_VramRowStep replaces an open-coded (R20 & 0x1c) == 0x1c test that was
- * repeated in sixteen places across gvram.c and tvram.c. Only the 31kHz
+/* The VRAM row stride replaces an open-coded (R20 & 0x1c) == 0x1c test that
+ * was repeated in sixteen places across gvram.c and tvram.c. Only the 31kHz
  * 1024-line mode takes every second VRAM row; the 15kHz interlace mode does
  * not (it weaves both fields into a double-height buffer from the exec loop
- * instead), so the two must stay distinguishable. */
+ * instead), so the two must stay distinguishable.
+ *
+ * The value R20 implies is private to crtc.c, so everything here goes through
+ * what the draw routines actually read -- CRTC_VramRowStepActive -- plus the
+ * latch. That is the contract worth testing anyway: a register write must not
+ * move the active stride, and the latch must adopt it. */
+static BYTE latched_row_step(void)
+{
+    CRTC_LatchVramRowStep();
+    return CRTC_VramRowStepActive;
+}
+
 static void test_vram_row_step(void)
 {
     BYTE regs[48];
@@ -554,45 +565,44 @@ static void test_vram_row_step(void)
 
     preset_512x512_31k(regs);           /* HF=1, VRES=1 */
     write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 1, "31k normal: one VRAM row per rendered row");
+    CHECK_EQ(latched_row_step(), 1, "31k normal: one VRAM row per rendered row");
 
     set_reg(regs, 20, 0x1d);            /* HF=1, VRES=3: 1024-line */
     write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 2, "31k 1024-line: every second VRAM row");
+    CHECK_EQ(latched_row_step(), 2, "31k 1024-line: every second VRAM row");
     CHECK_EQ(CRTC_VStep, 2, "31k 1024-line: still normal v_step");
 
     preset_interlace_15k(regs);         /* HF=0, VRES=1 */
     write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 1, "15k interlace: rows are sequential");
+    CHECK_EQ(latched_row_step(), 1, "15k interlace: rows are sequential");
     CHECK_EQ(CRTC_VStep, 4, "15k interlace: v_step 4 doubles from the loop");
 
     preset_256x240_15k(regs);           /* HF=0, VRES=0: slit */
     write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 1, "15k slit: rows are sequential");
+    CHECK_EQ(latched_row_step(), 1, "15k slit: rows are sequential");
 
-    /* Derived state has to follow the registers back to zero on reset. The
-     * draw routines used to read R20 directly, so zeroing the registers
-     * reset the stride implicitly; a cached value can go stale instead and
-     * keep reading every second VRAM row after a reset out of 1024-line. */
-    set_reg(regs, 20, 0x1d);
-    write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 2, "before reset: stride is 2");
-    CRTC_Init();
-    CHECK_EQ(CRTC_VramRowStep, 1, "after reset: stride follows R20 to 1");
-    CHECK_EQ(CRTC_VramRowStepActive, 1, "after reset: active stride too");
-
-    /* A register write must move only the pending stride. The frame loop
-     * copies it into the active one at hsync, so that a guest writing R20
-     * partway through a raster cannot change the source row under a mapping
-     * that already assumed the other stride. */
+    /* A register write must leave the stride the current raster is drawn with
+     * alone; only the latch adopts it. Otherwise a guest writing R20 partway
+     * through a raster moves the source row under a mapping that already
+     * assumed the other stride. */
     preset_512x512_31k(regs);
     write_regs_to_crtc(regs);
-    CRTC_VramRowStepActive = 1;
+    CHECK_EQ(latched_row_step(), 1, "start from stride 1");
     set_reg(regs, 20, 0x1d);
     write_regs_to_crtc(regs);
-    CHECK_EQ(CRTC_VramRowStep, 2, "R20 write: pending stride moves");
     CHECK_EQ(CRTC_VramRowStepActive, 1,
-             "R20 write: active stride waits for the raster latch");
+             "R20 write alone: active stride unchanged");
+    CHECK_EQ(latched_row_step(), 2, "latch: active stride adopts R20");
+
+    /* Derived state has to follow the registers back to zero on reset. The
+     * draw routines used to read R20 directly, so zeroing the registers reset
+     * the stride implicitly; a cached value can go stale instead and keep
+     * reading every second VRAM row after a reset out of 1024-line. Latching
+     * again after the reset also proves the private pending value was reset,
+     * since a stale 2 there would come straight back. */
+    CRTC_Init();
+    CHECK_EQ(CRTC_VramRowStepActive, 1, "after reset: active stride is 1");
+    CHECK_EQ(latched_row_step(), 1, "after reset: pending stride was reset too");
 }
 
 /* Write a 16-bit CRTC register so that both byte handlers actually run.

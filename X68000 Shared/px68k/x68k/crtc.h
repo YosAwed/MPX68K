@@ -21,18 +21,16 @@ extern	BYTE	CRTC_DispScan;
 extern	DWORD	CRTC_FastClrLine;
 extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
-// VRAM rows consumed per rendered row (1, or 2 in the 31kHz 1024-line mode).
-// Split like the field clock: CRTC_VramRowStep follows the registers, and
-// CRTC_VramRowStepActive is what the current raster is being drawn with.
-// CRTC_LatchVerticalScan() moves one to the other and the frame loop calls it
-// at hsync, so a mid-raster R20 write cannot move the VRAM source row under a
-// row mapping that already assumed the other stride.
+// VRAM rows consumed per rendered row: 1, or 2 in the 31kHz 1024-line mode
+// where only one field is shown. This is what everything that turns VLINE
+// into a VRAM source row must multiply by.
 //
-// Everything that turns VLINE into a VRAM source row reads the active value.
-// The register-derived value is read and written only inside crtc.c -- the
-// latch lives there for that reason, so this stays true rather than being a
-// rule callers have to remember.
-extern	BYTE	CRTC_VramRowStep;
+// Split like the field clock. The value R20 implies is private to crtc.c;
+// CRTC_LatchVramRowStep() adopts it for the raster about to be drawn, and the
+// frame loop calls that at hsync. A mid-raster R20 write therefore cannot
+// move the source row under a row mapping that already assumed the other
+// stride -- and because the pending value is not declared here, that is
+// enforced by the compiler rather than left to callers to remember.
 extern	BYTE	CRTC_VramRowStepActive;
 extern  int		HSYNC_CLK;
 
@@ -44,9 +42,11 @@ void CRTC_UpdateHSyncClock(void);
 // Call after changing any of them.
 void CRTC_UpdateVerticalScan(void);
 
-// Adopt the register-derived vertical scan state for the raster about to be
-// drawn. Call once per raster, before mapping it to a buffer row.
-void CRTC_LatchVerticalScan(void);
+// Adopt the register-derived VRAM row stride for the raster about to be
+// drawn. Call once per raster, before mapping it to a buffer row. Only the
+// stride: the frame loop latches CRTC_VStep, CRTC_VSTART and CRTC_VEND into
+// its own locals, which is why those stay plain externs here.
+void CRTC_LatchVramRowStep(void);
 
 extern	DWORD	GrphScrollX[];
 extern	DWORD	GrphScrollY[];
