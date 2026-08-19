@@ -43,7 +43,6 @@ static WORD FastClearMask[16] = {
 	BYTE	VCReg1[2] = {0, 0};
 	BYTE	VCReg2[2] = {0, 0};
 
-	BYTE	CRTC_RCFlag[2] = {0, 0};
 	int HSYNC_CLK = 324;
 //    extern int VID_MODE, CHANGEAV_TIMING;
  int VID_MODE, CHANGEAV_TIMING;
@@ -129,7 +128,7 @@ void CRTC_LatchVramRowStep(void)
 // -----------------------------------------------------------------------
 //   らすたーこぴー
 // -----------------------------------------------------------------------
-void CRTC_RasterCopy(void)
+static void CRTC_RasterCopy(void)
 {
 	DWORD src, dst, line;
 
@@ -312,6 +311,18 @@ void CRTC_RasterCopy(void)
 #endif	/* USE_ASM */
 
 	TVRAM_RCUpdate();
+}
+
+
+// -----------------------------------------------------------------------
+//   水平フロントポーチ
+// -----------------------------------------------------------------------
+// 動作ポートbit3はラスタコピーの開始トリガーではなく持続スイッチ。
+// ONの間は、レジスタ書き込み時ではなく各水平フロントポーチで実行する。
+void CRTC_HorizontalFrontPorch(void)
+{
+	if (CRTC_Mode & 8)
+		CRTC_RasterCopy();
 }
 
 
@@ -536,28 +547,14 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			break;
 		case 0x2a:
 		case 0x2b:
-			break;
 		case 0x2c:				// CRTC動作ポートのラスタコピーをONにしておいて（しておいたまま）、
 		case 0x2d:				// Src/Dstだけ次々変えていくのも許されるらしい（ドラキュラとか）
-			CRTC_RCFlag[reg-0x2c] = 1;	// Dst変更後に実行される？
-			if ((CRTC_Mode&8)&&/*(CRTC_RCFlag[0])&&*/(CRTC_RCFlag[1]))
-			{
-				CRTC_RasterCopy();
-				CRTC_RCFlag[0] = 0;
-				CRTC_RCFlag[1] = 0;
-			}
 			break;
 		}
 	}
 	else if (adr==0xe80481)
 	{					// CRTC動作ポート
 		CRTC_Mode = (data|(CRTC_Mode&2));
-		if (CRTC_Mode&8)
-		{				// Raster Copy
-			CRTC_RasterCopy();
-			CRTC_RCFlag[0] = 0;
-			CRTC_RCFlag[1] = 0;
-		}
 		if (CRTC_Mode&2)		// 高速クリア
 		{
 			CRTC_FastClrLine = vline;

@@ -53,7 +53,8 @@ extern	DWORD	GrphScrollY[];
 
 void CRTC_Init(void);
 
-void CRTC_RasterCopy(void);
+// Run horizontal-front-porch work for the raster that has just been drawn.
+void CRTC_HorizontalFrontPorch(void);
 
 BYTE FASTCALL CRTC_Read(DWORD adr);
 void FASTCALL CRTC_Write(DWORD adr, BYTE data);

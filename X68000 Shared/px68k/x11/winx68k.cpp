@@ -1012,6 +1012,10 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
                 }
             }
 
+			// Raster copy is level-controlled and runs after this raster's
+			// display period, before the next raster's hsync.
+			CRTC_HorizontalFrontPorch();
+
             ADPCM_PreUpdate(hclk_line);
             OPM_Timer(hclk_line);
             MIDI_Timer(hclk_line);

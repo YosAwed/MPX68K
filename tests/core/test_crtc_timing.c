@@ -605,6 +605,49 @@ static void test_vram_row_step(void)
     CHECK_EQ(latched_row_step(), 1, "after reset: pending stride was reset too");
 }
 
+static void test_raster_copy_runs_at_front_porch(void)
+{
+    const int src = 1 << 9;
+    const int dst = 2 << 9;
+    const int next_dst = 3 << 9;
+    int i;
+
+    CRTC_Init();
+    CRTC_Write(0xe80481, 0);  /* raster-copy switch off */
+    memset(TVRAM, 0, sizeof(TVRAM));
+    for (i = 0; i < 512; i++)
+        TVRAM[src + i] = (BYTE)(i ^ 0x5a);
+
+    CRTC_Write(0xe8002b, 1);  /* R21: text plane 0 */
+    CRTC_Write(0xe8002c, 1);  /* R22 source block */
+    CRTC_Write(0xe8002d, 2);  /* R22 destination block */
+    CRTC_Write(0xe80481, 8);  /* raster-copy switch on */
+
+    CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) != 0,
+          "raster copy: enabling switch does not copy immediately");
+    CRTC_HorizontalFrontPorch();
+    CHECK(memcmp(&TVRAM[src], &TVRAM[dst], 512) == 0,
+          "raster copy: first front porch copies selected block");
+
+    TVRAM[src] ^= 0xff;
+    CRTC_HorizontalFrontPorch();
+    CHECK(TVRAM[dst] == TVRAM[src],
+          "raster copy: switch remains active on later porches");
+
+    CRTC_Write(0xe8002d, 3);  /* change destination while enabled */
+    CHECK(memcmp(&TVRAM[src], &TVRAM[next_dst], 512) != 0,
+          "raster copy: R22 write does not copy immediately");
+    CRTC_HorizontalFrontPorch();
+    CHECK(memcmp(&TVRAM[src], &TVRAM[next_dst], 512) == 0,
+          "raster copy: next porch uses latest R22 value");
+
+    CRTC_Write(0xe80481, 0);  /* switch off */
+    TVRAM[src] ^= 0xff;
+    CRTC_HorizontalFrontPorch();
+    CHECK(TVRAM[next_dst] != TVRAM[src],
+          "raster copy: switch off suppresses later porches");
+}
+
 /* Write a 16-bit CRTC register so that both byte handlers actually run.
  * CRTC_Write returns early when a byte already holds the value being
  * written, so passing the current value is a no-op; go via a scratch value
@@ -758,6 +801,7 @@ int main(void)
     test_field_clock_preserves_last_valid_mode();
     test_vertical_scan_decode_all_vres();
     test_vram_row_step();
+    test_raster_copy_runs_at_front_porch();
     test_vertical_scan_decode_is_single_sourced();
     test_legacy_agreement();
 
