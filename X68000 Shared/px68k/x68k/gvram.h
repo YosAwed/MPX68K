@@ -33,12 +33,10 @@ void FASTCALL Grp_DrawLine8SP(int page/*, int opaq*/);
 void FASTCALL Grp_DrawLine4SP(DWORD page/*, int opaq*/);
 void FASTCALL Grp_DrawLine4hSP(void);
 void FASTCALL Grp_DrawLine8TR(int page, int opaq);
-void FASTCALL Grp_DrawLine8TR_GT(int page, int opaq);
 void FASTCALL Grp_DrawLine4TR(DWORD page, int opaq);
 
 // ダブルバッファリング管理関数
 void FASTCALL Grp_SwapBuffers(void);
-void FASTCALL Grp_SetDoubleBuffer(int enable);
 
 #endif
 
