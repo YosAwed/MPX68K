@@ -21,14 +21,15 @@ extern	BYTE	CRTC_DispScan;
 extern	DWORD	CRTC_FastClrLine;
 extern	WORD	CRTC_FastClrMask;
 extern	BYTE	CRTC_VStep;
+extern	BYTE	CRTC_VramRowStep;	// VRAM rows per rendered row (1 or 2)
 extern  int		HSYNC_CLK;
 
 // Recompute HSYNC_CLK (CPU cycles per raster, nominal 10MHz units) from the
 // current CRTC registers. Call after changing R00, R04, R20 or the HRL bit.
 void CRTC_UpdateHSyncClock(void);
 
-// Recompute TextDotY and CRTC_VStep from R06/R07/R20. Call after changing
-// any of them.
+// Recompute TextDotY, CRTC_VStep and CRTC_VramRowStep from R06/R07/R20.
+// Call after changing any of them.
 void CRTC_UpdateVerticalScan(void);
 
 extern	DWORD	GrphScrollX[];

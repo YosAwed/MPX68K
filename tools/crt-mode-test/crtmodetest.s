@@ -6,15 +6,16 @@
 |   5 (512x512 15.98kHz interlace)
 | and finally a direct-CRTC 1024-dot wide mode (128 columns, a register
 | combination the CrtcTiming model accepts as valid), drawing color bands
-| and printing a label in each mode, pausing roughly two seconds between
-| switches. Exercises mode-change paths, the 1024-dot rendering, and
-| leaves the text plane accumulating output so stale-frame artifacts are
-| visible.
+| and printing a label in each mode. Each mode holds until a key is pressed,
+| or for about eight seconds unattended, so the disk serves both eyeball
+| comparison and unattended sanitizer soaks. Exercises mode-change paths,
+| the 1024-dot rendering, and leaves the text plane accumulating output so
+| stale-frame artifacts are visible.
 |
 | Runs from the floppy boot sector using only IPLROM IOCS services
-| (_CRTMOD $10, _G_CLR_ON $90, _B_PRINT $21) -- no Human68k, no
-| copyrighted content on the disk. Position independent; must fit in the
-| single 1024-byte boot sector the ROM IPL loads.
+| (_CRTMOD $10, _G_CLR_ON $90, _B_PRINT $21, _B_KEYINP $00, _B_KEYSNS $01)
+| -- no Human68k, no copyrighted content on the disk. Position independent;
+| must fit in the single 1024-byte boot sector the ROM IPL loads.
 |
 | Assemble with GNU binutils for m68k (see build.sh).
 
@@ -86,12 +87,28 @@ patn:
         bne.s   patl
         rts
 
-| ~2 seconds at 10MHz (busy loop, scales with the CPU clock setting)
+| Hold the current mode until a key is pressed, or for roughly eight seconds
+| if nobody is watching. Two seconds was too short to compare modes by eye,
+| but a key-only wait would stall an unattended sanitizer soak, so do both:
+| poll _B_KEYSNS about five times a second inside a busy loop that times out
+| on its own. If key sensing ever misbehaves the timeout still advances.
 delay:
-        move.l  #1200000,%d2
-dl:
+        move.l  #40,%d3                 | outer: poll slots (~0.2s each)
+dout:
+        move.l  #120000,%d2             | inner: busy work between polls
+din:
         subq.l  #1,%d2
-        bne.s   dl
+        bne.s   din
+        moveq   #1,%d0                  | _B_KEYSNS: key waiting?
+        trap    #15
+        tst.l   %d0
+        bne.s   dkey
+        subq.l  #1,%d3
+        bne.s   dout
+        rts
+dkey:
+        moveq   #0,%d0                  | _B_KEYINP: consume it
+        trap    #15
         rts
 
 modetab:

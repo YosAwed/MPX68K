@@ -541,6 +541,36 @@ static void test_vertical_scan_decode_all_vres(void)
     }
 }
 
+/* CRTC_VramRowStep replaces an open-coded (R20 & 0x1c) == 0x1c test that was
+ * repeated in sixteen places across gvram.c and tvram.c. Only the 31kHz
+ * 1024-line mode takes every second VRAM row; the 15kHz interlace mode does
+ * not (it weaves both fields into a double-height buffer from the exec loop
+ * instead), so the two must stay distinguishable. */
+static void test_vram_row_step(void)
+{
+    BYTE regs[48];
+
+    CRTC_Init();
+
+    preset_512x512_31k(regs);           /* HF=1, VRES=1 */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 1, "31k normal: one VRAM row per rendered row");
+
+    set_reg(regs, 20, 0x1d);            /* HF=1, VRES=3: 1024-line */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 2, "31k 1024-line: every second VRAM row");
+    CHECK_EQ(CRTC_VStep, 2, "31k 1024-line: still normal v_step");
+
+    preset_interlace_15k(regs);         /* HF=0, VRES=1 */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 1, "15k interlace: rows are sequential");
+    CHECK_EQ(CRTC_VStep, 4, "15k interlace: v_step 4 doubles from the loop");
+
+    preset_256x240_15k(regs);           /* HF=0, VRES=0: slit */
+    write_regs_to_crtc(regs);
+    CHECK_EQ(CRTC_VramRowStep, 1, "15k slit: rows are sequential");
+}
+
 /* All three CRTC registers that feed the vertical scan must produce the same
  * decode; they used to carry three copies of it. */
 static void test_vertical_scan_decode_is_single_sourced(void)
@@ -667,6 +697,7 @@ int main(void)
     test_hrl_write_updates_hsync_clock();
     test_field_clock_preserves_last_valid_mode();
     test_vertical_scan_decode_all_vres();
+    test_vram_row_step();
     test_vertical_scan_decode_is_single_sourced();
     test_legacy_agreement();
 

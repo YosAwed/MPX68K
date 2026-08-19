@@ -33,6 +33,7 @@ static WORD FastClearMask[16] = {
 	WORD	CRTC_FastClrMask = 0;
 	WORD	CRTC_IntLine = 0;
 	BYTE	CRTC_VStep = 2;
+	BYTE	CRTC_VramRowStep = 1;
 
 	BYTE	VCReg0[2] = {0, 0};
 	BYTE	VCReg1[2] = {0, 0};
@@ -87,6 +88,13 @@ void CRTC_UpdateHSyncClock(void)
 //                            見え方の違いで、行の対応は通常と同じ)
 void CRTC_UpdateVerticalScan(void)
 {
+	// VRAM rows consumed per rendered row. The 31kHz 1024-line mode
+	// (HF=1, VRES=3) shows one field by taking every second VRAM row into
+	// a normal-height buffer; every other mode walks VRAM row by row.
+	// This used to be an open-coded (R20 & 0x1c) == 0x1c test repeated in
+	// fourteen places across gvram.c and tvram.c.
+	CRTC_VramRowStep = ((CRTC_Regs[0x29] & 0x1c) == 0x1c) ? 2 : 1;
+
 	TextDotY = CRTC_VEND - CRTC_VSTART;
 	if ((CRTC_Regs[0x29] & 0x14) == 0x10) {
 		TextDotY /= 2;
