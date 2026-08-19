@@ -35,7 +35,7 @@ enum X68MacError: LocalizedError {
         case .insufficientMemory:
             return "メモリが不足しています。他のアプリケーションを終了してから再試行してください。"
         case .unsupportedFileFormat(let format):
-            return "サポートされていないファイル形式 '\(format)' です。.dim、.xdf、.hdfファイルを使用してください。"
+            return "サポートされていないファイル形式 '\(format)' です。.dim、.xdf、.2hd、.d88、.hdfファイルを使用してください。"
         case .fileAccessDenied(let filename):
             return "ファイル '\(filename)' へのアクセスが拒否されました。ファイルの権限を確認してください。"
         case .fileTooLarge(let filename, let size):
@@ -60,7 +60,7 @@ enum X68MacError: LocalizedError {
         case .insufficientMemory:
             return "不要なアプリケーションを終了してメモリを解放してください。"
         case .unsupportedFileFormat:
-            return "対応しているファイル形式（.dim、.xdf、.hdf）を使用してください。"
+            return "対応しているファイル形式（.dim、.xdf、.2hd、.d88、.hdf）を使用してください。"
         case .fileAccessDenied:
             return "ファイルの権限設定を確認し、必要に応じて管理者権限で実行してください。"
         case .fileTooLarge:

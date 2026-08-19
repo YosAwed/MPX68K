@@ -15,7 +15,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz
 - **FM Sound Synthesis**: High-quality audio via fmgen (OPM + ADPCM)
 - **MIDI Output**: External MIDI with configurable output delay and buffering
-- **Multiple Disk Formats**: Floppy (.dim, .xdf, .d88, .hdm) and hard disk (.hdf, .hds)
+- **Multiple Disk Formats**: Floppy (.dim, .xdf, .2hd, .d88, .hdm) and hard disk (.hdf, .hds)
 
 ### Storage
 - **Dual FDD Drives**: Independent management of Drive 0 and Drive 1
@@ -230,7 +230,7 @@ The server handles one client at a time. `DIAG` reads a synchronized snapshot wh
 
 ### FDD disk swapping
 
-`MOUNTFDD` and `EJECTFDD` let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.d88`, `.hdm`):
+`MOUNTFDD` and `EJECTFDD` let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.2hd`, `.d88`, `.hdm`):
 
 ```text
 MOUNTFDD 0 /Users/you/Documents/X68000/disk1.xdf
@@ -249,6 +249,7 @@ The socket server is compiled into `X68000 Shared/px68k/x11/winx68k.cpp`, which 
 |-----------|-------------|------|-------|
 | `.dim` | Standard disk image | Floppy | Most common X68000 format |
 | `.xdf` | Extended disk format | Floppy | Extended capacity |
+| `.2hd` | Raw 2HD disk image | Floppy | Loaded as an XDF-compatible raw image |
 | `.d88` | D88 disk image | Floppy | Common retro-emulator format |
 | `.hdm` | Human68k disk image | Floppy | Legacy Human68k format |
 | `.hdf` | Generic hard disk image | Hard Disk | SASI / generic HDD |

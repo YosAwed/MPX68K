@@ -74,7 +74,7 @@ The project keeps a shared core separated from the platform presentation layer (
 - **CloudKit**: iCloud document synchronization (`iCloud.GOROman.X68000.1`)
 
 ### Document Architecture
-- **File Format Support**: .dim, .xdf, .d88 (floppy), .hdf, .hdm (hard disk)
+- **File Format Support**: .dim, .xdf, .2hd, .d88 (floppy), .hdf, .hdm (hard disk)
 - **Multi-Location Search**: Documents, Inbox, legacy paths for ROM discovery
 - **Security-Scoped Resources**: Proper sandboxed file access on macOS
 - **ROM Management**: Flexible loading from embedded or external ROM files

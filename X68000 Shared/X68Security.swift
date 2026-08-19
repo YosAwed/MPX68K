@@ -14,7 +14,7 @@ import CryptoKit
 class X68Security {
     
     /// サポートされているファイル拡張子
-    static let supportedExtensions = ["dim", "xdf", "d88", "hdm", "hdf", "dat"]
+    static let supportedExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf", "dat"]
     
     /// 最大ファイルサイズ（100MB）
     static let maxFileSize: Int64 = 100 * 1024 * 1024
@@ -190,7 +190,7 @@ class X68Security {
         switch fileExtension {
         case "dim":
             try validateDIMFormat(headerData, filename: url.lastPathComponent)
-        case "xdf":
+        case "xdf", "2hd":
             try validateXDFFormat(headerData, filename: url.lastPathComponent)
         case "d88":
             try validateD88Format(headerData, filename: url.lastPathComponent)

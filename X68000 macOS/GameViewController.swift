@@ -572,11 +572,12 @@ class GameViewController: NSViewController {
             var types: [UTType] = []
             if let dim = UTType(filenameExtension: "dim") { types.append(dim) }
             if let xdf = UTType(filenameExtension: "xdf") { types.append(xdf) }
+            if let twoHD = UTType(filenameExtension: "2hd") { types.append(twoHD) }
             if let d88 = UTType(filenameExtension: "d88") { types.append(d88) }
             if types.isEmpty { types = [.data] }
             openPanel.allowedContentTypes = types
         } else {
-            openPanel.allowedFileTypes = ["dim", "xdf", "d88"]
+            openPanel.allowedFileTypes = ["dim", "xdf", "2hd", "d88"]
         }
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseFiles = true
@@ -1329,7 +1330,7 @@ extension GameViewController: NSDraggingDestination {
         if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] {
             for url in urls {
                 let ext = url.pathExtension.lowercased()
-                if ["dim", "xdf", "d88", "hdm", "hdf"].contains(ext) {
+                if ["dim", "xdf", "2hd", "d88", "hdm", "hdf"].contains(ext) {
                     return .copy
                 }
             }
@@ -1353,7 +1354,7 @@ extension GameViewController: NSDraggingDestination {
         for url in urls {
             debugLog("Dropped file: \(url.lastPathComponent)", category: .fileSystem)
             let ext = url.pathExtension.lowercased()
-            if ["dim", "xdf", "d88", "hdm", "hdf"].contains(ext) {
+            if ["dim", "xdf", "2hd", "d88", "hdm", "hdf"].contains(ext) {
                 validUrls.append(url)
             }
         }
@@ -1364,7 +1365,7 @@ extension GameViewController: NSDraggingDestination {
         }
         
         // If multiple floppy disk files, try to load them to separate drives
-        let floppyUrls = validUrls.filter { ["dim", "xdf", "d88"].contains($0.pathExtension.lowercased()) }
+        let floppyUrls = validUrls.filter { ["dim", "xdf", "2hd", "d88"].contains($0.pathExtension.lowercased()) }
         let hddUrls = validUrls.filter { ["hdm", "hdf"].contains($0.pathExtension.lowercased()) }
         
         if floppyUrls.count >= 2 {

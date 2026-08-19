@@ -815,7 +815,7 @@ class FileSystem {
         debugLog("Starting filtered disk image scan in: \(directory.path)", category: .fileSystem)
         
         // Define valid disk extensions as Set for O(1) lookup performance
-        let validDiskExtensions: Set<String> = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validDiskExtensions: Set<String> = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         
         // Request only the resource values we need to minimize I/O
         let resourceKeys: [URLResourceKey] = [.nameKey, .isRegularFileKey, .fileResourceTypeKey]
@@ -1145,7 +1145,7 @@ class FileSystem {
         debugLog("Starting efficient disk image scan in: \(directory.path)", category: .fileSystem)
         
         // Define valid disk extensions as Set for O(1) lookup performance
-        let validDiskExtensions: Set<String> = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validDiskExtensions: Set<String> = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         
         // Request only the resource values we need to minimize I/O
         let resourceKeys: [URLResourceKey] = [.nameKey, .isRegularFileKey, .fileResourceTypeKey]
@@ -1213,7 +1213,7 @@ class FileSystem {
         }
         
         // Validate file extension
-        let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else { 
             debugLog("Invalid file extension: \(ext)", category: .fileSystem)
@@ -1400,7 +1400,7 @@ class FileSystem {
         
         // Now validate the file after ensuring it's downloaded
         // For iCloud files, use a simpler validation that doesn't require file existence check
-        let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
             errorLog("Invalid file extension: \(ext)", category: .fileSystem)
@@ -1888,7 +1888,7 @@ class FileSystem {
         debugLog("loadDiskFileWithData called for: \(url.lastPathComponent)", category: .fileSystem)
         
         // Validate file extension
-        let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
             errorLog("Invalid file extension: \(ext)", category: .fileSystem)
@@ -2077,7 +2077,7 @@ class FileSystem {
         debugLog("performActualFileLoad called for: \(url.lastPathComponent)", category: .fileSystem)
         
         // Validate file
-        let validExtensions = ["dim", "xdf", "d88", "hdm", "hdf"]
+        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
         guard validExtensions.contains(ext) else {
             errorLog("Invalid file extension: \(ext)", category: .fileSystem)

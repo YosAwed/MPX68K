@@ -2141,13 +2141,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             openPanel.allowedContentTypes = [
                 UTType(filenameExtension: "dim") ?? .data,
                 UTType(filenameExtension: "xdf") ?? .data,
+                UTType(filenameExtension: "2hd") ?? .data,
                 UTType(filenameExtension: "d88") ?? .data,
                 UTType(filenameExtension: "hdm") ?? .data,
                 UTType(filenameExtension: "hdf") ?? .data,
                 UTType(filenameExtension: "hds") ?? .data  // Added hds here for completeness
             ]
         } else {
-            openPanel.allowedFileTypes = ["dim", "xdf", "d88", "hdm", "hdf", "hds"]
+            openPanel.allowedFileTypes = ["dim", "xdf", "2hd", "d88", "hdm", "hdf", "hds"]
         }
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = false

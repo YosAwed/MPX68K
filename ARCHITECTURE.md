@@ -131,7 +131,7 @@ graph TD
     
     subgraph "File Types"
         ROM[ROM Files<br/>CGROM.DAT, IPLROM.DAT]
-        Floppy[Floppy Images<br/>.dim, .xdf, .d88]
+        Floppy[Floppy Images<br/>.dim, .xdf, .2hd, .d88]
         HDD[Hard Disk Images<br/>.hdf, .hdm]
         SaveData[Save Data<br/>SRAM.DAT]
     end
