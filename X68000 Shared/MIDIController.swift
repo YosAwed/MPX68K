@@ -362,6 +362,11 @@ class MIDIController {
     private func sendEvent(_ event: [UInt8]) {
         guard !event.isEmpty else { return }
 
+        if usesInternalSC55 {
+            SC55Synthesizer.shared.send(event, delayMs: outputDelayMs)
+            return
+        }
+
         if outputDelayMs > 0.0 {
             let due = CFAbsoluteTimeGetCurrent() + (outputDelayMs / 1000.0)
             pendingEvents.append(PendingEvent(dueTime: due, data: event))
@@ -387,7 +392,7 @@ class MIDIController {
     }
 
     func setOutputDelayMs(_ ms: Double) {
-        outputDelayMs = max(0.0, ms)
+        outputDelayMs = ms.isFinite ? max(0.0, ms) : 0
     }
 
     func flushDelayedEvents(_ now: CFTimeInterval = CFAbsoluteTimeGetCurrent()) {

@@ -48,3 +48,12 @@ make -C tests/sc55 rom ROM_DIR='/path/to/your/SC-55 ROM folder'
 
 The macOS app's folder selection, test-note action and saved-folder restoration
 were also exercised with this ROM set. No ROM files are stored in the repository.
+
+Timing: internal MIDI delay now uses monotonic arrival deadlines serviced by the
+audio worker, rather than a second wait for a SpriteKit frame. Three reusable
+512-frame buffers replace the former 1024-frame buffers: queued audio is 24 ms
+instead of 48 ms, and MIDI delivery is checked every 8 ms of generated audio.
+Configured MIDI output delay is retained for FM/ADPCM synchronization. The source
+X68000 emulator still hands off MIDI once per emulated frame.
+Host tests cover deadline ordering, long SysEx backpressure and cancellation.
+The optional real-ROM test also measures 512-frame rendering with a 28-note load.

@@ -2,6 +2,7 @@
 #include "../../X68000 Shared/SC55/SC55Bridge.h"
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <stdexcept>
@@ -9,13 +10,16 @@
 #include <vector>
 
 struct Metrics { double acRMS; double peak; };
+static std::vector<double> renderMilliseconds;
 Metrics render(int blocks)
 {
-    float left[1024], right[1024];
+    float left[512], right[512];
     double sum = 0, squares = 0, peak = 0;
-    for (int block = 0; block < blocks; ++block) {
-        if (!X68SC55_Render(left, right, 1024)) throw std::runtime_error("render failed");
-        for (int frame = 0; frame < 1024; ++frame) {
+    for (int block = 0; block < blocks * 2; ++block) {
+        const auto start = std::chrono::steady_clock::now();
+        if (!X68SC55_Render(left, right, 512)) throw std::runtime_error("render failed");
+        renderMilliseconds.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
+        for (int frame = 0; frame < 512; ++frame) {
             for (float sample : {left[frame], right[frame]}) {
                 if (!std::isfinite(sample)) throw std::runtime_error("nonfinite audio");
                 sum += sample;
@@ -65,6 +69,16 @@ int main(int argc, char **argv)
             firstNote = note.acRMS;
         }
         std::puts("SC-55 real-ROM note-on/off and reset checks passed");
+        // Exercise the module at its original 28-voice polyphony, not only a solo note.
+        for (uint8_t note = 48; note < 76; ++note) {
+            const uint8_t on[] = {0x90, note, 100};
+            if (!X68SC55_Send(on, sizeof(on))) throw std::runtime_error("polyphony input rejected");
+        }
+        render(500);
+        std::sort(renderMilliseconds.begin(), renderMilliseconds.end());
+        std::printf("512-frame render (8 ms audio): median %.3f ms, p99 %.3f ms, max %.3f ms\n",
+                    renderMilliseconds[renderMilliseconds.size() / 2],
+                    renderMilliseconds[renderMilliseconds.size() * 99 / 100], renderMilliseconds.back());
     } catch (const std::exception &error) {
         std::fprintf(stderr, "%s\n", error.what());
         return 1;

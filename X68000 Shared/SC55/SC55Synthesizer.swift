@@ -1,17 +1,59 @@
 import AVFoundation
 import Foundation
 
+/// Monotonic deadlines and FIFO byte order, including SysEx across UART backpressure.
+struct SC55MIDIEventQueue {
+    private struct Event {
+        let bytes: [UInt8]
+        let deadline: TimeInterval
+    }
+    private var events: [Event] = []
+    private var head = 0
+    private var byteOffset = 0
+    private(set) var pendingBytes = 0
+
+    mutating func enqueue(_ bytes: [UInt8], deadline: TimeInterval) -> Bool {
+        guard deadline.isFinite, bytes.count <= 65536 - pendingBytes else { return false }
+        guard !bytes.isEmpty else { return true }
+        // A delay reduction must not send a later note-off ahead of its note-on.
+        let orderedDeadline = max(deadline, events.last?.deadline ?? deadline)
+        events.append(Event(bytes: bytes, deadline: orderedDeadline))
+        pendingBytes += bytes.count
+        return true
+    }
+
+    mutating func flush(dueBy now: TimeInterval, send: ([UInt8]) -> Bool) {
+        while head < events.count, events[head].deadline <= now {
+            let event = events[head]
+            let end = min(byteOffset + 1024, event.bytes.count)
+            let chunk = Array(event.bytes[byteOffset..<end])
+            guard send(chunk) else { break }
+            pendingBytes -= chunk.count
+            byteOffset = end
+            if byteOffset == event.bytes.count {
+                head += 1
+                byteOffset = 0
+            }
+        }
+        if head == events.count || head >= 256 {
+            events.removeFirst(head)
+            head = 0
+        }
+    }
+}
+
 /// One Nuked SC-55 instance; all core and audio scheduling work is serialized.
 final class SC55Synthesizer {
     static let shared = SC55Synthesizer()
-    private let worker = DispatchQueue(label: "MPX68K.SC55", qos: .userInitiated)
+    private let worker = DispatchQueue(label: "MPX68K.SC55", qos: .userInteractive)
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 64000, channels: 2)!
     private var generation = 0
     private var running = false
-    private var pendingMIDI: [[UInt8]] = []
-    private var pendingBytes = 0
+    private var pendingMIDI = SC55MIDIEventQueue()
+    private let framesPerBuffer: AVAudioFrameCount = 512
+    private var audioBuffers: [AVAudioPCMBuffer] = []
     var onFailure: ((String) -> Void)? // Installed and called on the main queue.
 
     // Host output gain, independent of MIDI channel volume and firmware resets.
@@ -89,9 +131,19 @@ final class SC55Synthesizer {
             do {
                 guard loaded else { throw Self.failure("SC-55 ROMの読み込みに失敗しました。") }
                 try self.warmUpFirmware()
+                if self.audioBuffers.isEmpty {
+                    var buffers: [AVAudioPCMBuffer] = []
+                    for _ in 0..<3 {
+                        guard let buffer = AVAudioPCMBuffer(pcmFormat: self.format, frameCapacity: self.framesPerBuffer) else {
+                            throw Self.failure("SC-55音声バッファを確保できませんでした。")
+                        }
+                        buffers.append(buffer)
+                    }
+                    self.audioBuffers = buffers
+                }
                 try self.engine.start()
                 self.running = true
-                for _ in 0..<3 { self.scheduleBuffer(generation: self.generation) }
+                for buffer in self.audioBuffers { self.scheduleBuffer(buffer, generation: self.generation) }
                 guard self.running else { throw Self.failure("SC-55の初期化に失敗しました。") }
                 self.player.play()
                 DispatchQueue.main.async { completion(nil) }
@@ -109,8 +161,7 @@ final class SC55Synthesizer {
         running = false
         player.stop()
         engine.stop()
-        pendingMIDI.removeAll()
-        pendingBytes = 0
+        pendingMIDI = SC55MIDIEventQueue()
     }
 
     func reset() {
@@ -118,15 +169,14 @@ final class SC55Synthesizer {
             guard self.running else { return }
             self.generation += 1
             self.player.stop()
-            self.pendingMIDI.removeAll()
-            self.pendingBytes = 0
+            self.pendingMIDI = SC55MIDIEventQueue()
             X68SC55_Reset()
             do { try self.warmUpFirmware() }
             catch {
                 self.fail(error.localizedDescription)
                 return
             }
-            for _ in 0..<3 { self.scheduleBuffer(generation: self.generation) }
+            for buffer in self.audioBuffers { self.scheduleBuffer(buffer, generation: self.generation) }
             self.player.play()
         }
     }
@@ -138,15 +188,16 @@ final class SC55Synthesizer {
         }
     }
 
-    func send(_ event: [UInt8]) {
+    func send(_ event: [UInt8], delayMs: Double = 0) {
+        guard delayMs.isFinite else { return }
+        // Capture arrival before dispatch: worker congestion must not shift the deadline.
+        let deadline = ProcessInfo.processInfo.systemUptime + max(0, delayMs) / 1000
         worker.async {
             guard self.running else { return }
-            guard self.pendingBytes + event.count <= 65536 else {
+            guard self.pendingMIDI.enqueue(event, deadline: deadline) else {
                 self.fail("SC-55のMIDI入力が処理上限を超えました。音源を再選択してください。")
                 return
             }
-            self.pendingMIDI.append(event)
-            self.pendingBytes += event.count
         }
     }
 
@@ -167,26 +218,21 @@ final class SC55Synthesizer {
         }
     }
 
-    private func scheduleBuffer(generation: Int) {
+    private func scheduleBuffer(_ buffer: AVAudioPCMBuffer, generation: Int) {
         guard running, self.generation == generation,
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024),
               let channels = buffer.floatChannelData else { return }
-        // Feed bounded chunks; preserve byte order across long SysEx messages.
-        while let event = pendingMIDI.first {
-            let chunk = Array(event.prefix(1024))
-            guard X68SC55_Send(chunk, chunk.count) else { break }
-            pendingBytes -= chunk.count
-            if chunk.count == event.count { pendingMIDI.removeFirst() }
-            else { pendingMIDI[0].removeFirst(chunk.count) }
+        // Check deadlines every 8 ms of audio, independently of SpriteKit frames.
+        pendingMIDI.flush(dueBy: ProcessInfo.processInfo.systemUptime) { chunk in
+            X68SC55_Send(chunk, chunk.count)
         }
-        guard X68SC55_Render(channels[0], channels[1], 1024) else {
+        guard X68SC55_Render(channels[0], channels[1], Int(framesPerBuffer)) else {
             fail("SC-55音源の処理が停止しました。ROMセットを確認してください。")
             return
         }
-        buffer.frameLength = 1024
+        buffer.frameLength = framesPerBuffer
         player.scheduleBuffer(buffer, completionCallbackType: .dataConsumed) { [weak self] _ in
             guard let self else { return }
-            self.worker.async { self.scheduleBuffer(generation: generation) }
+            self.worker.async { self.scheduleBuffer(buffer, generation: generation) }
         }
     }
 }

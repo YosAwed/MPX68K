@@ -343,9 +343,11 @@ This architecture enables MPX68K to provide authentic X68000 emulation while mai
 ## Internal SC-55 MIDI destination
 
 `MIDIController` routes complete messages, including running-status MIDI and SysEx,
-to either CoreMIDI or `SC55Synthesizer`. Output delay is applied before routing;
-changing destinations clears delayed messages and parser state. The fallback frame
-timer also flushes delayed events.
+to either CoreMIDI or `SC55Synthesizer`. Internal MIDI captures a monotonic arrival
+deadline and applies the configured delay on the audio worker, without waiting for
+another SpriteKit frame. External MIDI retains the existing frame-flushed delay queue.
+Changing destinations clears delayed messages and parser state. The fallback frame
+timer also flushes external delayed events.
 
 `SC55Synthesizer` owns a single Nuked SC-55 instance on a serial worker queue. It
 reads bounded ROM files under security-scoped folder access, then passes their
@@ -354,7 +356,11 @@ The headless adapter retains MCU/timer/PCM emulation, wave-ROM unscrambling and
 LCD interrupt timing while replacing SDL, MIDI device input and the standalone
 main loop. It currently selects only the original SC-55 model.
 
-Audio is rendered at the upstream mk1 rate of 64 kHz into three 1024-frame buffers.
+Audio is rendered at the upstream mk1 rate of 64 kHz into three reusable 512-frame
+buffers (24 ms total, formerly 48 ms). The audio worker checks MIDI deadlines every
+8 ms of generated audio; it preserves byte order under UART backpressure and delay
+changes. Arrival deadlines are captured before dispatch, so queue contention does
+not extend the requested delay. The emulation core still supplies MIDI in frame batches.
 AVAudioPlayerNode/AVAudioEngine performs hardware-rate conversion. Generation tokens
 invalidate completions after stop/reset/reconfiguration. Firmware is advanced silently
 for four emulated seconds (validated with SC-55 v1.21) before playback. MIDI queues and per-render

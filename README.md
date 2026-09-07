@@ -477,6 +477,10 @@ live volume slider for the internal SC-55 only (0% mutes, 100% is the original
 output level). The setting is saved and survives app and sound-module resets.
 Use the Mac's volume controls for the overall output level.
 
+Internal SC-55 MIDI delay is scheduled independently of screen updates, with a
+24 ms audio buffer, to reduce rhythmic jitter. **MIDI Output Delay…** still sets
+the fixed offset used to align MIDI with FM/ADPCM.
+
 A system reset also reboots the internal SC-55.
 The sound module uses a separate audio engine; the app's existing FM/ADPCM audio
 recording tap does not currently include its output.
