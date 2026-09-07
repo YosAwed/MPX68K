@@ -47,6 +47,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // Timer for updating menu items
     private var menuUpdateTimer: Timer?
+    private var sc55VolumePanel: NSPanel?
+    private var sc55VolumeSlider: NSSlider?
+    private var sc55VolumeLabel: NSTextField?
     
     // Mouse mode state tracking
     private var isMouseCaptureEnabled = false
@@ -946,6 +949,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             ("External MIDI", #selector(useExternalMIDI(_:))),
             ("Internal SC-55", #selector(useInternalSC55(_:))),
             ("Choose SC-55 ROM Folder...", #selector(chooseSC55ROMFolder(_:))),
+            ("SC-55 Volume...", #selector(showSC55Volume(_:))),
             ("Test SC-55 Sound", #selector(testSC55Sound(_:)))
         ] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -2642,6 +2646,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             SC55Synthesizer.shared.send([0x80, 60, 0])
         }
+    }
+
+    @IBAction func showSC55Volume(_ sender: Any) {
+        if sc55VolumePanel == nil {
+            // A modeless panel keeps emulation and MIDI timers running while adjusting sound.
+            let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 132),
+                                styleMask: [.titled, .closable, .utilityWindow],
+                                backing: .buffered, defer: false)
+            panel.title = "SC-55 Volume"
+            panel.isReleasedWhenClosed = false
+            panel.isFloatingPanel = true
+            let description = NSTextField(labelWithString: "SC-55の音量")
+            description.frame = NSRect(x: 20, y: 82, width: 240, height: 22)
+            let valueLabel = NSTextField(labelWithString: "")
+            valueLabel.alignment = .right
+            valueLabel.frame = NSRect(x: 260, y: 82, width: 60, height: 22)
+            let slider = NSSlider(value: 100, minValue: 0, maxValue: 100,
+                                  target: self, action: #selector(changeSC55Volume(_:)))
+            slider.frame = NSRect(x: 20, y: 48, width: 300, height: 24)
+            slider.isContinuous = true
+            slider.setAccessibilityLabel("SC-55音量（パーセント）")
+            let hint = NSTextField(labelWithString: "0%で消音・100%で元の音量")
+            hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            hint.textColor = .secondaryLabelColor
+            hint.frame = NSRect(x: 20, y: 18, width: 300, height: 18)
+            for view in [description, valueLabel, slider, hint] {
+                panel.contentView?.addSubview(view)
+            }
+            panel.center()
+            sc55VolumePanel = panel
+            sc55VolumeSlider = slider
+            sc55VolumeLabel = valueLabel
+        }
+        let percent = SC55Synthesizer.shared.volume * 100
+        sc55VolumeSlider?.doubleValue = percent
+        sc55VolumeLabel?.stringValue = String(format: "%.0f%%", percent)
+        sc55VolumePanel?.makeKeyAndOrderFront(sender)
+    }
+
+    @objc private func changeSC55Volume(_ sender: NSSlider) {
+        SC55Synthesizer.shared.volume = sender.doubleValue / 100
+        sc55VolumeLabel?.stringValue = String(format: "%.0f%%", sender.doubleValue)
     }
 
     @IBAction func deleteIPLROM(_ sender: Any) {

@@ -367,3 +367,7 @@ Actual boot, GS SysEx behavior, musical timing and audible fidelity require user
 Non-sandboxed development builds can store an ordinary folder bookmark if creation
 of a security-scoped bookmark is unavailable. The saved bookmark kind determines
 resolution options; ordinary bookmarks grant no additional filesystem access.
+
+SC-55 output volume is a persisted 0–1 host mixer gain (`SC55OutputVolume`),
+applied on the audio worker. A modeless panel updates it continuously without
+pausing emulation. Firmware MIDI volume, OPM/ADPCM and system volume are independent.

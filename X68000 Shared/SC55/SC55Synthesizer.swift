@@ -14,9 +14,26 @@ final class SC55Synthesizer {
     private var pendingBytes = 0
     var onFailure: ((String) -> Void)? // Installed and called on the main queue.
 
+    // Host output gain, independent of MIDI channel volume and firmware resets.
+    // Read/write from the main thread; audio changes are serialized with playback.
+    var volume: Double {
+        get {
+            let saved = UserDefaults.standard.object(forKey: "SC55OutputVolume") as? NSNumber
+            let value = saved?.doubleValue ?? 1.0
+            return value.isFinite ? min(1.0, max(0.0, value)) : 1.0
+        }
+        set {
+            guard newValue.isFinite else { return }
+            let value = min(1.0, max(0.0, newValue))
+            UserDefaults.standard.set(value, forKey: "SC55OutputVolume")
+            worker.async { self.engine.mainMixerNode.outputVolume = Float(value) }
+        }
+    }
+
     private init() {
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.mainMixerNode.outputVolume = Float(volume)
     }
 
     static let requiredROMs: [(String, Set<Int>)] = [

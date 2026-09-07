@@ -472,7 +472,12 @@ catch common mistakes; they do not certify firmware authenticity or compatibilit
 ROMs are not supplied, downloaded, or copied into the app by MPX68K.
 
 The existing **MIDI Output Delay…** also applies to the internal module. Adjust it
-if MIDI and FM seem out of sync. A system reset also reboots the internal SC-55.
+if MIDI and FM seem out of sync. **System → MIDI Output → SC-55 Volume…** opens a
+live volume slider for the internal SC-55 only (0% mutes, 100% is the original
+output level). The setting is saved and survives app and sound-module resets.
+Use the Mac's volume controls for the overall output level.
+
+A system reset also reboots the internal SC-55.
 The sound module uses a separate audio engine; the app's existing FM/ADPCM audio
 recording tap does not currently include its output.
 
