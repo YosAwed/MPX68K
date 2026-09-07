@@ -13,6 +13,7 @@ terms. See ATTRIBUTION.md for the full provenance of each component.
 | Debabelizer (d68k disassembler) | `X68000 Shared/px68k/x68k/d68k.c`, `d68k.h` | Karl Stenerud (1999) | Freeware; the copyright notice must remain unaltered in source and binaries (see `d68k.h` header) |
 | fmgen (FM sound generator) | `X68000 Shared/px68k/fmgen/` | cisc (1998–2003) | cisc's distribution terms (copyright notices in source file headers) |
 | win32api compatibility layer | `X68000 Shared/px68k/win32api/` | NONAKA Kimihiro (2003) | BSD-style license with advertising clause (see `win32api/dosio.h`) |
+| Nuked SC-55 | `X68000 Shared/SC55/core/` | nukeykt and contributors | GPL-2.0-or-later (see `X68000 Shared/SC55/LICENSE`) |
 | MPX68K Swift application layer and modifications | `X68000 Shared/`, `X68000 macOS/` | GOROman, YosAwed, and contributors | Distributed under the terms compatible with the components above |
 
 ## Note on the combined work

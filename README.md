@@ -14,7 +14,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **M68000 CPU**: Powered by C68K emulator core
 - **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz
 - **FM Sound Synthesis**: High-quality audio via fmgen (OPM + ADPCM)
-- **MIDI Output**: External MIDI with configurable output delay and buffering
+- **MIDI Output**: External MIDI or an internal SC-55 using your own ROM dumps, with configurable output delay and buffering
 - **Multiple Disk Formats**: Floppy (.dim, .xdf, .2hd, .d88, .hdm) and hard disk (.hdf, .hds)
 
 ### Storage
@@ -151,7 +151,8 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 - **Reset System**: Hard-reset the emulator
 - **Use X68000 Mouse** (⇧⌘M): Toggle X68000 mouse capture
 - **Toggle Input Mode**: Switch between input modes
-- **MIDI Output Delay…**: Configure MIDI output delay
+- **MIDI Output**: Select External MIDI or Internal SC-55; choose a ROM folder and test the internal sound
+- **MIDI Output Delay…**: Configure MIDI output delay (applies to either destination)
 - **Delete IPLROM.DAT…**: Remove a cached IPL ROM
 - **Serial Communication → Mouse Only / PTY / TCP Connection… / TCP Server… / Disconnect**: Select serial backend
 - **Serial Communication → Original Mouse SCC (Compat)**: Enable SCC compatibility mode for VS.X double-click
@@ -339,7 +340,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 - **Background Video Superimpose**: Overlay a local video file as a luma-keyed background, with adjustable threshold / softness / intensity
 - **Adjustable CPU Clock**: 1 / 10 / 16 / 24 / 40 / 50 MHz selection from the Clock menu
 - **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, and TCP server backends
-- **MIDI Output with Delay**: External MIDI output with configurable delay and buffering
+- **MIDI Output with Delay**: External MIDI or internal SC-55 output with configurable delay and buffering
 - **JoyportU Support**: ATARI-style joystick integration with Notify / Command modes
 - **Disk State Management**: Auto-mount modes (Disabled / Restore Last Session / Smart Load / Manual) with save/restore and session info
 - **HDD Authoring**: Create empty `.hdf` images from the app, then format under Human68k with `FORMAT.X`
@@ -446,3 +447,34 @@ No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
 ---
 
 *SHARP X68000 is a trademark of SHARP CORPORATION. This project is not affiliated with SHARP CORPORATION.*
+
+### Internal SC-55 MIDI sound
+
+Choose **System → MIDI Output → Choose SC-55 ROM Folder…** and select a folder
+containing your own **original SC-55 (mk1)** ROM dumps. Loading the folder enables
+the internal sound module; **Test SC-55 Sound** plays middle C. No external MIDI
+hardware or virtual MIDI cable is needed. Select **External MIDI** to switch back.
+The folder is remembered using a macOS security-scoped bookmark and restored on
+next launch. If the folder is moved or becomes inaccessible, select it again.
+
+| File | Required size |
+| --- | --- |
+| `sc55_rom1.bin` | 32,768 bytes |
+| `sc55_rom2.bin` | 262,144 or 524,288 bytes |
+| `sc55_waverom1.bin` | 1,048,576 bytes |
+| `sc55_waverom2.bin` | 1,048,576 bytes |
+| `sc55_waverom3.bin` | 1,048,576 bytes |
+
+Use a matching MCU, program, and wave ROM set. The upstream core supports SC-55
+firmware 1.00, 1.21 and 2.00; this integration currently exposes only the mk1 model,
+not SC-55mkII, SC-55ST or other Sound Canvas models. File size and empty-data checks
+catch common mistakes; they do not certify firmware authenticity or compatibility.
+ROMs are not supplied, downloaded, or copied into the app by MPX68K.
+
+The existing **MIDI Output Delay…** also applies to the internal module. Adjust it
+if MIDI and FM seem out of sync. A system reset also reboots the internal SC-55.
+The sound module uses a separate audio engine; the app's existing FM/ADPCM audio
+recording tap does not currently include its output.
+
+The implementation uses [Nuked SC-55](https://github.com/nukeykt/Nuked-SC55),
+GPL-2.0-or-later. See `ATTRIBUTION.md` and `X68000 Shared/SC55/README.md`.

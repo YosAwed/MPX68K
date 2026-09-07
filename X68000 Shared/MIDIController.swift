@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreMIDI
+import AppKit
 
 /// A UInt8 array, usually 3 bytes long
 public typealias MidiEvent = [UInt8]
@@ -48,6 +49,99 @@ extension MIDIPacketList {
 
 
 class MIDIController {
+    private(set) var usesInternalSC55 = false
+    private var configurationGeneration = 0
+    private let sc55BookmarkKey = "SC55ROMFolderBookmark"
+    private let sc55BookmarkScopedKey = "SC55ROMFolderBookmarkIsScoped"
+    private let sc55EnabledKey = "SC55InternalEnabled"
+
+    func configureSC55(folder: URL, completion: @escaping (Error?) -> Void) {
+        do {
+            let accessed = folder.startAccessingSecurityScopedResource()
+            defer { if accessed { folder.stopAccessingSecurityScopedResource() } }
+            let roms = try SC55Synthesizer.readROMs(from: folder)
+            let bookmark: Data
+            let scoped: Bool
+            do {
+                bookmark = try folder.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                                                   includingResourceValuesForKeys: nil, relativeTo: nil)
+                scoped = true
+            } catch {
+                // Non-sandboxed development builds may not have the app-scope entitlement.
+                // An ordinary bookmark remembers the selection without granting any access.
+                bookmark = try folder.bookmarkData(options: [.minimalBookmark],
+                                                   includingResourceValuesForKeys: nil, relativeTo: nil)
+                scoped = false
+            }
+            configurationGeneration += 1
+            let generation = configurationGeneration
+            SC55Synthesizer.shared.start(roms: roms) { [weak self] error in
+                guard let self, self.configurationGeneration == generation else { return }
+                self.clearPendingMIDI()
+                if error == nil && !self.usesInternalSC55 {
+                    // Silence the previous destination before changing the route.
+                    for channel in UInt8(0)..<16 {
+                        self.sendEventImmediate([0xB0 | channel, 120, 0])
+                    }
+                }
+                self.usesInternalSC55 = error == nil
+                UserDefaults.standard.set(error == nil, forKey: self.sc55EnabledKey)
+                if error == nil {
+                    UserDefaults.standard.set(bookmark, forKey: self.sc55BookmarkKey)
+                    UserDefaults.standard.set(scoped, forKey: self.sc55BookmarkScopedKey)
+                    infoLog("Internal SC-55 enabled", category: .audio)
+                }
+                completion(error)
+            }
+        } catch { completion(error) }
+    }
+
+    func useExternalMIDI() {
+        configurationGeneration += 1
+        clearPendingMIDI()
+        usesInternalSC55 = false
+        SC55Synthesizer.shared.stop()
+        UserDefaults.standard.set(false, forKey: sc55EnabledKey)
+    }
+
+    func restoreSC55(completion: @escaping (Error?) -> Void) {
+        guard let bookmark = UserDefaults.standard.data(forKey: sc55BookmarkKey) else {
+            completion(SC55Synthesizer.failure("SC-55 ROMフォルダーを選択してください。"))
+            return
+        }
+        do {
+            var stale = false
+            let scoped = UserDefaults.standard.object(forKey: sc55BookmarkScopedKey) as? Bool ?? true
+            let folder = try URL(resolvingBookmarkData: bookmark, options: scoped ? [.withSecurityScope] : [],
+                                 relativeTo: nil, bookmarkDataIsStale: &stale)
+            // configureSC55 refreshes the bookmark after validating and loading the files.
+            configureSC55(folder: folder, completion: completion)
+        } catch { completion(error) }
+    }
+
+    private func clearPendingMIDI() {
+        pendingEvents.removeAll()
+        pendingIndex = 0
+        runningStatus = nil
+        pendingStatus = nil
+        pendingExpected = 0
+        pendingData.removeAll()
+        inSysEx = false
+        sysExBuffer.removeAll()
+    }
+
+    func resetInternalSC55() {
+        clearPendingMIDI()
+        if usesInternalSC55 { SC55Synthesizer.shared.reset() }
+    }
+
+    private func reportSC55Error(_ error: Error) {
+        errorLog("SC-55: \(error.localizedDescription)", category: .audio)
+        let alert = NSAlert()
+        alert.messageText = "SC-55 Internal MIDI"
+        alert.informativeText = error.localizedDescription + "\nSystem → MIDI Output から設定を確認してください。"
+        alert.runModal()
+    }
     var clientRef:   MIDIClientRef = 0
     var inPortRef:   MIDIPortRef = 0
     var outPortRef:  MIDIPortRef = 0
@@ -77,9 +171,21 @@ class MIDIController {
     
     init() {
         Connect()
+        SC55Synthesizer.shared.onFailure = { [weak self] message in
+            self?.useExternalMIDI()
+            self?.reportSC55Error(SC55Synthesizer.failure(message))
+        }
+        if UserDefaults.standard.bool(forKey: sc55EnabledKey) {
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreSC55 { error in
+                    if let error { self?.reportSC55Error(error) }
+                }
+            }
+        }
     }
     let clientName: CFString = "MPX68K" as CFString
     deinit {
+        SC55Synthesizer.shared.stop()
         if outPortRef2 != 0 {
             MIDIPortDispose( outPortRef2 )
             outPortRef2 = 0
@@ -262,20 +368,7 @@ class MIDIController {
             return
         }
 
-        if event.count <= 255 {
-            var packets = MIDIPacketList(midiEvents: [event])
-            sendPackets(&packets)
-            return
-        }
-
-        var offset = 0
-        while offset < event.count {
-            let end = min(offset + 255, event.count)
-            let slice = Array(event[offset..<end])
-            var packets = MIDIPacketList(midiEvents: [slice])
-            sendPackets(&packets)
-            offset = end
-        }
+        sendEventImmediate(event)
     }
 
     private func sendPackets(_ packets: inout MIDIPacketList) {
@@ -315,6 +408,10 @@ class MIDIController {
 
     private func sendEventImmediate(_ event: [UInt8]) {
         guard !event.isEmpty else { return }
+        if usesInternalSC55 {
+            SC55Synthesizer.shared.send(event)
+            return
+        }
         if event.count <= 255 {
             var packets = MIDIPacketList(midiEvents: [event])
             sendPackets(&packets)
@@ -410,8 +507,6 @@ class MIDIController {
                 if ( i > 0 ) {
                     debugLog("Set! 1", category: .network)
                     midiDst1 = endPointRef
-                   var packets = MIDIPacketList(midiEvents: [[0x98, 0x6f, 0x78]])
-                    MIDISend(outPortRef2, endPointRef, &packets)
                 }
             }
         }

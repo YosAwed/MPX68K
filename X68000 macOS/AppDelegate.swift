@@ -940,6 +940,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         inputToggleItem.target = self
         systemMenu.addItem(inputToggleItem)
 
+        let midiOutputItem = NSMenuItem(title: "MIDI Output", action: nil, keyEquivalent: "")
+        let midiOutputMenu = NSMenu(title: "MIDI Output")
+        for (title, action) in [
+            ("External MIDI", #selector(useExternalMIDI(_:))),
+            ("Internal SC-55", #selector(useInternalSC55(_:))),
+            ("Choose SC-55 ROM Folder...", #selector(chooseSC55ROMFolder(_:))),
+            ("Test SC-55 Sound", #selector(testSC55Sound(_:)))
+        ] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            midiOutputMenu.addItem(item)
+        }
+        midiOutputItem.submenu = midiOutputMenu
+        systemMenu.addItem(midiOutputItem)
+
         let midiDelayItem = NSMenuItem(title: "MIDI Output Delay...", action: #selector(setMIDIDelay(_:)), keyEquivalent: "")
         midiDelayItem.target = self
         systemMenu.addItem(midiDelayItem)
@@ -2593,6 +2608,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
     }
 
+    @IBAction func useExternalMIDI(_ sender: Any) {
+        gameViewController?.gameScene?.midiOutputController.useExternalMIDI()
+    }
+
+    @IBAction func useInternalSC55(_ sender: Any) {
+        gameViewController?.gameScene?.midiOutputController.restoreSC55 { [weak self] error in
+            if let error {
+                self?.showSimpleAlert(title: "SC-55 Internal MIDI", message: error.localizedDescription)
+            }
+        }
+    }
+
+    @IBAction func chooseSC55ROMFolder(_ sender: Any) {
+        guard let controller = gameViewController?.gameScene?.midiOutputController else { return }
+        let panel = NSOpenPanel()
+        panel.title = "SC-55 ROM Folder"
+        panel.message = "初代SC-55のROMを選択: sc55_rom1.bin、sc55_rom2.bin、sc55_waverom1.bin〜sc55_waverom3.bin（mkIIは非対応）"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        controller.configureSC55(folder: folder) { [weak self] error in
+            if let error {
+                self?.showSimpleAlert(title: "SC-55 Internal MIDI", message: error.localizedDescription)
+            }
+        }
+    }
+
+    @IBAction func testSC55Sound(_ sender: Any) {
+        guard gameViewController?.gameScene?.midiOutputController.usesInternalSC55 == true else { return }
+        SC55Synthesizer.shared.send([0x90, 60, 100])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            SC55Synthesizer.shared.send([0x80, 60, 0])
+        }
+    }
+
     @IBAction func deleteIPLROM(_ sender: Any) {
         guard let romURL = romFileURL("IPLROM.DAT") else {
             showSimpleAlert(title: "Delete IPLROM.DAT", message: "Documents/MPX68K の場所を取得できませんでした。")
@@ -3011,6 +3062,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(testSC55Sound(_:)) {
+            return gameViewController?.gameScene?.midiOutputController.usesInternalSC55 == true
+        }
+        if menuItem.action == #selector(useExternalMIDI(_:)) || menuItem.action == #selector(useInternalSC55(_:)) {
+            let controller = gameViewController?.gameScene?.midiOutputController
+            let internalSelected = controller?.usesInternalSC55 == true
+            let isInternalItem = menuItem.action == #selector(useInternalSC55(_:))
+            menuItem.state = internalSelected == isInternalItem ? .on : .off
+            return controller != nil
+        }
+        if menuItem.action == #selector(chooseSC55ROMFolder(_:)) {
+            return gameViewController?.gameScene != nil
+        }
         // Avoid touching menu state until the main menu is fully attached.
         if NSApplication.shared.mainMenu == nil || (NSApplication.shared.mainMenu?.items.isEmpty ?? true) {
             return true

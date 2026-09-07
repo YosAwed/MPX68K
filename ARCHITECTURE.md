@@ -339,3 +339,31 @@ The server runs on a dedicated POSIX thread and is lifecycle-managed by `AppDele
 The socket is placed in the sandbox-writable home directory, restricted to mode `0600`, and can be overridden with `MPX68K_MONITOR_SOCK`. `SO_NOSIGPIPE` is set on each accepted client fd so that a disconnecting client cannot deliver `SIGPIPE` to the main emulator process. Live CPU, memory, and device commands require an acknowledged `PAUSE`. The no-pause `DIAG` command reads a mutex-protected snapshot produced by the emulation thread instead of racing live core state.
 
 This architecture enables MPX68K to provide authentic X68000 emulation while maintaining modern macOS user experience standards.
+
+## Internal SC-55 MIDI destination
+
+`MIDIController` routes complete messages, including running-status MIDI and SysEx,
+to either CoreMIDI or `SC55Synthesizer`. Output delay is applied before routing;
+changing destinations clears delayed messages and parser state. The fallback frame
+timer also flushes delayed events.
+
+`SC55Synthesizer` owns a single Nuked SC-55 instance on a serial worker queue. It
+reads bounded ROM files under security-scoped folder access, then passes their
+contents through `SC55Bridge.h`. The core performs no host filesystem access.
+The headless adapter retains MCU/timer/PCM emulation, wave-ROM unscrambling and
+LCD interrupt timing while replacing SDL, MIDI device input and the standalone
+main loop. It currently selects only the original SC-55 model.
+
+Audio is rendered at the upstream mk1 rate of 64 kHz into three 1024-frame buffers.
+AVAudioPlayerNode/AVAudioEngine performs hardware-rate conversion. Generation tokens
+invalidate completions after stop/reset/reconfiguration. Firmware is advanced silently
+for four emulated seconds (validated with SC-55 v1.21) before playback. MIDI queues and per-render
+instruction work are bounded; failures stop the internal module and surface an alert.
+The existing FM/ADPCM AudioQueue and recording tap are independent of this engine.
+
+Run `make -C tests/sc55` for synthetic-firmware sanitizer checks (no proprietary ROMs).
+Actual boot, GS SysEx behavior, musical timing and audible fidelity require user ROMs.
+
+Non-sandboxed development builds can store an ordinary folder bookmark if creation
+of a security-scoped bookmark is unavailable. The saved bookmark kind determines
+resolution options; ordinary bookmarks grant no additional filesystem access.

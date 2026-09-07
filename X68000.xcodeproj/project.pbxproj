@@ -91,6 +91,13 @@
 		53C0A1062E50050000AAA001 /* SuperimposeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1052E50050000AAA001 /* SuperimposeManager.swift */; };
 		AA000001300000000000AA01 /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002300000000000AA01 /* MonitorView.swift */; };
 		AA000003300000000000AA01 /* MonitorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004300000000000AA01 /* MonitorWindowController.swift */; };
+		B3CFCB3297CDB60B3CF637D2 /* SC55Synthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8CD27A179700D7990E7DD5 /* SC55Synthesizer.swift */; };
+		539045C9E96A0C04EF9B0815 /* mcu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 51F5475CE1B3A7C745247693 /* mcu.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
+		ED92843DEF8A287E5FD660E9 /* mcu_interrupt.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 93E63580A029C28D0ECC6794 /* mcu_interrupt.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
+		1F94F3C9CD715F01BB8FAD86 /* mcu_opcodes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4901D98E3659EB73C462A3DA /* mcu_opcodes.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
+		4FAB13001B3FF6F5A38E0C15 /* mcu_timer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42B05041DA884D8227AB33B9 /* mcu_timer.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
+		89488EEEB3E26D31F19962AC /* pcm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82E8B7C0D87A1C70AD5CFA07 /* pcm.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
+		F5D8EC3483043D3A68675204 /* submcu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C4D5CB257320BD46BF1A9F41 /* submcu.cpp */; settings = {COMPILER_FLAGS = "-O2"; }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -271,6 +278,13 @@
 		53C0A1052E50050000AAA001 /* SuperimposeManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuperimposeManager.swift; sourceTree = "<group>"; };
 		AA000002300000000000AA01 /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
 		AA000004300000000000AA01 /* MonitorWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorWindowController.swift; sourceTree = "<group>"; };
+		FE8CD27A179700D7990E7DD5 /* SC55Synthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SC55/SC55Synthesizer.swift"; sourceTree = "<group>"; };
+		51F5475CE1B3A7C745247693 /* mcu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/mcu.cpp"; sourceTree = "<group>"; };
+		93E63580A029C28D0ECC6794 /* mcu_interrupt.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/mcu_interrupt.cpp"; sourceTree = "<group>"; };
+		4901D98E3659EB73C462A3DA /* mcu_opcodes.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/mcu_opcodes.cpp"; sourceTree = "<group>"; };
+		42B05041DA884D8227AB33B9 /* mcu_timer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/mcu_timer.cpp"; sourceTree = "<group>"; };
+		82E8B7C0D87A1C70AD5CFA07 /* pcm.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/pcm.cpp"; sourceTree = "<group>"; };
+		C4D5CB257320BD46BF1A9F41 /* submcu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "SC55/core/submcu.cpp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -333,6 +347,13 @@
 				07F863A4242F93E800CBB224 /* GameScene.swift */,
 				0758DC5D243EFD830097E86C /* ConfigScene.swift */,
 				07A528BB24389F5300AFD00D /* X68MouseController.swift */,
+				FE8CD27A179700D7990E7DD5 /* SC55Synthesizer.swift */,
+				51F5475CE1B3A7C745247693 /* mcu.cpp */,
+				93E63580A029C28D0ECC6794 /* mcu_interrupt.cpp */,
+				4901D98E3659EB73C462A3DA /* mcu_opcodes.cpp */,
+				42B05041DA884D8227AB33B9 /* mcu_timer.cpp */,
+				82E8B7C0D87A1C70AD5CFA07 /* pcm.cpp */,
+				C4D5CB257320BD46BF1A9F41 /* submcu.cpp */,
 				07B71D7B243A350500953E25 /* MIDIController.swift */,
 				0760DC2924350DDC004CA0CF /* BenchMark.swift */,
 				53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */,
@@ -707,6 +728,13 @@
 				0786963E243DBB73007FCCEA /* TAAnalogJoyStick.swift in Sources */,
 				07F4C7402430667D002CF5CA /* fdd.c in Sources */,
 				535D07B02E685E0300CF5265 /* ppi.c in Sources */,
+				B3CFCB3297CDB60B3CF637D2 /* SC55Synthesizer.swift in Sources */,
+				539045C9E96A0C04EF9B0815 /* mcu.cpp in Sources */,
+				ED92843DEF8A287E5FD660E9 /* mcu_interrupt.cpp in Sources */,
+				1F94F3C9CD715F01BB8FAD86 /* mcu_opcodes.cpp in Sources */,
+				4FAB13001B3FF6F5A38E0C15 /* mcu_timer.cpp in Sources */,
+				89488EEEB3E26D31F19962AC /* pcm.cpp in Sources */,
+				F5D8EC3483043D3A68675204 /* submcu.cpp in Sources */,
 				07B71D7D243A350500953E25 /* MIDIController.swift in Sources */,
 				07F8640E242F94BB00CBB224 /* peace.c in Sources */,
 				07F4C74A2430667D002CF5CA /* scc.c in Sources */,

@@ -54,3 +54,15 @@ provenance of the third-party code vendored in this repository.
 - **Authors**: GOROman (original iOS port of px68k), YosAwed (macOS port
   and ongoing development), and contributors.
 - **Upstream**: <https://github.com/YosAwed/MPX68K>
+
+## Nuked SC-55 — internal MIDI sound module
+
+- **Location**: `X68000 Shared/SC55/core/`
+- **Upstream**: https://github.com/nukeykt/Nuked-SC55
+- **Revision**: `9c98ab97b8d7b1af841845bbd65c4d2371f33ad0`
+- **Author**: Copyright (C) 2021, 2024 nukeykt and upstream contributors.
+- **License**: GPL-2.0-or-later, as stated by this pinned revision;
+  full text in `X68000 Shared/SC55/LICENSE`.
+- **Modifications (2026-09-07)**: headless host API, SDL removal, bounded MIDI and
+  rendering, complete reset support. See the component README for details.
+- No Roland firmware, wave ROMs, artwork or standalone front-panel assets are included.

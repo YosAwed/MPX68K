@@ -124,6 +124,7 @@ class GameScene: SKScene {
     
     // HDD auto-save removed - direct writes implemented
     private var midiController: MIDIController = MIDIController()
+    var midiOutputController: MIDIController { midiController }
     private let midiDelayDefaultsKey = "MIDIOutputDelayMs"
     private let midiDefaultDelayMs: Double = 300.0
     private var midiOutputDelayMs: Double = 0.0
@@ -567,6 +568,7 @@ class GameScene: SKScene {
     
     // MARK: - System Management
     func resetSystem() {
+        midiController.resetInternalSC55()
         infoLog("GameScene.resetSystem() called - performing manual reset", category: .emulation)
         // Persist SRAM before reset so SWITCH changes survive disk swaps/resets.
         fileSystem?.saveSRAM()
@@ -1166,11 +1168,13 @@ class GameScene: SKScene {
     }
     
     func applicationWillResignActive() {
+        SC55Synthesizer.shared.setPaused(true)
         // Pause audio to prevent underruns when app is inactive
         audioStream?.pause()
     }
     
     func applicationDidBecomeActive() {
+        SC55Synthesizer.shared.setPaused(false)
         // Resume audio when app becomes active
         audioStream?.play()
     }
@@ -1443,6 +1447,7 @@ class GameScene: SKScene {
                     X68000_Update(self.clockMHz, 0)
                 }
                 self.flushMIDIBuffer()
+                self.midiController.flushDelayedEvents()
             }
             
             // Start periodic SRAM save timer (every 30 seconds)
