@@ -50,8 +50,8 @@ class X68JoyCard : X68Device
     {
         // Only update visual state if joydata actually changed
         if joydata != lastDisplayedJoydata {
-            buttonA?.fillColor = (joydata & JOY_TRG1 != 0) ? .yellow : .black
-            buttonB?.fillColor = (joydata & JOY_TRG2 != 0) ? .yellow : .black
+            buttonA?.fillColor = (joydata & JOY_TRG2 != 0) ? .yellow : .black
+            buttonB?.fillColor = (joydata & JOY_TRG1 != 0) ? .yellow : .black
             buttonU?.fillColor = (joydata & JOY_UP    != 0)  ? .yellow : .black
             buttonD?.fillColor = (joydata & JOY_DOWN  != 0) ? .yellow : .black
             buttonL?.fillColor = (joydata & JOY_LEFT  != 0) ? .yellow : .black
@@ -69,10 +69,10 @@ class X68JoyCard : X68Device
             if let name = t.name {
                 var c = false
                 if ( name == "A" ) {
-                    self.JoySet(device_id, JOY_TRG1, true ); c = true
+                    self.JoySet(device_id, JOY_TRG2, true ); c = true
                 }
                 if ( name == "B" ) {
-                    self.JoySet(device_id, JOY_TRG2, true ); c = true
+                    self.JoySet(device_id, JOY_TRG1, true ); c = true
                 }
                 if ( name == "U" ) {
                     self.JoySet(device_id, JOY_UP, true ); c = true
@@ -107,10 +107,10 @@ class X68JoyCard : X68Device
                     self.sprite.position = location
                 }
                 if ( name == "A" ) {
-                    flag |= JOY_TRG1
+                    flag |= JOY_TRG2
                 }
                 if ( name == "B" ) {
-                    flag |= JOY_TRG2
+                    flag |= JOY_TRG1
                 }
                 if ( name == "U" ) {
                     flag |= JOY_UP
@@ -144,10 +144,10 @@ class X68JoyCard : X68Device
             let t = scene.atPoint(location)
             if let name = t.name {
                 if ( name == "A" ) {
-                    self.JoySet(device_id, JOY_TRG1, false );
+                    self.JoySet(device_id, JOY_TRG2, false );
                 }
                 if ( name == "B" ) {
-                    self.JoySet(device_id, JOY_TRG2, false );
+                    self.JoySet(device_id, JOY_TRG1, false );
                 }
                 if ( name == "U" ) {
                     self.JoySet(device_id, JOY_UP, false );
@@ -179,13 +179,13 @@ class X68JoyCard : X68Device
         case 0x7C: // Right Arrow
             JoySet(device_id, JOY_RIGHT, pressed)
         case 0x31: // Space (Button A)
-            JoySet(device_id, JOY_TRG1, pressed)
+            JoySet(device_id, JOY_TRG2, pressed)
         case 0x06: // Z (Button B)
-            JoySet(device_id, JOY_TRG2, pressed)
-        case 0x00: // A (Button A alternative)
             JoySet(device_id, JOY_TRG1, pressed)
-        case 0x0B: // B (Button B alternative)
+        case 0x00: // A (Button A alternative)
             JoySet(device_id, JOY_TRG2, pressed)
+        case 0x0B: // B (Button B alternative)
+            JoySet(device_id, JOY_TRG1, pressed)
         default:
             break
         }
@@ -203,9 +203,9 @@ class X68JoyCard : X68Device
         case "d":
             JoySet(device_id, JOY_RIGHT, pressed)
         case "j":
-            JoySet(device_id, JOY_TRG1, pressed)
-        case "k":
             JoySet(device_id, JOY_TRG2, pressed)
+        case "k":
+            JoySet(device_id, JOY_TRG1, pressed)
         default:
             break
         }
@@ -217,9 +217,9 @@ class X68JoyCard : X68Device
         if let name = t.name {
             switch name {
             case "A":
-                JoySet(device_id, JOY_TRG1, pressed)
-            case "B":
                 JoySet(device_id, JOY_TRG2, pressed)
+            case "B":
+                JoySet(device_id, JOY_TRG1, pressed)
             case "U":
                 JoySet(device_id, JOY_UP, pressed)
             case "D":
