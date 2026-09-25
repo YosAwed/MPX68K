@@ -1460,6 +1460,11 @@ const int X68000_IsFDDReady( const long drive )
     return FDD_IsReady((int)drive);
 }
 
+const int X68000_IsFDDMounted(const long drive)
+{
+    return FDD_IsMounted((int)drive);
+}
+
 const char* X68000_GetFDDFilename( const long drive )
 {
     if (drive >= 0 && drive < 2) {

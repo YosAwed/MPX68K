@@ -113,4 +113,5 @@ package-lock.json
 
 # Host-side core test artifacts
 tests/core/test_disk_d88
+tests/core/test_fdd_mount
 tests/core/_test_image.d88

@@ -392,6 +392,12 @@ class GameViewController: NSViewController {
     // Swallow initial noisy deltas after enabling capture
     private var captureSettleUntil: TimeInterval? = nil
     private var didShowInitialDiskPrompt = false
+    private var isSelectingBootMedia = false
+    private var isWaitingForBootMedia = false
+    private var bootMediaTimer: Timer?
+    private var bootMediaOverlay: NSVisualEffectView?
+    private var bootMediaMessage: NSTextField?
+    private var bootMediaButton: NSButton?
     
     
     
@@ -561,7 +567,8 @@ class GameViewController: NSViewController {
         ejectFDDFromDrive(1)
     }
     
-    private func openFDDForDrive(_ drive: Int, completion: ((Bool) -> Void)? = nil) {
+    private func openFDDForDrive(_ drive: Int) {
+        setBootMediaSelectionInProgress(true)
         let appDelegate = NSApplication.shared.delegate as? AppDelegate
         appDelegate?.appendSCSILogPublic("FDD_OPEN enter drive=\(drive) thread=\(Thread.isMainThread ? "main" : "bg")")
         appDelegate?.appendSCSILogPublic("FDD_OPEN before_alloc")
@@ -622,15 +629,16 @@ class GameViewController: NSViewController {
                 infoLog("NSOpenPanel selected file: \(url.path)", category: .fileSystem)
                 let accessible = url.startAccessingSecurityScopedResource()
                 DispatchQueue.main.async {
-                    self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
+                    let result = self?.gameScene?.loadFDDToDrive(url: url, drive: drive)
+                        ?? .failure(X68MacError.emulationError("エミュレータが準備できていません。"))
                     if accessible {
                         url.stopAccessingSecurityScopedResource()
                     }
-                    completion?(true)
+                    self?.finishDiskSelection(result)
                 }
             } else {
-                warningLog("NSOpenPanel cancelled or failed", category: .ui)
-                completion?(false)
+                debugLog("FDD selection cancelled", category: .ui)
+                self?.finishDiskSelection(nil)
             }
         }
         appDelegate?.appendSCSILogPublic("FDD_OPEN begin_returned drive=\(drive)")
@@ -645,7 +653,8 @@ class GameViewController: NSViewController {
         openHDDWithCompletion()
     }
 
-    private func openHDDWithCompletion(_ completion: ((Bool) -> Void)? = nil) {
+    private func openHDDWithCompletion() {
+        setBootMediaSelectionInProgress(true)
         let openPanel = NSOpenPanel()
         openPanel.title = "Open Hard Disk Image"
         
@@ -687,47 +696,140 @@ class GameViewController: NSViewController {
         openPanel.begin { [weak self] response in
             if response == .OK, let url = openPanel.url {
                 infoLog("NSOpenPanel selected HDD file: \(url.path)", category: .fileSystem)
-                let accessible = url.startAccessingSecurityScopedResource()
-                DispatchQueue.main.async {
-                    self?.gameScene?.loadHDD(url: url)
-                    if accessible {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                    completion?(true)
+                guard let self = self else { return }
+                guard let scene = self.gameScene else {
+                    self.finishDiskSelection(.failure(X68MacError.emulationError("エミュレータが準備できていません。")))
+                    return
+                }
+                scene.loadHDD(url: url) { [weak self] result in
+                    self?.finishDiskSelection(result)
                 }
             } else {
-                warningLog("HDD NSOpenPanel cancelled or failed", category: .ui)
-                completion?(false)
+                debugLog("HDD selection cancelled", category: .ui)
+                self?.finishDiskSelection(nil)
             }
         }
     }
 
+    private var hasBootMedia: Bool {
+        if X68000_IsFDDMounted(0) != 0 || X68000_IsFDDMounted(1) != 0 {
+            return true
+        }
+        switch X68000_GetStorageBusMode() {
+        case 1: return X68000_SCSI_IsMounted(0, 0) != 0
+        case 2: return X68000_SCSIU_IsConnected() != 0
+        default: return X68000_IsHDDReady() != 0
+        }
+    }
+
     func promptForBootMediaIfNeeded() {
-        let appDelegate = NSApplication.shared.delegate as? AppDelegate
-        appDelegate?.appendSCSILogPublic("BOOT_PROMPT enter thread=\(Thread.isMainThread ? "main" : "bg")")
-
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { [weak self] in
-                self?.promptForBootMediaIfNeeded()
-            }
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.promptForBootMediaIfNeeded() }
             return
         }
-
-        guard !didShowInitialDiskPrompt else {
-            appDelegate?.appendSCSILogPublic("BOOT_PROMPT already_shown")
-            return
-        }
-        let hasFDD0 = X68000_IsFDDReady(0) != 0
-        let hasFDD1 = X68000_IsFDDReady(1) != 0
-        let hasHDD = X68000_IsHDDReady() != 0
-        appDelegate?.appendSCSILogPublic("BOOT_PROMPT ready fdd0=\(hasFDD0) fdd1=\(hasFDD1) hdd=\(hasHDD)")
-        guard !hasFDD0 && !hasFDD1 && !hasHDD else {
-            appDelegate?.appendSCSILogPublic("BOOT_PROMPT skip_has_disk")
-            return
-        }
-
+        guard !didShowInitialDiskPrompt, !hasBootMedia else { return }
         didShowInitialDiskPrompt = true
+        isWaitingForBootMedia = true
+        showBootMediaStatus()
+        // Menu actions and drag-and-drop can mount media outside this picker.
+        // Watch only while waiting for the first disk, then stop permanently.
+        bootMediaTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.resumeBootIfMediaMounted()
+        }
+        chooseBootMedia()
+    }
 
+    private func showBootMediaStatus(error: Error? = nil) {
+        guard isWaitingForBootMedia else { return }
+        if bootMediaOverlay == nil {
+            let overlay = NSVisualEffectView()
+            overlay.material = .hudWindow
+            overlay.blendingMode = .withinWindow
+            overlay.state = .active
+            overlay.wantsLayer = true
+            overlay.layer?.cornerRadius = 12
+            overlay.translatesAutoresizingMaskIntoConstraints = false
+
+            let message = NSTextField(wrappingLabelWithString: "")
+            message.alignment = .center
+            message.font = .systemFont(ofSize: 16, weight: .medium)
+            let button = NSButton(title: "ディスクを選択…", target: self, action: #selector(chooseBootMedia))
+            button.bezelStyle = .rounded
+            let stack = NSStackView(views: [message, button])
+            stack.orientation = .vertical
+            stack.spacing = 18
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            overlay.addSubview(stack)
+            view.addSubview(overlay)
+            NSLayoutConstraint.activate([
+                overlay.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                overlay.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+                overlay.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -32),
+                stack.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 24),
+                stack.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -24),
+                stack.topAnchor.constraint(equalTo: overlay.topAnchor, constant: 24),
+                stack.bottomAnchor.constraint(equalTo: overlay.bottomAnchor, constant: -24),
+                message.widthAnchor.constraint(lessThanOrEqualToConstant: 420)
+            ])
+            bootMediaOverlay = overlay
+            bootMediaMessage = message
+            bootMediaButton = button
+        }
+        if let error = error {
+            let detail: String
+            if let diskError = error as? X68MacError,
+               case .diskImageCorrupted(let reason) = diskError,
+               reason.hasPrefix("File is empty:") {
+                detail = "ディスクイメージが空（0バイト）です。別のファイルを選択してください。"
+            } else {
+                detail = error.localizedDescription
+            }
+            bootMediaMessage?.stringValue = "ディスクを読み込めませんでした。\n\(detail)"
+        } else {
+            bootMediaMessage?.stringValue = "起動ディスクが未選択です。\nFDD または HDD のディスクイメージを選択してください。"
+        }
+        bootMediaButton?.isEnabled = !isSelectingBootMedia
+    }
+
+    private func setBootMediaSelectionInProgress(_ inProgress: Bool) {
+        isSelectingBootMedia = inProgress
+        bootMediaButton?.isEnabled = !inProgress
+    }
+
+    private func finishDiskSelection(_ result: Result<Void, Error>?) {
+        setBootMediaSelectionInProgress(false)
+        if let result = result, case .failure(let error) = result {
+            if isWaitingForBootMedia {
+                showBootMediaStatus(error: error)
+            } else {
+                handleError(error, context: "Disk load")
+            }
+        } else {
+            showBootMediaStatus()
+            resumeBootIfMediaMounted()
+        }
+    }
+
+    private func resumeBootIfMediaMounted() {
+        guard isWaitingForBootMedia, !isSelectingBootMedia, hasBootMedia else { return }
+        isWaitingForBootMedia = false
+        bootMediaTimer?.invalidate()
+        bootMediaTimer = nil
+        bootMediaOverlay?.removeFromSuperview()
+        bootMediaOverlay = nil
+        bootMediaMessage = nil
+        bootMediaButton = nil
+        gameScene?.resetSystem()
+        view.window?.makeFirstResponder(self)
+    }
+
+    @objc private func chooseBootMedia() {
+        guard !isSelectingBootMedia else { return }
+        if hasBootMedia {
+            resumeBootIfMediaMounted()
+            return
+        }
+        setBootMediaSelectionInProgress(true)
         let alert = NSAlert()
         alert.messageText = "起動ディスクを選択してください"
         alert.informativeText = "記録メディアがマウントされていません。FDD 0/1 または HDD を選んでください。"
@@ -738,43 +840,20 @@ class GameViewController: NSViewController {
         alert.addButton(withTitle: "キャンセル")
 
         let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-            appDelegate?.appendSCSILogPublic("BOOT_PROMPT handleResponse response=\(response.rawValue)")
-            // The alert sheet is still dismissing when this fires. Defer via
-            // main.async so the sheet fully tears down before we allocate
-            // another NSOpenPanel (otherwise the XPC panel service hangs
-            // waiting for the window's sheet slot to free up).
+            // Let the sheet dismiss before creating the file picker.
             DispatchQueue.main.async { [weak self] in
-                appDelegate?.appendSCSILogPublic("BOOT_PROMPT async_tick response=\(response.rawValue)")
                 switch response {
-                case .alertFirstButtonReturn:
-                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(0)")
-                    self?.openFDDForDrive(0) { success in
-                        appDelegate?.appendSCSILogPublic("BOOT_PROMPT openFDDForDrive completion success=\(success)")
-                        if success { self?.resetAfterBootMediaInsert() }
-                    }
-                case .alertSecondButtonReturn:
-                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openFDDForDrive(1)")
-                    self?.openFDDForDrive(1) { success in
-                        if success { self?.resetAfterBootMediaInsert() }
-                    }
-                case .alertThirdButtonReturn:
-                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT calling openHDDWithCompletion")
-                    self?.openHDDWithCompletion { success in
-                        if success { self?.resetAfterBootMediaInsert() }
-                    }
-                default:
-                    appDelegate?.appendSCSILogPublic("BOOT_PROMPT cancelled")
+                case .alertFirstButtonReturn: self?.openFDDForDrive(0)
+                case .alertSecondButtonReturn: self?.openFDDForDrive(1)
+                case .alertThirdButtonReturn: self?.openHDDWithCompletion()
+                default: self?.finishDiskSelection(nil)
                 }
             }
         }
-
         if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
-            appDelegate?.appendSCSILogPublic("BOOT_PROMPT beginSheetModal window=\(window.title)")
             alert.beginSheetModal(for: window, completionHandler: handleResponse)
         } else {
-            appDelegate?.appendSCSILogPublic("BOOT_PROMPT runModal no_window")
-            let response = alert.runModal()
-            handleResponse(response)
+            handleResponse(alert.runModal())
         }
     }
 
@@ -831,12 +910,6 @@ class GameViewController: NSViewController {
         appDelegate?.appendSCSILogPublic("GVC_SCSI v12 begin_returned")
     }
 
-    private func resetAfterBootMediaInsert() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.gameScene?.resetSystem()
-        }
-    }
-    
     @IBAction func ejectHDD(_ sender: Any) {
         gameScene?.ejectHDD()
     }
@@ -1288,6 +1361,7 @@ class GameViewController: NSViewController {
     }
     
     deinit {
+        bootMediaTimer?.invalidate()
         infoLog("GameViewController.deinit - final save", category: .ui)
         // Final save attempt
         gameScene?.saveHDD()

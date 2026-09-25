@@ -2448,13 +2448,21 @@ class FileSystem {
     }
     
     // MARK: - Explicit FDD Drive Loading
-    func loadFDDToDrive(_ url: URL, drive: Int) {
+    @discardableResult
+    func loadFDDToDrive(_ url: URL, drive: Int) -> Result<Void, Error> {
         debugLog("FileSystem.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         do {
+            guard (0...1).contains(drive) else {
+                throw X68MacError.invalidConfiguration("Invalid FDD drive: \(drive)")
+            }
             let fileSize = try X68Security.validatedDiskImageSize(url, maximumSize: 2 * 1024 * 1024)
             try streamDiskImage(at: url, bufferDrive: drive, fileSize: fileSize, chunkSize: 256 * 1024)
             X68000_LoadFDD(drive, url.path)
+            guard X68000_IsFDDMounted(drive) != 0 else {
+                X68000_EjectFDD(drive)
+                throw X68MacError.diskImageCorrupted(url.lastPathComponent)
+            }
             
             // Record mount in Swift side for state management
             let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
@@ -2463,8 +2471,10 @@ class FileSystem {
             // Save current disk state after successful load
             self.saveCurrentDiskState()
             infoLog("FDD loaded to drive \(drive) - no automatic reset", category: .fileSystem)
+            return .success(())
         } catch let error as NSError {
             errorLog("Error loading FDD image", error: error, category: .fileSystem)
+            return .failure(error)
         }
     }
     

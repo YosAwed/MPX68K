@@ -13,7 +13,7 @@ CFLAGS += -Wall -g $(SAN) \
 
 # Test binaries are phony so edits to the (space-containing) core source
 # paths always trigger a rebuild; the builds are cheap.
-.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf
+.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount
 
 all: run
 
@@ -33,11 +33,15 @@ test_scrbuf:
 		"$(PX68K)/x11/scrbuf.c" "$(PX68K)/x11/windraw.c" \
 		"$(PX68K)/x68k/crtc_timing.c" "$(PX68K)/x68k/crtc.c" -lm
 
-run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf
+test_fdd_mount:
+	$(CC) $(CFLAGS) -o $@ test_fdd_mount.c "$(PX68K)/x68k/fdd.c"
+
+run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount
 	./test_disk_d88
 	./test_crtc_timing
 	./test_mfp_hsync
 	./test_scrbuf
+	./test_fdd_mount
 
 clean:
-	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf _test_image.d88
+	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount _test_image.d88

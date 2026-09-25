@@ -31,6 +31,7 @@ int FDD_Read(int drv, FDCID* id, unsigned char* buf);
 int FDD_ReadDiag(int drv, FDCID* id, FDCID* retid, unsigned char* buf);
 int FDD_Write(int drv, FDCID* id, unsigned char* buf, int del);
 int FDD_IsReady(int drv);
+int FDD_IsMounted(int drv);
 int FDD_IsReadOnly(int drv);
 int FDD_GetCurrentID(int drv, FDCID* id);
 void FDD_SetReadOnly(int drv);

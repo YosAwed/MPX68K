@@ -122,6 +122,15 @@ The project includes a dependency on the c68k CPU emulator which is built automa
 
 ## Usage
 
+### Starting without a disk
+
+If no startup disk is mounted after session restoration, MPX68K offers FDD 0,
+FDD 1, or HDD selection. Cancelling either dialog leaves a message and a
+**ディスクを選択…** button in the window. You can retry there or use the FDD/HDD
+menus or drag-and-drop. Disk-picker errors remain visible with a retry option;
+the startup reset runs only after media is mounted, not after a fixed delay.
+Normal disk swaps after startup do not trigger this reset.
+
 ### macOS Menu Reference
 
 #### FDD Menu

@@ -55,6 +55,7 @@ void X68000_Joystick_Set( unsigned char num, unsigned char data);
 
 void X68000_EjectFDD( const long drive );
 const int X68000_IsFDDReady( const long drive );
+const int X68000_IsFDDMounted(const long drive);
 const char* X68000_GetFDDFilename( const long drive );
 
 void X68000_EjectHDD();

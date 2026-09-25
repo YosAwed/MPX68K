@@ -302,6 +302,13 @@ int FDD_IsReady(int drv)
 		return FALSE;
 }
 
+// A mounted image is available before the emulated insertion delay expires.
+int FDD_IsMounted(int drv)
+{
+    if (drv < 0 || drv > 3) return FALSE;
+    return fdd.Types[drv] != FD_Non;
+}
+
 
 int FDD_IsReadOnly(int drv)
 {

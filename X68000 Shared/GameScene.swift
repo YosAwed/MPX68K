@@ -239,7 +239,8 @@ class GameScene: SKScene {
     }
     
     // MARK: - FDD Management
-    func loadFDDToDrive(url: URL, drive: Int) {
+    @discardableResult
+    func loadFDDToDrive(url: URL, drive: Int) -> Result<Void, Error> {
         // debugLog("GameScene.loadFDDToDrive() called with: \(url.lastPathComponent) to drive \(drive)", category: .fileSystem)
         
         if fileSystem == nil {
@@ -248,7 +249,7 @@ class GameScene: SKScene {
             fileSystem?.gameScene = self
         }
         
-        fileSystem?.loadFDDToDrive(url, drive: drive)
+        let result = fileSystem!.loadFDDToDrive(url, drive: drive)
         
         // Update menu after FDD load
         #if os(macOS)
@@ -256,6 +257,7 @@ class GameScene: SKScene {
             appDelegate.updateMenuOnFileOperation()
         }
         #endif
+        return result
     }
     
     func ejectFDDFromDrive(_ drive: Int) {
@@ -285,11 +287,24 @@ class GameScene: SKScene {
         return fileSize
     }
 
-    func loadHDD(url: URL) {
+    func loadHDD(url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
         // debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
         // debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
         // debugLog("Full path: \(url.path)", category: .fileSystem)
         
+        // Keep sandbox access until the asynchronous read and mount finish.
+        let accessible = url.startAccessingSecurityScopedResource()
+        let finish: (Result<Void, Error>) -> Void = { result in
+            DispatchQueue.main.async {
+                if accessible { url.stopAccessingSecurityScopedResource() }
+                if let completion = completion {
+                    completion(result)
+                } else if case .failure(let error) = result {
+                    self.showAlert(title: "ディスクを読み込めませんでした", message: error.localizedDescription)
+                }
+            }
+        }
+
         // Direct HDD loading to avoid complex FileSystem routing that may fail in TestFlight
         let extname = url.pathExtension.lowercased()
         let bookmarkData = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
@@ -330,6 +345,7 @@ class GameScene: SKScene {
                                     appDelegate.updateMenuOnFileOperation()
                                 }
                                 #endif
+                                finish(.success(()))
                                 return
                             }
 
@@ -349,9 +365,11 @@ class GameScene: SKScene {
                                 appDelegate.updateMenuOnFileOperation()
                             }
                             #endif
+                            finish(.success(()))
                         }
                     } catch {
                         errorLog("Error reading SCSI HDD file", error: error, category: .fileSystem)
+                        finish(.failure(error))
                     }
                 }
                 return
@@ -387,34 +405,17 @@ class GameScene: SKScene {
                             appDelegate.updateMenuOnFileOperation()
                         }
                         #endif
-                    }
-                } catch let error as X68MacError {
-                    if case .diskImageCorrupted(let message) = error, message.contains("File is empty") {
-                        errorLog("HDD file is empty (0 bytes): \(url.path)", category: .fileSystem)
-                        #if os(macOS)
-                        DispatchQueue.main.async {
-                            let alert = NSAlert()
-                            alert.messageText = "HDD イメージが空です"
-                            alert.informativeText = "\(url.lastPathComponent) は 0 バイトのため、マウントできません。別のディスクイメージを選択してください。"
-                            alert.alertStyle = .warning
-                            alert.addButton(withTitle: "OK")
-                            if let window = NSApplication.shared.mainWindow {
-                                alert.beginSheetModal(for: window, completionHandler: nil)
-                            } else {
-                                alert.runModal()
-                            }
-                        }
-                        #endif
-                    } else {
-                        errorLog("Error reading HDD file", error: error, category: .fileSystem)
+                        finish(.success(()))
                     }
                 } catch {
                     errorLog("Error reading HDD file", error: error, category: .fileSystem)
+                    finish(.failure(error))
                 }
             }
         } else {
             errorLog("Invalid HDD file extension: \(extname)", category: .fileSystem)
             errorLog("Expected: hdf, hdm, hds", category: .fileSystem)
+            finish(.failure(X68MacError.unsupportedFileFormat(extname)))
         }
     }
     
