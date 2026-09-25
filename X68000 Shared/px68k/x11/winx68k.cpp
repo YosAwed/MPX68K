@@ -198,8 +198,19 @@ X68000_NormalizeDecodedIplIocsHandler(DWORD decoded, DWORD sourceRaw, int* outCa
 
 extern BYTE* s_disk_image_buffer[5];
 extern long s_disk_image_buffer_size[5];
+
+// Runtime file logging is disabled by default, as in scsi.c, irqh.c and
+// mem_wrap.c: it writes into the user's Documents/MPX68K folder and /tmp.
+// Enable with -DMPX68K_ENABLE_RUNTIME_FILE_LOGS=1 when debugging SCSI boot.
+#ifndef MPX68K_ENABLE_RUNTIME_FILE_LOGS
+#define MPX68K_ENABLE_RUNTIME_FILE_LOGS 0
+#endif
+
 // Debug: write to /tmp (always accessible) AND normal log path
 static void DebugLog(const char* msg) {
+#if !MPX68K_ENABLE_RUNTIME_FILE_LOGS
+    (void)msg;
+#else
     FILE* fp;
     // Always write to /tmp first (no sandbox issues)
     fp = fopen("/tmp/x68k_debug.txt", "a");
@@ -213,6 +224,7 @@ static void DebugLog(const char* msg) {
         snprintf(path, sizeof(path), "MPX68K/_scsi_iocs.txt");
     fp = fopen(path, "a");
     if (fp) { fprintf(fp, "%s\n", msg); fclose(fp); }
+#endif
 }
 
 static int s_appendlog_total = 0;
@@ -221,7 +233,7 @@ static int s_appendlog_total = 0;
 static void
 X68000_AppendSCSILog(const char* message)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__) && MPX68K_ENABLE_RUNTIME_FILE_LOGS
     if (s_appendlog_total >= APPENDLOG_LIMIT) return;
     s_appendlog_total++;
     const char* home = getenv("HOME");
