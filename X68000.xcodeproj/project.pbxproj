@@ -83,8 +83,6 @@
 		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
 		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
-		53A861212E4376CB0056E4DE /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861202E4376CB0056E4DE /* Crypto */; };
-		53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 53A861222E4376CB0056E4DE /* _CryptoExtras */; };
 		53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */; };
 		53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */; };
 		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
@@ -291,8 +289,6 @@
 		07F863B9242F93EA00CBB224 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
-				53A861232E4376CB0056E4DE /* _CryptoExtras in Frameworks */,
-				53A861212E4376CB0056E4DE /* Crypto in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -586,10 +582,6 @@
 				53685FBC2F2B8F1E00A86652 /* PBXTargetDependency */,
 			);
 			name = "X68000 macOS";
-			packageProductDependencies = (
-				53A861202E4376CB0056E4DE /* Crypto */,
-				53A861222E4376CB0056E4DE /* _CryptoExtras */,
-			);
 			productName = "X68000 macOS";
 			productReference = 07F863BC242F93EA00CBB224 /* X68000.app */;
 			productType = "com.apple.product-type.application";
@@ -619,9 +611,6 @@
 				Base,
 			);
 			mainGroup = 07F8639C242F93E800CBB224;
-			packageReferences = (
-				53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */,
-			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 07F863AB242F93EA00CBB224 /* Products */;
 			projectDirPath = "";
@@ -1033,30 +1022,6 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-crypto.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.14.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		53A861202E4376CB0056E4DE /* Crypto */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */;
-			productName = Crypto;
-		};
-		53A861222E4376CB0056E4DE /* _CryptoExtras */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 53A8611F2E4376CB0056E4DE /* XCRemoteSwiftPackageReference "swift-crypto" */;
-			productName = _CryptoExtras;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 07F8639D242F93E800CBB224 /* Project object */;
 }

@@ -82,7 +82,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     private var isConnectingSCSIU = false
 
     // MARK: - Core Bridge Helpers
+    // Runtime file logging is off by default, matching the core's
+    // MPX68K_ENABLE_RUNTIME_FILE_LOGS. Add MPX68K_ENABLE_RUNTIME_FILE_LOGS to
+    // Active Compilation Conditions to write these logs when debugging.
     private func resetSCSILogs() {
+        #if MPX68K_ENABLE_RUNTIME_FILE_LOGS
         let home = NSHomeDirectory()
         let logDir = "\(home)/Documents/\(FileSystem.documentsDirectoryName)"
         let fileManager = FileManager.default
@@ -104,6 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             }
             try? "".write(toFile: logPath, atomically: true, encoding: .utf8)
         }
+        #endif
     }
 
     /// Public wrapper so GameViewController can write to the same SCSI log file.
@@ -112,6 +117,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     }
 
     private func appendSCSILog(_ message: String) {
+        #if MPX68K_ENABLE_RUNTIME_FILE_LOGS
         guard let data = "\(message)\n".data(using: .utf8) else { return }
         let home = NSHomeDirectory()
         let fileManager = FileManager.default
@@ -145,6 +151,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 try? data.write(to: URL(fileURLWithPath: logPath))
             }
         }
+        #endif
     }
 
     private func coreGetStorageBusMode() -> StorageBusMode {
