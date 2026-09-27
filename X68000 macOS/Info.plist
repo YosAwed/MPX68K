@@ -64,8 +64,6 @@
 	<string>NSApplication</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>MPX68KのROMファイルとディスクイメージにアクセスするために必要です</string>
-	<key>NSDownloadsFolderUsageDescription</key>
-	<string>ダウンロードフォルダからディスクイメージを読み込むために必要です</string>
 	<key>UISupportsDocumentBrowser</key>
 	<true/>
 	<key>UTExportedTypeDeclarations</key>
