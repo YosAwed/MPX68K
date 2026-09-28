@@ -658,8 +658,18 @@ WinX68k_Reset(void)
 		// the intercept fires.
 		Memory_ClearSCSIMode();
 		Memory_SetSASIBootMode();
-		SRAM[0x18 ^ 1] = 0x80;
-		X68000_AppendSCSILog("IPL-ROM-FIRST: SCSI boot, SRAM=$80");
+		// Human68k tools (FORMAT.X etc.) need the SRAM SCSI settings for the
+		// external board; SCSI_Init() cleared the overlay for the IPL ROM.
+		SRAM_SetSCSIBoardOverlay(1);
+		if (SCSI_IsBlankImageMounted()) {
+			// Unformatted image: standard boot order so the IPL ROM boots a
+			// Human68k floppy, from which FORMAT.X can initialise the disk.
+			SRAM[0x18 ^ 1] = 0x00;
+			X68000_AppendSCSILog("IPL-ROM-FIRST: blank SCSI image, standard boot (SRAM=$00)");
+		} else {
+			SRAM[0x18 ^ 1] = 0x80;
+			X68000_AppendSCSILog("IPL-ROM-FIRST: SCSI boot, SRAM=$80");
+		}
 	} else {
 		g_scsi_boot_pending = 0;
 		SASI_ArmSCSIBootIntercept(0);

@@ -673,8 +673,12 @@ void FASTCALL SASI_Write(DWORD adr, BYTE data)
 			         s_disk_image_buffer_size[4]);
 			SCSI_LogText(slog);
 		}
+		// X68000_SCSI_Mount mirrors the SCSI image into the SASI slots.  An
+		// unformatted SCSI image must not answer selection, or the IPL ROM
+		// would try to boot its all-zero first sector.
 		if ( (SASI_Device < 8) &&
-		     (SASI_IsDriveReady(SASI_Device*2) || SASI_IsDriveReady(SASI_Device*2+1)) )
+		     (SASI_IsDriveReady(SASI_Device*2) || SASI_IsDriveReady(SASI_Device*2+1)) &&
+		     !SCSI_IsBlankImageMounted() )
 		{
 			SASI_Phase++;
 			SASI_CmdPtr = 0;

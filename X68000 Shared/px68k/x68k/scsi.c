@@ -1472,7 +1472,7 @@ void SCSI_Init(void)
 	{
 		char buildTag[96];
 		snprintf(buildTag, sizeof(buildTag),
-			         "SCSI_BUILD devdrv-partoff-v17 %s %s",
+			         "SCSI_BUILD devdrv-partoff-v18 %s %s",
 		         __DATE__, __TIME__);
 		SCSI_LogText(buildTag);
 	}
@@ -1538,6 +1538,37 @@ static SCSI_LOGFN_ATTR void SCSI_EnsureLogDir(void)
 		mkdir(dirPath, 0755);
 	}
 #endif
+}
+
+// Bytes checked for "blank": covers the X68SCSI1 header, the partition table
+// and the first partition's boot sector, all of which FORMAT.X writes.
+#define SCSI_BLANK_CHECK_BYTES 0x10000
+
+int SCSI_IsBlankImageMounted(void)
+{
+	const BYTE* buf;
+	long size;
+	long i;
+
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() != 1) {
+		return 0;  // SASI images and the SCSI-U bridge are never "blank"
+	}
+#endif
+	buf = s_disk_image_buffer[4];
+	size = s_disk_image_buffer_size[4];
+	if (buf == NULL || size <= 0) {
+		return 0;
+	}
+	if (size > SCSI_BLANK_CHECK_BYTES) {
+		size = SCSI_BLANK_CHECK_BYTES;
+	}
+	for (i = 0; i < size; i++) {
+		if (buf[i] != 0) {
+			return 0;
+		}
+	}
+	return 1;
 }
 
 int SCSI_IsROMPresent(void)
@@ -2314,6 +2345,11 @@ static void SCSI_HandleBoot(void)
 	}
 	imgBuf = SCSI_ImgBuf();
 	imgSize = (DWORD)SCSI_ImgSize();
+	if (SCSI_IsBlankImageMounted()) {
+		SCSI_LogText("SCSI_BOOT: image is blank (not formatted)");
+		C68k_Set_DReg(&C68K, 0, 0xFFFFFFFF);
+		return;
+	}
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
@@ -2532,6 +2568,14 @@ void SCSI_InjectBoot(void)
 	}
 	imgBuf = SCSI_ImgBuf();
 	imgSize = (DWORD)SCSI_ImgSize();
+
+	// A freshly created (all-zero) image has no boot code; injecting it would
+	// jump into zeros.  Leave the IPL ROM to boot from floppy so FORMAT.X can
+	// initialise the disk.
+	if (SCSI_IsBlankImageMounted()) {
+		SCSI_LogText("SCSI_INJECT_BOOT: image is blank (not formatted) - not booting from SCSI");
+		return;
+	}
 
 	blockSize = SCSI_GetImageBlockSize();
 	if (blockSize == 0) {
