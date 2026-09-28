@@ -58,6 +58,9 @@ static DWORD s_last_iocs_sig_d5 = 0;
 static DWORD s_last_iocs_sig_a1 = 0;
 static int s_scsi_log_total = 0;        // global log line counter
 #define SCSI_LOG_LIMIT 50000             // stop logging after this many lines
+static int s_scsi_log_mute = 0;          // suppress SCSI_LogText while set
+static int s_scsi_poll_log_count = 0;    // logged idle-poll device commands
+#define SCSI_POLL_LOG_LIMIT 32           // mute Human68k idle polling after this many
 
 #ifdef __APPLE__
 #define SCSIU_VENDOR_ID  0x04d8
@@ -1422,10 +1425,12 @@ void SCSI_Init(void)
 	SCSI_InvalidateTransferCache();
 	s_last_iocs_sig_valid = 0;
 	s_scsi_log_total = 0;
+	s_scsi_poll_log_count = 0;
+	s_scsi_log_mute = 0;
 	{
 		char buildTag[96];
 		snprintf(buildTag, sizeof(buildTag),
-			         "SCSI_BUILD devdrv-partoff-v14 %s %s",
+			         "SCSI_BUILD devdrv-partoff-v17 %s %s",
 		         __DATE__, __TIME__);
 		SCSI_LogText(buildTag);
 	}
@@ -1572,6 +1577,7 @@ void SCSI_LogText(const char* text)
 #else
 	char logPath[512];
 	FILE* mirror;
+	if (s_scsi_log_mute) return;
 	if (s_scsi_log_total >= SCSI_LOG_LIMIT) return;
 	s_scsi_log_total++;
 	SCSI_GetLogPath(logPath, sizeof(logPath));
@@ -4251,7 +4257,36 @@ static int SCSI_ReadBPBFromImage(BYTE* outBpb, DWORD* outPartOffset)
 //     +$12: count / BPB pointer (long, BE)
 //     +$16: start sector (long, BE)
 // -----------------------------------------------------------------------
+static void SCSI_HandleDeviceCommandImpl(void);
+
 static void SCSI_HandleDeviceCommand(void)
+{
+#if defined(HAVE_C68K)
+	// Human68k polls MEDIACHECK (cmd=1) and IOCTL sub=9 (cmd=5) endlessly
+	// while idle; after a few rounds, mute them so the log limit is spent on
+	// the operations we actually want to trace (e.g. FORMAT.X).
+	DWORD reqpkt = SCSI_Mask24(s_scsi_dev_reqpkt);
+	int isPoll = 0;
+	if (reqpkt != 0 && SCSI_IsLinearRamRange(reqpkt, 0x0E)) {
+		BYTE cmd = Memory_ReadB(reqpkt + 2);
+		isPoll = (cmd == 1) || (cmd == 5 && Memory_ReadB(reqpkt + 0x0D) == 9);
+	}
+	if (isPoll) {
+		if (s_scsi_poll_log_count < SCSI_POLL_LOG_LIMIT) {
+			s_scsi_poll_log_count++;
+			if (s_scsi_poll_log_count == SCSI_POLL_LOG_LIMIT) {
+				SCSI_LogText("SCSI_DEV idle polling (cmd=1, cmd=5 sub=9) log muted from here");
+			}
+		} else {
+			s_scsi_log_mute = 1;
+		}
+	}
+	SCSI_HandleDeviceCommandImpl();
+	s_scsi_log_mute = 0;
+#endif
+}
+
+static void SCSI_HandleDeviceCommandImpl(void)
 {
 #if defined(HAVE_C68K)
 	DWORD reqpkt = s_scsi_dev_reqpkt;
