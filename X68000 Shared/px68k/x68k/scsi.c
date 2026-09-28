@@ -157,6 +157,13 @@ static DWORD s_scsi_config_sector = 0;          // CONFIG.SYS sector number
 static DWORD s_scsi_config_size = 0;            // CONFIG.SYS file size (bytes)
 static int s_scsi_config_read_count = 0;        // CONFIG.SYS read counter
 static int s_scsi_config_boot_phase = 1;        // 1=boot phase, 0=normal
+// CONFIG.SYS without SHELL= and without a REM line to overwrite: the default
+// SHELL line is appended past the file end, and the directory entry's size is
+// enlarged in memory by s_scsi_config_append_len (never written to the image).
+static DWORD s_scsi_config_orig_size = 0;       // on-disk CONFIG.SYS size
+static DWORD s_scsi_config_append_pos = 0;      // insert offset within the file
+static DWORD s_scsi_config_append_len = 0;      // bytes added (0 = inactive)
+static int s_scsi_config_append_crlf = 0;       // prefix CRLF before SHELL line
 static int s_scsi_media_check_count = 0;        // MEDIA CHECK call counter
 static DWORD s_scsi_data_start_sector = 0;      // first data sector (partition-relative)
 static BYTE s_scsi_sec_per_clus = 1;            // sectors per cluster
@@ -1396,6 +1403,10 @@ void SCSI_Init(void)
 	s_scsi_config_size = 0;
 	s_scsi_config_read_count = 0;
 	s_scsi_config_boot_phase = 1;
+	s_scsi_config_orig_size = 0;
+	s_scsi_config_append_pos = 0;
+	s_scsi_config_append_len = 0;
+	s_scsi_config_append_crlf = 0;
 	s_scsi_media_check_count = 0;
 	s_scsi_data_start_sector = 0;
 	s_scsi_sec_per_clus = 1;
@@ -1967,6 +1978,145 @@ static void SCSI_NormalizeRootShortNames(DWORD bufAddr, DWORD startSec,
 	}
 }
 
+static const char k_scsi_default_shell_line[] = "SHELL=\\COMMAND.X /P\r\n";
+
+static DWORD SCSI_DefaultShellLineLen(void)
+{
+	return (DWORD)(sizeof(k_scsi_default_shell_line) - 1);
+}
+
+// Pointer to a partition sector inside the loaded image, or NULL when the
+// range is not resident (e.g. beyond the SCSI-U boot cache).
+static const BYTE* SCSI_PartitionSectorPtr(DWORD sec, DWORD len)
+{
+	BYTE* img = SCSI_ImgBuf();
+	long imgSize = SCSI_ImgSize();
+	unsigned long long off = (unsigned long long)sec * (unsigned long long)s_scsi_sector_size;
+
+	if (s_scsi_dev_absolute_sectors != 1) {
+		off += (unsigned long long)s_scsi_partition_byte_offset;
+	}
+	if (img == NULL || imgSize <= 0 || off + len > (unsigned long long)imgSize) {
+		return NULL;
+	}
+	return img + off;
+}
+
+static int SCSI_MatchLineKeyword(const BYTE* p, DWORD len, DWORD pos, const char* kw)
+{
+	DWORD k;
+	for (k = 0; kw[k] != '\0'; k++) {
+		BYTE c;
+		if (pos + k >= len) {
+			return 0;
+		}
+		c = p[pos + k];
+		if (c >= 'a' && c <= 'z') {
+			c = (BYTE)(c - ('a' - 'A'));
+		}
+		if (c != (BYTE)kw[k]) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+// Decide whether the SHELL line has to be appended to CONFIG.SYS.  Only used
+// when there is neither a SHELL= line nor a REM line that the read-path patch
+// could overwrite in place.
+static void SCSI_PlanConfigShellAppend(DWORD cfgSec, DWORD fileSize)
+{
+	const BYTE* text;
+	DWORD textLen = fileSize;
+	DWORD i;
+	DWORD lineStart = 0;
+	DWORD shellLen = SCSI_DefaultShellLineLen();
+	DWORD insertLen;
+
+	s_scsi_config_orig_size = fileSize;
+	s_scsi_config_append_len = 0;
+	s_scsi_config_append_crlf = 0;
+
+	// Keep the patch within the first sector the kernel reads.
+	if (fileSize == 0 || fileSize >= s_scsi_sector_size) {
+		return;
+	}
+	text = SCSI_PartitionSectorPtr(cfgSec, s_scsi_sector_size);
+	if (text == NULL) {
+		return;
+	}
+	for (i = 0; i < fileSize; i++) {
+		if (text[i] == 0x1A || text[i] == 0x00) {
+			textLen = i;
+			break;
+		}
+	}
+	for (i = 0; i < textLen; i++) {
+		if (i == lineStart) {
+			while (i < textLen && (text[i] == ' ' || text[i] == '\t')) {
+				i++;
+			}
+			if (SCSI_MatchLineKeyword(text, textLen, i, "SHELL") ||
+			    SCSI_MatchLineKeyword(text, textLen, i, "REM ")) {
+				return;
+			}
+		}
+		if (i < textLen && text[i] == 0x0A) {
+			lineStart = i + 1;
+		}
+	}
+
+	s_scsi_config_append_crlf = (textLen > 0 && text[textLen - 1] != 0x0A) ? 1 : 0;
+	insertLen = shellLen + (s_scsi_config_append_crlf ? 2U : 0U);
+	// Anything after the text (normally a single ^Z) is kept behind the line.
+	if (fileSize + insertLen > s_scsi_sector_size) {
+		return;
+	}
+	s_scsi_config_append_pos = textLen;
+	s_scsi_config_append_len = insertLen;
+}
+
+// Undo the in-memory CONFIG.SYS size enlargement in a root directory buffer
+// that is about to be written back to the image.
+static void SCSI_RestoreConfigSizeInDirBuf(BYTE* buf, DWORD startSec,
+                                           DWORD count, DWORD secSize)
+{
+	DWORD s;
+	DWORD rootStart = s_scsi_root_dir_start_sector;
+	DWORD rootCount = s_scsi_root_dir_sector_count;
+	DWORD patched = s_scsi_config_orig_size + s_scsi_config_append_len;
+
+	if (s_scsi_config_append_len == 0 || rootCount == 0 || secSize < 32) {
+		return;
+	}
+	for (s = 0; s < count; s++) {
+		DWORD sec = startSec + s;
+		DWORD off;
+		if (sec < rootStart || sec >= rootStart + rootCount) {
+			continue;
+		}
+		for (off = 0; off + 32 <= secSize; off += 32) {
+			BYTE* ent = buf + (s * secSize) + off;
+			DWORD size;
+			if (ent[0] == 0x00) {
+				break;
+			}
+			if (memcmp(ent, "CONFIG  SYS", 11) != 0) {
+				continue;
+			}
+			size = (DWORD)ent[0x1C] | ((DWORD)ent[0x1D] << 8) |
+			       ((DWORD)ent[0x1E] << 16) | ((DWORD)ent[0x1F] << 24);
+			if (size == patched) {
+				ent[0x1C] = (BYTE)(s_scsi_config_orig_size & 0xFF);
+				ent[0x1D] = (BYTE)((s_scsi_config_orig_size >> 8) & 0xFF);
+				ent[0x1E] = (BYTE)((s_scsi_config_orig_size >> 16) & 0xFF);
+				ent[0x1F] = (BYTE)((s_scsi_config_orig_size >> 24) & 0xFF);
+				SCSI_LogText("SCSI_DEV WRITE restored on-disk CONFIG.SYS size");
+			}
+		}
+	}
+}
+
 static void SCSI_LogRootConfigEntry(DWORD bufAddr, DWORD startSec,
                                     DWORD count, DWORD secSize)
 {
@@ -2049,6 +2199,16 @@ static void SCSI_LogRootConfigEntry(DWORD bufAddr, DWORD startSec,
 				               ((DWORD)(firstCluster - 2) * (DWORD)s_scsi_sec_per_clus);
 				s_scsi_config_sector = cfgSec;
 				s_scsi_config_size = fileSize;
+				SCSI_PlanConfigShellAppend(cfgSec, fileSize);
+				if (s_scsi_config_append_len != 0) {
+					DWORD newSize = fileSize + s_scsi_config_append_len;
+					Memory_WriteB(ent + 0x1C, (BYTE)(newSize & 0xFF));
+					Memory_WriteB(ent + 0x1D, (BYTE)((newSize >> 8) & 0xFF));
+					Memory_WriteB(ent + 0x1E, (BYTE)((newSize >> 16) & 0xFF));
+					Memory_WriteB(ent + 0x1F, (BYTE)((newSize >> 24) & 0xFF));
+					s_scsi_config_size = newSize;
+					SCSI_LogText("SCSI_DEV CONFIG no SHELL/REM line: appending default SHELL");
+				}
 				snprintf(line, sizeof(line),
 				         "SCSI_DEV CONFIG map sec=%u size=%u spc=%u dataStart=%u",
 				         (unsigned int)s_scsi_config_sector,
@@ -5270,6 +5430,29 @@ static void SCSI_HandleDeviceCommand(void)
 				}
 			}
 
+			// No REM line to overwrite: append the SHELL line at the end of
+			// the text. The directory entry size was enlarged to match.
+			if (startSec == s_config_sector && s_config_sector != 0 &&
+			    s_scsi_config_append_len != 0 &&
+			    s_scsi_config_orig_size + s_scsi_config_append_len <= (DWORD)byteCount) {
+				DWORD pos = s_scsi_config_append_pos;
+				DWORD tail = s_scsi_config_orig_size - pos;
+				DWORD shellLen = SCSI_DefaultShellLineLen();
+				DWORD k;
+				// Move the trailing bytes (normally ^Z) behind the new line.
+				for (k = tail; k > 0; k--) {
+					Memory_WriteB(bufAddr + pos + s_scsi_config_append_len + k - 1,
+					              Memory_ReadB(bufAddr + pos + k - 1));
+				}
+				if (s_scsi_config_append_crlf) {
+					Memory_WriteB(bufAddr + pos++, 0x0D);
+					Memory_WriteB(bufAddr + pos++, 0x0A);
+				}
+				for (k = 0; k < shellLen; k++) {
+					Memory_WriteB(bufAddr + pos + k, (BYTE)k_scsi_default_shell_line[k]);
+				}
+			}
+
 			// If CONFIG.SYS has no SHELL= line, inject a default.
 			// Without SHELL=, AUTOEXEC.BAT runs in a child process and
 			// environment changes such as PATH are lost.
@@ -5508,6 +5691,7 @@ static void SCSI_HandleDeviceCommand(void)
 			}
 			for (i = 0; i < (DWORD)byteCount; i++)
 				tmpBuf[i] = Memory_ReadB(bufAddr + i);
+			SCSI_RestoreConfigSizeInDirBuf(tmpBuf, startSec, count, secSize);
 			if (!SCSIU_WriteBlocks(physLBA, physBlks, secSize, tmpBuf)) {
 				free(tmpBuf);
 				SCSI_SetReqStatus(reqpkt, 0, 0x02);
@@ -5537,6 +5721,8 @@ static void SCSI_HandleDeviceCommand(void)
 		for (i = 0; i < (DWORD)byteCount; i++) {
 			s_disk_image_buffer[4][(DWORD)byteOffset + i] = Memory_ReadB(bufAddr + i);
 		}
+		SCSI_RestoreConfigSizeInDirBuf(s_disk_image_buffer[4] + (DWORD)byteOffset,
+		                               startSec, count, secSize);
 		SASI_SetDirtyFlag(0);
 
 		SCSI_SetReqStatus(reqpkt, 1, 0x00);
