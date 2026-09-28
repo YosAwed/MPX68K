@@ -13,6 +13,39 @@
 	BYTE	SRAM[0x4000];
 	BYTE	SRAMFILE[] = "SRAM.DAT";
 
+static int s_scsi_board_overlay = 0;
+
+// $ED006F: 'V' = SCSI 設定有効, $ED0070: bit0-2 本体SCSI ID / bit3 外付けSCSI
+#define SRAM_SCSI_VALID_ADDR 0x6f
+#define SRAM_SCSI_CONF_ADDR  0x70
+#define SRAM_SCSI_VALID_MARK 0x56
+#define SRAM_SCSI_CONF_EXT   0x08
+#define SRAM_SCSI_CONF_DEF   0x0f  // 外付けSCSI, 本体ID=7 (FORMAT.X の既定値と同じ)
+
+void SRAM_SetSCSIBoardOverlay(int enable)
+{
+	s_scsi_board_overlay = enable ? 1 : 0;
+}
+
+static BYTE SRAM_ApplySCSIBoardOverlay(DWORD adr, BYTE val)
+{
+	// adr is the byte-swapped SRAM[] index
+	if (!s_scsi_board_overlay) {
+		return val;
+	}
+	if ((adr ^ 1) == SRAM_SCSI_VALID_ADDR) {
+		return SRAM_SCSI_VALID_MARK;
+	}
+	if ((adr ^ 1) == SRAM_SCSI_CONF_ADDR) {
+		// Keep a user-configured SCSI ID (SWITCH.X), only force bit3.
+		if (SRAM[SRAM_SCSI_VALID_ADDR ^ 1] == SRAM_SCSI_VALID_MARK) {
+			return (BYTE)(val | SRAM_SCSI_CONF_EXT);
+		}
+		return SRAM_SCSI_CONF_DEF;
+	}
+	return val;
+}
+
 
 // -----------------------------------------------------------------------
 //   役に立たないうぃるすチェック
@@ -135,7 +168,7 @@ BYTE FASTCALL SRAM_Read(DWORD adr)
 	adr &= 0xffff;
 	adr ^= 1;
 	if (adr<0x4000)
-		val = SRAM[adr];
+		val = SRAM_ApplySCSIBoardOverlay(adr, SRAM[adr]);
 	else
 		val = 0xff;
 

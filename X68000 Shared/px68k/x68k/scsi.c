@@ -10,6 +10,7 @@
 #include	"m68000.h"
 #include	"scsi.h"
 #include	"sasi.h"
+#include	"sram.h"
 #include	"x68kmemory.h"
 #include	"crtc.h"
 #include	"palette.h"
@@ -1166,7 +1167,13 @@ SCSI_ImgSize(void)
 
 // ---------------------------------------------------------------------------------------
 //  合成SCSI ROM (外付けSCSI CZ-6BS1互換: $EA0000-$EA1FFF)
-//  - $EA0024: "SCSIEX" シグネチャ
+//  - $EA0024: "SCSIEX" シグネチャ（従来位置）
+//  - $EA0044: "SCSIEX" シグネチャ（実機位置: ROMは $EA0020 から始まる）
+//    FORMAT.X / SWITCH.X / HDID.X / HUMAN.SYS はここで外付けSCSIを検出する
+//  - $EA0020: ROMヘッダ P（= SCSI_SYNTH_ROMHDR_ENTRY）へのポインタ
+//    P-16: ドライバ組込みルーチン (HUMAN.SYS SCSIDEV が呼ぶ)
+//    P-12: IOCS初期化ルーチン (FORMAT.X が D1=0 で呼ぶ)
+//    P-8 : "Human68k"
 //  - $EA0068: "Human68k" シグネチャ
 //  - ブート/IOCSは $E9F800 トラップで C 側へ橋渡し
 // ---------------------------------------------------------------------------------------
@@ -1181,8 +1188,8 @@ static BYTE SCSIIMG[] = {
 	BE32(SCSI_SYNTH_INIT_ENTRY), BE32(SCSI_SYNTH_INIT_ENTRY),
 	BE32(SCSI_SYNTH_INIT_ENTRY), BE32(SCSI_SYNTH_INIT_ENTRY),
 
-	// $EA0020
-	BE32(SCSI_SYNTH_BOOT_ENTRY),
+	// $EA0020: ROMヘッダ P へのポインタ（実機の ROM 先頭と同じ規約）
+	BE32(SCSI_SYNTH_ROMHDR_ENTRY),
 
 	// $EA0024: "SCSIEX"（外付けSCSI ROM互換）
 	'S', 'C', 'S', 'I', 'E', 'X',
@@ -1192,17 +1199,21 @@ static BYTE SCSIIMG[] = {
 	0x00, 0xe9, 0xf8, 0x00,
 
 	// $EA0030: ブートエントリ
+	// $EA0044 の "SCSIEX" と重ならないよう jsr は絶対ショート形式にしている
+	// (動作は従来の jsr $00002000.l と同一)
 	0x13, 0xfc, 0x00, 0xff, 0x00, 0xe9, 0xf8, 0x00, // move.b #$ff,$e9f800
 	0x4a, 0x80,                                     // tst.l d0
-	0x66, 0x06,                                     // bne.s fail
-	0x4e, 0xb9, 0x00, 0x00, 0x20, 0x00,             // jsr $00002000
+	0x66, 0x04,                                     // bne.s fail
+	0x4e, 0xb8, 0x20, 0x00,                         // jsr $2000.w
 	0x70, 0xff,                                     // fail: moveq #-1,d0
 	0x4e, 0x75,                                     // rts
 
-	// $EA0046-$EA0057: reserved (18 bytes)
+	// $EA0044: "SCSIEX"（実機位置）
+	'S', 'C', 'S', 'I', 'E', 'X',
+
+	// $EA004A-$EA0057: reserved (14 bytes)
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
 	// $EA0058: "SCSI" / $EA005C: init / $EA0060: iocs
 	// $EA0068: "Human68k"（実機互換位置）
@@ -1343,6 +1354,34 @@ static BYTE SCSIIMG[] = {
 	// ---------------------------------------------------------------
 	0x13, 0xfc, 0x00, 0x01, 0x00, 0xe9, 0xf8, 0x02, // move.b #$01,$E9F802
 	0x4e, 0x75,                                       // rts
+
+	// $EA012A-$EA012F: パディング (6 bytes)
+	0, 0, 0, 0, 0, 0,
+
+	// ---------------------------------------------------------------
+	// $EA0130: Human68k ROM ヘッダ ($EA0020 が指す P = $EA0140)
+	// ---------------------------------------------------------------
+	// P-16: ドライバ組込み。D2=-1 で「組込むドライバなし」を返す。
+	//       ドライバは C 側 (SCSI_LinkDeviceDriver) がリンクする。
+	BE32(SCSI_SYNTH_ROMHDR_DRVINST),
+	// P-12: IOCS初期化 (IOCS $F5 を登録)
+	BE32(SCSI_SYNTH_ROMHDR_IOCSINIT),
+	// P-8: "Human68k"
+	'H', 'u', 'm', 'a', 'n', '6', '8', 'k',
+
+	// $EA0140: P: ブートエントリへ
+	0x4e, 0xf9, BE32(SCSI_SYNTH_BOOT_ENTRY),        // jmp $EA0030
+	0x00, 0x00,                                     // パディング
+
+	// $EA0148: ドライバ組込みルーチン (4 bytes)
+	0x74, 0xff,                                     // moveq #-1,d2
+	0x4e, 0x75,                                     // rts
+
+	// $EA014C: IOCS初期化ルーチン (14 bytes)
+	0x23, 0xfc, BE32(SCSI_SYNTH_IOCS_ENTRY),        // move.l #$ea0080,$7d4.l
+	0x00, 0x00, 0x07, 0xd4,
+	0x70, 0x00,                                     // moveq #0,d0
+	0x4e, 0x75,                                     // rts
 };
 
 #undef BE32
@@ -1356,6 +1395,9 @@ void SCSI_Init(void)
 	int i;
 	BYTE tmp;
 	ZeroMemory(SCSIIPL, 0x2000);
+	// The external-SCSI SRAM view is only for the OS session that booted from
+	// the synthetic ROM; the IPL ROM of the next boot must see real SRAM.
+	SRAM_SetSCSIBoardOverlay(0);
 	if (SCSI_HasExternalROM()) {
 		p6logd("SCSI_Init: SCSIEXROM.DAT detected, will activate after kernel boot\n");
 	}
@@ -2609,6 +2651,9 @@ void SCSI_CommitDeferredBoot(void)
 	C68k_Set_DReg(&C68K, 5, s_scsi_deferred_d5);
 	C68k_Set_SR(&C68K, 0x2000);
 	Memory_SetSCSIMode();
+	// FORMAT.X / SWITCH.X / HDID.X require $ED006F='V' and $ED0070 bit3
+	// (external SCSI) in addition to the $EA0044 "SCSIEX" signature.
+	SRAM_SetSCSIBoardOverlay(1);
 	C68k_Set_PC(&C68K, s_scsi_deferred_boot_addr);
 	cpu_setOPbase24(s_scsi_deferred_boot_addr);
 
