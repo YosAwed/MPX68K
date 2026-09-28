@@ -236,7 +236,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
     }
 
-    private func mountSCSI0Async(url: URL) {
+    private func mountSCSI0Async(url: URL, onMounted: (() -> Void)? = nil) {
         let accessible = url.startAccessingSecurityScopedResource()
         let bookmarkData = try? url.bookmarkData(
             options: .withSecurityScope,
@@ -286,6 +286,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                     infoLog("SCSI(ID0) image mounted asynchronously: \(url.lastPathComponent)", category: .fileSystem)
                     self.appendSCSILog("MAC_SCSI_MOUNT calling X68000_Reset")
                     X68000_Reset()
+                    onMounted?()
                 } else {
                     warningLog("SCSI(ID0) async mount failed for \(url.path)", category: .fileSystem)
                     self.showSCSIMountFailureAlert(url: url,
@@ -756,6 +757,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         scsiEject0.target = self
         scsiEject0.identifier = NSUserInterfaceItemIdentifier("SCSI0-eject")
         scsiDevicesMenu.addItem(scsiEject0)
+
+        scsiDevicesMenu.addItem(NSMenuItem.separator())
+
+        let scsiCreate0 = NSMenuItem(title: "Create Empty SCSI HDD...", action: #selector(createEmptySCSIHDD(_:)), keyEquivalent: "")
+        scsiCreate0.target = self
+        scsiCreate0.identifier = NSUserInterfaceItemIdentifier("SCSI0-create")
+        scsiDevicesMenu.addItem(scsiCreate0)
 
         hddMenu.addItem(scsiDevicesMenuItem)
 
@@ -1864,6 +1872,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 }
                 // Enable only in SCSI mode
                 item.isEnabled = (busMode == .scsi)
+            } else if itemId == "SCSI0-create" {
+                item.isEnabled = (busMode == .scsi)
             } else if itemId == "SCSI0-eject" || title.contains("Eject SCSI (ID 0)") {
                 if scsi0.ready {
                     if let name = scsi0.path, !name.isEmpty {
@@ -2427,6 +2437,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
 
         presentSCSIOpenPanel()
+    }
+
+    @objc func createEmptySCSIHDD(_ sender: Any?) {
+        guard coreGetStorageBusMode() == .scsi else { return }
+        guard let gameVC = gameViewController else { return }
+        gameVC.presentCreateEmptySCSIHDD { [weak self] url in
+            guard let self = self, let url = url else { return }
+            self.mountSCSI0Async(url: url) { [weak self] in
+                self?.showEmptySCSIHDDNextSteps(url: url)
+            }
+        }
+    }
+
+    private func showEmptySCSIHDDNextSteps(url: URL) {
+        let alert = NSAlert()
+        alert.messageText = "空の SCSI ハードディスクをマウントしました"
+        alert.informativeText = """
+        \(url.lastPathComponent) は未フォーマットです。
+        1. Human68k のシステムフロッピーをドライブ 0 に入れて起動します。
+        2. FORMAT.X で SCSI 装置 (ID 0) を初期化し、システムを転送します。
+        3. フロッピーを取り出してリセットすると、SCSI から起動します。
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        if let window = gameViewController?.view.window ?? NSApplication.shared.mainWindow {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
     }
 
     @objc func ejectSCSI0(_ sender: Any?) {
@@ -3194,6 +3233,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                 return busMode == .scsi
             case "SCSI0-eject":
                 return busMode == .scsi && coreGetSCSI0State().ready
+            case "SCSI0-create":
+                return busMode == .scsi
             case "SCSIU-status":
                 return false
             case "SCSIU-connect":

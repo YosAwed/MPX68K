@@ -914,6 +914,89 @@ class GameViewController: NSViewController {
         gameScene?.ejectHDD()
     }
     
+    /// Sizes offered for a new SCSI (ID 0) image, all within what Human68k
+    /// 3.02 FORMAT.X can partition.
+    static let emptySCSIHDDSizesInMB = [100, 250, 500, 1000]
+
+    /// Ask for a size and a destination, then create an all-zero SCSI image.
+    /// The image is left unformatted on purpose: the user initialises it with
+    /// FORMAT.X after booting a Human68k floppy.
+    func presentCreateEmptySCSIHDD(completion: @escaping (URL?) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "空の SCSI ハードディスクを作成"
+        alert.informativeText = "容量を選んでください。作成したイメージは SCSI ID 0 にマウントされます。"
+        alert.alertStyle = .informational
+        for sizeInMB in Self.emptySCSIHDDSizesInMB {
+            alert.addButton(withTitle: sizeInMB >= 1000 ? "\(sizeInMB / 1000) GB" : "\(sizeInMB) MB")
+        }
+        alert.addButton(withTitle: "キャンセル")
+
+        let index = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        guard index >= 0 && index < Self.emptySCSIHDDSizesInMB.count else {
+            completion(nil)
+            return
+        }
+        let sizeInMB = Self.emptySCSIHDDSizesInMB[index]
+        let sizeInBytes = UInt64(sizeInMB) * 1024 * 1024
+
+        let savePanel = NSSavePanel()
+        savePanel.title = "SCSI ハードディスクイメージの作成"
+        savePanel.allowedContentTypes = [UTType(filenameExtension: "hds") ?? .data]
+        savePanel.nameFieldStringValue = "NewSCSI_\(sizeInMB)MB.hds"
+        let userDocumentsMPX68K = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Documents/\(FileSystem.documentsDirectoryName)")
+        if FileManager.default.fileExists(atPath: userDocumentsMPX68K.path) {
+            savePanel.directoryURL = userDocumentsMPX68K
+        }
+
+        savePanel.begin { [weak self] response in
+            guard response == .OK, let url = savePanel.url else {
+                completion(nil)
+                return
+            }
+            do {
+                try Self.writeEmptyImage(at: url, sizeInBytes: sizeInBytes)
+                infoLog("Empty SCSI HDD created: \(url.lastPathComponent) (\(sizeInMB) MB)", category: .fileSystem)
+                completion(url)
+            } catch {
+                errorLog("Failed to create SCSI HDD image", error: error, category: .fileSystem)
+                self?.showCreateSCSIHDDFailure(url: url, error: error)
+                completion(nil)
+            }
+        }
+    }
+
+    /// Write a zero-filled file by setting its length, so even a 1 GB image
+    /// is created instantly (and sparsely) instead of writing every byte.
+    private static func writeEmptyImage(at url: URL, sizeInBytes: UInt64) throws {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing { url.stopAccessingSecurityScopedResource() }
+        }
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        let handle = try FileHandle(forWritingTo: url)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: sizeInBytes)
+    }
+
+    private func showCreateSCSIHDDFailure(url: URL, error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "SCSI ハードディスクイメージを作成できませんでした"
+        alert.informativeText = "\(url.lastPathComponent)\n\(error.localizedDescription)"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        if let window = view.window {
+            alert.beginSheetModal(for: window, completionHandler: nil)
+        } else {
+            alert.runModal()
+        }
+    }
+
     @IBAction func createEmptyHDD(_ sender: Any) {
         // debugLog("Creating empty HDD dialog", category: .ui)
         
