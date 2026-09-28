@@ -2677,6 +2677,27 @@ void SCSI_CommitDeferredBoot(void)
 //   d1.b = SCSI IOCS コマンド番号
 //   d0.l = ステータス (0 成功, -1 失敗)
 // -----------------------------------------------------------------------
+static int SCSI_IOCSTargetAbsent(BYTE cmd, DWORD d4)
+{
+	DWORD id = d4 & 0xffffU;
+#ifdef __APPLE__
+	if (X68000_GetStorageBusMode() == 2) {
+		return 0;  // real SCSI bus via bridge: the device decides
+	}
+#endif
+	switch (cmd) {
+	case 0x01: case 0xA1: case 0xA2:  // _S_SELECT / _S_SELECTA
+	case 0x20:  // _S_INQUIRY
+	case 0x24:  // _S_TESTUNIT
+	case 0x25:  // _S_READCAP
+	case 0x29:  // _S_MODESENSE
+	case 0x2c:  // _S_REQUEST
+		return (id >= 1 && id <= 7);
+	default:
+		return 0;
+	}
+}
+
 static void SCSI_HandleIOCS(BYTE cmd)
 {
 #if defined(HAVE_C68K)
@@ -2696,6 +2717,19 @@ static void SCSI_HandleIOCS(BYTE cmd)
 	         cmd, (unsigned int)d1, (unsigned int)d2, (unsigned int)d3, (unsigned int)d4,
 	         (unsigned int)d5, (unsigned int)a1);
 	SCSI_LogText(logLine);
+
+	// The synthetic bus has a single disk at SCSI ID 0.  Probe commands carry
+	// the target ID in d4; without this check every ID answered and FORMAT.X
+	// listed IDs 0-6 as the same disk.  Transfer commands are not filtered
+	// because some callers put byte/block hints in d4 (see SCSI_XFER_BLK_*).
+	if (SCSI_IOCSTargetAbsent(cmd, d4)) {
+		snprintf(logLine, sizeof(logLine),
+		         "SCSI_IOCS cmd=$%02X d4=%08X -> no device at this ID",
+		         cmd, (unsigned int)d4);
+		SCSI_LogText(logLine);
+		C68k_Set_DReg(&C68K, 0, 0xFFFFFFFF);
+		return;
+	}
 
 		switch (cmd) {
 	case 0x20: {  // _S_INQUIRY
