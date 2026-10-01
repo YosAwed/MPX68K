@@ -1526,8 +1526,8 @@ class GameScene: SKScene {
                 if now - self.lastSpriteKitUpdateWallTime < 0.25 {
                     return
                 }
-                if X68000_Monitor_IsPaused() == 0 {
-                    X68000_Update(self.clockMHz, 0)
+                if X68000_Monitor_IsPaused() == 0 && !self.isGuestPoweredOff {
+                    self.runEmulationStep()
                 }
                 self.flushMIDIBuffer()
                 self.midiController.flushDelayedEvents()

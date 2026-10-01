@@ -53,6 +53,11 @@ static BYTE ADPCM_Playing = 0;
 static long long ADPCM_PreCounter = 0;
 static int ADPCM_DmaReady = 0;
 static int ADPCM_DifBuf = 0;
+// Set while the emulation runs faster than real time (turbo / no-wait).
+// DMA keeps feeding at the emulated rate so the guest sees normal ADPCM
+// timing, but output drains at the real rate; drop the oldest samples so
+// the backlog never laps the read pointer or builds up seconds of delay.
+static volatile int ADPCM_LimitBacklog = 0;
 
 
 static int ADPCM_Pan = 0x00;
@@ -153,12 +158,29 @@ void FASTCALL ADPCM_PreUpdate(DWORD clock)
 // -----------------------------------------------------------------------
 //   DSoundが指定してくる分だけバッファにデータを書き出す
 // -----------------------------------------------------------------------
+void ADPCM_SetLimitBacklog(int enable)
+{
+	ADPCM_LimitBacklog = enable;
+}
+
 void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *pbsp, BYTE *pbep)
 {
 	int outs;
 	signed int outl, outr;
 
 	if ( length<=0 ) return;
+
+	if ( ADPCM_LimitBacklog ) {
+		// Keep at most 100 ms of output queued (entries are output samples).
+		long cap = (long)(ADPCM_SampleRate/12/10);
+		long backlog = ADPCM_WrPtr-ADPCM_RdPtr;
+		if ( backlog<0 ) backlog += ADPCM_BufSize;
+		if ( backlog>cap ) {
+			long rd = ADPCM_WrPtr-cap;
+			if ( rd<0 ) rd += ADPCM_BufSize;
+			ADPCM_RdPtr = rd;
+		}
+	}
 
 	while ( length ) {
 		if (buffer >= (signed short *)pbep) {

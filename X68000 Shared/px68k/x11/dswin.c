@@ -189,6 +189,7 @@ void DSound_SetSpeed(int speed)
     if (speed < 0) speed = 0;
     s_dsound_speed = speed;
     DSound_PreCounter = 0;
+    ADPCM_SetLimitBacklog(speed != 1);
 }
 
 void FASTCALL DSound_Send0(long clock)
