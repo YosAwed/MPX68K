@@ -548,7 +548,14 @@ class GameScene: SKScene {
     }
     
     private func showClockChangeNotification(_ mhz: Int) {
-        let notification = SKLabelNode(text: "\(mhz) MHz")
+        showOverlayNotification("\(mhz) MHz")
+
+        // Hide title logo when clock is changed
+        hideTitleLogo()
+    }
+
+    private func showOverlayNotification(_ text: String) {
+        let notification = SKLabelNode(text: text)
         notification.fontName = "Helvetica-Bold"
         notification.fontSize = 48
         notification.fontColor = .yellow
@@ -562,9 +569,70 @@ class GameScene: SKScene {
             notification.removeFromParent()
         }
         addChild(notification)
-        
-        // Hide title logo when clock is changed
-        hideTitleLogo()
+    }
+
+    // MARK: - Emulation Speed
+
+    /// Emulated frames per displayed frame: 1 = normal, 2...5 = turbo,
+    /// 0 = no-wait (as many as fit in a fixed slice of each display frame).
+    /// Not persisted: every launch starts at normal speed.
+    private(set) var emulationSpeed: Int = 1
+    private let noWaitBudget: CFTimeInterval = 0.010
+    /// No-wait: measured emulated time per real time, smoothed, and when the
+    /// previous no-wait step ran. Sound production follows the ratio.
+    private var noWaitRatio: Double = 1.0
+    private var lastNoWaitStepTime: CFTimeInterval = 0
+
+    func setEmulationSpeed(_ speed: Int) {
+        let clamped = max(0, min(speed, 5))
+        emulationSpeed = clamped
+        noWaitRatio = 1.0
+        lastNoWaitStepTime = 0
+        X68000_SetSpeed(Double(max(clamped, 1)))
+        switch clamped {
+        case 0: showOverlayNotification("No-Wait")
+        case 1: showOverlayNotification("Normal Speed")
+        default: showOverlayNotification("Turbo \(clamped)x")
+        }
+        infoLog("Emulation speed set to \(clamped == 0 ? "no-wait" : "\(clamped)x")", category: .emulation)
+    }
+
+    /// Runs one emulated frame. Returns false when the guest powered off.
+    private func emulateFrame() -> Bool {
+        X68000_Update(self.clockMHz, 0)
+        if syncGuestPowerState() {
+            return false
+        }
+        // Drain MIDI per emulated frame so turbo can't overflow the buffer.
+        flushMIDIBuffer()
+        return true
+    }
+
+    private func runEmulationStep() {
+        if emulationSpeed == 0 {
+            let start = CFAbsoluteTimeGetCurrent()
+            let deadline = start + noWaitBudget
+            var frames = 0
+            repeat {
+                if !emulateFrame() { return }
+                frames += 1
+            } while CFAbsoluteTimeGetCurrent() < deadline
+            // Produce sound for real time only: scale it by how much emulated
+            // time this step covered against the real time since the last.
+            if lastNoWaitStepTime > 0 {
+                let real = start - lastNoWaitStepTime
+                if real > 0.001 && real < 0.25 {
+                    let ratio = Double(frames) * targetFrameTime / real
+                    noWaitRatio = noWaitRatio * 0.8 + ratio * 0.2
+                    X68000_SetSpeed(noWaitRatio)
+                }
+            }
+            lastNoWaitStepTime = start
+        } else {
+            for _ in 0..<emulationSpeed {
+                if !emulateFrame() { return }
+            }
+        }
     }
     
     // MARK: - System Management
@@ -580,10 +648,25 @@ class GameScene: SKScene {
 
     // MARK: - Guest Power-Off
 
-    /// Set when guest software switched the machine off through the system
-    /// port ($E8E00F). Emulation stays stopped until the next reset.
+    /// Mirrors the core's power-off state: guest software switched the
+    /// machine off through the system port ($E8E00F). The core clears it on
+    /// every reset, whichever path issued it (menu, monitor RESET, SCSI
+    /// mount), so this follows it rather than keeping a separate latch.
     private(set) var isGuestPoweredOff = false
     private var powerOffLabel: SKLabelNode?
+
+    /// Brings the overlay in line with the core and returns whether the
+    /// machine is off.
+    @discardableResult
+    private func syncGuestPowerState() -> Bool {
+        let off = X68000_IsGuestPoweredOff() != 0
+        if off {
+            handleGuestPowerOff()
+        } else {
+            clearGuestPowerOff()
+        }
+        return off
+    }
 
     private func handleGuestPowerOff() {
         guard !isGuestPoweredOff else { return }
@@ -1477,8 +1560,8 @@ class GameScene: SKScene {
                 if now - self.lastSpriteKitUpdateWallTime < 0.25 {
                     return
                 }
-                if X68000_Monitor_IsPaused() == 0 {
-                    X68000_Update(self.clockMHz, 0)
+                if X68000_Monitor_IsPaused() == 0 && !self.syncGuestPowerState() {
+                    self.runEmulationStep()
                 }
                 self.flushMIDIBuffer()
                 self.midiController.flushDelayedEvents()
@@ -1552,8 +1635,10 @@ class GameScene: SKScene {
         
         var newFrameReady = false
         
-        // Update emulator in fixed steps
-        while fixedStepAccumulator >= targetFrameTime {
+        // Update emulator in fixed steps. No-wait runs one budgeted step per
+        // display frame instead, so a slow step can't make the loop catch up.
+        let noWait = emulationSpeed == 0
+        while fixedStepAccumulator >= targetFrameTime || (noWait && !newFrameReady) {
             // Optimized device updates based on input mode
             if currentInputMode == .joycard {
                 joycard?.Update(currentTime)
@@ -1572,11 +1657,8 @@ class GameScene: SKScene {
             
             // Step emulator forward one frame
             // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
-            if X68000_Monitor_IsPaused() == 0 && !isGuestPoweredOff {
-                X68000_Update(self.clockMHz, 0)
-                if X68000_TakeGuestPowerOffRequest() != 0 {
-                    handleGuestPowerOff()
-                }
+            if X68000_Monitor_IsPaused() == 0 && !syncGuestPowerState() {
+                runEmulationStep()
             }
 
             flushMIDIBuffer()
@@ -1584,6 +1666,10 @@ class GameScene: SKScene {
             
             fixedStepAccumulator -= targetFrameTime
             newFrameReady = true
+            if noWait {
+                fixedStepAccumulator = 0
+                break
+            }
         }
         
         // Only update display when new emulator frame is ready

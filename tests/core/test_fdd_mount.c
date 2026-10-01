@@ -3,6 +3,8 @@
  */
 #include <assert.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "common.h"
 #include "fdd.h"
 #include "disk_xdf.h"
@@ -80,7 +82,28 @@ int main(void)
     assert(FDD_IsImageReadOnly(2));
     FDD_EjectFD(2);
 
+    /* A file the host won't let us write is read-only from the start. */
+    {
+        const char *path = "_test_ro.xdf";
+        FILE *f = fopen(path, "wb");
+        assert(f);
+        fclose(f);
+        chmod(path, 0444);
+        FDD_SetFD(3, (char *)path, 0);
+        int writable_by_root = (access(path, W_OK) == 0);
+        if (!writable_by_root) {
+            assert(FDD_IsImageReadOnly(3));
+            assert(FDD_IsReadOnly(3));
+        }
+        FDD_EjectFD(3);
+        chmod(path, 0644);
+        FDD_SetFD(3, (char *)path, 0);
+        assert(!FDD_IsImageReadOnly(3));
+        FDD_EjectFD(3);
+        unlink(path);
+    }
+
     FDD_Cleanup();
-    puts("PASS: mount, delayed readiness, reset, eject, rejected replacement and write-protect");
+    puts("PASS: mount, delayed readiness, reset, eject, rejected replacement, write-protect and read-only files");
     return 0;
 }

@@ -53,6 +53,14 @@ static BYTE ADPCM_Playing = 0;
 static long long ADPCM_PreCounter = 0;
 static int ADPCM_DmaReady = 0;
 static int ADPCM_DifBuf = 0;
+// Set while the emulation runs faster than real time (turbo / no-wait).
+// DMA keeps feeding at the emulated rate so the guest sees normal ADPCM
+// timing, but output drains at the real rate; drop the oldest samples so
+// the backlog never laps the read pointer or builds up seconds of delay.
+static volatile int ADPCM_LimitBacklog = 0;
+// Per thread: set while the audio output thread refills the buffer, where
+// starting DMA would race the emulation thread.
+static _Thread_local int ADPCM_NoDmaPull = 0;
 
 
 static int ADPCM_Pan = 0x00;
@@ -153,6 +161,16 @@ void FASTCALL ADPCM_PreUpdate(DWORD clock)
 // -----------------------------------------------------------------------
 //   DSoundが指定してくる分だけバッファにデータを書き出す
 // -----------------------------------------------------------------------
+void ADPCM_SetLimitBacklog(int enable)
+{
+	ADPCM_LimitBacklog = enable;
+}
+
+void ADPCM_SetNoDmaPull(int enable)
+{
+	ADPCM_NoDmaPull = enable;
+}
+
 void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *pbsp, BYTE *pbep)
 {
 	int outs;
@@ -160,13 +178,25 @@ void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *p
 
 	if ( length<=0 ) return;
 
+	if ( ADPCM_LimitBacklog ) {
+		// Keep at most 100 ms of output queued (entries are output samples).
+		long cap = (long)(ADPCM_SampleRate/12/10);
+		long backlog = ADPCM_WrPtr-ADPCM_RdPtr;
+		if ( backlog<0 ) backlog += ADPCM_BufSize;
+		if ( backlog>cap ) {
+			long rd = ADPCM_WrPtr-cap;
+			if ( rd<0 ) rd += ADPCM_BufSize;
+			ADPCM_RdPtr = rd;
+		}
+	}
+
 	while ( length ) {
 		if (buffer >= (signed short *)pbep) {
 			buffer = (signed short *)pbsp;
 		}
 		int tmpl, tmpr;
 
-	if ( (ADPCM_WrPtr==ADPCM_RdPtr)&&(!(DMA[3].CCR&0x40)) ) DMA_Exec(3);
+	if ( !ADPCM_NoDmaPull&&(ADPCM_WrPtr==ADPCM_RdPtr)&&(!(DMA[3].CCR&0x40)) ) DMA_Exec(3);
 		if ( ADPCM_WrPtr!=ADPCM_RdPtr ) {
 			OldR = outr = ADPCM_BufL[ADPCM_RdPtr];
 			OldL = outl = ADPCM_BufR[ADPCM_RdPtr];

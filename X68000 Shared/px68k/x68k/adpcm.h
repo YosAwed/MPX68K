@@ -32,6 +32,8 @@ BYTE FASTCALL ADPCM_Read(DWORD adr);
 void ADPCM_SetVolume(BYTE vol);
 void ADPCM_SetPan(int n);
 void ADPCM_SetClock(int n);
+void ADPCM_SetLimitBacklog(int enable);
+void ADPCM_SetNoDmaPull(int enable);
 
 void ADPCM_Init(DWORD samplerate);
 int ADPCM_IsReady(void);

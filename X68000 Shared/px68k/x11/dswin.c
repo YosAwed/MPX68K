@@ -23,6 +23,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include    <pthread.h>
 #include    "windows.h"
 #include    "common.h"
 #include    "dswin.h"
@@ -46,6 +47,11 @@ BYTE *pbrp = pcmbuffer, *pbwp = pcmbuffer;
 BYTE *pbep = &pcmbuffer[PCMBUF_SIZE];
 DWORD ratebase = 44100;
 long DSound_PreCounter = 0;
+
+// Emulated time per real time (turbo / no-wait). Sound is produced for
+// 1/ratio of the emulated time so the ring buffer fills at the real-time
+// rate. Stored as the PreCounter threshold: 10,000,000 x ratio.
+static volatile long s_dsound_threshold = 10000000L;
 BYTE rsndbuf[PCMBUF_SIZE];
 static volatile unsigned int s_dsound_last_callback_bytes = 0;
 static volatile unsigned int s_dsound_refill_count = 0;
@@ -95,7 +101,23 @@ DSound_Cleanup(void)
     return TRUE;
 }
 
+static long DSound_BufferDataBytes(void);
+
+// sound_send runs on the emulation thread (DSound_Send0) and on the audio
+// output thread (underrun refill via DSound_Send). It mixes into static
+// buffers and advances pbwp, so the two must not overlap.
+static pthread_mutex_t s_sound_send_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void sound_send_locked(int length);
+
 static void sound_send(int length)
+{
+    pthread_mutex_lock(&s_sound_send_lock);
+    sound_send_locked(length);
+    pthread_mutex_unlock(&s_sound_send_lock);
+}
+
+static void sound_send_locked(int length)
 {
     // In direct-callback mode, we generate audio
     // exclusively from X68000_AudioCallBack().
@@ -126,6 +148,13 @@ static void sound_send(int length)
         // Mix into ring buffer with wrap handling
         int samples = frames * 2; // stereo samples
         int writtenSamples = 0;
+        // Never lap the reader: if the output can't keep up, drop the newest
+        // samples rather than overwrite ones that haven't played.
+        if (DSound_BufferDataBytes() + samples * (long)sizeof(short)
+                >= (long)(pbep - pbsp) - 4) {
+            remain -= frames;
+            continue;
+        }
         while (writtenSamples < samples) {
             BYTE *writePtr = pbwp;
             int bytesToEnd = (int)(pbep - writePtr);
@@ -179,18 +208,26 @@ void DSound_GetMonitorState(DSoundMonitorState* state)
     state->directCallback = DSOUND_USE_DIRECT_CALLBACK;
 }
 
+void DSound_SetSpeed(double ratio)
+{
+    if (!(ratio >= 1.0)) ratio = 1.0;   // also catches NaN
+    if (ratio > 64.0) ratio = 64.0;
+    s_dsound_threshold = (long)(10000000.0 * ratio);
+    ADPCM_SetLimitBacklog(ratio > 1.01);
+}
+
 void FASTCALL DSound_Send0(long clock)
 {
     int length = 0;
     int rate;
-
+    const long threshold = s_dsound_threshold;
 
 #if 1
 	DSound_PreCounter += (ratebase * clock);
-    while (DSound_PreCounter >= 10000000L)
+    while (DSound_PreCounter >= threshold)
    {
         length++;
-        DSound_PreCounter -= 10000000L;
+        DSound_PreCounter -= threshold;
     }
 
     if (length == 0)
@@ -201,9 +238,14 @@ void FASTCALL DSound_Send0(long clock)
     sound_send(length);
 }
 
+// Underrun refill from the audio output callback, i.e. off the emulation
+// thread. ADPCM must not start DMA from here: DMA reads guest memory and
+// I/O while the emulation thread is running the same devices.
 static void FASTCALL DSound_Send(int length)
 {
+    ADPCM_SetNoDmaPull(1);
     sound_send(length);
+    ADPCM_SetNoDmaPull(0);
 }
 
 void X68000_AudioCallBack(void* buffer, const unsigned int sample)
