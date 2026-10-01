@@ -18,7 +18,8 @@
 typedef struct {
 	int SetDelay[4];
 	int Types[4];
-	int ROnly[4];
+	int ROnly[4];		// the image can't be written back (file-level)
+	int WProtect[4];	// write-protect tab set from the UI
 	int EMask[4];
 	int Blink[4];
 	int Access;
@@ -118,6 +119,7 @@ void FDD_EjectFD(int drive)
 	}
 	fdd.Types[drive] = FD_Non;
 	fdd.ROnly[drive] = 0;
+	fdd.WProtect[drive] = 0;
 	fdd.EMask[drive] = 0;
 	fdd.Blink[drive] = 0;
 	StatBar_SetFDD(drive, "");
@@ -310,10 +312,27 @@ int FDD_IsMounted(int drv)
 }
 
 
+// What the FDC sees: either the image is read-only or the tab is set.
 int FDD_IsReadOnly(int drv)
 {
 	if ( (drv<0)||(drv>3) ) return FALSE;
+	return fdd.ROnly[drv] || fdd.WProtect[drv];
+}
+
+// Whether buffered changes may be written back to the image file. The
+// write-protect tab doesn't count: writes the guest made before the tab was
+// set must still be saved on eject.
+int FDD_IsImageReadOnly(int drv)
+{
+	if ( (drv<0)||(drv>3) ) return FALSE;
 	return fdd.ROnly[drv];
+}
+
+void FDD_SetWriteProtect(int drv, int protect)
+{
+	if ( (drv<0)||(drv>3) ) return;
+	if ( fdd.Types[drv]==FD_Non ) return;
+	fdd.WProtect[drv] = protect ? 1 : 0;
 }
 
 

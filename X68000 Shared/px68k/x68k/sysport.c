@@ -10,6 +10,15 @@
 
 BYTE	SysPort[7];
 
+// CPU clock the frame loop runs at, for the $E8E00B machine-class read.
+static long SysPort_ClockMHz = 10;
+
+// Guest software power-off: writing $00, $0F, $0F to $E8E00F asks the power
+// supply to switch off (XM6/XEiJ behaviour). Once fired, the sequence stays
+// latched until SysPort_ResetPowerOff() (power-on / reset).
+static int SysPort_PowerOffStep = 0;
+static int SysPort_PowerOffRequest = 0;
+
 // -----------------------------------------------------------------------
 //   初期化
 // -----------------------------------------------------------------------
@@ -17,6 +26,40 @@ void SysPort_Init(void)
 {
 	int i;
 	for (i=0; i<7; i++) SysPort[i]=0;
+	SysPort_ResetPowerOff();
+}
+
+void SysPort_SetClockMHz(long mhz)
+{
+	SysPort_ClockMHz = mhz;
+}
+
+void SysPort_ResetPowerOff(void)
+{
+	SysPort_PowerOffStep = 0;
+	SysPort_PowerOffRequest = 0;
+}
+
+int SysPort_TakePowerOffRequest(void)
+{
+	int req = SysPort_PowerOffRequest;
+	SysPort_PowerOffRequest = 0;
+	return req;
+}
+
+static void SysPort_TrackPowerOff(BYTE data)
+{
+	if (SysPort_PowerOffStep == 3) return;
+	if (SysPort_PowerOffStep == 0 && data == 0x00) {
+		SysPort_PowerOffStep = 1;
+	} else if (SysPort_PowerOffStep == 1 && data == 0x0f) {
+		SysPort_PowerOffStep = 2;
+	} else if (SysPort_PowerOffStep == 2 && data == 0x0f) {
+		SysPort_PowerOffStep = 3;
+		SysPort_PowerOffRequest = 1;
+	} else {
+		SysPort_PowerOffStep = 0;
+	}
 }
 
 
@@ -53,6 +96,7 @@ void FASTCALL SysPort_Write(DWORD adr, BYTE data)
 		break;
 	case 0xe8e00f:
 		SysPort[6] = data & 15;
+		SysPort_TrackPowerOff(SysPort[6]);
 		break;
 	}
 }
@@ -80,16 +124,17 @@ BYTE FASTCALL SysPort_Read(DWORD adr)
 		ret = SysPort[4];
 		break;
 	case 0xe8e00b:		// 10MHz:0xff、16MHz:0xfe、030(25MHz):0xdcをそれぞれ返すらしい
-		switch(Config.XVIMode)
+		// Derive the class from the running clock. 16 MHz is the stock
+		// SUPER/XVI/Compact and 24 MHz the RedZone (modified XVI); every other
+		// clock is a 10 MHz-class machine. 0xdc (030) is never returned since
+		// the emulated CPU is a 68000.
+		switch(SysPort_ClockMHz)
 		{
-		case 1:			// XVI or RedZone
-		case 2:
+		case 16:
+		case 24:
 			ret = 0xfe;
 			break;
-		case 3:			// 030
-			ret = 0xdc;
-			break;
-		default:		// 10MHz
+		default:
 			ret = 0xff;
 			break;
 		}

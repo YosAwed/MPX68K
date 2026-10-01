@@ -532,7 +532,8 @@ WinX68k_Reset(void)
         FrameSkipQueue = 0;
         g_scsi_link_scan_slice_count = 0;
     }
-    
+
+    SysPort_ResetPowerOff();
     OPM_Reset();
 
 #if defined (HAVE_CYCLONE)
@@ -839,8 +840,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
     int KeyIntCnt = 0, MouseIntCnt = 0;
     DWORD t_start = timeGetTime(), t_end;
 
-    // Minimal debug for now
-    (void)clockMHz; // suppress unused warning
+    SysPort_SetClockMHz(clockMHz);
 
     if ( Config.FrameRate != 7 ) {
         DispFrame = (DispFrame+1)%Config.FrameRate;
@@ -1473,6 +1473,28 @@ const int X68000_IsFDDReady( const long drive )
 const int X68000_IsFDDMounted(const long drive)
 {
     return FDD_IsMounted((int)drive);
+}
+
+const int X68000_IsFDDWriteProtected(const long drive)
+{
+    return FDD_IsReadOnly((int)drive);
+}
+
+// 1 when the image itself can't be written (e.g. a read-only file), so the
+// protection can't be lifted from the UI.
+const int X68000_IsFDDImageReadOnly(const long drive)
+{
+    return FDD_IsImageReadOnly((int)drive);
+}
+
+void X68000_SetFDDWriteProtect(const long drive, const int protect)
+{
+    FDD_SetWriteProtect((int)drive, protect);
+}
+
+const int X68000_TakeGuestPowerOffRequest(void)
+{
+    return SysPort_TakePowerOffRequest();
 }
 
 const char* X68000_GetFDDFilename( const long drive )

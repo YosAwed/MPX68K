@@ -142,7 +142,7 @@ int DIM_Eject(int drv)
 	len = SctLength[dh->type];
 	p = DIMImg[drv]+sizeof(DIM_HEADER);
 	// Only save if disk has been modified and direct writes failed
-	if ( !FDD_IsReadOnly(drv) && DIMDirty[drv] ) {
+	if ( !FDD_IsImageReadOnly(drv) && DIMDirty[drv] ) {
 		// printf("DIM: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(DIMFile[drv]);
 		if ( !fp ) goto dim_eject_error;
