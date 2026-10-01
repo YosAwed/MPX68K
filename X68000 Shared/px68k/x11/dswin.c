@@ -23,6 +23,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include    <pthread.h>
 #include    "windows.h"
 #include    "common.h"
 #include    "dswin.h"
@@ -102,7 +103,21 @@ DSound_Cleanup(void)
 
 static long DSound_BufferDataBytes(void);
 
+// sound_send runs on the emulation thread (DSound_Send0) and on the audio
+// output thread (underrun refill via DSound_Send). It mixes into static
+// buffers and advances pbwp, so the two must not overlap.
+static pthread_mutex_t s_sound_send_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void sound_send_locked(int length);
+
 static void sound_send(int length)
+{
+    pthread_mutex_lock(&s_sound_send_lock);
+    sound_send_locked(length);
+    pthread_mutex_unlock(&s_sound_send_lock);
+}
+
+static void sound_send_locked(int length)
 {
     // In direct-callback mode, we generate audio
     // exclusively from X68000_AudioCallBack().
