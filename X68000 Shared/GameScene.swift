@@ -578,11 +578,17 @@ class GameScene: SKScene {
     /// Not persisted: every launch starts at normal speed.
     private(set) var emulationSpeed: Int = 1
     private let noWaitBudget: CFTimeInterval = 0.010
+    /// No-wait: measured emulated time per real time, smoothed, and when the
+    /// previous no-wait step ran. Sound production follows the ratio.
+    private var noWaitRatio: Double = 1.0
+    private var lastNoWaitStepTime: CFTimeInterval = 0
 
     func setEmulationSpeed(_ speed: Int) {
         let clamped = max(0, min(speed, 5))
         emulationSpeed = clamped
-        X68000_SetSpeed(Int32(clamped))
+        noWaitRatio = 1.0
+        lastNoWaitStepTime = 0
+        X68000_SetSpeed(Double(max(clamped, 1)))
         switch clamped {
         case 0: showOverlayNotification("No-Wait")
         case 1: showOverlayNotification("Normal Speed")
@@ -604,10 +610,24 @@ class GameScene: SKScene {
 
     private func runEmulationStep() {
         if emulationSpeed == 0 {
-            let deadline = CFAbsoluteTimeGetCurrent() + noWaitBudget
+            let start = CFAbsoluteTimeGetCurrent()
+            let deadline = start + noWaitBudget
+            var frames = 0
             repeat {
                 if !emulateFrame() { return }
+                frames += 1
             } while CFAbsoluteTimeGetCurrent() < deadline
+            // Produce sound for real time only: scale it by how much emulated
+            // time this step covered against the real time since the last.
+            if lastNoWaitStepTime > 0 {
+                let real = start - lastNoWaitStepTime
+                if real > 0.001 && real < 0.25 {
+                    let ratio = Double(frames) * targetFrameTime / real
+                    noWaitRatio = noWaitRatio * 0.8 + ratio * 0.2
+                    X68000_SetSpeed(noWaitRatio)
+                }
+            }
+            lastNoWaitStepTime = start
         } else {
             for _ in 0..<emulationSpeed {
                 if !emulateFrame() { return }

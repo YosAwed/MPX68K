@@ -22,7 +22,7 @@ int DSound_Cleanup(void);
 void DSound_Play(void);
 void DSound_Stop(void);
 void FASTCALL DSound_Send0(long clock);
-void DSound_SetSpeed(int speed);
+void DSound_SetSpeed(double ratio);
 
 void DS_SetVolumeOPM(long vol);
 void DS_SetVolumeADPCM(long vol);

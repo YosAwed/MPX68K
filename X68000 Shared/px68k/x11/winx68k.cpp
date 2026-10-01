@@ -1516,11 +1516,12 @@ const int X68000_IsGuestPoweredOff(void)
     return SysPort_IsPoweredOff();
 }
 
-// Emulated frames per real frame: 1 = normal, 2..5 = turbo, 0 = no-wait.
-// Only sound production depends on it; the caller runs the extra frames.
-void X68000_SetSpeed(const int speed)
+// Emulated time per real time (1 = normal, N = turbo; no-wait passes the
+// measured ratio). Only sound production depends on it; the caller runs
+// the extra frames.
+void X68000_SetSpeed(const double ratio)
 {
-    DSound_SetSpeed(speed);
+    DSound_SetSpeed(ratio);
 }
 
 const char* X68000_GetFDDFilename( const long drive )

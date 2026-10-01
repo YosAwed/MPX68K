@@ -58,6 +58,9 @@ static int ADPCM_DifBuf = 0;
 // timing, but output drains at the real rate; drop the oldest samples so
 // the backlog never laps the read pointer or builds up seconds of delay.
 static volatile int ADPCM_LimitBacklog = 0;
+// Per thread: set while the audio output thread refills the buffer, where
+// starting DMA would race the emulation thread.
+static _Thread_local int ADPCM_NoDmaPull = 0;
 
 
 static int ADPCM_Pan = 0x00;
@@ -163,6 +166,11 @@ void ADPCM_SetLimitBacklog(int enable)
 	ADPCM_LimitBacklog = enable;
 }
 
+void ADPCM_SetNoDmaPull(int enable)
+{
+	ADPCM_NoDmaPull = enable;
+}
+
 void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *pbsp, BYTE *pbep)
 {
 	int outs;
@@ -188,7 +196,7 @@ void FASTCALL ADPCM_Update(signed short *buffer, DWORD length, int rate, BYTE *p
 		}
 		int tmpl, tmpr;
 
-	if ( (ADPCM_WrPtr==ADPCM_RdPtr)&&(!(DMA[3].CCR&0x40)) ) DMA_Exec(3);
+	if ( !ADPCM_NoDmaPull&&(ADPCM_WrPtr==ADPCM_RdPtr)&&(!(DMA[3].CCR&0x40)) ) DMA_Exec(3);
 		if ( ADPCM_WrPtr!=ADPCM_RdPtr ) {
 			OldR = outr = ADPCM_BufL[ADPCM_RdPtr];
 			OldL = outl = ADPCM_BufR[ADPCM_RdPtr];
