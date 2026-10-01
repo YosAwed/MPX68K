@@ -10,6 +10,6 @@ BYTE FASTCALL SysPort_Read(DWORD adr);
 void FASTCALL SysPort_Write(DWORD adr, BYTE data);
 void SysPort_SetClockMHz(long mhz);
 void SysPort_ResetPowerOff(void);
-int SysPort_TakePowerOffRequest(void);
+int SysPort_IsPoweredOff(void);
 
 #endif

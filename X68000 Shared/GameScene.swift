@@ -594,8 +594,7 @@ class GameScene: SKScene {
     /// Runs one emulated frame. Returns false when the guest powered off.
     private func emulateFrame() -> Bool {
         X68000_Update(self.clockMHz, 0)
-        if X68000_TakeGuestPowerOffRequest() != 0 {
-            handleGuestPowerOff()
+        if syncGuestPowerState() {
             return false
         }
         // Drain MIDI per emulated frame so turbo can't overflow the buffer.
@@ -629,10 +628,25 @@ class GameScene: SKScene {
 
     // MARK: - Guest Power-Off
 
-    /// Set when guest software switched the machine off through the system
-    /// port ($E8E00F). Emulation stays stopped until the next reset.
+    /// Mirrors the core's power-off state: guest software switched the
+    /// machine off through the system port ($E8E00F). The core clears it on
+    /// every reset, whichever path issued it (menu, monitor RESET, SCSI
+    /// mount), so this follows it rather than keeping a separate latch.
     private(set) var isGuestPoweredOff = false
     private var powerOffLabel: SKLabelNode?
+
+    /// Brings the overlay in line with the core and returns whether the
+    /// machine is off.
+    @discardableResult
+    private func syncGuestPowerState() -> Bool {
+        let off = X68000_IsGuestPoweredOff() != 0
+        if off {
+            handleGuestPowerOff()
+        } else {
+            clearGuestPowerOff()
+        }
+        return off
+    }
 
     private func handleGuestPowerOff() {
         guard !isGuestPoweredOff else { return }
@@ -1526,7 +1540,7 @@ class GameScene: SKScene {
                 if now - self.lastSpriteKitUpdateWallTime < 0.25 {
                     return
                 }
-                if X68000_Monitor_IsPaused() == 0 && !self.isGuestPoweredOff {
+                if X68000_Monitor_IsPaused() == 0 && !self.syncGuestPowerState() {
                     self.runEmulationStep()
                 }
                 self.flushMIDIBuffer()
@@ -1623,7 +1637,7 @@ class GameScene: SKScene {
             
             // Step emulator forward one frame
             // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
-            if X68000_Monitor_IsPaused() == 0 && !isGuestPoweredOff {
+            if X68000_Monitor_IsPaused() == 0 && !syncGuestPowerState() {
                 runEmulationStep()
             }
 

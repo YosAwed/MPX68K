@@ -14,10 +14,10 @@ BYTE	SysPort[7];
 static long SysPort_ClockMHz = 10;
 
 // Guest software power-off: writing $00, $0F, $0F to $E8E00F asks the power
-// supply to switch off (XM6/XEiJ behaviour). Once fired, the sequence stays
-// latched until SysPort_ResetPowerOff() (power-on / reset).
+// supply to switch off (XM6/XEiJ behaviour). Once fired, the machine stays
+// off until SysPort_ResetPowerOff(), which every reset path goes through, so
+// the front end can treat SysPort_IsPoweredOff() as the one source of truth.
 static int SysPort_PowerOffStep = 0;
-static int SysPort_PowerOffRequest = 0;
 
 // -----------------------------------------------------------------------
 //   初期化
@@ -37,14 +37,11 @@ void SysPort_SetClockMHz(long mhz)
 void SysPort_ResetPowerOff(void)
 {
 	SysPort_PowerOffStep = 0;
-	SysPort_PowerOffRequest = 0;
 }
 
-int SysPort_TakePowerOffRequest(void)
+int SysPort_IsPoweredOff(void)
 {
-	int req = SysPort_PowerOffRequest;
-	SysPort_PowerOffRequest = 0;
-	return req;
+	return SysPort_PowerOffStep == 3;
 }
 
 static void SysPort_TrackPowerOff(BYTE data)
@@ -56,7 +53,6 @@ static void SysPort_TrackPowerOff(BYTE data)
 		SysPort_PowerOffStep = 2;
 	} else if (SysPort_PowerOffStep == 2 && data == 0x0f) {
 		SysPort_PowerOffStep = 3;
-		SysPort_PowerOffRequest = 1;
 	} else {
 		SysPort_PowerOffStep = 0;
 	}

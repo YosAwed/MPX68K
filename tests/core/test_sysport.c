@@ -29,18 +29,21 @@ int main(void)
 
     /* Interrupted sequences don't fire. */
     poke(0x00); poke(0x0f); poke(0x05); poke(0x0f);
-    assert(!SysPort_TakePowerOffRequest());
+    assert(!SysPort_IsPoweredOff());
     /* Upper nibble is ignored. */
     poke(0xf0); poke(0x0f); poke(0x0f);
-    assert(SysPort_TakePowerOffRequest());
-    assert(!SysPort_TakePowerOffRequest());
+    assert(SysPort_IsPoweredOff());
     assert(SysPort_Read(0xe8e00f) == 0x0f);
-    /* Latched until reset. */
-    poke(0x00); poke(0x0f); poke(0x0f);
-    assert(!SysPort_TakePowerOffRequest());
+    /* Stays off until reset, whatever is written next. */
+    poke(0x00); poke(0x05);
+    assert(SysPort_IsPoweredOff());
     SysPort_ResetPowerOff();
+    assert(!SysPort_IsPoweredOff());
     poke(0x00); poke(0x0f); poke(0x0f);
-    assert(SysPort_TakePowerOffRequest());
+    assert(SysPort_IsPoweredOff());
+    /* SysPort_Init (power-on) clears it too. */
+    SysPort_Init();
+    assert(!SysPort_IsPoweredOff());
 
     puts("PASS: machine class by clock and guest power-off sequence");
     return 0;

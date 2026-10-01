@@ -13,6 +13,7 @@
 #include "disk_xdf.h"
 #include "disk_dim.h"
 #include <string.h>
+#include <unistd.h>
 
 
 typedef struct {
@@ -95,6 +96,11 @@ void FDD_SetFD(int drive, char* filename, int readonly)
 		if ( SetFD[type](drive, filename) ) {
 			fdd.Types[drive]  = type;
 			fdd.ROnly[drive] |= readonly;
+			// file_open silently falls back to read-only access, so a file
+			// the host won't let us write would otherwise look writable to
+			// the guest and the UI, and its changes would be lost.
+			if ( access(filename, F_OK)==0 && access(filename, W_OK)!=0 )
+				fdd.ROnly[drive] = 1;
 			fdd.SetDelay[drive] = 3;
 			fdd.EMask[drive] = 0;
 			fdd.Blink[drive] = 0;

@@ -1510,9 +1510,10 @@ void X68000_SetFDDWriteProtect(const long drive, const int protect)
     FDD_SetWriteProtect((int)drive, protect);
 }
 
-const int X68000_TakeGuestPowerOffRequest(void)
+// 1 while guest software has the machine switched off; any reset clears it.
+const int X68000_IsGuestPoweredOff(void)
 {
-    return SysPort_TakePowerOffRequest();
+    return SysPort_IsPoweredOff();
 }
 
 // Emulated frames per real frame: 1 = normal, 2..5 = turbo, 0 = no-wait.
