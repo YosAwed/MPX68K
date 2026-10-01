@@ -46,6 +46,11 @@ BYTE *pbrp = pcmbuffer, *pbwp = pcmbuffer;
 BYTE *pbep = &pcmbuffer[PCMBUF_SIZE];
 DWORD ratebase = 44100;
 long DSound_PreCounter = 0;
+
+// Emulated frames per real frame (turbo). Sound is produced for 1/N of the
+// emulated time so the ring buffer fills at the real-time rate; 0 means
+// unbounded (no-wait), where the output callback generates on demand.
+static volatile int s_dsound_speed = 1;
 BYTE rsndbuf[PCMBUF_SIZE];
 static volatile unsigned int s_dsound_last_callback_bytes = 0;
 static volatile unsigned int s_dsound_refill_count = 0;
@@ -179,18 +184,29 @@ void DSound_GetMonitorState(DSoundMonitorState* state)
     state->directCallback = DSOUND_USE_DIRECT_CALLBACK;
 }
 
+void DSound_SetSpeed(int speed)
+{
+    if (speed < 0) speed = 0;
+    s_dsound_speed = speed;
+    DSound_PreCounter = 0;
+}
+
 void FASTCALL DSound_Send0(long clock)
 {
     int length = 0;
     int rate;
+    const int speed = s_dsound_speed;
+    const long threshold = 10000000L * (speed > 0 ? speed : 1);
 
+    if (speed == 0)
+        return;
 
 #if 1
 	DSound_PreCounter += (ratebase * clock);
-    while (DSound_PreCounter >= 10000000L)
+    while (DSound_PreCounter >= threshold)
    {
         length++;
-        DSound_PreCounter -= 10000000L;
+        DSound_PreCounter -= threshold;
     }
 
     if (length == 0)

@@ -60,6 +60,7 @@ const int X68000_IsFDDWriteProtected(const long drive);
 const int X68000_IsFDDImageReadOnly(const long drive);
 void X68000_SetFDDWriteProtect(const long drive, const int protect);
 const int X68000_TakeGuestPowerOffRequest(void);
+void X68000_SetSpeed(const int speed);
 const char* X68000_GetFDDFilename( const long drive );
 
 void X68000_EjectHDD();

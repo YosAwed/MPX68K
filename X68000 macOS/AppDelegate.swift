@@ -840,6 +840,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         clk50.target = nil
         clockMenu.addItem(clk50)
 
+        // Speed: extra emulated frames per displayed frame, on top of the
+        // CPU clock above (which now runs at its nominal rate).
+        clockMenu.addItem(NSMenuItem.separator())
+        let speeds: [(String, Int)] = [
+            ("Normal Speed", 1), ("Turbo 2x", 2), ("Turbo 3x", 3),
+            ("Turbo 4x", 4), ("Turbo 5x", 5), ("No-Wait", 0),
+        ]
+        for (title, speed) in speeds {
+            let item = NSMenuItem(title: title, action: #selector(setEmulationSpeed(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = speed
+            clockMenu.addItem(item)
+        }
+
         mainMenu.addItem(clockMenuItem)
 
         // Display Menu
@@ -2259,6 +2273,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         autoSaveDiskStateIfNeeded()
     }
     
+    @IBAction func setEmulationSpeed(_ sender: NSMenuItem) {
+        guard let speed = sender.representedObject as? Int else { return }
+        gameViewController?.gameScene?.setEmulationSpeed(speed)
+    }
+
     @IBAction func toggleFDDWriteProtect(_ sender: NSMenuItem) {
         guard let drive = sender.representedObject as? Int,
               X68000_IsFDDMounted(drive) != 0, X68000_IsFDDImageReadOnly(drive) == 0 else { return }
@@ -3175,6 +3194,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(setEmulationSpeed(_:)) {
+            let current = gameViewController?.gameScene?.emulationSpeed ?? 1
+            menuItem.state = (menuItem.representedObject as? Int) == current ? .on : .off
+            return gameViewController?.gameScene != nil
+        }
         if menuItem.action == #selector(toggleFDDWriteProtect(_:)) {
             guard let drive = menuItem.representedObject as? Int else { return false }
             let mounted = X68000_IsFDDMounted(drive) != 0
