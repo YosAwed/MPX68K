@@ -669,6 +669,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         ejectDrive0Item.identifier = NSUserInterfaceItemIdentifier("FDD-eject-drive-A")
         fddMenu.addItem(ejectDrive0Item)
 
+        let protectDrive0Item = NSMenuItem(title: "Write-Protect Drive 0", action: #selector(toggleFDDWriteProtect(_:)), keyEquivalent: "")
+        protectDrive0Item.target = self
+        protectDrive0Item.representedObject = 0
+        protectDrive0Item.identifier = NSUserInterfaceItemIdentifier("FDD-protect-drive-A")
+        fddMenu.addItem(protectDrive0Item)
+
         fddMenu.addItem(NSMenuItem.separator())
 
         // Drive 1
@@ -681,6 +687,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         ejectDrive1Item.target = self
         ejectDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-eject-drive-B")
         fddMenu.addItem(ejectDrive1Item)
+
+        let protectDrive1Item = NSMenuItem(title: "Write-Protect Drive 1", action: #selector(toggleFDDWriteProtect(_:)), keyEquivalent: "")
+        protectDrive1Item.target = self
+        protectDrive1Item.representedObject = 1
+        protectDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-protect-drive-B")
+        fddMenu.addItem(protectDrive1Item)
 
         mainMenu.addItem(fddMenuItem)
 
@@ -2247,6 +2259,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         autoSaveDiskStateIfNeeded()
     }
     
+    @IBAction func toggleFDDWriteProtect(_ sender: NSMenuItem) {
+        guard let drive = sender.representedObject as? Int,
+              X68000_IsFDDMounted(drive) != 0, X68000_IsFDDImageReadOnly(drive) == 0 else { return }
+        let protect = X68000_IsFDDWriteProtected(drive) == 0
+        X68000_SetFDDWriteProtect(drive, protect ? 1 : 0)
+        infoLog("FDD drive \(drive) write-protect \(protect ? "ON" : "OFF")", category: .fileSystem)
+        autoSaveDiskStateIfNeeded()
+    }
+
     // MARK: - HDD Menu Actions
     @IBAction func openHDD(_ sender: Any) {
         guard coreGetStorageBusMode() == .sasi else {
@@ -3154,6 +3175,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleFDDWriteProtect(_:)) {
+            guard let drive = menuItem.representedObject as? Int else { return false }
+            let mounted = X68000_IsFDDMounted(drive) != 0
+            menuItem.state = (mounted && X68000_IsFDDWriteProtected(drive) != 0) ? .on : .off
+            // A read-only image file stays protected; nothing to toggle.
+            return mounted && X68000_IsFDDImageReadOnly(drive) == 0
+        }
         if menuItem.action == #selector(testSC55Sound(_:)) {
             return gameViewController?.gameScene?.midiOutputController.usesInternalSC55 == true
         }

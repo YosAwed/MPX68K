@@ -132,7 +132,7 @@ int D88_Eject(int drv)
 	if ( !D88File[drv][0] ) return FALSE;
 
 	// Only save if disk has been modified
-	if ( !FDD_IsReadOnly(drv) && D88Dirty[drv] ) {
+	if ( !FDD_IsImageReadOnly(drv) && D88Dirty[drv] ) {
 		printf("D88: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(D88File[drv]);
 		if ( fp ) {

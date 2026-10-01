@@ -24,6 +24,13 @@ int FDD_IsReadOnly(int drv)
     return 0;
 }
 
+/* The disk modules only decide eject write-back with this; the user
+ * write-protect tab lives in fdd.c and never reaches them here. */
+int FDD_IsImageReadOnly(int drv)
+{
+    return FDD_IsReadOnly(drv);
+}
+
 void stub_reset_read_only(void)
 {
     memset(s_read_only, 0, sizeof(s_read_only));

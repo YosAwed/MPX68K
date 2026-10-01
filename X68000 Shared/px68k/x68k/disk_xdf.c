@@ -68,7 +68,7 @@ int XDF_Eject(int drv)
 		return FALSE;
 	}
 	// Only save if disk has been modified and direct writes failed
-	if ( !FDD_IsReadOnly(drv) && XDFDirty[drv] ) {
+	if ( !FDD_IsImageReadOnly(drv) && XDFDirty[drv] ) {
 		// printf("XDF: Saving dirty disk to file (Drive:%d)\n", drv);
 		fp = File_Open(XDFFile[drv]);
 		if ( !fp ) goto xdf_eject_error;

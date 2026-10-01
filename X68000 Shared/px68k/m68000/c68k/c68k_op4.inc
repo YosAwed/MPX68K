@@ -5273,6 +5273,11 @@ RET(10)
 case 0x4AFC:
 {
 	u32 res;
+	/* The 68000 stacks the address of the ILLEGAL instruction itself, not
+	 * the next one (68000 Family Handbook, exception processing). Line-A and
+	 * Line-F (c68k_opA.inc / c68k_opF.inc) already apply this correction;
+	 * gen68k.c's GenILLEGAL omits it. Matches px68k upstream and MX68K P603. */
+	PC -= 2;
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;

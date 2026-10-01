@@ -286,7 +286,9 @@ public class DiskStateManager {
                         drive: drive,
                         filePath: finalUrl.path,
                         fileName: finalUrl.lastPathComponent,
-                        isReadOnly: false, // TODO: 読み取り専用状態の取得
+                        // Only the user's write-protect tab; a read-only image
+                        // file is detected again when it is remounted.
+                        isReadOnly: X68000_IsFDDWriteProtected(drive) != 0 && X68000_IsFDDImageReadOnly(drive) == 0,
                         fileSize: fileSize,
                         lastModified: modDate,
                         bookmarkData: bookmarkData
@@ -463,6 +465,9 @@ public class DiskStateManager {
 
         // ディスクイメージをロード
         X68000_LoadFDD(fddState.drive, restoreURL.path)
+        if fddState.isReadOnly {
+            X68000_SetFDDWriteProtect(fddState.drive, 1)
+        }
         mountedFDDFiles[fddState.drive] = restoreURL
         if let bookmarkData = fddState.bookmarkData {
             mountedFDDBookmarks[fddState.drive] = bookmarkData

@@ -14,6 +14,7 @@
 BYTE IOC_IntStat;
 BYTE IOC_IntVect;
 static int acceptsImage = 1;
+static int ejectSawImageReadOnly = -1;
 void IRQH_IRQCallBack(BYTE irq) { (void)irq; }
 void IRQH_Int(BYTE irq, void *handler) { (void)irq; (void)handler; }
 
@@ -21,7 +22,7 @@ void IRQH_Int(BYTE irq, void *handler) { (void)irq; (void)handler; }
     void prefix##_Init(void) {} \
     void prefix##_Cleanup(void) {} \
     int prefix##_SetFD(int drive, char *name) { return acceptsImage; } \
-    int prefix##_Eject(int drive) { return 1; } \
+    int prefix##_Eject(int drive) { ejectSawImageReadOnly = FDD_IsImageReadOnly(drive); return 1; } \
     int prefix##_Seek(int drive, int track, FDCID *id) { return 0; } \
     int prefix##_ReadID(int drive, FDCID *id) { return 0; } \
     int prefix##_WriteID(int drive, int track, unsigned char *buf, int num) { return 0; } \
@@ -57,7 +58,29 @@ int main(void)
     assert(!FDD_IsMounted(1));
     for (int i = 0; i < 3; i++) FDD_SetFDInt();
     assert(!FDD_IsReady(1));
+
+    /* The write-protect tab blocks FDC writes but not eject write-back of
+     * changes made before it was set, and belongs to the ejected medium. */
+    acceptsImage = 1;
+    FDD_SetWriteProtect(2, 1);
+    assert(!FDD_IsReadOnly(2));
+    FDD_SetFD(2, "valid.xdf", 0);
+    assert(!FDD_IsReadOnly(2));
+    FDD_SetWriteProtect(2, 1);
+    assert(FDD_IsReadOnly(2));
+    assert(!FDD_IsImageReadOnly(2));
+    FDD_EjectFD(2);
+    assert(ejectSawImageReadOnly == 0);
+    assert(!FDD_IsReadOnly(2));
+    FDD_SetFD(2, "valid.xdf", 0);
+    assert(!FDD_IsReadOnly(2));
+    FDD_SetReadOnly(2);
+    FDD_SetWriteProtect(2, 0);
+    assert(FDD_IsReadOnly(2));
+    assert(FDD_IsImageReadOnly(2));
+    FDD_EjectFD(2);
+
     FDD_Cleanup();
-    puts("PASS: mount, delayed readiness, reset, eject and rejected replacement");
+    puts("PASS: mount, delayed readiness, reset, eject, rejected replacement and write-protect");
     return 0;
 }

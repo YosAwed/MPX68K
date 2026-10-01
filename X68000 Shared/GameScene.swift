@@ -569,12 +569,45 @@ class GameScene: SKScene {
     
     // MARK: - System Management
     func resetSystem() {
+        clearGuestPowerOff()
         midiController.resetInternalSC55()
         infoLog("GameScene.resetSystem() called - performing manual reset", category: .emulation)
         // Persist SRAM before reset so SWITCH changes survive disk swaps/resets.
         fileSystem?.saveSRAM()
         X68000_Reset()
         infoLog("System reset completed", category: .emulation)
+    }
+
+    // MARK: - Guest Power-Off
+
+    /// Set when guest software switched the machine off through the system
+    /// port ($E8E00F). Emulation stays stopped until the next reset.
+    private(set) var isGuestPoweredOff = false
+    private var powerOffLabel: SKLabelNode?
+
+    private func handleGuestPowerOff() {
+        guard !isGuestPoweredOff else { return }
+        isGuestPoweredOff = true
+        infoLog("Guest software requested power-off", category: .emulation)
+        fileSystem?.saveSRAM()
+
+        spr.alpha = 0.25
+        let label = SKLabelNode(text: "POWER OFF — Reset to power on")
+        label.fontName = "Helvetica-Bold"
+        label.fontSize = 32
+        label.fontColor = .white
+        label.zPosition = 1000
+        label.position = CGPoint(x: 0, y: 0)
+        addChild(label)
+        powerOffLabel = label
+    }
+
+    private func clearGuestPowerOff() {
+        guard isGuestPoweredOff else { return }
+        isGuestPoweredOff = false
+        spr.alpha = 1.0
+        powerOffLabel?.removeFromParent()
+        powerOffLabel = nil
     }
 
     // MARK: - CRT Display Mode
@@ -1539,8 +1572,11 @@ class GameScene: SKScene {
             
             // Step emulator forward one frame
             // Drive core timing from SpriteKit fixed-step; avoid internal timer gating.
-            if X68000_Monitor_IsPaused() == 0 {
+            if X68000_Monitor_IsPaused() == 0 && !isGuestPoweredOff {
                 X68000_Update(self.clockMHz, 0)
+                if X68000_TakeGuestPowerOffRequest() != 0 {
+                    handleGuestPowerOff()
+                }
             }
 
             flushMIDIBuffer()

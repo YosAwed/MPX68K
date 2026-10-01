@@ -115,4 +115,5 @@ package-lock.json
 tests/core/test_disk_d88
 tests/core/test_fdd_mount
 tests/core/test_sram_scsi
+tests/core/test_sysport
 tests/core/_test_image.d88
