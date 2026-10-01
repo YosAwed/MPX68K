@@ -808,37 +808,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         let clockMenu = NSMenu(title: "Clock")
         clockMenuItem.submenu = clockMenu
 
-        let clk1 = NSMenuItem(title: "1 MHz", action: #selector(GameViewController.setClock1MHz(_:)), keyEquivalent: "1")
-        clk1.keyEquivalentModifierMask = [.control]
-        clk1.target = nil
-        clockMenu.addItem(clk1)
-
-        let clk10 = NSMenuItem(title: "10 MHz", action: #selector(GameViewController.setClock10MHz(_:)), keyEquivalent: "2")
-        clk10.keyEquivalentModifierMask = [.control]
-        clk10.target = nil
-        clockMenu.addItem(clk10)
-
-        let clk16 = NSMenuItem(title: "16 MHz", action: #selector(GameViewController.setClock16MHz(_:)), keyEquivalent: "3")
-        clk16.keyEquivalentModifierMask = [.control]
-        clk16.target = nil
-        clockMenu.addItem(clk16)
-
-        let clk24 = NSMenuItem(title: "24 MHz (Default)", action: #selector(GameViewController.setClock24MHz(_:)), keyEquivalent: "4")
-        clk24.keyEquivalentModifierMask = [.control]
-        clk24.target = nil
-        clockMenu.addItem(clk24)
-
-        clockMenu.addItem(NSMenuItem.separator())
-
-        let clk40 = NSMenuItem(title: "40 MHz", action: #selector(GameViewController.setClock40MHz(_:)), keyEquivalent: "5")
-        clk40.keyEquivalentModifierMask = [.control]
-        clk40.target = nil
-        clockMenu.addItem(clk40)
-
-        let clk50 = NSMenuItem(title: "50 MHz (Max)", action: #selector(GameViewController.setClock50MHz(_:)), keyEquivalent: "6")
-        clk50.keyEquivalentModifierMask = [.control]
-        clk50.target = nil
-        clockMenu.addItem(clk50)
+        // Target the app delegate directly: nil-targeted items depend on the
+        // responder chain and go disabled whenever the game window isn't key.
+        let clocks: [(String, Int, String)] = [
+            ("1 MHz", 1, "1"), ("10 MHz", 10, "2"), ("16 MHz", 16, "3"),
+            ("24 MHz (Default)", 24, "4"), ("", 0, ""),
+            ("40 MHz", 40, "5"), ("50 MHz (Max)", 50, "6"),
+        ]
+        for (title, mhz, key) in clocks {
+            guard mhz > 0 else {
+                clockMenu.addItem(NSMenuItem.separator())
+                continue
+            }
+            let item = NSMenuItem(title: title, action: #selector(selectCPUClock(_:)), keyEquivalent: key)
+            item.keyEquivalentModifierMask = [.control]
+            item.target = self
+            item.representedObject = mhz
+            clockMenu.addItem(item)
+        }
 
         // Speed: extra emulated frames per displayed frame, on top of the
         // CPU clock above (which now runs at its nominal rate).
@@ -2273,6 +2260,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         autoSaveDiskStateIfNeeded()
     }
     
+    @IBAction func selectCPUClock(_ sender: NSMenuItem) {
+        guard let mhz = sender.representedObject as? Int else { return }
+        gameViewController?.gameScene?.setCPUClock(mhz)
+    }
+
     @IBAction func setEmulationSpeed(_ sender: NSMenuItem) {
         guard let speed = sender.representedObject as? Int else { return }
         gameViewController?.gameScene?.setEmulationSpeed(speed)
@@ -3194,6 +3186,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(selectCPUClock(_:)) {
+            let current = Int(UserDefaults.standard.string(forKey: "clock") ?? "") ?? 24
+            menuItem.state = (menuItem.representedObject as? Int) == current ? .on : .off
+            return gameViewController?.gameScene != nil
+        }
         if menuItem.action == #selector(setEmulationSpeed(_:)) {
             let current = gameViewController?.gameScene?.emulationSpeed ?? 1
             menuItem.state = (menuItem.representedObject as? Int) == current ? .on : .off
@@ -3232,26 +3229,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         } else if menuItem.identifier?.rawValue == "Display-toggle-recording" {
             let isRecording = gameViewController?.isScreenRecording ?? false
             menuItem.title = isRecording ? "Stop Recording" : "Start Recording..."
-            return true
-        } else if menuItem.menu?.title == "Clock" {
-            // Reflect current clock selection via checkmark
-            let currentMHz: Int = {
-                if let s = UserDefaults.standard.string(forKey: "clock"), let v = Int(s) { return v }
-                return 24
-            }()
-            let title = menuItem.title
-            let targetMHz: Int? = (
-                title.contains("1 MHz") ? 1 :
-                title.contains("10 MHz") ? 10 :
-                title.contains("16 MHz") ? 16 :
-                title.contains("24 MHz") ? 24 :
-                title.contains("40 MHz") ? 40 :
-                title.contains("50 MHz") ? 50 :
-                nil
-            )
-            if let mhz = targetMHz {
-                menuItem.state = (mhz == currentMHz) ? .on : .off
-            }
             return true
         } else if menuItem.identifier?.rawValue == "Settings-auto-mount" || menuItem.title.contains("Auto-Mount Disk Images") {
             // Legacy auto-mount menu item - keep for compatibility
