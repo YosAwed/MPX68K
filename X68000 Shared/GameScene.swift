@@ -34,6 +34,7 @@ class GameScene: SKScene {
         case joycard
     }
     private var currentInputMode: InputMode = .keyboard
+    var isJoycardMode: Bool { currentInputMode == .joycard }
     private var inputModeButton: SKLabelNode?
     
     // Screen rotation management
@@ -3220,27 +3221,16 @@ extension GameScene {
         }
     }
 
+    // In joycard mode only the control keys needed to get through menus
+    // and prompts reach the X68000 keyboard; everything else (Space, letters
+    // such as Z/A/B/WASD/J/K) drives the joycard and must not also type.
     private func shouldForwardToX68KeyboardInJoycardMode(_ event: NSEvent) -> Bool {
         switch event.keyCode {
-        case 36, 49, 51, 48, 53: // Return, Space, Backspace, Tab, Esc
+        case 36, 51, 48, 53: // Return, Backspace, Tab, Esc
             return true
         default:
-            break
-        }
-
-        guard let characters = event.characters, !characters.isEmpty else {
             return false
         }
-
-        if characters == "\r" || characters == "\n" || characters == "\t" ||
-            characters == "\u{08}" || characters == "\u{1b}" {
-            return true
-        }
-
-        guard let scalar = characters.unicodeScalars.first else {
-            return false
-        }
-        return scalar.value >= 0x20 && scalar.value <= 0x7e
     }
     
     // 特殊キー（文字以外）用のマッピング

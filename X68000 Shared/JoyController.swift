@@ -7,6 +7,7 @@
 //
 
 import GameController
+import IOKit.hid
 import UserNotifications
 
 let  JOY_UP   : UInt8 = 0x01
@@ -22,6 +23,10 @@ let RAPID_FIRE_INTERVAL = 1.0 / 30;   //　連写速度 sec
 class JoyController {
 
     var joydata : UInt8 = 0x00
+    // State from generic USB HID joysticks that GameController does not
+    // recognize (e.g. the X68000 Z JOYCARD). Merged with joydata on output.
+    private var hidJoydata : UInt8 = 0x00
+    private var hidManager : IOHIDManager?
     
     func initNotificationSetupCheck() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert])
@@ -58,10 +63,138 @@ class JoyController {
             self, selector: #selector(self.handleControllerDidDisconnect),
             name: NSNotification.Name.GCControllerDidDisconnect, object: nil)
         
+        setupHIDJoysticks()
+
         guard let controller = GCController.controllers().first else {
             return
         }
         registerGameController(controller)
+    }
+
+    // MARK: - Generic HID joysticks
+
+    private func setupHIDJoysticks() {
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        let matching: [[String: Int]] = [
+            [kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop, kIOHIDDeviceUsageKey: kHIDUsage_GD_Joystick],
+            [kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop, kIOHIDDeviceUsageKey: kHIDUsage_GD_GamePad],
+        ]
+        IOHIDManagerSetDeviceMatchingMultiple(manager, matching as CFArray)
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, { context, _, _, device in
+            guard let context = context else { return }
+            Unmanaged<JoyController>.fromOpaque(context).takeUnretainedValue().hidDeviceMatched(device)
+        }, context)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, { context, _, _, device in
+            guard let context = context else { return }
+            Unmanaged<JoyController>.fromOpaque(context).takeUnretainedValue().hidDeviceRemoved(device)
+        }, context)
+        IOHIDManagerRegisterInputValueCallback(manager, { context, _, _, value in
+            guard let context = context else { return }
+            Unmanaged<JoyController>.fromOpaque(context).takeUnretainedValue().hidValueChanged(value)
+        }, context)
+
+        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        let result = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        if result != kIOReturnSuccess {
+            warningLog("IOHIDManagerOpen failed: \(result)", category: .input)
+        }
+        hidManager = manager
+    }
+
+    // Devices GameController actually surfaced (Xbox, DualSense, MFi...)
+    // are left to registerGameController so they are not read twice.
+    // GCController.supportsHIDDevice is not usable for this: it returns
+    // true for the X68000 Z JOYCARD, which GameController never surfaces.
+    private func isHandledByGameController(_ device: IOHIDDevice) -> Bool {
+        let name = hidDeviceName(device)
+        return GCController.controllers().contains { $0.vendorName == name }
+    }
+
+    private func hidDeviceName(_ device: IOHIDDevice) -> String {
+        return IOHIDDeviceGetProperty(device, kIOHIDProductKey as CFString) as? String ?? "Unknown"
+    }
+
+    private func hidDeviceMatched(_ device: IOHIDDevice) {
+        if isHandledByGameController(device) { return }
+        infoLog("HID joystick connected: \(hidDeviceName(device))", category: .input)
+        self.event?(.Connected)
+    }
+
+    private func hidDeviceRemoved(_ device: IOHIDDevice) {
+        if isHandledByGameController(device) { return }
+        infoLog("HID joystick disconnected: \(hidDeviceName(device))", category: .input)
+        hidJoydata = 0
+        X68000_Joystick_Set(0, joydata | hidJoydata)
+        self.event?(.Disconnected)
+    }
+
+    private func hidSet(_ type: UInt8, _ on: Bool) {
+        if on {
+            hidJoydata |= type
+        } else {
+            hidJoydata &= ~type
+        }
+    }
+
+    private func hidValueChanged(_ value: IOHIDValue) {
+        let element = IOHIDValueGetElement(value)
+        let device = IOHIDElementGetDevice(element)
+        if isHandledByGameController(device) { return }
+
+        let usagePage = Int(IOHIDElementGetUsagePage(element))
+        let usage = Int(IOHIDElementGetUsage(element))
+        let raw = IOHIDValueGetIntegerValue(value)
+        let old = hidJoydata
+
+        switch usagePage {
+        case kHIDPage_GenericDesktop:
+            let minValue = IOHIDElementGetLogicalMin(element)
+            let maxValue = IOHIDElementGetLogicalMax(element)
+            switch usage {
+            case kHIDUsage_GD_X, kHIDUsage_GD_Y:
+                guard maxValue > minValue else { return }
+                // Normalize to -1...1 and use a wide dead zone; digital
+                // pads report only min/center/max anyway.
+                let n = (Double(raw - minValue) / Double(maxValue - minValue)) * 2.0 - 1.0
+                if usage == kHIDUsage_GD_X {
+                    hidSet(JOY_LEFT, n < -0.5)
+                    hidSet(JOY_RIGHT, n > 0.5)
+                } else {
+                    hidSet(JOY_UP, n < -0.5)
+                    hidSet(JOY_DOWN, n > 0.5)
+                }
+            case kHIDUsage_GD_Hatswitch:
+                // 8-way hat: 0 = up, clockwise; out of range = centered.
+                let position = raw - minValue
+                let count = maxValue - minValue + 1
+                let centered = position < 0 || position >= count || (count != 8 && count != 4)
+                let dir = centered ? -1 : (count == 4 ? position * 2 : position)
+                hidSet(JOY_UP, dir == 7 || dir == 0 || dir == 1)
+                hidSet(JOY_RIGHT, dir == 1 || dir == 2 || dir == 3)
+                hidSet(JOY_DOWN, dir == 3 || dir == 4 || dir == 5)
+                hidSet(JOY_LEFT, dir == 5 || dir == 6 || dir == 7)
+            default:
+                return
+            }
+        case kHIDPage_Button:
+            // X68000 Z JOYCARD reports A as button 3 and B as button 2;
+            // button 1 is also treated as A for generic pads.
+            switch usage {
+            case 1, 3: hidSet(JOY_TRG2, raw != 0)
+            case 2: hidSet(JOY_TRG1, raw != 0)
+            default:
+                debugLog("HID joystick button \(usage) = \(raw)", category: .input)
+                return
+            }
+        default:
+            return
+        }
+
+        if hidJoydata != old {
+            X68000_Joystick_Set(0, joydata | hidJoydata)
+        }
     }
     
     // Notification: Connection
@@ -233,7 +366,7 @@ class JoyController {
         } else {
             joydata &= ~type
         }
-        X68000_Joystick_Set(port, joydata)
+        X68000_Joystick_Set(port, joydata | hidJoydata)
 
     }
 

@@ -183,7 +183,7 @@
                                             </connections>
                                         </menuItem>
                                         <menuItem isSeparatorItem="YES" id="Display-input-separator"/>
-                                        <menuItem title="Switch to Joycard Mode" id="Display-input-mode">
+                                        <menuItem title="Joycard Mode" id="Display-input-mode">
                                             <connections>
                                                 <action selector="toggleInputMode:" target="Ady-hI-5gd" id="Display-input-action"/>
                                             </connections>

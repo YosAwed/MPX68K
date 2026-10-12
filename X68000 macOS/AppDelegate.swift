@@ -967,7 +967,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         mouseToggleItem.identifier = NSUserInterfaceItemIdentifier("Display-mouse-mode")
         systemMenu.addItem(mouseToggleItem)
 
-        let inputToggleItem = NSMenuItem(title: "Toggle Input Mode", action: #selector(toggleInputMode(_:)), keyEquivalent: "")
+        let inputToggleItem = NSMenuItem(title: "Joycard Mode", action: #selector(toggleInputMode(_:)), keyEquivalent: "")
         inputToggleItem.target = self
         systemMenu.addItem(inputToggleItem)
 
@@ -3212,6 +3212,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             let isInternalItem = menuItem.action == #selector(useInternalSC55(_:))
             menuItem.state = internalSelected == isInternalItem ? .on : .off
             return controller != nil
+        }
+        if menuItem.action == #selector(toggleInputMode(_:)) {
+            // A checkmark shows the current mode; the title is not a
+            // "switch to" label, which read as the opposite state.
+            menuItem.title = "Joycard Mode"
+            menuItem.state = gameViewController?.gameScene?.isJoycardMode == true ? .on : .off
+            return gameViewController?.gameScene != nil
         }
         if menuItem.action == #selector(chooseSC55ROMFolder(_:)) {
             return gameViewController?.gameScene != nil
