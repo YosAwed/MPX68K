@@ -207,8 +207,46 @@ public class DiskStateManager {
         return loadSavedState()
     }
     
+    // Security-scoped access kept open for restored disks, keyed by "fdd0",
+    // "fdd1" or "hdd". Released when that drive is ejected or remounted.
+    private var heldSecurityScopes: [String: URL] = [:]
+
+    private func holdSecurityScope(_ url: URL, forKey key: String) {
+        heldSecurityScopes.removeValue(forKey: key)?.stopAccessingSecurityScopedResource()
+        heldSecurityScopes[key] = url
+    }
+
+    private func releaseSecurityScope(forKey key: String) {
+        heldSecurityScopes.removeValue(forKey: key)?.stopAccessingSecurityScopedResource()
+    }
+
+    // Resolves a saved security-scoped bookmark and starts access. A stale
+    // bookmark still resolves to the file and is used (and refreshed by the
+    // caller); only when resolution or access fails does this fall back to
+    // the plain saved path.
+    private func resolveSecurityScopedURL(_ bookmarkData: Data?, fallbackPath: String, label: String) -> (URL, URL?) {
+        if let bookmarkData = bookmarkData {
+            do {
+                var isStale = false
+                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
+                if resolvedURL.startAccessingSecurityScopedResource() {
+                    if isStale {
+                        infoLog("Using stale security bookmark for \(label)", category: .fileSystem)
+                    }
+                    infoLog("Security-scoped access restored for \(label)", category: .fileSystem)
+                    return (resolvedURL, resolvedURL)
+                }
+                warningLog("Could not start security-scoped access for \(label)", category: .fileSystem)
+            } catch {
+                warningLog("Failed to resolve security bookmark for \(label): \(error)", category: .fileSystem)
+            }
+        }
+        return (URL(fileURLWithPath: fallbackPath), nil)
+    }
+
     // Swift側でのマウント情報記録
     public func recordFDDMount(_ url: URL, drive: Int, bookmarkData: Data? = nil) {
+        releaseSecurityScope(forKey: "fdd\(drive)")
         mountedFDDFiles[drive] = url
         if let bookmarkData = bookmarkData {
             mountedFDDBookmarks[drive] = bookmarkData
@@ -229,6 +267,7 @@ public class DiskStateManager {
     }
     
     public func recordFDDEject(_ drive: Int) {
+        releaseSecurityScope(forKey: "fdd\(drive)")
         mountedFDDFiles.removeValue(forKey: drive)
         mountedFDDBookmarks.removeValue(forKey: drive)
         debugLog("Recorded FDD eject: drive \(drive)", category: .fileSystem)
@@ -420,34 +459,19 @@ public class DiskStateManager {
     
     // FDD状態の復元
     private func restoreFDDState(_ fddState: DiskMountState.FDDState) -> Bool {
-        let url = URL(fileURLWithPath: fddState.filePath)
-        
+        // Resolve the bookmark first: in the sandbox the saved path is not
+        // even visible (fileExists returns false) until access is granted.
+        let (restoreURL, securityScopedURL) = resolveSecurityScopedURL(
+            fddState.bookmarkData, fallbackPath: fddState.filePath, label: "FDD drive \(fddState.drive)")
+        var keepAccess = false
+        defer {
+            if !keepAccess { securityScopedURL?.stopAccessingSecurityScopedResource() }
+        }
+
         // ファイル整合性検証
-        guard validateFileIntegrity(url: url, expectedSize: fddState.fileSize, expectedModDate: fddState.lastModified) else {
+        guard validateFileIntegrity(url: restoreURL, expectedSize: fddState.fileSize, expectedModDate: fddState.lastModified) else {
             warningLog("FDD file validation failed for drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
             return false
-        }
-        
-        // セキュリティスコープブックマークの復元
-        var restoreURL = url
-        var securityScopedURL: URL?
-        if let bookmarkData = fddState.bookmarkData {
-            do {
-                var isStale = false
-                let resolvedURL = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
-                
-                if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
-                    restoreURL = resolvedURL
-                    securityScopedURL = resolvedURL
-                    infoLog("Security-scoped access restored for FDD drive \(fddState.drive)", category: .fileSystem)
-                }
-            } catch {
-                warningLog("Failed to resolve security bookmark for FDD drive \(fddState.drive): \(error)", category: .fileSystem)
-            }
-        }
-        
-        defer {
-            securityScopedURL?.stopAccessingSecurityScopedResource()
         }
 
         do {
@@ -469,8 +493,16 @@ public class DiskStateManager {
             X68000_SetFDDWriteProtect(fddState.drive, 1)
         }
         mountedFDDFiles[fddState.drive] = restoreURL
-        if let bookmarkData = fddState.bookmarkData {
+        // Re-create the bookmark while access is active so a stale one is
+        // refreshed on the next save.
+        if let bookmarkData = (try? restoreURL.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)) ?? fddState.bookmarkData {
             mountedFDDBookmarks[fddState.drive] = bookmarkData
+        }
+        // Keep access while the disk is mounted: the core writes the image
+        // back by path, and later state saves need to stat it.
+        if let scoped = securityScopedURL {
+            keepAccess = true
+            holdSecurityScope(scoped, forKey: "fdd\(fddState.drive)")
         }
         infoLog("Restored FDD drive \(fddState.drive): \(fddState.fileName)", category: .fileSystem)
         return true
@@ -485,33 +517,13 @@ public class DiskStateManager {
     }
 
     private func prepareHDDRestore(_ hddState: DiskMountState.HDDState) -> PreparedHDDRestore? {
-        let url = URL(fileURLWithPath: hddState.filePath)
+        let (restoreURL, securityScopedURL) = resolveSecurityScopedURL(
+            hddState.bookmarkData, fallbackPath: hddState.filePath, label: "HDD")
 
-        guard validateFileIntegrity(url: url, expectedSize: hddState.fileSize, expectedModDate: hddState.lastModified) else {
+        guard validateFileIntegrity(url: restoreURL, expectedSize: hddState.fileSize, expectedModDate: hddState.lastModified) else {
             warningLog("HDD file validation failed: \(hddState.fileName)", category: .fileSystem)
+            securityScopedURL?.stopAccessingSecurityScopedResource()
             return nil
-        }
-
-        var restoreURL = url
-        var securityScopedURL: URL?
-        if let bookmarkData = hddState.bookmarkData {
-            do {
-                var isStale = false
-                let resolvedURL = try URL(
-                    resolvingBookmarkData: bookmarkData,
-                    options: .withSecurityScope,
-                    relativeTo: nil,
-                    bookmarkDataIsStale: &isStale
-                )
-
-                if !isStale && resolvedURL.startAccessingSecurityScopedResource() {
-                    restoreURL = resolvedURL
-                    securityScopedURL = resolvedURL
-                    infoLog("Security-scoped access restored for HDD", category: .fileSystem)
-                }
-            } catch {
-                warningLog("Failed to resolve security bookmark for HDD: \(error)", category: .fileSystem)
-            }
         }
 
         do {
