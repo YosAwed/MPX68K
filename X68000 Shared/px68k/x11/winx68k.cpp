@@ -427,7 +427,6 @@ WinX68k_LoadROMs(void)
         int scsiHits = 0;
         DWORD scsiFn20 = 0, scsiFn21 = 0;
         DWORD scsiOff = 0;
-        int scsiUd = 0;
         for (int ud = 0; ud <= 1; ++ud) {
             for (DWORD off = 0; off + 256*4 <= 0x40000; off += 4) {
                 DWORD raw20 = X68000_ReadIplLong(off + 0x20*4, ud);
@@ -463,7 +462,7 @@ WinX68k_LoadROMs(void)
                 } else if (eff20 >= 0x00ea0000U && eff20 < 0x00ea2000U) {
                     if (scsiHits == 0) {
                         scsiFn20 = eff20; scsiFn21 = eff21;
-                        scsiOff = off; scsiUd = ud;
+                        scsiOff = off;
                     }
                     scsiHits++;
                 }

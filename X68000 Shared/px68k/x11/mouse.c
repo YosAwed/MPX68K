@@ -185,7 +185,6 @@ static double GetCurrentTimeMs(void) {
 void Mouse_SetData(void)
 {
     // 旧ロジックに合わせた単純送出（必要最低限の重複抑止のみ）
-	POINT pt;
 	int x, y;
 
 	if (MouseSW) {

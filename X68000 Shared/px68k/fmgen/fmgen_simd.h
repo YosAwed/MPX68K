@@ -33,7 +33,6 @@ inline int32 branchless_add_if(int32 base, int32 addend, int32 condition) {
 // Process 4 channels at once
 inline void calc_4_channels_neon(int32* results, void** channels, int32 activech_mask) {
     // We'll implement the actual channel calculation here
-    int32x4_t mask = vdupq_n_s32(0);
     int32x4_t result = vdupq_n_s32(0);
     
     // Store results
