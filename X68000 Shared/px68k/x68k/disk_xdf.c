@@ -42,6 +42,8 @@ int XDF_SetFD(int drv, char* filename)
 	BYTE* Game = s_disk_image_buffer[drv];
     memcpy(XDFImg[drv], Game, 1261568 );
 #else
+	FILEH fp;
+
 	memset(XDFImg[drv], 0xe5, 1261568);
 	fp = File_Open(XDFFile[drv]);
 	if ( !fp ) {
