@@ -43,7 +43,6 @@ void Joystick_Cleanup(void)
 
 BYTE FASTCALL Joystick_Read(BYTE num)
 {
-	BYTE joynum = num;
 	BYTE ret0 = 0xff, ret1 = 0xff, ret;
 
 	if (joy[num]) {

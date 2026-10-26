@@ -32,8 +32,6 @@ void XDF_Cleanup(void)
 
 int XDF_SetFD(int drv, char* filename)
 {
-	FILEH fp;
-
 	strncpy(XDFFile[drv], filename, MAX_PATH);
 	XDFFile[drv][MAX_PATH-1] = 0;
 
