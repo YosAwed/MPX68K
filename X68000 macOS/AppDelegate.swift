@@ -971,6 +971,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         inputToggleItem.target = self
         systemMenu.addItem(inputToggleItem)
 
+        let usKeyboardItem = NSMenuItem(title: "US Keyboard Layout", action: #selector(toggleUSKeyboardLayout(_:)), keyEquivalent: "")
+        usKeyboardItem.target = self
+        systemMenu.addItem(usKeyboardItem)
+
+        let functionKeysItem = NSMenuItem(title: "Key Remapping (F11–F20)", action: nil, keyEquivalent: "")
+        let functionKeysMenu = NSMenu(title: "Key Remapping (F11–F20)")
+        GameScene.migrateFunctionKeyMappings()
+        for functionKey in GameScene.configurableFunctionKeys {
+            let keyItem = NSMenuItem(title: functionKey.name, action: nil, keyEquivalent: "")
+            let keyMenu = NSMenu(title: functionKey.name)
+            for (index, action) in GameScene.functionKeyActions.enumerated() {
+                let item = NSMenuItem(title: action.name, action: #selector(setFunctionKeyMapping(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = ["key": functionKey.name, "action": index] as [String: Any]
+                keyMenu.addItem(item)
+            }
+            keyItem.submenu = keyMenu
+            functionKeysMenu.addItem(keyItem)
+        }
+        functionKeysItem.submenu = functionKeysMenu
+        systemMenu.addItem(functionKeysItem)
+
         let midiOutputItem = NSMenuItem(title: "MIDI Output", action: nil, keyEquivalent: "")
         let midiOutputMenu = NSMenu(title: "MIDI Output")
         for (title, action) in [
@@ -2826,6 +2848,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         updateMouseMenuCheckmark()
     }
     
+    @objc private func setFunctionKeyMapping(_ sender: NSMenuItem) {
+        guard let setting = sender.representedObject as? [String: Any],
+              let key = setting["key"] as? String, let action = setting["action"] as? Int,
+              GameScene.configurableFunctionKeys.contains(where: { $0.name == key }),
+              GameScene.functionKeyActions.indices.contains(action) else { return }
+        UserDefaults.standard.set(GameScene.functionKeyActionIDs[action], forKey: "KeyboardRemapping." + key)
+    }
+
+    @objc private func toggleUSKeyboardLayout(_ sender: Any) {
+        let defaults = UserDefaults.standard
+        defaults.set(!defaults.bool(forKey: "USKeyboardLayout"), forKey: "USKeyboardLayout")
+    }
+
     @IBAction func toggleInputMode(_ sender: Any) {
         gameViewController?.gameScene?.toggleInputMode()
     }
@@ -3212,6 +3247,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             let isInternalItem = menuItem.action == #selector(useInternalSC55(_:))
             menuItem.state = internalSelected == isInternalItem ? .on : .off
             return controller != nil
+        }
+        if menuItem.action == #selector(setFunctionKeyMapping(_:)) {
+            guard let setting = menuItem.representedObject as? [String: Any],
+                  let name = setting["key"] as? String, let action = setting["action"] as? Int,
+                  let key = GameScene.configurableFunctionKeys.first(where: { $0.name == name }) else { return false }
+            menuItem.state = GameScene.functionKeyAction(for: name, defaultAction: key.defaultAction) == action ? .on : .off
+            return true
+        }
+        if menuItem.action == #selector(toggleUSKeyboardLayout(_:)) {
+            menuItem.state = UserDefaults.standard.bool(forKey: "USKeyboardLayout") ? .on : .off
+            return true
         }
         if menuItem.action == #selector(toggleInputMode(_:)) {
             // A checkmark shows the current mode; the title is not a

@@ -181,10 +181,10 @@ BYTE KeyTable[KEYTABLE_MAX] = {
 		0x44,0x45,  NC,  NC,  NC,  NC,0x63,0x64,
 	//	 f.3, f.4, f.5, f.6, f.7, f.8, f.9,f.10		; 0xc0
 		0x65,0x66,0x67,0x68,0x69,0x6a,0x6b,0x6c,
-	//	f.11,f.12,f.13,f.14,f.15,    ,    ,   		; 0xc8
-		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
-	//	    ,    ,    ,    ,    ,    ,    ,    		; 0xd0
-		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
+	//	f.11,f.12,    ,Roman,Opt.1,Opt.2, Copy,Clear   		; 0xc8
+		  NC,  NC,  NC,0x5b,0x72,0x73,0x62,0x3f,
+	//	Kana,Code,Kigou,    ,    ,    ,    ,   		; 0xd0
+		0x5a,0x5c,0x52,  NC,  NC,  NC,  NC,  NC,
 	//	    ,    ,    ,    ,    ,    ,    ,   		; 0xd8
 		  NC,  NC,  NC,  NC,  NC,  NC,  NC,  NC,
 	//	    ,SFTL,SFTR,CTLL,CTLR,CAPS,    ,METL		; 0xe0

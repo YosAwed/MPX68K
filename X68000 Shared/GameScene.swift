@@ -60,6 +60,7 @@ class GameScene: SKScene {
     
     // シフトキーの状態を追跡
     private var isShiftKeyPressed = false
+    private var mappedPressedKeys: [UInt16: (index: UInt32, shift: Bool)] = [:]
     
     fileprivate var label: SKLabelNode?
     fileprivate var labelStatus: SKLabelNode?
@@ -3100,8 +3101,10 @@ extension GameScene {
             return
         }
 
-        // Check for mouse capture mode exit (F12 key)
-        if event.keyCode == 111 { // F12 key
+        // Explicit remapping takes precedence over the default F12 capture shortcut.
+        if event.keyCode == 111,
+           mappedPressedKeys[event.keyCode] == nil,
+           Self.functionKeyAction(for: "F12", defaultAction: 0) == Self.defaultFunctionKeyAction {
             // Check if mouse capture is currently enabled
             if let mouseController = mouseController, mouseController.isCaptureMode {
                 // debugLog("F12 pressed - disabling mouse capture mode", category: .input)
@@ -3132,6 +3135,7 @@ extension GameScene {
     }
     
     private func handleX68KeyboardInput(_ event: NSEvent, isKeyDown: Bool) {
+        if handleMappedKeyboardInput(event, isKeyDown: isKeyDown) { return }
         // シフトキーの状態をチェックして、状態変化があれば送信
         let isShiftPressed = event.modifierFlags.contains(.shift)
         // print("🐛 Shift key pressed: \(isShiftPressed)")
@@ -3198,7 +3202,128 @@ extension GameScene {
         // print("🐛 Unmapped macOS keyCode: \(event.keyCode)")
     }
     
+    static let configurableFunctionKeys: [(name: String, code: UInt16, defaultAction: Int)] = [
+        ("F11", 103, 0), ("F12", 111, 0), ("F13", 105, 1), ("F14", 107, 2), ("F15", 113, 3),
+        ("F16", 106, 0), ("F17", 64, 0), ("F18", 79, 0), ("F19", 80, 0), ("F20", 90, 0)
+    ]
+    // index addresses the C KeyTable in keyboard.c, not a raw X68000 scan code.
+    static let functionKeyActions: [(name: String, index: UInt32?)] = [
+        ("Disabled", nil), ("Ro", 0x5f), ("Roman", 0x1cb),
+        ("Opt.1", 0x1cc), ("Opt.2", 0x1cd), ("Help", 0xff),
+        ("Toroku", 0xfe), ("Home", 0x150), ("Insert", 0x162),
+        ("Delete", 0x1ff), ("Undo", 0x157), ("Break", 0x16b),
+        ("Copy", 0x1ce), ("Clear", 0x1cf), ("Kana", 0x1d0),
+        ("Code", 0x1d1), ("Kigou", 0x1d2), ("Default", nil)
+    ]
+
+    static let defaultFunctionKeyAction = 17
+    // Stable persistence IDs; the first 17 entries also describe the legacy indices.
+    static let functionKeyActionIDs = [
+        "disabled", "ro", "roman", "opt1", "opt2", "help", "toroku", "home",
+        "insert", "delete", "undo", "break", "copy", "clear", "kana", "code", "kigou", "default"
+    ]
+
+    static func migrateFunctionKeyMappings() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: "KeyboardRemapping.Migrated") else { return }
+        // Preserve the effective old behavior, including F12's US-mode exception.
+        let wasUS = defaults.bool(forKey: "USKeyboardLayout")
+        for key in configurableFunctionKeys {
+            let setting = "KeyboardRemapping." + key.name
+            guard defaults.object(forKey: setting) == nil else { continue }
+            let legacy = defaults.object(forKey: "USKeyboard." + key.name) as? Int ?? key.defaultAction
+            let action: Int
+            if wasUS {
+                action = (0..<defaultFunctionKeyAction).contains(legacy) ? legacy : key.defaultAction
+            } else {
+                action = defaultFunctionKeyAction
+            }
+            defaults.set(functionKeyActionIDs[action], forKey: setting)
+        }
+        defaults.set(true, forKey: "KeyboardRemapping.Migrated")
+    }
+
+    static func functionKeyAction(for name: String, defaultAction: Int) -> Int {
+        migrateFunctionKeyMappings()
+        let stored = UserDefaults.standard.string(forKey: "KeyboardRemapping." + name)
+        return functionKeyActionIDs.firstIndex(where: { $0 == stored }) ?? defaultFunctionKeyAction
+    }
+
+    // Translate the character and the X68000 shift state together: their
+    // shifted symbol positions differ from those of an ANSI keyboard.
+    private func usSymbolMapping(_ char: Character) -> (UInt32, Bool)? {
+        switch char {
+        case "@": return (0x40, false)
+        case "[": return (0x5b, false)
+        case "]": return (0x5d, false)
+        case "\\": return (0x5c, false)
+        case ";": return (0x3b, false)
+        case ":": return (0x3a, false)
+        case "'": return (0x37, true)
+        case "\"": return (0x32, true)
+        case "&": return (0x36, true)
+        case "(": return (0x38, true)
+        case ")": return (0x39, true)
+        case "*": return (0x3a, true)
+        case "+": return (0x3b, true)
+        case "=": return (0x2d, true)
+        case "^": return (0x5e, false)
+        case "~": return (0x5e, true)
+        case "`": return (0x40, true)
+        case "{": return (0x5b, true)
+        case "}": return (0x5d, true)
+        case "|": return (0x5c, true)
+        case "_": return (0x5f, true)
+        default: return nil
+        }
+    }
+
+    private func setGuestShift(_ pressed: Bool) {
+        guard pressed != isShiftKeyPressed else { return }
+        if pressed { X68000_Key_Down(0x1e1) } else { X68000_Key_Up(0x1e1) }
+        isShiftKeyPressed = pressed
+    }
+
+    private func handleMappedKeyboardInput(_ event: NSEvent, isKeyDown: Bool) -> Bool {
+        if !isKeyDown, let key = mappedPressedKeys.removeValue(forKey: event.keyCode) {
+            if !mappedPressedKeys.values.contains(where: { $0.index == key.index }) {
+                X68000_Key_Up(key.index)
+            }
+            setGuestShift(event.modifierFlags.contains(.shift))
+            return true
+        }
+        guard isKeyDown else { return false }
+        if let key = mappedPressedKeys[event.keyCode] {
+            setGuestShift(key.shift)
+            X68000_Key_Down(key.index)
+            return true
+        }
+        let key: UInt32
+        let shift: Bool
+        if let functionKey = Self.configurableFunctionKeys.first(where: { $0.code == event.keyCode }) {
+            let action = Self.functionKeyAction(for: functionKey.name, defaultAction: functionKey.defaultAction)
+            if action == Self.defaultFunctionKeyAction { return false }
+            guard let index = Self.functionKeyActions[action].index else { return true }
+            key = index
+            shift = event.modifierFlags.contains(.shift)
+        } else {
+            guard UserDefaults.standard.bool(forKey: "USKeyboardLayout"),
+                  let char = event.characters?.first, let mapping = usSymbolMapping(char) else { return false }
+            (key, shift) = mapping
+        }
+        setGuestShift(shift)
+        let alreadyPressed = mappedPressedKeys.values.contains(where: { $0.index == key })
+        mappedPressedKeys[event.keyCode] = (key, shift)
+        if !alreadyPressed { X68000_Key_Down(key) }
+        return true
+    }
+
     override func keyUp(with event: NSEvent) {
+        // Release keys sent before a layout or input mode change as well.
+        if mappedPressedKeys[event.keyCode] != nil {
+            _ = handleMappedKeyboardInput(event, isKeyDown: false)
+            return
+        }
         // Skip Tab key for mode toggle - DISABLED
         // if event.keyCode == 48 { // Tab key
         //     return
