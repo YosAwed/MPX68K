@@ -33,6 +33,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 
 ### Input
 - **Keyboard & Mouse**: Full macOS-native input with SCC compatibility mode for VS.X double-click reliability
+  - Select **System → US Keyboard Layout** for ANSI symbol translation. Independently configure F11–F20 in **System → Key Remapping (F11–F20)** on either JPN or US keyboards. Assignments include Ro, Roman, Opt.1/2, Help, Copy, and other X68000 keys. **Default** preserves normal behavior (F12 releases mouse capture); **Disabled** suppresses the key. An explicit F12 assignment overrides capture release; Shift-Command-M remains available to toggle capture. New settings default to normal behavior. Existing effective US mappings are migrated once, including F13 = Ro, F14 = Roman, F15 = Opt.1 defaults. Settings persist across launches. Joycard mode retains its existing keyboard forwarding restrictions.
 - **X68000 Mouse Capture**: Toggle with ⇧⌘M, pointer warping disabled for clean capture behavior
 - **JoyportU Integration**: ATARI-style joystick support with Notify / Command modes
 - **GameController Framework**: External MFi / Xbox / PlayStation controllers
