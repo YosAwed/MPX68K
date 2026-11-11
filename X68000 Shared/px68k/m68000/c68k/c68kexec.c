@@ -305,6 +305,38 @@ SwitchTable:
 #endif
 
 C68k_Exec_End:
+    if (CPU->BusError)
+    {
+        // Bus error (group 0 exception). The 68000 abandons the instruction
+        // part way; here it has already finished with whatever the handler
+        // returned, which is enough for programs that hook the vector to find
+        // out whether a board is there. The frame is the 68000's: status word,
+        // access address, instruction register, SR, PC.
+        u32 oldSR = GET_SR;
+
+        CPU->BusError = 0;
+        if (!CPU->flag_S)
+        {
+            u32 tmpSP;
+
+            tmpSP = CPU->USP;
+            CPU->USP = CPU->A[7];
+            CPU->A[7] = tmpSP;
+        }
+        CPU->flag_S = C68K_SR_S;
+
+        PRE_IO
+        PUSH_32_F((u32)(PC - CPU->BasePC))
+        PUSH_16_F(oldSR)
+        PUSH_16_F(Opcode)
+        PUSH_32_F(CPU->BusErrorAddr)
+        PUSH_16_F((Opcode & 0xFFE0) | 0x15)     // read, not an instruction fetch, supervisor data
+        READ_LONG_F(C68K_BUS_ERROR_EX * 4, PC)
+        SET_PC(PC)
+        POST_IO
+        CPU->BusError = 0;                      // the frame itself is not allowed to fault
+        CCnt -= 50;
+    }
     CHECK_INT
     if ((CCnt += CPU->CycleSup) > 0)
     {

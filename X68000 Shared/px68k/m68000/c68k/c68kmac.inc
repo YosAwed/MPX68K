@@ -64,7 +64,7 @@ extern void TRACE(int,c68k_struc*,int,int);
 
 #define RET(A)                  \
     CCnt -= (A);                \
-    if (CCnt <= 0) goto C68k_Exec_End; \
+    if ((CCnt <= 0) || CPU->BusError) goto C68k_Exec_End; \
     NEXT
 
 #define SET_PC(A)               \

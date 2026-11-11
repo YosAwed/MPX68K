@@ -898,12 +898,29 @@ rm_scsi_dummy(DWORD addr)
 
 // MIDI board (CZ-6BM1) registers live at 0xEAF A01-0xEAF A0F.
 // Keep other addresses in this block as dummy reads to preserve SCSI probing behavior.
+//
+// 0xEAF A10-0xEAF A1F is where a second MIDI board would be. There is none, and
+// on the real machine touching it is a bus error; drivers that support two
+// boards (EXACT's SMIDRV, for one) hook the bus error vector and read the first
+// register to find out. Answering 0xff instead makes them believe the board is
+// there and wait forever on its status register.
+static int
+midi_second_board(DWORD addr)
+{
+	return addr >= 0x00eafa10 && addr < 0x00eafa20;
+}
+
 static BYTE
 rm_midi(DWORD addr)
 {
 	if (addr >= 0x00eafa01 && addr < 0x00eafa10) {
 		return MIDI_Read(addr);
 	}
+#if defined(HAVE_C68K)
+	if (midi_second_board(addr)) {
+		C68k_Bus_Error(&C68K, addr);
+	}
+#endif
 	return 0xff;
 }
 
@@ -914,6 +931,11 @@ wm_midi(DWORD addr, BYTE val)
 		MIDI_Write(addr, val);
 		return;
 	}
+#if defined(HAVE_C68K)
+	if (midi_second_board(addr)) {
+		C68k_Bus_Error(&C68K, addr);
+	}
+#endif
 	(void)addr;
 	(void)val;
 }

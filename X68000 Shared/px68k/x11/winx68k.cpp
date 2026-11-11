@@ -1032,6 +1032,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
 
         MFP_Timer(usedclk);
         RTC_Timer(usedclk);
+        SCC_Timer(usedclk);     // RS-232C character timing and link
         DMA_Exec(0);
         DMA_Exec(1);
         DMA_Exec(2);
