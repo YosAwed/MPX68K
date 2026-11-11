@@ -13,7 +13,7 @@ CFLAGS += -Wall -g $(SAN) \
 
 # Test binaries are phony so edits to the (space-containing) core source
 # paths always trigger a rebuild; the builds are cheap.
-.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport
+.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport test_scc_rs232c test_c68k_buserr
 
 all: run
 
@@ -42,7 +42,17 @@ test_sram_scsi:
 test_sysport:
 	$(CC) $(CFLAGS) -o $@ test_sysport.c "$(PX68K)/x68k/sysport.c"
 
-run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport
+# _GNU_SOURCE: scc.c's host serial backends use pty and usleep declarations
+# that glibc only exposes with it.
+test_scc_rs232c:
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ test_scc_rs232c.c "$(PX68K)/x68k/scc.c" -lpthread
+
+# The 68000 core, built the way the app builds it.
+test_c68k_buserr:
+	$(CC) $(CFLAGS) -w -DC68K_NO_JUMP_TABLE -DHAVE_C68K -o $@ test_c68k_buserr.c \
+		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c"
+
+run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport test_scc_rs232c test_c68k_buserr
 	./test_disk_d88
 	./test_crtc_timing
 	./test_mfp_hsync
@@ -50,6 +60,8 @@ run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount te
 	./test_fdd_mount
 	./test_sram_scsi
 	./test_sysport
+	./test_scc_rs232c
+	./test_c68k_buserr
 
 clean:
-	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport _test_image.d88
+	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sysport test_scc_rs232c test_c68k_buserr _test_image.d88

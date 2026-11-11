@@ -86,7 +86,8 @@ void C68k_Init(c68k_struc *cpu, C68K_INT_CALLBACK *int_cb)
 
 s32 FASTCALL C68k_Reset(c68k_struc *cpu)
 {
-    memset(cpu, 0, ((u8 *)&(cpu->dirty1)) - ((u8 *)&(cpu->D[0])));
+    memset(cpu, 0, ((u8 *)&(cpu->BusError)) - ((u8 *)&(cpu->D[0])));
+    cpu->BusError = 0;
     
     cpu->flag_notZ = 1;
     cpu->flag_I = 7;
@@ -132,6 +133,17 @@ s32 FASTCALL C68k_Get_CycleDone(c68k_struc *cpu)
     if (!(cpu->Status & C68K_RUNNING)) return -1;
 
     return (cpu->CycleToDo - (cpu->CycleIO + cpu->CycleSup));
+}
+
+void FASTCALL C68k_Bus_Error(c68k_struc *cpu, u32 address)
+{
+    // Only the CPU's own accesses fault (not a debugger or the DMA controller
+    // looking at the same address), and only the first one of an instruction.
+    if ((cpu->Status & C68K_RUNNING) && !cpu->BusError)
+    {
+        cpu->BusError = 1;
+        cpu->BusErrorAddr = address;
+    }
 }
 
 void FASTCALL C68k_Release_Cycle(c68k_struc *cpu)

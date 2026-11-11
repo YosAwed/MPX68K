@@ -144,7 +144,7 @@ typedef struct {
     s32 CycleToDo;  // 16 bytes aligned
     s32 CycleIO;
     s32 CycleSup;
-    u32 dirty1;
+    u32 BusError;   // a bus error exception is taken when the current instruction ends
     
     C68K_READ *Read_Byte;                   // 32 bytes aligned
     C68K_READ *Read_Word;
@@ -156,6 +156,8 @@ typedef struct {
     C68K_RESET_CALLBACK *Reset_CallBack;
 
 	pointer Fetch[C68K_FETCH_BANK];             // 32 bytes aligned
+
+    u32 BusErrorAddr;   // the address whose access faulted
 } c68k_struc;
 
 
@@ -177,6 +179,11 @@ s32     FASTCALL C68k_Reset(c68k_struc *cpu);
 s32	    FASTCALL C68k_Exec(c68k_struc *cpu, s32 cycle);
 
 void    FASTCALL C68k_Set_IRQ(c68k_struc *cpu, s32 level);
+
+// Called from a memory handler when the access hits nothing (no /DTACK on the
+// real bus): the 68000 takes the bus error exception (vector 2) as soon as
+// the instruction in progress has finished.
+void    FASTCALL C68k_Bus_Error(c68k_struc *cpu, u32 address);
 
 s32     FASTCALL C68k_Get_CycleToDo(c68k_struc *cpu);
 s32     FASTCALL C68k_Get_CycleRemaining(c68k_struc *cpu);

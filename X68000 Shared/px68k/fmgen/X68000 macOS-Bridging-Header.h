@@ -93,6 +93,25 @@ int PPI_GetJoyportUMode(void);
 void SCC_SetCompatMode(int enable);
 int SCC_GetCompatMode(void);
 
+// RS-232C link to another emulator (cross cable); see scc.h
+void SCC_LinkSetConnected(int connected);
+void SCC_LinkFeed(const unsigned char *data, int len);
+int SCC_LinkDrain(unsigned char *buf, int max);
+void SCC_LinkSetTxNotify(void (*notify)(void));
+int SCC_LinkGetInfo(int item);
+enum SCCLinkInfo {   // keep in step with scc.h
+    SCC_LINK_INFO_ONLINE = 0,
+    SCC_LINK_INFO_BAUD,
+    SCC_LINK_INFO_FORMAT,
+    SCC_LINK_INFO_PEER_BAUD,
+    SCC_LINK_INFO_PEER_FORMAT,
+    SCC_LINK_INFO_LINES,
+    SCC_LINK_INFO_PEER_LINES,
+    SCC_LINK_INFO_TX_CHARS,
+    SCC_LINK_INFO_RX_CHARS,
+    SCC_LINK_INFO_MISMATCHES
+};
+
 // SASI mode: update desired RAM size from current SRAM (call after saveSRAM)
 void WinX68k_UpdateSASIRamSize(void);
 

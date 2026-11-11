@@ -116,4 +116,6 @@ tests/core/test_disk_d88
 tests/core/test_fdd_mount
 tests/core/test_sram_scsi
 tests/core/test_sysport
+tests/core/test_scc_rs232c
+tests/core/test_c68k_buserr
 tests/core/_test_image.d88
