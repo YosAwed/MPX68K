@@ -272,6 +272,60 @@ int main(void)
     run(CHAR_CLK * 2);
     CHECK((rr(0) & 0x05) == 0x04, "unplugged: characters go nowhere, Tx still runs");
 
+    /* ---- a channel reset withdraws channel A's request ---- */
+    SCC_LinkSetConnected(1);
+    setup(0xea);
+    wr(1, 0x02);                                    /* Tx interrupts */
+    SCC_Write(A_DATA, 'R');
+    CHECK(IRQH_IRQ[5] == 1, "reset: channel A has a request");
+    wr(9, 0x80);                                    /* channel A reset */
+    run(100);
+    CHECK(IRQH_IRQ[5] == 0, "reset: the request is withdrawn");
+    setup(0xea);
+    run(CHAR_CLK * 4);
+    while (rr(0) & 0x01) (void)SCC_Read(A_DATA);
+
+    /* ---- interrupt on first character: only that one ---- */
+    wr(1, 0x08);                                    /* Rx int on first character */
+    SCC_Write(A_DATA, '1');
+    run(CHAR_CLK * 2);
+    SCC_Write(A_DATA, '2');
+    run(CHAR_CLK * 2);
+    CHECK(IRQH_IRQ[5] == 1, "first char: interrupts");
+    CHECK(SCC_Read(A_DATA) == '1', "first char: handler reads it");
+    run(100);
+    CHECK(IRQH_IRQ[5] == 0, "first char: the next one does not interrupt");
+    CHECK((rr(3) & 0x20) == 0, "first char: no Rx pending in RR3");
+    CHECK(SCC_Read(A_DATA) == '2', "first char: the next one is still there");
+    SCC_Write(A_CMD, 0x20);                         /* enable int on next Rx character */
+    SCC_Write(A_DATA, '3');
+    run(CHAR_CLK * 2);
+    CHECK(IRQH_IRQ[5] == 1, "first char: re-armed by the command");
+    (void)SCC_Read(A_DATA);
+    run(100);
+    wr(1, 0x00);
+
+    /* ---- a flood of characters cannot crowd out a disconnect ---- */
+    loopback = 0;
+    {
+        static unsigned char flood[4 * 20000];
+        for (i = 0; i < 20000; i++) {
+            flood[i * 4] = 1; flood[i * 4 + 1] = 0; flood[i * 4 + 2] = 0; flood[i * 4 + 3] = 'F';
+        }
+        SCC_LinkFeed(flood, sizeof(flood));         /* more than the queue holds */
+    }
+    SCC_LinkSetConnected(0);
+    {
+        int k;
+        for (k = 0; k < 20000 && SCC_LinkGetInfo(SCC_LINK_INFO_ONLINE); k++) {
+            while (rr(0) & 0x01) (void)SCC_Read(A_DATA);
+            run(CHAR_CLK);
+        }
+    }
+    CHECK(SCC_LinkGetInfo(SCC_LINK_INFO_ONLINE) == 0, "flood: the disconnect still arrives");
+    loopback = 1;
+    while (rr(0) & 0x01) (void)SCC_Read(A_DATA);
+
     /* ---- the mouse channel is unchanged ---- */
     IRQH_IRQ[5] = 0;
     SCC_Write(B_CMD, 1); SCC_Write(B_CMD, 0x10);    /* Rx interrupt on all characters */

@@ -214,6 +214,9 @@ int SCC_GetCompatMode(void) {
 #define RTS_HOLD_CLK     (SCC_TIMER_HZ / 10)
 
 #define LINK_RXQ         16384      // events
+// Room kept for line, setting and connect events, so that characters can never
+// crowd them out of the queue.
+#define LINK_RXQ_CONTROL 64
 #define LINK_TXQ         65536      // bytes
 
 typedef struct {
@@ -224,6 +227,7 @@ typedef struct {
     BYTE rr1_err;             // parity/overrun, latched until Error Reset
     BYTE rx_first_armed;
     BYTE rx_first_hit;
+    int  rx_first_pos;        // FIFO position of the character that set rx_first_hit
     BYTE tx_buf;
     BYTE tx_buf_full;
     BYTE tx_shift;
@@ -287,9 +291,16 @@ static void scca_trace(const char *what, int reg, int value)
     fflush(stdout);
 }
 
+// Characters may fill the queue only up to the control reserve.
+static int link_rx_room_locked(void)
+{
+    return LINK_RXQ - LINK_RXQ_CONTROL - s_link.rx_count;
+}
+
 static void link_push_locked(uint32_t ev)
 {
-    if (s_link.rx_count < LINK_RXQ) {
+    int limit = ((ev >> 24) == LEV_DATA) ? LINK_RXQ - LINK_RXQ_CONTROL : LINK_RXQ;
+    if (s_link.rx_count < limit) {
         s_link.rxq[(s_link.rx_head + s_link.rx_count) % LINK_RXQ] = ev;
         s_link.rx_count++;
         atomic_store(&s_link.rx_pending, s_link.rx_count);
@@ -596,6 +607,7 @@ static int scca_accept_char(BYTE c, int backlog)
             // program that has stopped reading does lose characters.
             if (scca.rx_full_clk < 16 * char_clk) return 0;
             scca.rx_count = 2;
+            if (scca.rx_first_hit && scca.rx_first_pos > 1) scca.rx_first_hit = 0;
             err |= RXERR_OVERRUN;
         }
         if (scca_peer_mismatch()) {
@@ -609,6 +621,7 @@ static int scca_accept_char(BYTE c, int backlog)
         if (scca.rx_first_armed) {
             scca.rx_first_armed = 0;
             scca.rx_first_hit = 1;
+            scca.rx_first_pos = scca.rx_count - 1;
         }
         s_link.rx_chars++;
     }
@@ -627,7 +640,12 @@ static BYTE scca_read_data(void)
     scca.rx_data[0] = scca.rx_data[1]; scca.rx_err[0] = scca.rx_err[1];
     scca.rx_data[1] = scca.rx_data[2]; scca.rx_err[1] = scca.rx_err[2];
     scca.rx_count--;
-    if (scca.rx_count == 0) scca.rx_first_hit = 0;
+    // "Interrupt on first character": reading that character ends it; the
+    // ones after it do not interrupt until the next Enable Int on Next Rx Char.
+    if (scca.rx_first_hit) {
+        if (scca.rx_first_pos <= 0) scca.rx_first_hit = 0;
+        else scca.rx_first_pos--;
+    }
     return data;
 }
 
@@ -681,6 +699,9 @@ static void scca_process_link(void)
 static void scca_reset(void)
 {
     BYTE pins = scca.pins;
+    // A reset clears the interrupt pending bits, so a request channel A has
+    // made goes away with them (the mouse channel's stays).
+    if (scca.irq_raised && IRQH_IRQ[5] && !sccb_mouse_irq_wanted()) IRQH_IRQCallBack(5);
     memset(&scca, 0, sizeof(scca));
     memset(WRA, 0, sizeof(SCC_RegsA));
     WRA[4] = 0x04;
@@ -1048,6 +1069,16 @@ static void* SCC_ReceiveThread(void* arg)
     printf("SCC_ReceiveThread: Started, monitoring fd %d\n", port->master_fd);
     
     while (port->connected) {
+        int room;
+        // Leave what the queue cannot take in the pty/socket: the kernel
+        // buffers it and, when that is full too, holds the writer back.
+        pthread_mutex_lock(&s_link_mutex);
+        room = link_rx_room_locked();
+        pthread_mutex_unlock(&s_link_mutex);
+        if (room < (int)sizeof(buffer)) {
+            usleep(1000);
+            continue;
+        }
         n = read(port->master_fd, buffer, sizeof(buffer));
         
         if (n > 0) {
