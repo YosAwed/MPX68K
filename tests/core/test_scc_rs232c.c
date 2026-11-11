@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <pthread.h>
 
 #include "common.h"
 #include "irqh.h"
@@ -42,6 +43,40 @@ static int failures = 0;
 #define B_DATA 0xe98003
 
 static int loopback = 1;
+
+/* ---- concurrent producers: a TCP client and SCC_LinkFeed ---- */
+#define HOST_BYTES 20000
+static int host_sock = -1;
+static volatile int feeding = 0;
+
+static void *host_sender(void *arg)
+{
+    static unsigned char buf[HOST_BYTES];
+    size_t off = 0;
+    (void)arg;
+    memset(buf, 'H', sizeof(buf));
+    while (off < sizeof(buf)) {
+        ssize_t w = send(host_sock, buf + off, sizeof(buf) - off, 0);
+        if (w <= 0) break;
+        off += (size_t)w;
+    }
+    return NULL;
+}
+
+static void *link_feeder(void *arg)
+{
+    static unsigned char chunk[4 * 500];
+    int i;
+    (void)arg;
+    for (i = 0; i < 500; i++) {
+        chunk[i * 4] = 1; chunk[i * 4 + 1] = 0; chunk[i * 4 + 2] = 0; chunk[i * 4 + 3] = 'F';
+    }
+    while (feeding) {
+        SCC_LinkFeed(chunk, sizeof(chunk));         /* keeps the queue full */
+        usleep(200);
+    }
+    return NULL;
+}
 
 static void pump(void)
 {
@@ -368,8 +403,40 @@ int main(void)
             }
             CHECK(down, "tcp server: CTS/DCD drop when the client disconnects");
         }
+
+        /* Host bytes and link events arriving together: every host byte
+         * must still get through, however full the link keeps the queue. */
+        {
+            pthread_t sender, feeder;
+            int got = 0, t, up = 0;
+            client = socket(AF_INET, SOCK_STREAM, 0);
+            CHECK(client >= 0 && connect(client, (struct sockaddr *)&sa, sizeof(sa)) == 0, "concurrent: client connects");
+            for (t = 0; t < 100 && !up; t++) {
+                usleep(20000);
+                run(1000);
+                up = ((rr(0) & 0x28) == 0x28);
+            }
+            host_sock = client;
+            feeding = 1;
+            pthread_create(&feeder, NULL, link_feeder, NULL);
+            pthread_create(&sender, NULL, host_sender, NULL);
+            for (t = 0; t < 400000 && got < HOST_BYTES; t++) {
+                while (rr(0) & 0x01) {
+                    if (SCC_Read(A_DATA) == 'H') got++;
+                }
+                run(CHAR_CLK / 4);
+                if (t == 200000) feeding = 0;           /* let the queue drain if it is stuck */
+            }
+            feeding = 0;
+            pthread_join(feeder, NULL);
+            pthread_join(sender, NULL);
+            CHECK(got == HOST_BYTES, "concurrent: no host byte is lost while the link fills the queue");
+            if (got != HOST_BYTES) printf("      got %d of %d\n", got, HOST_BYTES);
+            close(client);
+        }
         SCC_CloseSerial();
         run(1000);
+        while (rr(0) & 0x01) (void)SCC_Read(A_DATA);
     }
 
     /* ---- the mouse channel is unchanged ---- */

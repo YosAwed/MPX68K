@@ -1071,31 +1071,33 @@ static void* SCC_ReceiveThread(void* arg)
     printf("SCC_ReceiveThread: Started, monitoring fd %d\n", port->master_fd);
     
     while (port->connected) {
-        int room;
-        // Leave what the queue cannot take in the pty/socket: the kernel
-        // buffers it and, when that is full too, holds the writer back.
+        int room, err = 0;
+        // Read only what the queue can take; the rest stays in the pty/socket,
+        // where the kernel buffers it and, when that is full too, holds the
+        // writer back. The descriptor is non-blocking, so the room check, the
+        // read and the queueing happen under one lock: nothing else feeding
+        // the queue (SCC_LinkFeed) can take the room in between.
         pthread_mutex_lock(&s_link_mutex);
         room = link_rx_room_locked();
-        pthread_mutex_unlock(&s_link_mutex);
-        if (room < (int)sizeof(buffer)) {
-            usleep(1000);
-            continue;
-        }
-        n = read(port->master_fd, buffer, sizeof(buffer));
-        
-        if (n > 0) {
+        if (room > (int)sizeof(buffer)) room = (int)sizeof(buffer);
+        n = 0;
+        if (room > 0) {
+            n = read(port->master_fd, buffer, (size_t)room);
+            if (n < 0) err = errno;
             // Channel A takes them at the line rate on the emulation thread.
             for (ssize_t i = 0; i < n; i++) {
-                link_inject(((uint32_t)LEV_DATA << 24) | buffer[i]);
+                link_push_locked(((uint32_t)LEV_DATA << 24) | buffer[i]);
             }
-        } else if (n == 0) {
+        }
+        pthread_mutex_unlock(&s_link_mutex);
+
+        if (room > 0 && n == 0) {
             printf("SCC_ReceiveThread: Client disconnected (EOF)\n");
             break;
-        } else if (n < 0) {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                printf("SCC_ReceiveThread: Read error: %s\n", strerror(errno));
-                break;
-            }
+        }
+        if (n < 0 && err != EAGAIN && err != EWOULDBLOCK) {
+            printf("SCC_ReceiveThread: Read error: %s\n", strerror(err));
+            break;
         }
         
         usleep(1000);
