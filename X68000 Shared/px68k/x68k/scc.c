@@ -975,6 +975,8 @@ static void* SCC_AcceptThread(void* arg)
             } else {
                 printf("SCC_AcceptThread: Receive thread started for client\n");
                 port->rx_thread_active = 1;
+                // Someone is on the line now: CTS, DSR and DCD come up.
+                link_inject(((uint32_t)LEV_LINES << 24) | LINE_RTS | LINE_DTR);
             }
         } else {
             if (errno != EWOULDBLOCK && errno != EAGAIN) {
@@ -1099,6 +1101,10 @@ static void* SCC_ReceiveThread(void* arg)
         usleep(1000);
     }
     
+    // The other end went away (or the port is being closed): CTS, DSR and
+    // DCD drop. A TCP server keeps listening and raises them again for the
+    // next client.
+    link_inject((uint32_t)LEV_LINES << 24);
     printf("SCC_ReceiveThread: Exited\n");
     return NULL;
 }
@@ -1185,8 +1191,11 @@ int SCC_SetMode(int imode, const char* config)
         }
     }
 
-    // A host device is attached: it is always ready (CTS, DSR and DCD asserted).
-    link_inject(((uint32_t)LEV_LINES << 24) | LINE_RTS | LINE_DTR);
+    // A host device is attached: it is ready (CTS, DSR and DCD asserted). A
+    // TCP server has nobody on the line until a client connects.
+    if (mode != SCC_MODE_SERIAL_TCP_SERVER) {
+        link_inject(((uint32_t)LEV_LINES << 24) | LINE_RTS | LINE_DTR);
+    }
     return 0;
 }
 

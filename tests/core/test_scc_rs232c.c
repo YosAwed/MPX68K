@@ -3,6 +3,10 @@
  * loopback plug: TxD-RxD, RTS-CTS, DTR-DSR/DCD. */
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #include "common.h"
 #include "irqh.h"
@@ -325,6 +329,48 @@ int main(void)
     CHECK(SCC_LinkGetInfo(SCC_LINK_INFO_ONLINE) == 0, "flood: the disconnect still arrives");
     loopback = 1;
     while (rr(0) & 0x01) (void)SCC_Read(A_DATA);
+
+    /* ---- TCP server backend: lines follow the client ---- */
+    {
+        int port = 0, k, ok = 0, client;
+        struct sockaddr_in sa;
+        char cfg[16];
+        /* find a free port */
+        for (k = 0; k < 50 && !ok; k++) {
+            port = 23000 + (int)((getpid() + k * 37) % 20000);
+            snprintf(cfg, sizeof(cfg), "%d", port);
+            ok = (SCC_SetMode(4, cfg) == 0);
+        }
+        CHECK(ok, "tcp server: listening");
+        setup(0xea);
+        run(1000);
+        CHECK((rr(0) & 0x28) == 0, "tcp server: no CTS/DCD before a client connects");
+
+        for (k = 0; k < 2; k++) {
+            int up = 0, down = 0, t;
+            memset(&sa, 0, sizeof(sa));
+            sa.sin_family = AF_INET;
+            sa.sin_port = htons((unsigned short)port);
+            sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            client = socket(AF_INET, SOCK_STREAM, 0);
+            CHECK(client >= 0 && connect(client, (struct sockaddr *)&sa, sizeof(sa)) == 0, "tcp server: client connects");
+            for (t = 0; t < 100 && !up; t++) {          /* the accept thread polls every 100 ms */
+                usleep(20000);
+                run(1000);
+                up = ((rr(0) & 0x28) == 0x28);
+            }
+            CHECK(up, k ? "tcp server: lines come back for the next client" : "tcp server: CTS/DCD up when a client connects");
+            close(client);
+            for (t = 0; t < 100 && !down; t++) {
+                usleep(20000);
+                run(1000);
+                down = ((rr(0) & 0x28) == 0);
+            }
+            CHECK(down, "tcp server: CTS/DCD drop when the client disconnects");
+        }
+        SCC_CloseSerial();
+        run(1000);
+    }
 
     /* ---- the mouse channel is unchanged ---- */
     IRQH_IRQ[5] = 0;
