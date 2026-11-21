@@ -1487,7 +1487,7 @@ extension GameViewController: NSDraggingDestination {
         if let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] {
             for url in urls {
                 let ext = url.pathExtension.lowercased()
-                if ["dim", "xdf", "2hd", "d88", "hdm", "hdf"].contains(ext) {
+                if ["dim", "xdf", "2hd", "d88", "hdm", "hdf", "hds"].contains(ext) {
                     return .copy
                 }
             }
@@ -1511,7 +1511,7 @@ extension GameViewController: NSDraggingDestination {
         for url in urls {
             debugLog("Dropped file: \(url.lastPathComponent)", category: .fileSystem)
             let ext = url.pathExtension.lowercased()
-            if ["dim", "xdf", "2hd", "d88", "hdm", "hdf"].contains(ext) {
+            if ["dim", "xdf", "2hd", "d88", "hdm", "hdf", "hds"].contains(ext) {
                 validUrls.append(url)
             }
         }
@@ -1523,7 +1523,7 @@ extension GameViewController: NSDraggingDestination {
         
         // If multiple floppy disk files, try to load them to separate drives
         let floppyUrls = validUrls.filter { ["dim", "xdf", "2hd", "d88"].contains($0.pathExtension.lowercased()) }
-        let hddUrls = validUrls.filter { ["hdm", "hdf"].contains($0.pathExtension.lowercased()) }
+        let hddUrls = validUrls.filter { ["hdm", "hdf", "hds"].contains($0.pathExtension.lowercased()) }
         
         if floppyUrls.count >= 2 {
             // Load first two floppy disks to drives A and B

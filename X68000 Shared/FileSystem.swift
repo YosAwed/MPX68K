@@ -220,6 +220,12 @@ public class DiskStateManager {
         heldSecurityScopes.removeValue(forKey: key)?.stopAccessingSecurityScopedResource()
     }
 
+    /// Keeps the security scope of a floppy image mounted through the normal
+    /// load path until that drive is ejected or remounted.
+    public func holdMountedFDDAccess(_ url: URL, drive: Int) {
+        holdSecurityScope(url, forKey: "fdd\(drive)")
+    }
+
     // Resolves a saved security-scoped bookmark and starts access. A stale
     // bookmark still resolves to the file and is used (and refreshed by the
     // caller); only when resolution or access fails does this fall back to
@@ -1220,92 +1226,42 @@ class FileSystem {
     
     
     // Security: Validate disk image files
+    // No path allow-list here: under App Sandbox .documentDirectory and
+    // .downloadsDirectory resolve inside the container, so a list rejects every
+    // file the user picks from the Desktop or the real ~/Documents. The sandbox
+    // already decides what can be read.
     private func isValidDiskImageFile(_ url: URL) -> Bool {
-        debugLog("Validating file: \(url.path)", category: .fileSystem)
-        
-        // Check if file exists and is within allowed directory
-        guard FileManager.default.fileExists(atPath: url.path) else { 
-            debugLog("File does not exist", category: .fileSystem)
-            return false 
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            debugLog("File does not exist: \(url.lastPathComponent)", category: .fileSystem)
+            return false
         }
-        
-        // Validate file extension
         let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
         let ext = url.pathExtension.lowercased()
-        guard validExtensions.contains(ext) else { 
+        guard validExtensions.contains(ext) else {
             debugLog("Invalid file extension: \(ext)", category: .fileSystem)
-            return false 
+            return false
         }
-        
-        // Prevent path traversal - ensure file is within allowed directories
-        let standardizedURL = url.standardized
-        let urlPath = standardizedURL.path
-        debugLog("Standardized path: \(urlPath)", category: .fileSystem)
-        
-        // Priority check for Mobile Documents paths (common on actual devices)
-        if urlPath.contains("/Mobile Documents/") {
-            debugLog("Found Mobile Documents path", category: .fileSystem)
-            if urlPath.contains("/Downloads/") || urlPath.contains("/Documents/") || urlPath.contains("/Desktop/") {
-                infoLog("Allowing Mobile Documents access: \(urlPath)", category: .fileSystem)
-                return true
+        return true
+    }
+    
+    /// Tells the user that a disk image could not be loaded, instead of
+    /// returning to the main window as if nothing had been asked for.
+    func reportDiskLoadFailure(url: URL, reason: String) {
+        errorLog("Disk image load failed (\(url.lastPathComponent)): \(reason)", category: .fileSystem)
+#if os(macOS)
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "“\(url.lastPathComponent)” を開けませんでした"
+            alert.informativeText = reason
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            if let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+                alert.beginSheetModal(for: window) { _ in }
+            } else {
+                alert.runModal()
             }
         }
-        
-        // Check for iCloud Documents path patterns (both simulator and device paths)
-        if urlPath.contains("com~apple~CloudDocs") {
-            debugLog("Found com~apple~CloudDocs path", category: .fileSystem)
-            // Allow iCloud Drive access for Downloads, Documents, or other common folders
-            let iCloudAllowedFolders = ["Downloads", "Documents", "Desktop"]
-            for folder in iCloudAllowedFolders {
-                if urlPath.contains("/\(folder)/") || urlPath.hasSuffix("/\(folder)") {
-                    infoLog("Allowing iCloud \(folder) folder access: \(urlPath)", category: .fileSystem)
-                    return true
-                }
-            }
-        }
-        
-        // Check for File Provider Storage paths (iOS document provider extension)
-        if urlPath.contains("/File Provider Storage/") {
-            debugLog("Found File Provider Storage path", category: .fileSystem)
-            infoLog("Allowing File Provider Storage access: \(urlPath)", category: .fileSystem)
-            return true
-        }
-        
-        // Get app's Documents directory
-        guard let documentsURL = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { 
-            errorLog("Could not get documents directory", category: .fileSystem)
-            return false 
-        }
-        
-        var allowedPaths = [
-            documentsURL.appendingPathComponent(FileSystem.documentsDirectoryName),
-            documentsURL.appendingPathComponent(FileSystem.legacyDocumentsDirectoryName),
-            documentsURL.appendingPathComponent("Documents"), // Legacy path for backward compatibility
-            documentsURL.appendingPathComponent("Inbox")
-        ]
-        
-        // Also allow Downloads folder (standard user Downloads directory)
-        if let downloadsURL = try? FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false) {
-            allowedPaths.append(downloadsURL)
-            debugLog("Added Downloads directory: \(downloadsURL.path)", category: .fileSystem)
-        }
-        
-        // Check if the file URL is within any of the allowed directories
-        debugLog("Checking allowed paths...", category: .fileSystem)
-        for allowedPath in allowedPaths {
-            let standardizedAllowedURL = allowedPath.standardized
-            debugLog("Checking against: \(standardizedAllowedURL.path)", category: .fileSystem)
-            if standardizedURL.path.hasPrefix(standardizedAllowedURL.path) {
-                debugLog("Path validation passed via allowedPaths", category: .fileSystem)
-                return true
-            }
-        }
-        
-        debugLog("Path validation failed - no matching allowed paths", category: .fileSystem)
-        debugLog("Full analysis - path contains Mobile Documents: \(urlPath.contains("/Mobile Documents/"))", category: .fileSystem)
-        debugLog("Full analysis - path contains Downloads: \(urlPath.contains("/Downloads/"))", category: .fileSystem)
-        debugLog("Full analysis - path contains Documents: \(urlPath.contains("/Documents/"))", category: .fileSystem)
-        return false
+#endif
     }
     
     func loadAsynchronously(_ url: URL?) -> Void {
@@ -1322,23 +1278,54 @@ class FileSystem {
         }
     }
     
+    /// Downloads an iCloud Drive file that is only a placeholder and waits up to
+    /// 30 seconds for it. Returns nil when the file can be read, otherwise the
+    /// reason to show the user. Files outside iCloud Drive return nil at once.
+    static func downloadUbiquitousItemIfNeeded(_ url: URL) -> String? {
+        guard url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") else {
+            return nil
+        }
+        if FileManager.default.fileExists(atPath: url.path) {
+            infoLog("iCloud file already exists locally", category: .fileSystem)
+            return nil
+        }
+        do {
+            try FileManager.default.startDownloadingUbiquitousItem(at: url)
+            infoLog("Download request sent to iCloud", category: .fileSystem)
+        } catch {
+            errorLog("Error downloading iCloud file", error: error, category: .fileSystem)
+            return FileManager.default.fileExists(atPath: url.path) ? nil : "iCloud からファイルをダウンロードできませんでした。"
+        }
+        let startTime = Date()
+        while Date().timeIntervalSince(startTime) < 30.0 {
+            if let status = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]).ubiquitousItemDownloadingStatus,
+               status == .current {
+                infoLog("iCloud file download completed", category: .fileSystem)
+                return nil
+            }
+            if FileManager.default.fileExists(atPath: url.path) {
+                return nil
+            }
+            Thread.sleep(forTimeInterval: 1.0)
+        }
+        warningLog("Timeout waiting for iCloud download", category: .fileSystem)
+        return "iCloud からのダウンロードが 30 秒以内に終わりませんでした。ダウンロードが終わってからもう一度開いてください。"
+    }
+
     private func handleiCloudFileLoading(url: URL) {
         debugLog("handleiCloudFileLoading called with: \(url.lastPathComponent)", category: .fileSystem)
-        // Start security-scoped access for iCloud files immediately
-        guard url.startAccessingSecurityScopedResource() else {
-            errorLog("Failed to start accessing security-scoped resource for iCloud file", category: .fileSystem)
-            // Clean up loading state on failure
-            if let gameScene = self.gameScene {
-                DispatchQueue.main.async {
-                    gameScene.clearLoadingFile(url)
-                }
-            }
-            return
-        }
-        debugLog("Security-scoped resource access started successfully", category: .fileSystem)
+        // false also means "not a security-scoped URL" (a file opened from Finder
+        // or dropped on the window), which the app can still read; a file that
+        // really cannot be read fails in performFileLoad and is reported there.
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        // Set once performFileLoad has taken over the access (it keeps it while
+        // the disk is mounted).
+        var accessHandedOver = false
         
         defer {
-            url.stopAccessingSecurityScopedResource()
+            if didStartAccess && !accessHandedOver {
+                url.stopAccessingSecurityScopedResource()
+            }
             // Clean up loading state after security scope is released
             if let gameScene = self.gameScene {
                 DispatchQueue.main.async {
@@ -1347,102 +1334,33 @@ class FileSystem {
             }
         }
         
-        // Check if this is an iCloud file that needs downloading
-        if url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") {
-            infoLog("Detected iCloud file, attempting to download...", category: .fileSystem)
-
-            do {
-                // First check if file is already available
-                if FileManager.default.fileExists(atPath: url.path) {
-                    infoLog("iCloud file already exists locally", category: .fileSystem)
-                } else {
-                    // Try to download the file from iCloud with security scope
-                    try FileManager.default.startDownloadingUbiquitousItem(at: url)
-                    infoLog("Download request sent to iCloud", category: .fileSystem)
-                    
-                    // Wait for download with timeout but don't keep requesting
-                    let timeout = 30.0 // 30 seconds timeout
-                    let startTime = Date()
-                    var downloadRequested = true
-                    
-                    while true {
-                        if Date().timeIntervalSince(startTime) > timeout {
-                            warningLog("Timeout waiting for iCloud download", category: .fileSystem)
-                            return
-                        }
-                        
-                        // Check download status
-                        do {
-                            let resourceValues = try url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
-                            
-                            if let status = resourceValues.ubiquitousItemDownloadingStatus {
-                                debugLog("Download status: \(status.rawValue)", category: .fileSystem)
-                                if status == .current {
-                                    infoLog("iCloud file download completed", category: .fileSystem)
-                                    break
-                                } else if status == .notDownloaded && !downloadRequested {
-                                    infoLog("File not downloaded, requesting download...", category: .fileSystem)
-                                    try FileManager.default.startDownloadingUbiquitousItem(at: url)
-                                    downloadRequested = true
-                                } else if status == .notDownloaded && downloadRequested {
-                                    debugLog("Download request sent, waiting...", category: .fileSystem)
-                                }
-                            } else {
-                                // If we can't get status, try to access the file directly
-                                if FileManager.default.fileExists(atPath: url.path) {
-                                    infoLog("iCloud file exists locally", category: .fileSystem)
-                                    break
-                                }
-                            }
-                        } catch {
-                            errorLog("Error checking download status", error: error, category: .fileSystem)
-                            // Fallback: check if file exists locally
-                            if FileManager.default.fileExists(atPath: url.path) {
-                                infoLog("File exists locally (fallback check)", category: .fileSystem)
-                                break
-                            }
-                        }
-                        
-                        Thread.sleep(forTimeInterval: 1.0) // Increased to 1 second
-                    }
-                }
-            } catch let error as NSError {
-                errorLog("Error downloading iCloud file", error: error, category: .fileSystem)
-                // Try to proceed anyway if the file exists
-                if !FileManager.default.fileExists(atPath: url.path) {
-                    return
-                }
-            }
-        }
-        
-        // Now validate the file after ensuring it's downloaded
-        // For iCloud files, use a simpler validation that doesn't require file existence check
-        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
-        let ext = url.pathExtension.lowercased()
-        guard validExtensions.contains(ext) else {
-            errorLog("Invalid file extension: \(ext)", category: .fileSystem)
+        if let reason = FileSystem.downloadUbiquitousItemIfNeeded(url) {
+            reportDiskLoadFailure(url: url, reason: reason)
             return
         }
         
-        // For iCloud files, trust the system's security model
-        if url.path.contains("/Mobile Documents/") || url.path.contains("com~apple~CloudDocs") {
-            infoLog("Security: Allowing iCloud file access: \(url.path)", category: .fileSystem)
-        } else {
-            // Use normal validation for non-iCloud files
-            guard self.isValidDiskImageFile(url) else {
-                errorLog("Security: Invalid or unsafe file path: \(url.path)", category: .fileSystem)
-                return
-            }
+        let validExtensions = ["dim", "xdf", "2hd", "d88", "hdm", "hdf"]
+        let ext = url.pathExtension.lowercased()
+        guard validExtensions.contains(ext) else {
+            reportDiskLoadFailure(url: url, reason: "“.\(ext)” はフロッピーディスクイメージとして読み込めない形式です。")
+            return
+        }
+        
+        guard self.isValidDiskImageFile(url) else {
+            reportDiskLoadFailure(url: url, reason: "ファイルが見つかりません。移動・名前の変更・削除が行われた可能性があります。")
+            return
         }
         
         infoLog("Security: File validation passed for: \(url.lastPathComponent)", category: .fileSystem)
         
-        // Continue with actual file loading - security scope already active
-        // Call performFileLoad synchronously to maintain security scope
-        self.performFileLoad(url: url)
+        // Read synchronously while the security scope is active.
+        accessHandedOver = self.performFileLoad(url: url, securityScoped: didStartAccess)
     }
     
-    private func performFileLoad(url: URL) {
+    /// Reads the image and mounts it on the main queue. Returns true when it
+    /// took over a started security scope: the core reopens the image by path
+    /// to write sectors back, so access is kept until the drive is ejected.
+    private func performFileLoad(url: URL, securityScoped: Bool) -> Bool {
         do {
             let extname = url.pathExtension.removingPercentEncoding?.lowercased()
             let fileSize = try validatedDiskImageSize(for: url)
@@ -1454,15 +1372,22 @@ class FileSystem {
             DispatchQueue.main.async {
                 if extname == "hdf" {
                     X68000_LoadHDD(url.path)
+                    if securityScoped { url.stopAccessingSecurityScopedResource() }
                     infoLog("HDD loaded successfully - no automatic reset", category: .fileSystem)
                 } else {
                     let drive = self.inferredFDDDrive(for: url)
                     X68000_LoadFDD(drive, url.path)
+                    if securityScoped {
+                        DiskStateManager.shared.holdMountedFDDAccess(url, drive: drive)
+                    }
                     infoLog("FDD loaded successfully (drive \(drive)) - no automatic reset", category: .fileSystem)
                 }
             }
+            return securityScoped
         } catch let error as NSError {
             errorLog("Error loading file data", error: error, category: .fileSystem)
+            reportDiskLoadFailure(url: url, reason: error.localizedDescription)
+            return false
         }
     }
 
