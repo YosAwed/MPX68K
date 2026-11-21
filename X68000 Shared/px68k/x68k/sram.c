@@ -25,11 +25,14 @@ static int s_scsi_board_overlay = 0;
 // $ED0000-$ED0007: "\x82\x77" "68000W" once the IPL ROM has initialised the
 // SRAM (it rewrites the whole SRAM with its defaults when this is missing).
 // $ED0008-$ED000B: main memory size in bytes (big-endian). Human68k uses only
-// this much memory; the IPL ROM's default is 1MB.
+// this much memory; the IPL ROM's default is 1MB. It is the user's setting,
+// changed by SWITCH.X in Human68k or by the host's menu
+// (SRAM_SetMemorySize()), and SRAM[] is the only place it is kept.
 static const BYTE kSRAMMagic[8] = { 0x82, 0x77, '6', '8', '0', '0', '0', 'W' };
 #define SRAM_MEMSIZE_ADDR 0x08
 
-// Main memory size to write into $ED0008 at power-on (0 = leave it alone).
+// Size that replaces the IPL ROM's default while it initializes a blank SRAM
+// (0 = keep the ROM's default).
 static DWORD s_sram_memsize = 0;
 // While the IPL ROM initialises a blank SRAM, its writes to $ED0008-$ED000B
 // are replaced with s_sram_memsize. Only writes made after the magic is in
@@ -52,19 +55,37 @@ int SRAM_IsInitialized(void)
 	return 1;
 }
 
-void SRAM_PowerOn(DWORD memorySize)
+DWORD SRAM_GetMemorySize(void)
+{
+	DWORD size = 0, n;
+	for (n = SRAM_MEMSIZE_ADDR; n < SRAM_MEMSIZE_ADDR + 4; n++)
+		size = (size << 8) | SRAM[n ^ 1];
+	return size;
+}
+
+void SRAM_PowerOn(DWORD installedMemorySize)
+{
+	DWORD size;
+	s_sram_memsize_written = 0;
+	// An initialized SRAM keeps its size: SWITCH.X or the menu chose it.
+	s_sram_memsize_pending = (installedMemorySize != 0 && !SRAM_IsInitialized());
+	s_sram_memsize = 0;
+	if (!s_sram_memsize_pending) return;
+	// A blank SRAM may already hold the size the host wants (its defaults,
+	// or SRAM_SetMemorySize()); otherwise use all of the memory installed.
+	size = SRAM_GetMemorySize();
+	if (size == 0 || size > installedMemorySize || (size & 0xfffff) != 0)
+		size = installedMemorySize;
+	s_sram_memsize = size;
+}
+
+void SRAM_SetMemorySize(DWORD memorySize)
 {
 	DWORD n;
-	s_sram_memsize = memorySize;
-	s_sram_memsize_pending = 0;
-	s_sram_memsize_written = 0;
-	if (memorySize == 0) return;
-	if (SRAM_IsInitialized()) {
-		for (n = SRAM_MEMSIZE_ADDR; n < SRAM_MEMSIZE_ADDR + 4; n++)
-			SRAM[n ^ 1] = SRAM_MemorySizeByte(n);
-	} else {
-		s_sram_memsize_pending = 1;
-	}
+	for (n = SRAM_MEMSIZE_ADDR; n < SRAM_MEMSIZE_ADDR + 4; n++)
+		SRAM[n ^ 1] = (BYTE)(memorySize >> (8 * (3 - (n - SRAM_MEMSIZE_ADDR))));
+	// A blank SRAM is rewritten by the IPL ROM on boot: make it keep this size.
+	if (s_sram_memsize_pending) s_sram_memsize = memorySize;
 }
 
 void SRAM_SetSCSIBoardOverlay(int enable)

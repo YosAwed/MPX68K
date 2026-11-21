@@ -756,7 +756,8 @@ WinX68k_Reset(void)
 
     DSound_Stop();
     SRAM_VirusCheck();
-    // Human68k uses the memory size in SRAM ($ED0008): match it to MEM.
+    // A blank SRAM gets the memory size chosen in the menu (or all of MEM)
+    // instead of the IPL ROM's 1MB; an initialized SRAM keeps its setting.
     SRAM_PowerOn(MEM_SIZE);
     //CDROM_Init();
     DSound_Play();
@@ -1792,10 +1793,27 @@ unsigned char* X68000_GetSRAMPointer()
 }
 
 // The host replaced SRAM[] (SRAM.DAT loaded) before the machine runs:
-// apply the power-on memory size again (see SRAM_PowerOn()).
+// prepare the blank-SRAM memory size again (see SRAM_PowerOn()).
 void X68000_SRAM_PowerOn(void)
 {
     SRAM_PowerOn(MEM_SIZE);
+}
+
+// Main memory installed in the emulated machine (the most Human68k can use).
+unsigned int X68000_GetInstalledMemorySize(void)
+{
+    return MEM_SIZE;
+}
+
+// Main memory size setting in SRAM ($ED0008), shared with SWITCH.X.
+unsigned int X68000_GetSRAMMemorySize(void)
+{
+    return SRAM_GetMemorySize();
+}
+
+void X68000_SetSRAMMemorySize(unsigned int bytes)
+{
+    SRAM_SetMemorySize(bytes);
 }
 
 unsigned char* X68000_GetCGROMPointer()

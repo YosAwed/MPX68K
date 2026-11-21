@@ -2196,8 +2196,8 @@ class FileSystem {
         guard let sramData = data else {
             infoLog("SRAM data not found - initializing with default values", category: .fileSystem)
             initializeDefaultSRAM()
-            // Blank SRAM: the IPL ROM initialises it on boot; the core puts the
-            // fitted memory size in place of the ROM's 1MB default.
+            // Blank SRAM: the IPL ROM initializes it on boot; the core keeps the
+            // memory size set here (or chosen in the menu) instead of its 1MB.
             X68000_SRAM_PowerOn()
             return
         }
@@ -2210,7 +2210,7 @@ class FileSystem {
                 // defaults on boot, so there is nothing to repair here.
                 warningLog("SRAM.DAT is not initialized ($ED0000 magic missing) - the IPL ROM will initialize it", category: .fileSystem)
             }
-            // Main memory size ($ED0008) = memory fitted (12MB), as at power-on.
+            // The memory size ($ED0008) stays as saved (menu or SWITCH.X).
             X68000_SRAM_PowerOn()
             WinX68k_UpdateSASIRamSize()
         } else {
@@ -2267,6 +2267,46 @@ class FileSystem {
 
         // Save the initialized SRAM
         saveSRAM()
+    }
+
+    // MARK: - Main memory size (SRAM $ED0008)
+
+    /// Sizes offered in the menus, in MB (SWITCH.X accepts the same range).
+    static let mainMemoryChoicesMB: [UInt32] = [1, 2, 4, 6, 8, 10, 12]
+
+    /// Main memory installed in the emulated machine, in bytes.
+    var installedMemorySize: UInt32 { X68000_GetInstalledMemorySize() }
+
+    /// The main memory size Human68k uses: the setting in SRAM ($ED0008), the same
+    /// one SWITCH.X changes. Read it each time a menu is shown so it follows SWITCH.X.
+    var mainMemorySize: UInt32 { X68000_GetSRAMMemorySize() }
+
+    /// Sets the main memory size in SRAM and saves SRAM.DAT. Takes effect at the
+    /// next reset, as with SWITCH.X.
+    func setMainMemorySize(_ bytes: UInt32) {
+        X68000_SetSRAMMemorySize(bytes)
+        saveSRAM()
+        infoLog("Main memory size set to \(FileSystem.memorySizeLabel(bytes)) (SRAM $ED0008)", category: .fileSystem)
+    }
+
+    /// The sizes to list: the standard choices up to the installed memory, plus the
+    /// current setting if SWITCH.X set something else.
+    var mainMemoryMenuSizes: [UInt32] {
+        let installed = installedMemorySize
+        var sizes = FileSystem.mainMemoryChoicesMB.map { $0 << 20 }.filter { $0 <= installed }
+        let current = mainMemorySize
+        // 16MB is the whole 68000 address space; anything beyond is not a setting.
+        if current != 0 && current <= 0x0100_0000 && !sizes.contains(current) {
+            sizes.append(current)
+            sizes.sort()
+        }
+        return sizes
+    }
+
+    /// "12MB", or "768KB" for a size that is not a whole number of MB.
+    static func memorySizeLabel(_ bytes: UInt32) -> String {
+        if bytes & 0xFFFFF == 0 { return "\(bytes >> 20)MB" }
+        return "\(bytes >> 10)KB"
     }
 
     /// True when $ED0000-$ED0007 holds "\u{82}\u{77}" "68000W", the mark the IPL ROM

@@ -1,7 +1,7 @@
-/* Human68k uses the main memory size in SRAM ($ED0008) as its memory. The
- * IPL ROM writes 1MB into a blank SRAM, so at power-on the size must be set
- * to the memory fitted: directly for an initialized SRAM, and by replacing
- * the IPL ROM's writes while it initializes a blank one.
+/* The main memory size in SRAM ($ED0008) is the user's setting: SWITCH.X in
+ * Human68k and the host's menu both change it, and power-on keeps it. Only a
+ * blank SRAM, which the IPL ROM initializes with 1MB, gets the size the host
+ * wants (the one already in SRAM[], or all of the memory installed).
  */
 #include <assert.h>
 #include <stdio.h>
@@ -14,6 +14,9 @@ BYTE SysPort[7];
 Win68Conf Config;
 void SCSI_LogText(const char *text) { (void)text; }
 DWORD cpu_readmem24_dword(DWORD adr) { (void)adr; return 0; }
+
+#define MB(n) ((DWORD)(n) << 20)
+#define INSTALLED MB(12)
 
 static const char kMagic[8] = { (char)0x82, 0x77, '6', '8', '0', '0', '0', 'W' };
 
@@ -42,73 +45,102 @@ static void blank_sram(void)
     memset(SRAM, 0xff, sizeof SRAM);
 }
 
+/* The IPL ROM initializing a blank SRAM: size (1MB) before and after the magic. */
+static void ipl_initializes(void)
+{
+    wr32(0x08, MB(1));
+    write_magic();
+    wr32(0x08, MB(1));
+}
+
 int main(void)
 {
     SysPort[5] = 0x31; /* SRAM writable, as the IPL ROM sets it */
 
-    /* An initialized SRAM saved with 1MB gets the fitted 12MB at power-on. */
+    /* An initialized SRAM keeps its size at power-on (SWITCH.X chose it). */
     blank_sram();
     write_magic();
-    wr32(0x08, 0x00100000);
-    assert(SRAM_IsInitialized());
-    SRAM_PowerOn(0x00c00000);
-    assert(rd32(0x08) == 0x00c00000);
-    printf("PASS: initialized SRAM: size set to the memory fitted\n");
+    wr32(0x08, MB(4));
+    SRAM_PowerOn(INSTALLED);
+    assert(rd32(0x08) == MB(4) && SRAM_GetMemorySize() == MB(4));
+    printf("PASS: power-on keeps the size of an initialized SRAM\n");
 
-    /* Afterwards the size can be changed (SWITCH.X) until the next power-on. */
-    wr32(0x08, 0x00400000);
-    assert(rd32(0x08) == 0x00400000);
-    SRAM_PowerOn(0x00c00000);
-    assert(rd32(0x08) == 0x00c00000);
-    printf("PASS: a size written while running lasts until the next power-on\n");
+    /* SWITCH.X writes through the bus; the host reads the same value. */
+    wr32(0x08, MB(6));
+    assert(SRAM_GetMemorySize() == MB(6));
+    printf("PASS: a size written by SWITCH.X is what the host reads\n");
 
-    /* Blank SRAM: nothing to set yet; the IPL ROM's 1MB default is replaced,
-     * whether it writes the size before or after the magic. */
+    /* The host's menu writes it; X68000 code reads the same value. */
+    SRAM_SetMemorySize(MB(8));
+    assert(rd32(0x08) == MB(8));
+    SRAM_PowerOn(INSTALLED);
+    assert(rd32(0x08) == MB(8));
+    printf("PASS: a size set by the host is what X68000 code reads, and survives power-on\n");
+
+    /* The host's setting ignores write protection (like editing SRAM.DAT). */
+    SysPort[5] = 0x00;
+    SRAM_SetMemorySize(MB(2));
+    assert(SRAM_GetMemorySize() == MB(2));
+    wr32(0x08, MB(10));
+    assert(SRAM_GetMemorySize() == MB(2));
+    SysPort[5] = 0x31;
+    printf("PASS: host setting ignores, bus writes obey, write protection\n");
+
+    /* Blank SRAM holding no usable size: the IPL ROM's 1MB becomes all memory. */
     blank_sram();
-    assert(!SRAM_IsInitialized());
-    SRAM_PowerOn(0x00c00000);
-    assert(rd32(0x08) == 0xffffffff);
-    wr32(0x08, 0x00100000);
-    assert(rd32(0x08) == 0x00c00000);
-    write_magic();
-    wr32(0x08, 0x00100000);
-    assert(SRAM_IsInitialized() && rd32(0x08) == 0x00c00000);
-    printf("PASS: blank SRAM: the IPL ROM's default size is replaced\n");
+    SRAM_PowerOn(INSTALLED);
+    ipl_initializes();
+    assert(SRAM_IsInitialized() && rd32(0x08) == INSTALLED);
+    printf("PASS: blank SRAM: the IPL ROM's 1MB is replaced with the installed memory\n");
 
-    /* Once all four bytes were replaced after the magic, writes are kept. */
-    wr32(0x08, 0x00200000);
-    assert(rd32(0x08) == 0x00200000);
+    /* After its initialization, writes are kept (SWITCH.X in the same session). */
+    wr32(0x08, MB(2));
+    assert(rd32(0x08) == MB(2));
     printf("PASS: replacement ends after the IPL ROM's initialization\n");
+
+    /* Blank SRAM with a size in SRAM[] (the host's defaults): that size is kept. */
+    blank_sram();
+    SRAM_SetMemorySize(MB(4));
+    SRAM_PowerOn(INSTALLED);
+    ipl_initializes();
+    assert(rd32(0x08) == MB(4));
+    printf("PASS: blank SRAM: the size already in SRAM[] is kept through the IPL ROM\n");
+
+    /* Blank SRAM, menu used after power-on but before the IPL ROM ran. */
+    blank_sram();
+    SRAM_PowerOn(INSTALLED);
+    SRAM_SetMemorySize(MB(6));
+    ipl_initializes();
+    assert(rd32(0x08) == MB(6));
+    printf("PASS: blank SRAM: a size chosen before boot survives the IPL ROM\n");
+
+    /* Unusable sizes in a blank SRAM fall back to the installed memory. */
+    blank_sram();
+    SRAM_SetMemorySize(MB(16));
+    SRAM_PowerOn(INSTALLED);
+    ipl_initializes();
+    assert(rd32(0x08) == INSTALLED);
+    blank_sram();
+    SRAM_SetMemorySize(MB(4) + 0x8000);
+    SRAM_PowerOn(INSTALLED);
+    ipl_initializes();
+    assert(rd32(0x08) == INSTALLED);
+    printf("PASS: blank SRAM: sizes over the installed memory or not whole MB are not used\n");
 
     /* The replacement does not touch the bytes around the size. */
     blank_sram();
-    SRAM_PowerOn(0x00c00000);
+    SRAM_PowerOn(INSTALLED);
     write_magic();
-    wr32(0x04, 0x30303057);
     wr32(0x0c, 0x00fc0000);
     assert(rd32(0x04) == 0x30303057 && rd32(0x0c) == 0x00fc0000);
     printf("PASS: neighbouring SRAM bytes are written as is\n");
 
-    /* 0 leaves the SRAM alone. */
+    /* 0 keeps the IPL ROM's default. */
     blank_sram();
     SRAM_PowerOn(0);
-    write_magic();
-    wr32(0x08, 0x00100000);
-    SRAM_PowerOn(0);
-    assert(rd32(0x08) == 0x00100000);
-    blank_sram();
-    SRAM_PowerOn(0);
-    wr32(0x08, 0x00100000);
-    assert(rd32(0x08) == 0x00100000);
-    printf("PASS: memory size 0 leaves the SRAM alone\n");
-
-    /* Write-protected SRAM is not changed by the replacement either. */
-    blank_sram();
-    SRAM_PowerOn(0x00c00000);
-    SysPort[5] = 0x00;
-    wr32(0x08, 0x00100000);
-    assert(rd32(0x08) == 0xffffffff);
-    printf("PASS: write protection still applies\n");
+    ipl_initializes();
+    assert(rd32(0x08) == MB(1));
+    printf("PASS: installed size 0 leaves the IPL ROM's default\n");
 
     /* The default SRAM ($ED0010) holds the SRAM boot address $00ED0100. */
     SRAM_Init();

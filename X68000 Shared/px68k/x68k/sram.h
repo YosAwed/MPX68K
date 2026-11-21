@@ -16,11 +16,21 @@ void SRAM_VirusCheck(void);
 int SRAM_IsInitialized(void);
 
 // Call at power-on / reset, after SRAM[] holds what the machine starts with.
-// Sets the main memory size ($ED0008) to memorySize, so Human68k uses all of
-// the memory fitted instead of the 1MB the IPL ROM writes into a blank SRAM
-// (or a smaller size saved in SRAM.DAT). For a blank SRAM, the size is
-// replaced while the IPL ROM initialises it. 0 leaves the SRAM alone.
-void SRAM_PowerOn(DWORD memorySize);
+// For a blank SRAM (no magic), the IPL ROM initializes it on boot with a
+// main memory size of 1MB; its writes of the size are replaced with the size
+// already in SRAM[] if it is a whole number of MB up to installedMemorySize,
+// else with installedMemorySize (0 = keep 1MB). An initialized SRAM is left
+// as it is.
+void SRAM_PowerOn(DWORD installedMemorySize);
+
+// Main memory size in SRAM ($ED0008), the size Human68k uses. SWITCH.X
+// changes it through SRAM_Write(); the host reads it here, so a menu built
+// from it always shows the current setting. Takes effect at the next boot.
+DWORD SRAM_GetMemorySize(void);
+// Sets it from the host (ignores the SRAM write protection, like editing
+// SRAM.DAT). If the SRAM is still blank, the IPL ROM's initialization keeps
+// this size too.
+void SRAM_SetMemorySize(DWORD memorySize);
 
 // While enabled, reads of the SCSI settings ($ED006F/$ED0070) report a
 // configured external SCSI board without modifying SRAM[] itself, so the
