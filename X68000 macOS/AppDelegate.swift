@@ -3346,17 +3346,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         guard let size = (sender.representedObject as? NSNumber)?.uint32Value,
               let fileSystem = gameViewController?.gameScene?.fileSystem,
               size != fileSystem.mainMemorySize else { return }
-        let saved = fileSystem.setMainMemorySize(size)
+        fileSystem.setMainMemorySize(size)
         let label = FileSystem.memorySizeLabel(size)
         let alert = NSAlert()
         alert.messageText = "メインメモリを \(label) にしました"
-        if saved {
-            alert.informativeText = "リセットすると Human68k が \(label) を使います。SRAM.DAT に保存したので、SWITCH.X でも同じ値が表示されます。"
-            alert.alertStyle = .informational
-        } else {
-            alert.informativeText = "リセットすると Human68k が \(label) を使いますが、SRAM.DAT に保存できませんでした。アプリを終了すると元のサイズに戻ります。"
-            alert.alertStyle = .warning
-        }
+        alert.informativeText = "リセットすると Human68k が \(label) を使います。SRAM.DAT に保存したので、SWITCH.X でも同じ値が表示されます。"
+        alert.alertStyle = .informational
         alert.addButton(withTitle: "今すぐリセット")
         alert.addButton(withTitle: "あとで")
         let handle: (NSApplication.ModalResponse) -> Void = { [weak self] response in
