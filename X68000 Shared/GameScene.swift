@@ -234,8 +234,12 @@ class GameScene: SKScene {
             // path below would mount a .hds into an FDD drive.
             let extname = url.pathExtension.lowercased()
             if extname == "hds" || extname == "hdf" {
-                self.clearLoadingFile(url)
-                self.loadHDD(url: url)
+                self.loadHDD(url: url) { result in
+                    self.clearLoadingFile(url)
+                    if case .failure(let error) = result {
+                        self.showAlert(title: "ディスクを読み込めませんでした", message: error.localizedDescription)
+                    }
+                }
                 return
             }
             // debugLog("Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)", category: .fileSystem)
@@ -297,6 +301,11 @@ class GameScene: SKScene {
         return fileSize
     }
 
+    // Every HDD image is read into the one drive-4 buffer, which the next read
+    // frees and reallocates. One load at a time, from the read until its mount
+    // has finished on the main queue.
+    private static let hddLoadQueue = DispatchQueue(label: "MPX68K.hddLoad", qos: .userInitiated)
+
     func loadHDD(url: URL, completion: ((Result<Void, Error>) -> Void)? = nil) {
         // debugLog("GameScene.loadHDD() called with: \(url.lastPathComponent)", category: .fileSystem)
         // debugLog("File extension: \(url.pathExtension)", category: .fileSystem)
@@ -325,12 +334,16 @@ class GameScene: SKScene {
             infoLog("Loading HDD file directly: \(extname.uppercased())", category: .fileSystem)
             
             if extname == "hds" {
-                DispatchQueue.global(qos: .userInitiated).async {
+                GameScene.hddLoadQueue.async {
+                    if let reason = FileSystem.downloadUbiquitousItemIfNeeded(url) {
+                        finish(.failure(NSError(domain: "MPX68K", code: 1, userInfo: [NSLocalizedDescriptionKey: reason])))
+                        return
+                    }
                     do {
                         let fileSize = try self.streamDiskImageToBuffer(url: url, bufferDrive: 4)
                         infoLog("Successfully streamed SCSI HDD data: \(fileSize) bytes", category: .fileSystem)
 
-                        DispatchQueue.main.async {
+                        DispatchQueue.main.sync {
                             if X68000_GetStorageBusMode() != 1 {
                                 X68000_SetStorageBusMode(1)
                                 #if os(macOS)
@@ -385,12 +398,16 @@ class GameScene: SKScene {
                 return
             }
             
-            DispatchQueue.global(qos: .userInitiated).async {
+            GameScene.hddLoadQueue.async {
+                if let reason = FileSystem.downloadUbiquitousItemIfNeeded(url) {
+                    finish(.failure(NSError(domain: "MPX68K", code: 1, userInfo: [NSLocalizedDescriptionKey: reason])))
+                    return
+                }
                 do {
                     let fileSize = try self.streamDiskImageToBuffer(url: url, bufferDrive: 4)
                     infoLog("Successfully streamed HDD data: \(fileSize) bytes", category: .fileSystem)
 
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.sync {
                         // SASI image: ensure bus mode is SASI
                         if X68000_GetStorageBusMode() != 0 {
                             X68000_SetStorageBusMode(0)
