@@ -70,10 +70,7 @@ static int OutsIp[4];
 static int OutsIpR[4];
 static int OutsIpL[4];
 
-// DC blocking filter state (1st order high-pass)
-static double dc_filter_x1 = 0.0;  // Previous input
-static double dc_filter_y1 = 0.0;  // Previous output
-static const double DC_FILTER_ALPHA = 0.995;  // High-pass cutoff ~3.5Hz at 22kHz
+// The DC blocking filter is applied to the OPM + ADPCM mix (x11/dc_block.h).
 
 int ADPCM_IsReady(void)
 {
@@ -357,9 +354,14 @@ void FASTCALL ADPCM_Write(DWORD adr, BYTE data)
 			ADPCM_DifBuf = 0;
 			ADPCM_RdPtr = ADPCM_WrPtr;
 		} else if ( data&2 ) {
+			// PLAY ST returns the MSM6258's output to the centre and its
+			// step size to the minimum, also while it is already playing.
+			// PCM8A writes PLAY ST without SP when it resumes after a gap
+			// and resets its own encoder at the same time; keeping the old
+			// decoder state here left the two out of step (a DC offset).
+			ADPCM_Step = 0;
+			ADPCM_Out = 0;
 			if ( !ADPCM_Playing ) {
-				ADPCM_Step = 0;
-				ADPCM_Out = 0;
 				// Fix: Initialize with silence instead of -2 to prevent startup noise
 				OldL = OldR = 0;
 				ADPCM_Playing = 1;

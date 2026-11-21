@@ -13,7 +13,7 @@ CFLAGS += -Wall -g $(SAN) \
 
 # Test binaries are phony so edits to the (space-containing) core source
 # paths always trigger a rebuild; the builds are cheap.
-.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_sysport test_scc_rs232c test_c68k_buserr
+.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr
 
 all: run
 
@@ -42,6 +42,12 @@ test_sram_scsi:
 test_sram_memsize:
 	$(CC) $(CFLAGS) -o $@ test_sram_memsize.c "$(PX68K)/x68k/sram.c"
 
+test_dc_block:
+	$(CC) $(CFLAGS) -o $@ test_dc_block.c -lm
+
+test_adpcm:
+	$(CC) $(CFLAGS) -o $@ test_adpcm.c "$(PX68K)/x68k/adpcm.c" -lm
+
 test_sysport:
 	$(CC) $(CFLAGS) -o $@ test_sysport.c "$(PX68K)/x68k/sysport.c"
 
@@ -55,7 +61,7 @@ test_c68k_buserr:
 	$(CC) $(CFLAGS) -w -DC68K_NO_JUMP_TABLE -DHAVE_C68K -o $@ test_c68k_buserr.c \
 		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c"
 
-run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_sysport test_scc_rs232c test_c68k_buserr
+run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr
 	./test_disk_d88
 	./test_crtc_timing
 	./test_mfp_hsync
@@ -63,9 +69,11 @@ run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount te
 	./test_fdd_mount
 	./test_sram_scsi
 	./test_sram_memsize
+	./test_dc_block
+	./test_adpcm
 	./test_sysport
 	./test_scc_rs232c
 	./test_c68k_buserr
 
 clean:
-	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_sysport test_scc_rs232c test_c68k_buserr _test_image.d88
+	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_fdd_mount test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr _test_image.d88
