@@ -65,14 +65,18 @@ void Mouse_ChangePos(void) {}
 void FASTCALL BG_DrawLine(int opaq, int gd) { (void)opaq; (void)gd; }
 void FASTCALL BG_SwapBuffers(void) {}
 void FASTCALL Grp_SwapBuffers(void) {}
+/* Counts of the special priority / translucency line builders, and of
+ * normal draws of the base page, for the R2 bit10 checks. */
+static int g_sp_calls = 0;
+static int g_base_page_draws = 0;
 void Grp_DrawLine16(void) {}
-void FASTCALL Grp_DrawLine8(int page, int opaq) { (void)page; (void)opaq; }
-void FASTCALL Grp_DrawLine4(DWORD page, int opaq) { (void)page; (void)opaq; }
+void FASTCALL Grp_DrawLine8(int page, int opaq) { (void)opaq; g_base_page_draws += (page == 0); }
+void FASTCALL Grp_DrawLine4(DWORD page, int opaq) { (void)opaq; g_base_page_draws += (page == 0); }
 void FASTCALL Grp_DrawLine4h(void) {}
-void FASTCALL Grp_DrawLine16SP(void) {}
-void FASTCALL Grp_DrawLine8SP(int page) { (void)page; }
-void FASTCALL Grp_DrawLine4SP(DWORD page) { (void)page; }
-void FASTCALL Grp_DrawLine4hSP(void) {}
+void FASTCALL Grp_DrawLine16SP(void) { g_sp_calls++; }
+void FASTCALL Grp_DrawLine8SP(int page) { (void)page; g_sp_calls++; }
+void FASTCALL Grp_DrawLine4SP(DWORD page) { (void)page; g_sp_calls++; }
+void FASTCALL Grp_DrawLine4hSP(void) { g_sp_calls++; }
 void FASTCALL Grp_DrawLine8TR(int page, int opaq) { (void)page; (void)opaq; }
 void FASTCALL Grp_DrawLine4TR(DWORD page, int opaq) { (void)page; (void)opaq; }
 void p6logd(const char *fmt, ...) { (void)fmt; }
@@ -312,12 +316,56 @@ static void test_image_conversion(void)
     free(buf);
 }
 
+/* R2 bit12 (EXON) acts only together with bit10 (B/P), in every colour
+ * mode: bit12 alone draws the base page normally. */
+static void test_special_priority_needs_bit10(void)
+{
+    static const struct { BYTE mode; const char *name; } modes[] = {
+        { 0x00, "16 colors 512" }, { 0x01, "256 colors" }, { 0x03, "65536 colors" },
+    };
+    int m;
+
+    apply_512x512_31k();
+    VCReg1[0] = 0x02;
+    VCReg1[1] = 0xe4;          /* GD0..GD3 = VRAM #0..#3 */
+    for (m = 0; m < 3; m++) {
+        char what[96];
+        VCReg0[1] = modes[m].mode;
+        VCReg2[1] = 0x0f;      /* all graphics pages on */
+
+        VCReg2[0] = 0x10;      /* bit12 only */
+        g_sp_calls = 0;
+        g_base_page_draws = 0;
+        VLINE = 7;
+        TextDirtyLine[7] = 1;
+        WinDraw_DrawLine();
+        snprintf(what, sizeof what, "%s: bit12 without bit10 does not build the SP line", modes[m].name);
+        CHECK_EQ(g_sp_calls, 0, what);
+        if (modes[m].mode != 0x03) {
+            snprintf(what, sizeof what, "%s: bit12 without bit10 draws the base page normally", modes[m].name);
+            CHECK_EQ(g_base_page_draws, 1, what);
+        }
+
+        VCReg2[0] = 0x14;      /* bit12 + bit10 */
+        g_sp_calls = 0;
+        g_base_page_draws = 0;
+        TextDirtyLine[7] = 1;
+        WinDraw_DrawLine();
+        snprintf(what, sizeof what, "%s: bit12 with bit10 builds the SP line", modes[m].name);
+        CHECK_EQ(g_sp_calls, 1, what);
+    }
+    VCReg2[0] = 0;
+    VCReg2[1] = 0;
+    VCReg1[1] = 0;
+}
+
 int main(void)
 {
     test_init_and_alloc();
     test_frame_info_and_generation();
     test_line_render_stride();
     test_line_render_1024();
+    test_special_priority_needs_bit10();
     test_frame_info_interlace_consistency();
     test_draw_guards();
     test_image_conversion();

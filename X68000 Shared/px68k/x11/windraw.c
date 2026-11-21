@@ -537,6 +537,10 @@ void WinDraw_DrawLine(void)
 
 	if (Debug_Grp)
 	{
+	// Special priority / translucency (R2 bit12, EXON) needs bit10 (B/P):
+	// the area is the base page's LSB only then. Every colour mode checks
+	// both bits, so bit12 alone does nothing (bit10 = 0 is undefined in
+	// Inside X68000 and has no area to act on).
 	switch(VCReg0[1]&3)
 	{
 	case 0:					// 16 colors
@@ -558,7 +562,7 @@ void WinDraw_DrawLine(void)
 		}
 		else				// 512dot
 		{
-			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
+			if ( ((VCReg2[0]&0x14)==0x14)&&(VCReg2[1]&1) )
 			{
 				Grp_DrawLine4SP((VCReg1[1]   )&3/*, 1*/);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				pron = tron = 1;
@@ -606,7 +610,7 @@ void WinDraw_DrawLine(void)
 		opaq = 1;		// 256 colors
 		if ( (VCReg1[1]&3) <= ((VCReg1[1]>>4)&3) )	// Æ±¤¸ÃÍ¤Î»þ¤Ï¡¢GRP0¤¬Í¥Àè¡Ê¥É¥é¥¹¥Ô¡Ë
 		{
-			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
+			if ( ((VCReg2[0]&0x14)==0x14)&&(VCReg2[1]&1) )
 			{
 				Grp_DrawLine8SP(0);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				tron = pron = 1;
@@ -631,7 +635,7 @@ void WinDraw_DrawLine(void)
 		}
 		else
 		{
-			if ( (VCReg2[0]&0x10)&&(VCReg2[1]&1) )
+			if ( ((VCReg2[0]&0x14)==0x14)&&(VCReg2[1]&1) )
 			{
 				Grp_DrawLine8SP(1);			// È¾Æ©ÌÀ¤Î²¼½àÈ÷
 				tron = pron = 1;
