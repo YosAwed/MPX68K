@@ -230,6 +230,14 @@ class GameScene: SKScene {
                 self.fileSystem = FileSystem()
                 self.fileSystem?.gameScene = self  // Set reference for cleanup
             }
+            // Hard disk images go through the bus-aware HDD loader; the floppy
+            // path below would mount a .hds into an FDD drive.
+            let extname = url.pathExtension.lowercased()
+            if extname == "hds" || extname == "hdf" {
+                self.clearLoadingFile(url)
+                self.loadHDD(url: url)
+                return
+            }
             // debugLog("Calling FileSystem.loadDiskImage() with: \(url.lastPathComponent)", category: .fileSystem)
             self.fileSystem?.loadDiskImage(url)
         })
