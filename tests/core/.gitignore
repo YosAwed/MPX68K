@@ -1,6 +1,15 @@
-test_disk_d88
+test_adpcm
+test_c68k_buserr
 test_crtc_timing
+test_dc_block
+test_disk_d88
+test_fdd_mount
+test_gvram_sp
 test_mfp_hsync
+test_scc_rs232c
 test_scrbuf
+test_sram_memsize
+test_sram_scsi
+test_sysport
 *.dSYM/
 _test_image.d88

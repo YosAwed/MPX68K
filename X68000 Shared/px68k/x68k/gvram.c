@@ -537,12 +537,23 @@ void FASTCALL Grp_DrawLine4h(void)
 // -------------------------------------------------
 // --- 半透明／特殊Priのベースとなるページの描画 ---
 // -------------------------------------------------
+// 65536-colour palette lookup for palette code PH<<8|PL. The palette is
+// laid out in pairs (Inside X68000 P.216, as corrected by the errata):
+//   CLPL = [$E82000 + ((PL & $FE) << 1) + (PL & 1)]
+//   CHPH = [$E82002 + ((PH & $FE) << 1) + (PH & 1)]
+// Grp_DrawLine16() reads it the same way through Pal16Adr[].
+static WORD Grp_Pal16Color(WORD code)
+{
+	return (WORD)(Pal_Regs[Pal16Adr[code & 0xff]] |
+	              (Pal_Regs[Pal16Adr[code >> 8] + 2] << 8));
+}
+
 void FASTCALL Grp_DrawLine16SP(void)
 {
 	DWORD x, y;
 	DWORD off;
 	DWORD i;
-	WORD v;
+	WORD p, sp, sp2;
 
 	y = GrphScrollY[0] + VLINE * CRTC_VramRowStepActive;
 	y = (y & 0x1ff) << 10;
@@ -552,24 +563,24 @@ void FASTCALL Grp_DrawLine16SP(void)
 	x = (x ^ 0x1ff) + 1;
 
 	for (i = 0; i < TextDotX; ++i) {
-		v = (Pal_Regs[GVRAM[off+1]*2] << 8) | Pal_Regs[GVRAM[off]*2+1];
-		if ((GVRAM[off] & 1) == 0) {
-		if (Grp_DoubleBuffer) {
-			Grp_LineBufSP_Draw[i] = 0;
-			Grp_LineBufSP2_Draw[i] = Pal16[v & 0xfffe];
+		p = (WORD)((GVRAM[off+1] << 8) | GVRAM[off]);
+		// Special priority with B/P (R2 bit10): an odd palette code marks the
+		// area, shown with the colour of the code made even. An even code is
+		// an ordinary pixel, transparent when it is 0 (as in Grp_DrawLine8SP).
+		if (p & 1) {
+			sp = Pal16[Grp_Pal16Color(p & 0xfffe)];
+			sp2 = 0;
 		} else {
-			Grp_LineBufSP[i] = 0;
-			Grp_LineBufSP2[i] = Pal16[v & 0xfffe];
+			sp = 0;
+			sp2 = p ? Pal16[Grp_Pal16Color(p)] : 0;
 		}
-	} else {
 		if (Grp_DoubleBuffer) {
-			Grp_LineBufSP_Draw[i] = Pal16[v & 0xfffe];
-			Grp_LineBufSP2_Draw[i] = 0;
+			Grp_LineBufSP_Draw[i] = sp;
+			Grp_LineBufSP2_Draw[i] = sp2;
 		} else {
-			Grp_LineBufSP[i] = Pal16[v & 0xfffe];
-			Grp_LineBufSP2[i] = 0;
+			Grp_LineBufSP[i] = sp;
+			Grp_LineBufSP2[i] = sp2;
 		}
-	}
 
 		off += 2;
 		if (--x == 0)
