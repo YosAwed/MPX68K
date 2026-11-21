@@ -3,6 +3,7 @@ test_c68k_buserr
 test_crtc_timing
 test_dc_block
 test_disk_d88
+test_fdc_readid
 test_fdd_mount
 test_gvram_sp
 test_mfp_hsync

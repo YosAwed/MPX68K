@@ -195,10 +195,9 @@ BYTE FASTCALL MFP_Read(DWORD adr)
 			KeyIntFlag = 0;
 			break;
 		case MFP_RSR:
-			if (KeyBufRP!=KeyBufWP)
-				ret = MFP[reg] & 0x7f;
-			else
-				ret = MFP[reg] | 0x80;
+			// BF (bit7): a received byte waits in UDR. Keyboard_Int() hands
+			// one byte over and sets KeyIntFlag; reading UDR clears it.
+			ret = (MFP[reg] & 0x7f) | (KeyIntFlag ? 0x80 : 0);
 			break;
 		default:
 			ret = MFP[reg];

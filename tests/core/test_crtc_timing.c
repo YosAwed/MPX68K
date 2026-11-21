@@ -423,6 +423,22 @@ static void test_readback_zero_restore(void)
  * get the same HSYNC_CLK, but the old formula returned 344 instead of 317
  * (8% off) purely because R04 changed. mfp.c derives the GPIP HSYNC
  * position from this value, so the error was guest-visible. */
+/* The operation port $E80480/$E80481 repeats over the upper half of every
+ * $100 block in $E80400-$E807FF, and only raster copy (bit3) and fast clear
+ * in progress (bit1) read back (XEiJ MemoryMappedDevice). */
+static void test_operation_port(void)
+{
+    CRTC_Write(0xe80481, 0x09);     /* raster copy + bit0 */
+    CHECK_EQ(CRTC_Read(0xe80481), 0x08, "op port: only bit3/bit1 read back");
+    CHECK_EQ(CRTC_Read(0xe804ff), 0x08, "op port: $E804FF mirrors the low byte");
+    CHECK_EQ(CRTC_Read(0xe807a1), 0x08, "op port: $E807A1 mirrors the low byte");
+    CHECK_EQ(CRTC_Read(0xe80480), 0x00, "op port: high byte reads 0");
+    CHECK_EQ(CRTC_Read(0xe80421), 0x00, "op port: lower half of a block is not the port");
+
+    CRTC_Write(0xe806ff, 0x00);     /* mirror write clears it */
+    CHECK_EQ(CRTC_Read(0xe80481), 0x00, "op port: write through a mirror reaches it");
+}
+
 static void check_hsync_clk(const char *label, const BYTE *regs)
 {
     CrtcTiming t;
@@ -817,6 +833,7 @@ static void test_legacy_agreement(void)
 int main(void)
 {
     test_timing_768x512();
+    test_operation_port();
     test_timing_512x512();
     test_timing_crtc60hz_525line();
     test_timing_256x256_double_read();

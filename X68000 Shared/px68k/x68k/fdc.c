@@ -345,12 +345,13 @@ fclose(fp);
 				fdc.st0 |= 0x40;
 				fdc.st1 |= 0x04;
 			} else {
+				// READ ID does not read the data field, so a deleted data
+				// mark does not set ST2 CM (uPD72065; CM is for READ DATA,
+				// READ DIAGNOSTIC, SCAN and READ DELETED DATA only).
 				ret = FDD_ReadID(fdc.drv, &id);
 				if ( !ret ) {
 					fdc.st0 |= 0x40;
 					fdc.st1 |= 0x04;
-				} else {
-					if ( ret&2 ) fdc.st2 |= 0x40;
 				}
 			}
 		} else {
