@@ -127,8 +127,13 @@ class X68Security {
         // ファイルサイズの検証
         let fileSize = try getFileSize(url)
         let expectedSize = expectedROMSizes[filename]!
+        // A SCSIEXROM.DAT dump may also leave out the 32 SPC register bytes
+        // (see SCSIEXROMImage).
+        let acceptedSizes = filename == "SCSIEXROM.DAT"
+            ? [Int64(SCSIEXROMImage.size), Int64(SCSIEXROMImage.sizeWithoutSPC)]
+            : [Int64(expectedSize)]
         
-        guard fileSize == expectedSize else {
+        guard acceptedSizes.contains(Int64(fileSize)) else {
             throw X68MacError.diskImageCorrupted("ROM file size mismatch: expected \(expectedSize), got \(fileSize)")
         }
         

@@ -78,6 +78,7 @@ enum ROMLoadError: LocalizedError {
     case invalidSize(String, expected: Int, actual: Int)
     case blankContent(String)
     case invalidHeader(String)               // SCSIEXROM: マーカー文字列なし
+    case internalSCSIROM(String)             // SCSIEXROM の代わりに内蔵 SCSI ROM(SCSIIN)
 
     var errorDescription: String? {
         switch self {
@@ -88,7 +89,9 @@ enum ROMLoadError: LocalizedError {
         case .blankContent(let name):
             return "\(name) が空または未初期化です（全バイトが同一値）。\n対応機種用の正しい ROM ファイルを使用してください。"
         case .invalidHeader(let name):
-            return "\(name) は有効な SCSI 拡張 ROM ではありません。\nCZ-6BS1 互換の SCSIEXROM.DAT を使用してください。"
+            return "\(name) は有効な SCSI 拡張 ROM ではありません。\n$EA0044 に識別文字列 \"SCSIEX\" がありません。CZ-6BS1 の ROM を使用してください。"
+        case .internalSCSIROM(let name):
+            return "\(name) は本体内蔵 SCSI 用の ROM(SCSIIN)です。\n外付け SCSI ボード CZ-6BS1 の ROM(SCSIEX)を使用してください。"
         }
     }
 }

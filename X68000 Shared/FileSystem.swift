@@ -2332,34 +2332,22 @@ class FileSystem {
         return nil
     }
 
-    /// SCSIEXROM.DAT の内容を検証する。
-    /// "SCSI" または "CZ-6BS1" 文字列が先頭 256 バイト内に存在するかを確認。
-    /// macOS 12 対応のため windows(ofCount:) は使用せず手動検索。
-    private func validateSCSIEXROM(_ data: Data) -> ROMLoadError? {
-        // 1. サイズ完全一致（0x2000 = 8192 バイト）
-        guard data.count == 0x2000 else {
-            return .invalidSize("SCSIEXROM.DAT", expected: 0x2000, actual: data.count)
+    /// SCSIEXROM.DAT を検証し、$EA0000-$EA1FFF に置く 8KB のイメージを返す。
+    /// 判定は SCSIEXROMImage(識別文字列 "SCSIEX" が $EA0044 に 6 バイト)。
+    private func validatedSCSIEXROM(_ data: Data) -> Result<Data, ROMLoadError> {
+        let name = "SCSIEXROM.DAT"
+        switch SCSIEXROMImage.normalize(data) {
+        case .success(let image):
+            return .success(image)
+        case .failure(.wrongSize(let actual)):
+            return .failure(.invalidSize(name, expected: SCSIEXROMImage.size, actual: actual))
+        case .failure(.blank):
+            return .failure(.blankContent(name))
+        case .failure(.internalROM):
+            return .failure(.internalSCSIROM(name))
+        case .failure(.noSignature):
+            return .failure(.invalidHeader(name))
         }
-        // 2. 全バイト同一値チェック
-        let first = data[0]
-        guard data.contains(where: { $0 != first }) else {
-            return .blankContent("SCSIEXROM.DAT")
-        }
-        // 3. ROM マーカー文字列検索
-        let header = data.prefix(256)
-        let scsiMarker: [UInt8] = [0x53, 0x43, 0x53, 0x49]             // "SCSI"
-        let czMarker:   [UInt8] = [0x43, 0x5A, 0x2D, 0x36, 0x42, 0x53, 0x31] // "CZ-6BS1"
-        func containsSequence(_ seq: [UInt8], in buf: Data) -> Bool {
-            guard buf.count >= seq.count else { return false }
-            for i in 0...(buf.count - seq.count) {
-                if buf[i..<(i + seq.count)].elementsEqual(seq) { return true }
-            }
-            return false
-        }
-        guard containsSequence(scsiMarker, in: header) || containsSequence(czMarker, in: header) else {
-            return .invalidHeader("SCSIEXROM.DAT")
-        }
-        return nil
     }
 
     // MARK: - ROM Loading
@@ -2423,15 +2411,19 @@ class FileSystem {
                 return .failure(.missingFile("SCSIEXROM.DAT"))
             }
             do {
-                let scsiData: Data = try Data(contentsOf: scsiRomURL)
+                let fileData: Data = try Data(contentsOf: scsiRomURL)
                 // SCIモード設定時に無効 ROM は致命的エラー
-                if let err = validateSCSIEXROM(scsiData) {
+                let scsiData: Data
+                switch validatedSCSIEXROM(fileData) {
+                case .success(let image):
+                    scsiData = image
+                case .failure(let err):
                     errorLog("SCSIEXROM.DAT 検証失敗: \(err.localizedDescription)", category: .fileSystem)
                     return .failure(err)
                 }
                 if let scsiPtr = X68000_GetSCSIIPLPointer() {
-                    scsiData.copyBytes(to: scsiPtr, count: 0x2000)
-                    infoLog("SCSIEXROM.DAT loaded successfully (\(scsiData.count) bytes)", category: .fileSystem)
+                    scsiData.copyBytes(to: scsiPtr, count: SCSIEXROMImage.size)
+                    infoLog("SCSIEXROM.DAT loaded successfully (\(fileData.count) bytes)", category: .fileSystem)
                 } else {
                     errorLog("Failed to get SCSI IPL pointer", category: .fileSystem)
                 }
