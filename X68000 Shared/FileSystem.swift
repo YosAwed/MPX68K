@@ -2137,22 +2137,27 @@ class FileSystem {
             DispatchQueue.main.async { completion(false) }
         }
     }
-    func saveSRAM()
+    /// Returns true when SRAM.DAT was written. loadSRAM() prefers it over
+    /// SRAM.BAK, so only then does the next launch see this SRAM.
+    @discardableResult
+    func saveSRAM() -> Bool
     {
         infoLog("==== Save SRAM ====", category: .fileSystem)
         guard let sramPointer = X68000_GetSRAMPointer() else {
             errorLog("Failed to get SRAM pointer", category: .fileSystem)
-            return
+            return false
         }
         
         let data = Data(bytes: sramPointer, count: 0x4000)
         guard let url = getDocumentsPath("SRAM.DAT") else {
             errorLog("Failed to get SRAM file path", category: .fileSystem)
-            return
+            return false
         }
         
+        var saved = false
         do {
-            try data.write(to: url)
+            try data.write(to: url, options: .atomic)
+            saved = true
             infoLog("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)", category: .fileSystem)
         } catch let error as NSError {
             errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
@@ -2160,7 +2165,7 @@ class FileSystem {
 
         if let backupURL = getDocumentsPath("SRAM.BAK") {
             do {
-                try data.write(to: backupURL)
+                try data.write(to: backupURL, options: .atomic)
                 infoLog("SRAM.BAK saved successfully (\(data.count) bytes) to: \(backupURL.path)", category: .fileSystem)
             } catch let error as NSError {
                 errorLog("Failed to save SRAM.BAK", error: error, category: .fileSystem)
@@ -2171,6 +2176,7 @@ class FileSystem {
         if X68000_GetStorageBusMode() == 0 {
             WinX68k_UpdateSASIRamSize()
         }
+        return saved
     }
     
     func loadSRAM()
@@ -2196,20 +2202,22 @@ class FileSystem {
         guard let sramData = data else {
             infoLog("SRAM data not found - initializing with default values", category: .fileSystem)
             initializeDefaultSRAM()
+            // Blank SRAM: the IPL ROM initializes it on boot; the core keeps the
+            // memory size set here (or chosen in the menu) instead of its 1MB.
+            X68000_SRAM_PowerOn()
             return
         }
 
         if let p = X68000_GetSRAMPointer() {
             sramData.copyBytes(to: p, count: sramData.count)
             infoLog("SRAM loaded successfully (\(sramData.count) bytes)", category: .fileSystem)
-            if !isSRAMSignatureValid(p) {
-                warningLog("SRAM signature invalid - repairing signature and preserving data", category: .fileSystem)
-                p[0x10 ^ 1] = 0x00
-                p[0x11 ^ 1] = 0x01
-                p[0x12 ^ 1] = 0xED
-                p[0x13 ^ 1] = 0x00
-                saveSRAM()
+            if !isSRAMInitialized(p) {
+                // The IPL ROM rewrites an SRAM without its magic with its own
+                // defaults on boot, so there is nothing to repair here.
+                warningLog("SRAM.DAT is not initialized ($ED0000 magic missing) - the IPL ROM will initialize it", category: .fileSystem)
             }
+            // The memory size ($ED0008) stays as saved (menu or SWITCH.X).
+            X68000_SRAM_PowerOn()
             WinX68k_UpdateSASIRamSize()
         } else {
             errorLog("Failed to get SRAM pointer", category: .fileSystem)
@@ -2239,10 +2247,10 @@ class FileSystem {
         setSRAM(0x0A, 0x00)
         setSRAM(0x0B, 0x00)
 
-        // $ED0010-$ED0013: SRAM signature (0x0001ED00 indicates valid SRAM)
+        // $ED0010-$ED0013: SRAM boot address (default $00ED0100)
         setSRAM(0x10, 0x00)
-        setSRAM(0x11, 0x01)
-        setSRAM(0x12, 0xED)
+        setSRAM(0x11, 0xED)
+        setSRAM(0x12, 0x01)
         setSRAM(0x13, 0x00)
 
         // $ED0018-$ED001B: Boot device and related settings
@@ -2267,11 +2275,57 @@ class FileSystem {
         saveSRAM()
     }
 
-    private func isSRAMSignatureValid(_ p: UnsafeMutablePointer<UInt8>) -> Bool {
-        return p[0x10 ^ 1] == 0x00 &&
-               p[0x11 ^ 1] == 0x01 &&
-               p[0x12 ^ 1] == 0xED &&
-               p[0x13 ^ 1] == 0x00
+    // MARK: - Main memory size (SRAM $ED0008)
+
+    /// Sizes offered in the menus, in MB (SWITCH.X accepts the same range).
+    static let mainMemoryChoicesMB: [UInt32] = [1, 2, 4, 6, 8, 10, 12]
+
+    /// Main memory installed in the emulated machine, in bytes.
+    var installedMemorySize: UInt32 { X68000_GetInstalledMemorySize() }
+
+    /// The main memory size Human68k uses: the setting in SRAM ($ED0008), the same
+    /// one SWITCH.X changes. Read it each time a menu is shown so it follows SWITCH.X.
+    var mainMemorySize: UInt32 { X68000_GetSRAMMemorySize() }
+
+    /// Sets the main memory size in SRAM and saves SRAM.DAT. Takes effect at the
+    /// next reset, as with SWITCH.X. Returns false when SRAM.DAT could not be
+    /// written: the setting then lasts only until the app quits.
+    @discardableResult
+    func setMainMemorySize(_ bytes: UInt32) -> Bool {
+        X68000_SetSRAMMemorySize(bytes)
+        let saved = saveSRAM()
+        infoLog("Main memory size set to \(FileSystem.memorySizeLabel(bytes)) (SRAM $ED0008)", category: .fileSystem)
+        return saved
+    }
+
+    /// The sizes to list: the standard choices up to the installed memory, plus the
+    /// current setting if SWITCH.X set something else.
+    var mainMemoryMenuSizes: [UInt32] {
+        let installed = installedMemorySize
+        var sizes = FileSystem.mainMemoryChoicesMB.map { $0 << 20 }.filter { $0 <= installed }
+        let current = mainMemorySize
+        // 16MB is the whole 68000 address space; anything beyond is not a setting.
+        if current != 0 && current <= 0x0100_0000 && !sizes.contains(current) {
+            sizes.append(current)
+            sizes.sort()
+        }
+        return sizes
+    }
+
+    /// "12MB", or "768KB" for a size that is not a whole number of MB.
+    static func memorySizeLabel(_ bytes: UInt32) -> String {
+        if bytes & 0xFFFFF == 0 { return "\(bytes >> 20)MB" }
+        return "\(bytes >> 10)KB"
+    }
+
+    /// True when $ED0000-$ED0007 holds "\u{82}\u{77}" "68000W", the mark the IPL ROM
+    /// writes when it initializes the SRAM. SRAM[] is byte-swapped (addr ^ 1).
+    private func isSRAMInitialized(_ p: UnsafeMutablePointer<UInt8>) -> Bool {
+        let magic: [UInt8] = [0x82, 0x77, 0x36, 0x38, 0x30, 0x30, 0x30, 0x57]
+        for (i, byte) in magic.enumerated() where p[i ^ 1] != byte {
+            return false
+        }
+        return true
     }
 
     // MARK: - ROM Management

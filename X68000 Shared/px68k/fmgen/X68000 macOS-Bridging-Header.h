@@ -45,6 +45,15 @@ void X68000_Mouse_SetAbsolute(float x, float y);
 void X68000_Mouse_SetDoubleClickInProgress(int flag);
 
 unsigned char* X68000_GetSRAMPointer();
+// Call after replacing SRAM[] (loading SRAM.DAT) and before the machine runs:
+// a blank SRAM then gets the size in SRAM[] (or all memory) instead of 1MB.
+void X68000_SRAM_PowerOn(void);
+// Main memory: installed size, and the size setting in SRAM ($ED0008) that
+// Human68k uses and SWITCH.X changes. Read it when showing the menu; a new
+// size takes effect at the next boot.
+unsigned int X68000_GetInstalledMemorySize(void);
+unsigned int X68000_GetSRAMMemorySize(void);
+void X68000_SetSRAMMemorySize(unsigned int bytes);
 unsigned char* X68000_GetCGROMPointer(); // added by Awed 2023/10/7
 unsigned char* X68000_GetIPLROMPointer(); // added by Awed 2023/10/7
 unsigned char* X68000_GetSCSIIPLPointer();

@@ -728,9 +728,9 @@ WinX68k_Reset(void)
 				// RAM size 12MB (0x00C00000)
 				s_sram_sasi[0x09] = 0x00; s_sram_sasi[0x08] = 0xC0;
 				s_sram_sasi[0x0B] = 0x00; s_sram_sasi[0x0A] = 0x00;
-				// SRAM signature
-				s_sram_sasi[0x11] = 0x00; s_sram_sasi[0x10] = 0x01;
-				s_sram_sasi[0x13] = 0xED; s_sram_sasi[0x12] = 0x00;
+				// SRAM boot address ($ED0010, default $00ED0100)
+				s_sram_sasi[0x11] = 0x00; s_sram_sasi[0x10] = 0xED;
+				s_sram_sasi[0x13] = 0x01; s_sram_sasi[0x12] = 0x00;
 				s_sram_sasi_valid = 1;
 				printf("WinX68k_Reset: SASI SRAM initialized ($FF + 12MB)\n");
 			} else {
@@ -756,6 +756,9 @@ WinX68k_Reset(void)
 
     DSound_Stop();
     SRAM_VirusCheck();
+    // A blank SRAM gets the memory size chosen in the menu (or all of MEM)
+    // instead of the IPL ROM's 1MB; an initialized SRAM keeps its setting.
+    SRAM_PowerOn(MEM_SIZE);
     //CDROM_Init();
     DSound_Play();
 
@@ -1787,6 +1790,30 @@ const char* X68000_SCSIU_GetStatus(void)
 unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
+}
+
+// The host replaced SRAM[] (SRAM.DAT loaded) before the machine runs:
+// prepare the blank-SRAM memory size again (see SRAM_PowerOn()).
+void X68000_SRAM_PowerOn(void)
+{
+    SRAM_PowerOn(MEM_SIZE);
+}
+
+// Main memory installed in the emulated machine (the most Human68k can use).
+unsigned int X68000_GetInstalledMemorySize(void)
+{
+    return MEM_SIZE;
+}
+
+// Main memory size setting in SRAM ($ED0008), shared with SWITCH.X.
+unsigned int X68000_GetSRAMMemorySize(void)
+{
+    return SRAM_GetMemorySize();
+}
+
+void X68000_SetSRAMMemorySize(unsigned int bytes)
+{
+    SRAM_SetMemorySize(bytes);
 }
 
 unsigned char* X68000_GetCGROMPointer()

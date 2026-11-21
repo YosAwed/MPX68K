@@ -1013,6 +1013,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         midiDelayItem.target = self
         systemMenu.addItem(midiDelayItem)
 
+        // Main memory size in SRAM ($ED0008), shared with SWITCH.X: the items are
+        // rebuilt each time the submenu opens (menuNeedsUpdate), so they follow it.
+        let mainMemoryItem = NSMenuItem(title: "Main Memory", action: nil, keyEquivalent: "")
+        let mainMemoryMenu = NSMenu(title: "Main Memory")
+        mainMemoryMenu.delegate = self
+        mainMemoryItem.submenu = mainMemoryMenu
+        systemMenu.addItem(mainMemoryItem)
+
         let deleteIplItem = NSMenuItem(title: "Delete IPLROM.DAT...", action: #selector(deleteIPLROM(_:)), keyEquivalent: "")
         deleteIplItem.target = self
         deleteIplItem.identifier = NSUserInterfaceItemIdentifier("ROM-delete-IPL")
@@ -3332,7 +3340,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         return true
     }
 
+    // MARK: - Main memory
+
+    @objc func selectMainMemorySize(_ sender: NSMenuItem) {
+        guard let size = (sender.representedObject as? NSNumber)?.uint32Value,
+              let fileSystem = gameViewController?.gameScene?.fileSystem,
+              size != fileSystem.mainMemorySize else { return }
+        let saved = fileSystem.setMainMemorySize(size)
+        let label = FileSystem.memorySizeLabel(size)
+        let alert = NSAlert()
+        alert.messageText = "メインメモリを \(label) にしました"
+        if saved {
+            alert.informativeText = "リセットすると Human68k が \(label) を使います。SRAM.DAT に保存したので、SWITCH.X でも同じ値が表示されます。"
+            alert.alertStyle = .informational
+        } else {
+            alert.informativeText = "リセットすると Human68k が \(label) を使いますが、SRAM.DAT に保存できませんでした。アプリを終了すると元のサイズに戻ります。"
+            alert.alertStyle = .warning
+        }
+        alert.addButton(withTitle: "今すぐリセット")
+        alert.addButton(withTitle: "あとで")
+        let handle: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            if response == .alertFirstButtonReturn {
+                self?.resetSystem(sender)
+            }
+        }
+        if let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            alert.beginSheetModal(for: window, completionHandler: handle)
+        } else {
+            handle(alert.runModal())
+        }
+    }
+
+    /// Fills the Main Memory submenu from the current SRAM setting.
+    private func rebuildMainMemoryMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        guard let fileSystem = gameViewController?.gameScene?.fileSystem else {
+            let item = NSMenuItem(title: "Not running", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            return
+        }
+        let current = fileSystem.mainMemorySize
+        let installed = fileSystem.installedMemorySize
+        for size in fileSystem.mainMemoryMenuSizes {
+            var title = FileSystem.memorySizeLabel(size)
+            if size == installed { title += " (all installed)" }
+            if size > installed { title += " (more than installed)" }
+            let item = NSMenuItem(title: title, action: #selector(selectMainMemorySize(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = NSNumber(value: size)
+            item.state = size == current ? .on : .off
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let note = NSMenuItem(title: "Same setting as SWITCH.X; takes effect after Reset", action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        menu.addItem(note)
+    }
+
     // MARK: - NSMenuDelegate
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu.title == "Main Memory" {
+            rebuildMainMemoryMenu(menu)
+        }
+    }
 
     /// Called right before a menu becomes visible. We use this to force the
     /// "SCSI Devices" submenu header to be gray when the storage bus is SASI.
