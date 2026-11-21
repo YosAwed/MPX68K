@@ -728,9 +728,9 @@ WinX68k_Reset(void)
 				// RAM size 12MB (0x00C00000)
 				s_sram_sasi[0x09] = 0x00; s_sram_sasi[0x08] = 0xC0;
 				s_sram_sasi[0x0B] = 0x00; s_sram_sasi[0x0A] = 0x00;
-				// SRAM signature
-				s_sram_sasi[0x11] = 0x00; s_sram_sasi[0x10] = 0x01;
-				s_sram_sasi[0x13] = 0xED; s_sram_sasi[0x12] = 0x00;
+				// SRAM boot address ($ED0010, default $00ED0100)
+				s_sram_sasi[0x11] = 0x00; s_sram_sasi[0x10] = 0xED;
+				s_sram_sasi[0x13] = 0x01; s_sram_sasi[0x12] = 0x00;
 				s_sram_sasi_valid = 1;
 				printf("WinX68k_Reset: SASI SRAM initialized ($FF + 12MB)\n");
 			} else {
@@ -756,6 +756,8 @@ WinX68k_Reset(void)
 
     DSound_Stop();
     SRAM_VirusCheck();
+    // Human68k uses the memory size in SRAM ($ED0008): match it to MEM.
+    SRAM_PowerOn(MEM_SIZE);
     //CDROM_Init();
     DSound_Play();
 
@@ -1787,6 +1789,13 @@ const char* X68000_SCSIU_GetStatus(void)
 unsigned char* X68000_GetSRAMPointer()
 {
     return &SRAM[0];
+}
+
+// The host replaced SRAM[] (SRAM.DAT loaded) before the machine runs:
+// apply the power-on memory size again (see SRAM_PowerOn()).
+void X68000_SRAM_PowerOn(void)
+{
+    SRAM_PowerOn(MEM_SIZE);
 }
 
 unsigned char* X68000_GetCGROMPointer()

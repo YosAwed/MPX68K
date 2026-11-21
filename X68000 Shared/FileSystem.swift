@@ -2152,7 +2152,7 @@ class FileSystem {
         }
         
         do {
-            try data.write(to: url)
+            try data.write(to: url, options: .atomic)
             infoLog("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)", category: .fileSystem)
         } catch let error as NSError {
             errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
@@ -2160,7 +2160,7 @@ class FileSystem {
 
         if let backupURL = getDocumentsPath("SRAM.BAK") {
             do {
-                try data.write(to: backupURL)
+                try data.write(to: backupURL, options: .atomic)
                 infoLog("SRAM.BAK saved successfully (\(data.count) bytes) to: \(backupURL.path)", category: .fileSystem)
             } catch let error as NSError {
                 errorLog("Failed to save SRAM.BAK", error: error, category: .fileSystem)
@@ -2196,20 +2196,22 @@ class FileSystem {
         guard let sramData = data else {
             infoLog("SRAM data not found - initializing with default values", category: .fileSystem)
             initializeDefaultSRAM()
+            // Blank SRAM: the IPL ROM initialises it on boot; the core puts the
+            // fitted memory size in place of the ROM's 1MB default.
+            X68000_SRAM_PowerOn()
             return
         }
 
         if let p = X68000_GetSRAMPointer() {
             sramData.copyBytes(to: p, count: sramData.count)
             infoLog("SRAM loaded successfully (\(sramData.count) bytes)", category: .fileSystem)
-            if !isSRAMSignatureValid(p) {
-                warningLog("SRAM signature invalid - repairing signature and preserving data", category: .fileSystem)
-                p[0x10 ^ 1] = 0x00
-                p[0x11 ^ 1] = 0x01
-                p[0x12 ^ 1] = 0xED
-                p[0x13 ^ 1] = 0x00
-                saveSRAM()
+            if !isSRAMInitialized(p) {
+                // The IPL ROM rewrites an SRAM without its magic with its own
+                // defaults on boot, so there is nothing to repair here.
+                warningLog("SRAM.DAT is not initialized ($ED0000 magic missing) - the IPL ROM will initialize it", category: .fileSystem)
             }
+            // Main memory size ($ED0008) = memory fitted (12MB), as at power-on.
+            X68000_SRAM_PowerOn()
             WinX68k_UpdateSASIRamSize()
         } else {
             errorLog("Failed to get SRAM pointer", category: .fileSystem)
@@ -2239,10 +2241,10 @@ class FileSystem {
         setSRAM(0x0A, 0x00)
         setSRAM(0x0B, 0x00)
 
-        // $ED0010-$ED0013: SRAM signature (0x0001ED00 indicates valid SRAM)
+        // $ED0010-$ED0013: SRAM boot address (default $00ED0100)
         setSRAM(0x10, 0x00)
-        setSRAM(0x11, 0x01)
-        setSRAM(0x12, 0xED)
+        setSRAM(0x11, 0xED)
+        setSRAM(0x12, 0x01)
         setSRAM(0x13, 0x00)
 
         // $ED0018-$ED001B: Boot device and related settings
@@ -2267,11 +2269,14 @@ class FileSystem {
         saveSRAM()
     }
 
-    private func isSRAMSignatureValid(_ p: UnsafeMutablePointer<UInt8>) -> Bool {
-        return p[0x10 ^ 1] == 0x00 &&
-               p[0x11 ^ 1] == 0x01 &&
-               p[0x12 ^ 1] == 0xED &&
-               p[0x13 ^ 1] == 0x00
+    /// True when $ED0000-$ED0007 holds "\u{82}\u{77}" "68000W", the mark the IPL ROM
+    /// writes when it initializes the SRAM. SRAM[] is byte-swapped (addr ^ 1).
+    private func isSRAMInitialized(_ p: UnsafeMutablePointer<UInt8>) -> Bool {
+        let magic: [UInt8] = [0x82, 0x77, 0x36, 0x38, 0x30, 0x30, 0x30, 0x57]
+        for (i, byte) in magic.enumerated() where p[i ^ 1] != byte {
+            return false
+        }
+        return true
     }
 
     // MARK: - ROM Management

@@ -45,6 +45,9 @@ void X68000_Mouse_SetAbsolute(float x, float y);
 void X68000_Mouse_SetDoubleClickInProgress(int flag);
 
 unsigned char* X68000_GetSRAMPointer();
+// Call after replacing SRAM[] (loading SRAM.DAT) and before the machine runs:
+// sets the main memory size in SRAM to the memory fitted.
+void X68000_SRAM_PowerOn(void);
 unsigned char* X68000_GetCGROMPointer(); // added by Awed 2023/10/7
 unsigned char* X68000_GetIPLROMPointer(); // added by Awed 2023/10/7
 unsigned char* X68000_GetSCSIIPLPointer();
