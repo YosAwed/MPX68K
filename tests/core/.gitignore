@@ -1,5 +1,6 @@
-test_disk_d88
 test_crtc_timing
+test_disk_d88
+test_fdc_readid
 test_mfp_hsync
 test_scrbuf
 *.dSYM/

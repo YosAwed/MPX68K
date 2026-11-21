@@ -46,6 +46,35 @@ static int hsync_level_at(int position)
     return (MFP_Read(0xe88001) >> 7) & 1;
 }
 
+/* What Keyboard_Int() does when it hands the next byte to the MFP. */
+static void deliver_key(BYTE code)
+{
+    LastKey = code;
+    KeyIntFlag = 1;
+}
+
+static int rsr_buffer_full(void)
+{
+    return (MFP_Read(0xe8802b) >> 7) & 1;
+}
+
+static void test_rsr_buffer_full(void)
+{
+    KeyBufRP = KeyBufWP = 0;
+    KeyIntFlag = 0;
+    CHECK(rsr_buffer_full() == 0, "RSR BF: clear while nothing was received");
+
+    deliver_key(0x21);
+    CHECK(rsr_buffer_full() == 1, "RSR BF: set while a byte waits in UDR");
+    CHECK(MFP_Read(0xe8802f) == 0x21, "UDR: returns the received byte");
+    CHECK(rsr_buffer_full() == 0, "RSR BF: clear after UDR is read");
+
+    /* Two more keys queued; the first is handed over, one stays queued. */
+    KeyBuf[0] = 0x22; KeyBuf[1] = 0x23; KeyBufWP = 2;
+    deliver_key(KeyBuf[KeyBufRP++]);
+    CHECK(rsr_buffer_full() == 1, "RSR BF: set while a byte waits, with more queued");
+}
+
 int main(void)
 {
     MFP_Init();
@@ -62,6 +91,8 @@ int main(void)
     CHECK(hsync_level_at(100) == 0, "GPIP7 falls after R01+1 columns");
     CHECK(hsync_level_at(500) == 0, "GPIP7 stays low during display window");
     CHECK(hsync_level_at(999) == 0, "GPIP7 stays low through front porch");
+
+    test_rsr_buffer_full();
 
     if (failures != 0) {
         printf("%d test(s) failed\n", failures);
