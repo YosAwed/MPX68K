@@ -59,6 +59,7 @@ int main(void)
     int i;
 
     GVRAM_Init();
+    Ibit = 0x0020;  /* the host bit palette.c picks as the I bit */
     for (i = 0; i < 65536; i++) Pal16[i] = host((WORD)i);
 
     /* Fill the palette with a pattern first, so reading a byte the layout
@@ -68,22 +69,26 @@ int main(void)
     set_cl(0x36, 0xd4);                      /* 0x1237 made even -> 0xa1d4 */
     set_cl(0x37, 0xf6);                      /* must not be used for 0x1237 */
     set_cl(0x02, 0x88); set_ch(0x03, 0x77);  /* 0x0303 made even -> 0x7788 */
+    set_cl(0x04, 0x00); set_ch(0x05, 0x00);  /* 0x0505 made even -> black */
+    Pal16[0] = 0;                            /* black converts to 0 */
 
     set_pixel(0, 0x1234);
     set_pixel(1, 0x1237);
     set_pixel(2, 0x0000);
     set_pixel(3, 0x0303);
+    set_pixel(4, 0x0505);
 
     VLINE = 0;
     Grp_DrawLine16SP();
 
     CHECK_EQ(Grp_LineBufSP2[0], host(0xa1b2), "even code: colour from the paired palette layout");
     CHECK_EQ(Grp_LineBufSP[0], 0, "even code: not in the special area");
-    CHECK_EQ(Grp_LineBufSP[1], host(0xa1d4), "odd code: special area, colour of the code made even");
+    CHECK_EQ(Grp_LineBufSP[1], host(0xa1d4) | Ibit, "odd code: special area, colour of the code made even");
     CHECK_EQ(Grp_LineBufSP2[1], 0, "odd code: not an ordinary pixel");
     CHECK_EQ(Grp_LineBufSP[2], 0, "code 0: transparent (special)");
     CHECK_EQ(Grp_LineBufSP2[2], 0, "code 0: transparent (ordinary)");
-    CHECK_EQ(Grp_LineBufSP[3], host(0x7788), "odd code 0x0303: high byte from the $E82002 side");
+    CHECK_EQ(Grp_LineBufSP[3], host(0x7788) | Ibit, "odd code 0x0303: high byte from the $E82002 side");
+    CHECK_EQ(Grp_LineBufSP[4], Ibit, "odd code with a black colour: special area still marked (nonzero)");
 
     if (failures) {
         printf("%d check(s) failed\n", failures);

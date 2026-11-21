@@ -565,10 +565,12 @@ void FASTCALL Grp_DrawLine16SP(void)
 	for (i = 0; i < TextDotX; ++i) {
 		p = (WORD)((GVRAM[off+1] << 8) | GVRAM[off]);
 		// Special priority with B/P (R2 bit10): an odd palette code marks the
-		// area, shown with the colour of the code made even. An even code is
-		// an ordinary pixel, transparent when it is 0 (as in Grp_DrawLine8SP).
+		// area, shown with the colour of the code made even. Ibit keeps the
+		// mark nonzero when that colour is black, as in Grp_DrawLine8SP, since
+		// the line merge skips zero. An even code is an ordinary pixel,
+		// transparent when it is 0.
 		if (p & 1) {
-			sp = Pal16[Grp_Pal16Color(p & 0xfffe)];
+			sp = Pal16[Grp_Pal16Color(p & 0xfffe)] | Ibit;
 			sp2 = 0;
 		} else {
 			sp = 0;
