@@ -54,6 +54,13 @@ int main(void)
     peak = run(&f, 32767.0, 1000.0, 0, 1, NULL);
     CHECK(peak <= 32768.0, "output stays within 16 bits");
 
+    /* The mix of two full-scale sources reaches +-65535; check that both
+     * clipping branches saturate instead of wrapping around. */
+    DCBlock_Init(&f, RATE);
+    CHECK(DCBlock_Process(&f, 0, 65534) == 32767, "positive overflow clips to 32767");
+    DCBlock_Init(&f, RATE);
+    CHECK(DCBlock_Process(&f, 0, -65536) == -32768, "negative overflow clips to -32768");
+
     DCBlock_Init(&f, 44100);
     CHECK(f.r > 0.998f && f.r < 0.9988f, "coefficient for 10 Hz at 44.1 kHz");
 
