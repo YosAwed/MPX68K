@@ -1814,6 +1814,15 @@ unsigned int X68000_GetSRAMMemorySize(void)
 void X68000_SetSRAMMemorySize(unsigned int bytes)
 {
     SRAM_SetMemorySize(bytes);
+    // The SASI snapshot replaces SRAM[] at the next SASI reset; outside SASI
+    // mode saveSRAM() does not copy SRAM[] into it, so give it the new size
+    // here, leaving its other (bus-specific) bytes as they are. Same layout
+    // as SRAM[] (byte-swapped, addr ^ 1).
+    if (s_sram_sasi_valid) {
+        int n;
+        for (n = 0x08; n < 0x0C; n++)
+            s_sram_sasi[n ^ 1] = (BYTE)(bytes >> (8 * (3 - (n - 0x08))));
+    }
 }
 
 unsigned char* X68000_GetCGROMPointer()
