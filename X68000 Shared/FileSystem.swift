@@ -2137,22 +2137,27 @@ class FileSystem {
             DispatchQueue.main.async { completion(false) }
         }
     }
-    func saveSRAM()
+    /// Returns true when SRAM.DAT was written. loadSRAM() prefers it over
+    /// SRAM.BAK, so only then does the next launch see this SRAM.
+    @discardableResult
+    func saveSRAM() -> Bool
     {
         infoLog("==== Save SRAM ====", category: .fileSystem)
         guard let sramPointer = X68000_GetSRAMPointer() else {
             errorLog("Failed to get SRAM pointer", category: .fileSystem)
-            return
+            return false
         }
         
         let data = Data(bytes: sramPointer, count: 0x4000)
         guard let url = getDocumentsPath("SRAM.DAT") else {
             errorLog("Failed to get SRAM file path", category: .fileSystem)
-            return
+            return false
         }
         
+        var saved = false
         do {
             try data.write(to: url, options: .atomic)
+            saved = true
             infoLog("SRAM.DAT saved successfully (\(data.count) bytes) to: \(url.path)", category: .fileSystem)
         } catch let error as NSError {
             errorLog("Failed to save SRAM.DAT", error: error, category: .fileSystem)
@@ -2171,6 +2176,7 @@ class FileSystem {
         if X68000_GetStorageBusMode() == 0 {
             WinX68k_UpdateSASIRamSize()
         }
+        return saved
     }
     
     func loadSRAM()
@@ -2282,11 +2288,14 @@ class FileSystem {
     var mainMemorySize: UInt32 { X68000_GetSRAMMemorySize() }
 
     /// Sets the main memory size in SRAM and saves SRAM.DAT. Takes effect at the
-    /// next reset, as with SWITCH.X.
-    func setMainMemorySize(_ bytes: UInt32) {
+    /// next reset, as with SWITCH.X. Returns false when SRAM.DAT could not be
+    /// written: the setting then lasts only until the app quits.
+    @discardableResult
+    func setMainMemorySize(_ bytes: UInt32) -> Bool {
         X68000_SetSRAMMemorySize(bytes)
-        saveSRAM()
+        let saved = saveSRAM()
         infoLog("Main memory size set to \(FileSystem.memorySizeLabel(bytes)) (SRAM $ED0008)", category: .fileSystem)
+        return saved
     }
 
     /// The sizes to list: the standard choices up to the installed memory, plus the
