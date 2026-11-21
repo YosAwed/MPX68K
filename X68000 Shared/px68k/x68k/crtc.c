@@ -440,24 +440,28 @@ void CRTC_Init(void)
 }
 
 
+// $E80400-$E807FF repeats every $100 bytes; in each $100 block the upper
+// half ($x80-$xFF) repeats the 2-byte operation port $E80480/$E80481
+// (XEiJ MemoryMappedDevice). Its low byte is at the odd addresses.
+static int CRTC_IsOpPortLow(DWORD adr)
+{
+	DWORD aa = adr & 0x7ff;
+	return aa >= 0x400 && (aa & 0x80) && (aa & 1);
+}
+
 BYTE FASTCALL CRTC_Read(DWORD adr)
 {
-	BYTE ret;
 	if (adr<0xe803ff) {
 		int reg = adr&0x3f;
 		if ( (reg>=0x28)&&(reg<=0x2b) ) return CRTC_Regs[reg];
 		else return 0;
-	} else if ( adr==0xe80481 ) {
+	} else if ( CRTC_IsOpPortLow(adr) ) {
 // FastClearの注意点：
 // FastClrビットに1を書き込むと、その時点ではReadBackしても1は見えない。
 // 1書き込み後の最初の垂直帰線期間で1が立ち、消去を開始する。
 // 1垂直同期期間で消去がおわり、0に戻る……らしひ（PITAPAT）
-		if (CRTC_FastClr)
-			ret = CRTC_Mode | 0x02;
-		else
-			ret = CRTC_Mode & 0xfd;
-
-		return ret;
+		// Only raster copy (bit3) and fast clear in progress (bit1) read back.
+		return (BYTE)((CRTC_Mode & 0x08) | (CRTC_FastClr ? 0x02 : 0x00));
 	}
 	else
 		return 0x00;
@@ -586,7 +590,7 @@ void FASTCALL CRTC_Write(DWORD adr, BYTE data)
 			break;
 		}
 	}
-	else if (adr==0xe80481)
+	else if (CRTC_IsOpPortLow(adr))
 	{					// CRTC動作ポート
 		CRTC_Mode = (data|(CRTC_Mode&2));
 		if (CRTC_Mode & 8)
