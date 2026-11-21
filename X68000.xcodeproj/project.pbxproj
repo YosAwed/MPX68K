@@ -83,6 +83,7 @@
 		53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861182E4375CA0056E4DE /* X68Logger.swift */; };
 		53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */; };
 		53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53A861192E4375CA0056E4DE /* X68Security.swift */; };
+		98E0F5BC91A34408D09A8779 /* SCSIROMImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20987EF014CCFD1CD3C881B2 /* SCSIROMImage.swift */; };
 		53C0A1002E50000000AAA001 /* CRT/CRTSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */; };
 		53C0A1022E50000000AAA001 /* CRT/CRTFilterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */; };
 		53C0A1042E50010000AAA001 /* CRT/CRTOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */; };
@@ -270,6 +271,7 @@
 		53A861172E4375CA0056E4DE /* X68ErrorHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68ErrorHandling.swift; sourceTree = "<group>"; };
 		53A861182E4375CA0056E4DE /* X68Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Logger.swift; sourceTree = "<group>"; };
 		53A861192E4375CA0056E4DE /* X68Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = X68Security.swift; sourceTree = "<group>"; };
+		20987EF014CCFD1CD3C881B2 /* SCSIROMImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCSIROMImage.swift; sourceTree = "<group>"; };
 		53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTSettings.swift; sourceTree = "<group>"; };
 		53C0A1012E50000000AAA001 /* CRT/CRTFilterManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTFilterManager.swift; sourceTree = "<group>"; };
 		53C0A1032E50010000AAA001 /* CRT/CRTOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRT/CRTOverlay.swift; sourceTree = "<group>"; };
@@ -356,6 +358,7 @@
 				53A861182E4375CA0056E4DE /* X68Logger.swift */,
 				0771C5A02431B129002D40F0 /* JoyController.swift */,
 				53A861192E4375CA0056E4DE /* X68Security.swift */,
+				20987EF014CCFD1CD3C881B2 /* SCSIROMImage.swift */,
 				07F4C7572430A73C002CF5CA /* AudioStream.swift */,
 				07F863A5242F93EA00CBB224 /* Assets.xcassets */,
 				53C0A0FF2E50000000AAA001 /* CRT/CRTSettings.swift */,
@@ -681,6 +684,7 @@
 				53A8611A2E4375CA0056E4DE /* X68Logger.swift in Sources */,
 				53A8611B2E4375CA0056E4DE /* X68ErrorHandling.swift in Sources */,
 				53A8611C2E4375CA0056E4DE /* X68Security.swift in Sources */,
+				98E0F5BC91A34408D09A8779 /* SCSIROMImage.swift in Sources */,
 				07F4C7482430667D002CF5CA /* sram.c in Sources */,
 				07869627243D9A91007FCCEA /* X68JoyCard.swift in Sources */,
 				07F864CF242F97BE00CBB224 /* prop.c in Sources */,
