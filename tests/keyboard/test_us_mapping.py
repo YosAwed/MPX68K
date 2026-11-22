@@ -183,7 +183,7 @@ precondition(Keyboard.functionKeyAction(for: "F15", defaultAction: 3) == 3)
 UserDefaults.standard.removeObject(forKey: "KeyboardRemapping.Migrated")
 UserDefaults.standard.set("opt2", forKey: "KeyboardRemapping.F14")
 Keyboard.migrateFunctionKeyMappings()
-precondition(Keyboard.functionKeyAction(for: "F14", defaultAction: 2) == 3)
+precondition(Keyboard.functionKeyAction(for: "F14", defaultAction: 2) == 4)  // "opt2"
 // Two remapped sources sharing a guest key release it only after the last source.
 events = []
 UserDefaults.standard.set("roman", forKey: "KeyboardRemapping.F14")
