@@ -167,14 +167,23 @@ UserDefaults.standard.set("disabled", forKey: "KeyboardRemapping.F12")
 precondition(generic.handleMappedKeyboardInput(f12, isKeyDown: true))
 UserDefaults.standard.set("unknown", forKey: "KeyboardRemapping.F12")
 precondition(Keyboard.functionKeyAction(for: "F12", defaultAction: 0) == Keyboard.defaultFunctionKeyAction)
-// A legacy JPN setup must retain normal defaults despite stored inactive US settings.
+// "USKeyboard.<key>" integers were never written by any shipped version, so
+// a stray value must not affect migration: with nothing stored, the per-key
+// defaults apply (F13 = Ro, F14 = Roman, F15 = Opt.1).
 UserDefaults.standard.removeObject(forKey: "KeyboardRemapping.Migrated")
 for key in Keyboard.configurableFunctionKeys {
     UserDefaults.standard.removeObject(forKey: "KeyboardRemapping." + key.name)
 }
 UserDefaults.standard.set(2, forKey: "USKeyboard.F14")
 Keyboard.migrateFunctionKeyMappings()
-precondition(Keyboard.functionKeyAction(for: "F14", defaultAction: 2) == Keyboard.defaultFunctionKeyAction)
+precondition(Keyboard.functionKeyAction(for: "F13", defaultAction: 1) == 1)
+precondition(Keyboard.functionKeyAction(for: "F14", defaultAction: 2) == 2)
+precondition(Keyboard.functionKeyAction(for: "F15", defaultAction: 3) == 3)
+// Values stored by an earlier version are kept, never reseeded.
+UserDefaults.standard.removeObject(forKey: "KeyboardRemapping.Migrated")
+UserDefaults.standard.set("opt2", forKey: "KeyboardRemapping.F14")
+Keyboard.migrateFunctionKeyMappings()
+precondition(Keyboard.functionKeyAction(for: "F14", defaultAction: 2) == 4)  // "opt2"
 // Two remapped sources sharing a guest key release it only after the last source.
 events = []
 UserDefaults.standard.set("roman", forKey: "KeyboardRemapping.F14")

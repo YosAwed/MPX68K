@@ -3251,26 +3251,28 @@ extension GameScene {
     static func migrateFunctionKeyMappings() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: "KeyboardRemapping.Migrated") else { return }
-        // Preserve the effective old behavior, including F12's US-mode exception.
-        let wasUS = defaults.bool(forKey: "USKeyboardLayout")
+        // Seed every unconfigured key with its per-key default, so a first
+        // launch uses the defaults from configurableFunctionKeys (F13 = Ro,
+        // F14 = Roman, F15 = Opt.1). A value that is already stored (a menu
+        // choice, or a value seeded by the v4.7/v4.8 migration) is never
+        // overwritten. An earlier draft of this migration also converted
+        // "USKeyboard.<key>" integer settings, but no shipped version ever
+        // wrote that format (verified with git log -S over the full
+        // history), so there is nothing left to convert.
         for key in configurableFunctionKeys {
             let setting = "KeyboardRemapping." + key.name
             guard defaults.object(forKey: setting) == nil else { continue }
-            let legacy = defaults.object(forKey: "USKeyboard." + key.name) as? Int ?? key.defaultAction
-            let action: Int
-            if wasUS {
-                action = (0..<defaultFunctionKeyAction).contains(legacy) ? legacy : key.defaultAction
-            } else {
-                action = defaultFunctionKeyAction
-            }
-            defaults.set(functionKeyActionIDs[action], forKey: setting)
+            defaults.set(functionKeyActionIDs[key.defaultAction], forKey: setting)
         }
         defaults.set(true, forKey: "KeyboardRemapping.Migrated")
     }
 
     static func functionKeyAction(for name: String, defaultAction: Int) -> Int {
         migrateFunctionKeyMappings()
-        let stored = UserDefaults.standard.string(forKey: "KeyboardRemapping." + name)
+        guard let stored = UserDefaults.standard.string(forKey: "KeyboardRemapping." + name) else {
+            return defaultAction
+        }
+        // An unrecognized stored value falls back to the legacy behavior.
         return functionKeyActionIDs.firstIndex(where: { $0 == stored }) ?? defaultFunctionKeyAction
     }
 
