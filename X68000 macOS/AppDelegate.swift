@@ -694,6 +694,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         protectDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-protect-drive-B")
         fddMenu.addItem(protectDrive1Item)
 
+        fddMenu.addItem(NSMenuItem.separator())
+        let floppyUkunItem = NSMenuItem(title: "FLOPPY Ukun", action: nil, keyEquivalent: "")
+        let floppyUkunMenu = NSMenu(title: "FLOPPY Ukun")
+        floppyUkunItem.submenu = floppyUkunMenu
+        let floppyUkunStatusItem = NSMenuItem(title: "Status: Not connected", action: #selector(floppyUkunStatus(_:)), keyEquivalent: "")
+        floppyUkunStatusItem.target = self
+        floppyUkunMenu.addItem(floppyUkunStatusItem)
+        let floppyUkunConnectItem = NSMenuItem(title: "Connect", action: #selector(connectFloppyUkun(_:)), keyEquivalent: "")
+        floppyUkunConnectItem.target = self
+        floppyUkunMenu.addItem(floppyUkunConnectItem)
+        let floppyUkunDisconnectItem = NSMenuItem(title: "Disconnect", action: #selector(disconnectFloppyUkun(_:)), keyEquivalent: "")
+        floppyUkunDisconnectItem.target = self
+        floppyUkunMenu.addItem(floppyUkunDisconnectItem)
+        floppyUkunMenu.addItem(NSMenuItem.separator())
+        let floppyUkunTestItem = NSMenuItem(title: "Test Connection", action: #selector(testFloppyUkunConnection(_:)), keyEquivalent: "")
+        floppyUkunTestItem.target = self
+        floppyUkunMenu.addItem(floppyUkunTestItem)
+        fddMenu.addItem(floppyUkunItem)
+
         mainMenu.addItem(fddMenuItem)
 
         // HDD Menu
@@ -2463,6 +2482,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         updateMenuTitles()
     }
 
+    // MARK: - FLOPPY Ukun
+
+    /// Status line of the FLOPPY Ukun submenu; the title is set in validateMenuItem.
+    @objc func floppyUkunStatus(_ sender: Any?) {}
+
+    /// Attaches FLOPPY Ukun in place of the emulated FDC and resets the
+    /// machine, which initialises the unit.
+    @objc func connectFloppyUkun(_ sender: Any?) {
+        guard FUK_IsActive() == 0 else { return }
+        let ok = FUK_Connect() != 0
+        let report = String(cString: FUK_GetStatus())
+        infoLog("FLOPPY Ukun connect: \(ok ? "OK" : "NG")\n\(report)", category: .fileSystem)
+        if ok {
+            // The reset initialises the unit; a waiting boot-disk prompt
+            // closes and resets by itself.
+            if gameViewController?.bootMediaBecameAvailable() != true {
+                gameViewController?.resetSystem(self)
+            }
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "FLOPPY Ukun could not be connected"
+            alert.informativeText = report
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    /// Hands the floppy drives back to the emulated FDC and resets the machine.
+    @objc func disconnectFloppyUkun(_ sender: Any?) {
+        guard FUK_IsActive() != 0 else { return }
+        FUK_Disconnect()
+        infoLog("FLOPPY Ukun disconnected", category: .fileSystem)
+        gameViewController?.resetSystem(self)
+    }
+
+    /// Finds the FLOPPY Ukun unit, opens both serial ports and identifies them
+    /// ('f' / 'F'), then closes them. The emulated FDC is not touched.
+    @objc func testFloppyUkunConnection(_ sender: Any?) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = FUK_Probe() != 0
+            let report = String(cString: FUK_GetStatus())
+            DispatchQueue.main.async {
+                infoLog("FLOPPY Ukun probe: \(ok ? "OK" : "NG")\n\(report)", category: .fileSystem)
+                let alert = NSAlert()
+                alert.messageText = ok ? "FLOPPY Ukun found" : "FLOPPY Ukun not ready"
+                alert.informativeText = report
+                alert.alertStyle = ok ? .informational : .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        }
+    }
+
     // MARK: - SCSI(ID 0) Menu Actions
     @objc func openSCSI0(_ sender: Any?) {
         // Version marker so the log file makes it obvious which build is live.
@@ -3229,6 +3302,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
     
     // MARK: - Menu Validation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(floppyUkunStatus(_:)) {
+            menuItem.title = FUK_IsActive() != 0 ? "Status: Connected" : "Status: Not connected"
+            return false
+        }
+        if menuItem.action == #selector(connectFloppyUkun(_:)) || menuItem.action == #selector(testFloppyUkunConnection(_:)) {
+            return FUK_IsActive() == 0
+        }
+        if menuItem.action == #selector(disconnectFloppyUkun(_:)) {
+            return FUK_IsActive() != 0
+        }
         if menuItem.action == #selector(selectCPUClock(_:)) {
             let current = Int(UserDefaults.standard.string(forKey: "clock") ?? "") ?? 24
             menuItem.state = (menuItem.representedObject as? Int) == current ? .on : .off

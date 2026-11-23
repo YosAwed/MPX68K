@@ -32,6 +32,7 @@ extern "C" {
 #include "fdc.h"
 #include "fdd.h"
 #include "dmac.h"
+#include "fuk.h"
 #include "irqh.h"
 #include "ioc.h"
 #include "rtc.h"
@@ -595,6 +596,7 @@ WinX68k_Reset(void)
     MFP_Init();
     FDC_Init();
     FDD_Reset();
+    FUK_Reset();
     SASI_Init();
     SCSI_Init();
     IOC_Init();
@@ -1039,6 +1041,7 @@ void WinX68k_Exec(const long clockMHz, const long vsync)
         DMA_Exec(0);
         DMA_Exec(1);
         DMA_Exec(2);
+        FUK_Tick(usedclk);      // FLOPPY Ukun events and timers
 
         if ( clk_count>=clk_next ) {
             //OPM_RomeoOut(Config.BufferSize*5);

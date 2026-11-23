@@ -21,6 +21,7 @@ typedef struct {
 } FDCMonitorState;
 
 void FDC_Init(void);
+DWORD FASTCALL FDC_Int(BYTE irq);
 BYTE FASTCALL FDC_Read(DWORD adr);
 void FASTCALL FDC_Write(DWORD adr, BYTE data);
 short FDC_Flush(void);

@@ -12,5 +12,6 @@ test_scrbuf
 test_sram_memsize
 test_sram_scsi
 test_sysport
+test_fuk
 *.dSYM/
 _test_image.d88

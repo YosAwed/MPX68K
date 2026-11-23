@@ -22,6 +22,7 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 - **SASI Hard Disk**: Classic internal SASI HDD boot
 - **SCSI Hard Disk**: External CZ-6BS1 compatible SCSI boot with runtime bus switching
 - **HDD Authoring**: Create empty HDD images directly from the app (format with `FORMAT.X` under Human68k)
+- **FLOPPY Ukun**: Read and write real 5-inch floppy disks through TNB製作所's FLOPPY Ukun (ふろっぴU君) USB FDC unit
 - **Disk State Management**: Auto-mount modes (Disabled / Restore Last Session / Smart Load / Manual) with save/restore and session info
 
 ### Display
@@ -137,6 +138,8 @@ Normal disk swaps after startup do not trigger this reset.
 #### FDD Menu
 - **Open Drive 0…** / **Open Drive 1…**: Insert a floppy image
 - **Eject Drive 0** / **Eject Drive 1**: Eject the inserted floppy
+- **FLOPPY Ukun → Connect / Disconnect**: Hand the floppy controller to a connected FLOPPY Ukun unit, so the emulated X68000 uses the real drives attached to it; Disconnect returns to the disk images. Both reset the system
+- **FLOPPY Ukun → Test Connection**: Check that the unit's two USB serial ports can be opened and identified
 
 #### HDD Menu
 - **Open Hard Disk…** / **Eject Hard Disk**: Mount or eject an HDD image
@@ -440,6 +443,7 @@ See [LICENSE](LICENSE) for the license summary and [ATTRIBUTION.md](ATTRIBUTION.
 - **px68k** (hissorii/px68k) — upstream emulator core, derived from WinX68k by Kenjo (けろぴー).
 - **C68K** by Stephane Dallongeville — MC68000 CPU emulator, GPL-2.0-or-later (see `LICENSES/GPL-2.0.txt`).
 - **fmgen** by cisc — FM/PSG sound implementation.
+- **FUK.java** from XEiJ+t by TNB製作所 — FLOPPY Ukun support, ported to C (`X68000 Shared/px68k/x68k/fuk.c`) with the author's permission.
 
 No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
 
@@ -448,6 +452,7 @@ No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
 - **px68k**: Original X68000 emulator core
 - **C68K**: M68000 CPU emulator
 - **fmgen**: FM sound synthesis library
+- **TNB製作所 (たんぼ)**: For FLOPPY Ukun, for permission to port FUK.java from XEiJ+t, and for explaining how the unit is meant to be driven
 - **Sharp**: Original X68000 computer system
 
 ## Links

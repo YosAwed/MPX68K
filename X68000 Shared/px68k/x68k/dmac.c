@@ -13,6 +13,7 @@
 #include "adpcm.h"
 //@#include "mercury.h"
 #include "dmac.h"
+#include "fuk.h"
 
 dmac_ch	DMA[4];
 int dmatrace = 0;
@@ -86,6 +87,7 @@ BYTE FASTCALL DMA_Read(DWORD adr)
 		if ( (ch==2)&&(off==0) ) {
 			DMA[ch].CSR = (DMA[ch].CSR&0xfe);
 		}
+		if ( (ch==0)&&FUK_IsActive() ) return FUK_FilterDmaCsr(DMA[0].CSR);
 		break;
 	case 0x0a: case 0x0b: case 0x1a: case 0x1b:
 		p += (off^1);
