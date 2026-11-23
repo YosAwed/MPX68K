@@ -398,6 +398,8 @@ class GameViewController: NSViewController {
     private var bootMediaOverlay: NSVisualEffectView?
     private var bootMediaMessage: NSTextField?
     private var bootMediaButton: NSButton?
+    /// The "起動ディスクを選択してください" sheet while it is shown.
+    private var bootMediaAlert: NSAlert?
     
     
     
@@ -647,6 +649,7 @@ class GameViewController: NSViewController {
     private func ejectFDDFromDrive(_ drive: Int) {
         gameScene?.ejectFDDFromDrive(drive)
     }
+
     
     // MARK: - HDD Management
     @IBAction func openHDD(_ sender: Any) {
@@ -813,6 +816,8 @@ class GameViewController: NSViewController {
     private func resumeBootIfMediaMounted() {
         guard isWaitingForBootMedia, !isSelectingBootMedia, hasBootMedia else { return }
         isWaitingForBootMedia = false
+        // Media mounted from the menu or by drag and drop: the prompt is stale.
+        dismissBootMediaAlert()
         bootMediaTimer?.invalidate()
         bootMediaTimer = nil
         bootMediaOverlay?.removeFromSuperview()
@@ -821,6 +826,15 @@ class GameViewController: NSViewController {
         bootMediaButton = nil
         gameScene?.resetSystem()
         view.window?.makeFirstResponder(self)
+    }
+
+    /// Closes the boot-disk prompt without acting on it.
+    private func dismissBootMediaAlert() {
+        guard let alert = bootMediaAlert else { return }
+        bootMediaAlert = nil
+        if let parent = alert.window.sheetParent {
+            parent.endSheet(alert.window, returnCode: .abort)
+        }
     }
 
     @objc private func chooseBootMedia() {
@@ -840,6 +854,9 @@ class GameViewController: NSViewController {
         alert.addButton(withTitle: "キャンセル")
 
         let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            if self?.bootMediaAlert === alert { self?.bootMediaAlert = nil }
+            // Closed by dismissBootMediaAlert(): whoever closed it owns the selection.
+            if response == .abort { return }
             // Let the sheet dismiss before creating the file picker.
             DispatchQueue.main.async { [weak self] in
                 switch response {
@@ -851,6 +868,7 @@ class GameViewController: NSViewController {
             }
         }
         if let window = view.window ?? NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow {
+            bootMediaAlert = alert
             alert.beginSheetModal(for: window, completionHandler: handleResponse)
         } else {
             handleResponse(alert.runModal())
