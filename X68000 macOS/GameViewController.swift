@@ -718,6 +718,10 @@ class GameViewController: NSViewController {
         if X68000_IsFDDMounted(0) != 0 || X68000_IsFDDMounted(1) != 0 {
             return true
         }
+        // FLOPPY Ukun drives a real floppy drive in place of the images.
+        if FUK_IsActive() != 0 {
+            return true
+        }
         switch X68000_GetStorageBusMode() {
         case 1: return X68000_SCSI_IsMounted(0, 0) != 0
         case 2: return X68000_SCSIU_IsConnected() != 0
@@ -811,6 +815,20 @@ class GameViewController: NSViewController {
             showBootMediaStatus()
             resumeBootIfMediaMounted()
         }
+    }
+
+    /// Boot media that appears without picking a disk (FLOPPY Ukun connected
+    /// from the menu). Closes the boot-disk prompt unless a file picker is
+    /// open, and boots. Returns true when this reset the machine.
+    @discardableResult
+    func bootMediaBecameAvailable() -> Bool {
+        guard isWaitingForBootMedia else { return false }
+        if bootMediaAlert != nil {
+            // Only the prompt is open; it does not own a selection yet.
+            setBootMediaSelectionInProgress(false)
+        }
+        resumeBootIfMediaMounted()
+        return !isWaitingForBootMedia
     }
 
     private func resumeBootIfMediaMounted() {

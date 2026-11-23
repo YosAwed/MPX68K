@@ -53,6 +53,7 @@
 		07F4C7482430667D002CF5CA /* sram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C70E2430667B002CF5CA /* sram.c */; };
 		07F4C74A2430667D002CF5CA /* scc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7102430667C002CF5CA /* scc.c */; };
 		6B41DCAB4A773917A4DB436A /* fuk.c in Sources */ = {isa = PBXBuildFile; fileRef = 3688805A9BB9698C0CA7C07A /* fuk.c */; };
+		177431E8FFDF23412E7B2654 /* fuk_host.c in Sources */ = {isa = PBXBuildFile; fileRef = 1688E9EB88B2A0BF5AD6EB74 /* fuk_host.c */; };
 		07F4C74C2430667D002CF5CA /* disk_dim.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7122430667C002CF5CA /* disk_dim.c */; };
 		07F4C7502430667D002CF5CA /* gvram.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C7172430667C002CF5CA /* gvram.c */; };
 		07F4C7522430667D002CF5CA /* rtc.c in Sources */ = {isa = PBXBuildFile; fileRef = 07F4C71E2430667D002CF5CA /* rtc.c */; };
@@ -202,6 +203,7 @@
 		07F4C7102430667C002CF5CA /* scc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = scc.c; sourceTree = "<group>"; };
 		3688805A9BB9698C0CA7C07A /* fuk.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fuk.c; sourceTree = "<group>"; };
 		D492C194319325F48845DDD2 /* fuk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fuk.h; sourceTree = "<group>"; };
+		1688E9EB88B2A0BF5AD6EB74 /* fuk_host.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fuk_host.c; sourceTree = "<group>"; };
 		07F4C7112430667C002CF5CA /* sysport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sysport.h; sourceTree = "<group>"; };
 		07F4C7122430667C002CF5CA /* disk_dim.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disk_dim.c; sourceTree = "<group>"; };
 		07F4C7132430667C002CF5CA /* dmac.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dmac.h; sourceTree = "<group>"; };
@@ -510,6 +512,7 @@
 				07F4C7192430667C002CF5CA /* sasi.h */,
 				3688805A9BB9698C0CA7C07A /* fuk.c */,
 				D492C194319325F48845DDD2 /* fuk.h */,
+				1688E9EB88B2A0BF5AD6EB74 /* fuk_host.c */,
 				07F4C7102430667C002CF5CA /* scc.c */,
 				07F4C6EF2430667A002CF5CA /* scc.h */,
 				07F4C6F92430667A002CF5CA /* scsi.c */,
@@ -737,6 +740,7 @@
 				07F8640E242F94BB00CBB224 /* peace.c in Sources */,
 				07F4C74A2430667D002CF5CA /* scc.c in Sources */,
 				6B41DCAB4A773917A4DB436A /* fuk.c in Sources */,
+				177431E8FFDF23412E7B2654 /* fuk_host.c in Sources */,
 				0760DC2B24350DDC004CA0CF /* BenchMark.swift in Sources */,
 				07F8640C242F94BB00CBB224 /* dosio.c in Sources */,
 				07F4C73A2430667D002CF5CA /* tvram.c in Sources */,

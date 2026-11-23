@@ -12,6 +12,7 @@
 #include "m68000.h"
 #include "fileio.h"
 #include "winx68k.h"
+#include "fuk.h"
 
 int X68000_GetStorageBusMode(void);
 int X68000_SCSI_IsMounted(int host, int id);
@@ -128,6 +129,7 @@ void FDC_Init(void)
 void FDC_SetForceReady(int n)
 {
 	fdc.ready = n;
+	if ( FUK_IsActive() ) FUK_SetForceReady(n);
 }
 
 void FDC_ClearPendingState(void)
@@ -496,6 +498,9 @@ static void FDC_WriteBuffer(void)
 BYTE FASTCALL FDC_Read(DWORD adr)
 {
 	BYTE ret = 0x00;
+	// FLOPPY Ukun takes the place of the FDC while it is attached.
+	if ( FUK_IsActive() && ((adr==0xe94001)||(adr==0xe94003)||(adr==0xe94005)||(adr==0xe94007)) )
+		return FUK_Read((BYTE)(adr&0x0f));
 	if ( adr==0xe94001 ) {					/* FDC Status */
 		ret  = 0x80;
 		ret |= ((fdc.rdnum)&&(!fdc.wexec))?0x40:0;
@@ -548,6 +553,10 @@ fclose(fp);
 // -----------------------------------------------------------------------
 void FASTCALL FDC_Write(DWORD adr, BYTE data)
 {
+	if ( FUK_IsActive() && ((adr==0xe94001)||(adr==0xe94003)||(adr==0xe94005)||(adr==0xe94007)) ) {
+		FUK_Write((BYTE)(adr&0x0f), data);
+		return;
+	}
 	if ( adr==0xe94003 ) {
 		if ( fdc.bufnum ) {                 // WriteData
 			fdc.DataBuf[fdc.wrptr++] = data;

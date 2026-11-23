@@ -21,6 +21,10 @@ int SCSI_HasBootActivity(void) { return 0; }
 int X68000_GetStorageBusMode(void) { return 0; }
 int X68000_IsSCSIBootPending(void) { return 0; }
 int X68000_SCSI_IsMounted(int host, int id) { (void)host; (void)id; return 0; }
+int FUK_IsActive(void) { return 0; }
+BYTE FUK_Read(BYTE reg) { (void)reg; return 0xff; }
+void FUK_Write(BYTE reg, BYTE data) { (void)reg; (void)data; }
+void FUK_SetForceReady(int ready) { (void)ready; }
 
 static const FDCID kSectorID = { 2, 1, 5, 3 };
 static int g_readid_result;

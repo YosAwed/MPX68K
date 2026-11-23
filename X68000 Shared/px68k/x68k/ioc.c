@@ -4,6 +4,7 @@
 
 #include "common.h"
 #include "ioc.h"
+#include "fuk.h"
 
 	BYTE	IOC_IntStat = 0;
 	BYTE	IOC_IntVect = 0;
@@ -25,7 +26,7 @@ void IOC_Init(void)
 BYTE FASTCALL IOC_Read(DWORD adr)
 {
 	if (adr==0xe9c001)
-		return IOC_IntStat;
+		return FUK_IsActive() ? FUK_IocRead(IOC_IntStat) : IOC_IntStat;
 	else
 		return 0xff;
 }
@@ -43,4 +44,6 @@ void FASTCALL IOC_Write(DWORD adr, BYTE data)
 	}
 	if (adr==0xe9c003)
 		IOC_IntVect = (data&0xfc);
+	if ( FUK_IsActive() && ((adr==0xe9c001)||(adr==0xe9c003)) )
+		FUK_IocWrite((BYTE)(adr&0x0f), data);
 }
