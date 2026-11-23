@@ -694,6 +694,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         protectDrive1Item.identifier = NSUserInterfaceItemIdentifier("FDD-protect-drive-B")
         fddMenu.addItem(protectDrive1Item)
 
+        fddMenu.addItem(NSMenuItem.separator())
+        let floppyUkunTestItem = NSMenuItem(title: "Test FLOPPY Ukun Connection", action: #selector(testFloppyUkunConnection(_:)), keyEquivalent: "")
+        floppyUkunTestItem.target = self
+        floppyUkunTestItem.identifier = NSUserInterfaceItemIdentifier("FDD-floppy-ukun-test")
+        fddMenu.addItem(floppyUkunTestItem)
+
         mainMenu.addItem(fddMenuItem)
 
         // HDD Menu
@@ -2461,6 +2467,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         cachedStorageBusMode = StorageBusMode.sasi.rawValue
         DiskStateManager.shared.saveCurrentState()
         updateMenuTitles()
+    }
+
+    // MARK: - FLOPPY Ukun
+
+    /// Finds the FLOPPY Ukun unit, opens both serial ports and identifies them
+    /// ('f' / 'F'), then closes them. The emulated FDC is not touched.
+    @objc func testFloppyUkunConnection(_ sender: Any?) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = FUK_Probe() != 0
+            let report = String(cString: FUK_GetStatus())
+            DispatchQueue.main.async {
+                infoLog("FLOPPY Ukun probe: \(ok ? "OK" : "NG")\n\(report)", category: .fileSystem)
+                let alert = NSAlert()
+                alert.messageText = ok ? "FLOPPY Ukun found" : "FLOPPY Ukun not ready"
+                alert.informativeText = report
+                alert.alertStyle = ok ? .informational : .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
+        }
     }
 
     // MARK: - SCSI(ID 0) Menu Actions

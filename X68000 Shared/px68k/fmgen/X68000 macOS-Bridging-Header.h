@@ -88,6 +88,8 @@ int X68000_SCSIU_Connect(void);
 void X68000_SCSIU_Disconnect(void);
 int X68000_SCSIU_IsConnected(void);
 const char* X68000_SCSIU_GetStatus(void);
+int FUK_Probe(void);
+const char* FUK_GetStatus(void);
 void Memory_SetSCSIMode(void);
 void Memory_ClearSCSIMode(void);
 
