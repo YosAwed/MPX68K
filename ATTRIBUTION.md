@@ -48,6 +48,17 @@ provenance of the third-party code vendored in this repository.
 - **License**: BSD-style license with advertising clause, as stated in the
   source file headers (e.g. `win32api/dosio.h`).
 
+## FUK.java (XEiJ+t) — FLOPPY Ukun support
+
+- **Location**: `X68000 Shared/px68k/x68k/fuk.c` (C port of the protocol
+  and state machine); `fuk_host.c` and `fuk.h` are MPX68K's own code
+- **Original**: `FUK.java` in XEiJ+t, Copyright (C) 2025-2026 TNB製作所
+- **Permission**: Ported to C for MPX68K with the permission of TNB製作所
+  (2026-11).
+- **Notes**: FLOPPY Ukun (ふろっぴU君) is TNB製作所's USB unit that drives
+  real X68000 5-inch floppy drives. The port keeps FUK.java's status
+  prediction and caching; the deviations are noted in the source comments.
+
 ## MPX68K application layer
 
 - **Location**: `X68000 Shared/*.swift`, `X68000 macOS/`

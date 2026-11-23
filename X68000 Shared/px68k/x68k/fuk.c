@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------------------
 //  FUK.C - FLOPPY Ukun (ふろっぴU君, TNB製作所) USB FDC unit: register relay
 //
-//  A C port of FUK.java from XEiJ+t (Copyright TNB製作所). The unit sits in
-//  place of the emulated uPD72065:
+//  A C port of FUK.java from XEiJ+t (Copyright (C) 2025-2026 TNB製作所),
+//  made with the permission of TNB製作所. The unit sits in place of the
+//  emulated uPD72065:
 //    port 1  host -> unit  [0x80|reg, data] writes a register,
 //                          [reg] reads one, answered by one byte on port 1.
 //            reg 0x01/0x03/0x05/0x07 = $E94001-$E94007, 0x1x = $E9C00x,
