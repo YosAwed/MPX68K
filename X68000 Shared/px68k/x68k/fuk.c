@@ -153,6 +153,7 @@ static fuk_time s_fddFallAt = -1;
 
 static void FUK_LinkLost(const char* reason);
 static void FUK_PumpEvents(void);
+static int FUK_IsWriteIdTransCommand(BYTE cmd);
 
 // -----------------------------------------------------------------------
 //   trace: MPX68K_FUK_TRACE=1 writes every register access to stderr
@@ -162,15 +163,20 @@ static int s_traceOn = -1;
 static char s_traceLast[192];
 static int s_traceRepeat = 0;
 
-static void FUK_Trace(const char* fmt, ...)
+static int FUK_TraceEnabled(void)
 {
-	char line[192];
-	va_list ap;
 	if (s_traceOn < 0) {
 		const char* e = getenv("MPX68K_FUK_TRACE");
 		s_traceOn = (e != NULL && e[0] != '\0' && e[0] != '0');
 	}
-	if (!s_traceOn) return;
+	return s_traceOn;
+}
+
+static void FUK_Trace(const char* fmt, ...)
+{
+	char line[192];
+	va_list ap;
+	if (!FUK_TraceEnabled()) return;
 	va_start(ap, fmt);
 	vsnprintf(line, sizeof(line), fmt, ap);
 	va_end(ap);
@@ -186,6 +192,42 @@ static void FUK_Trace(const char* fmt, ...)
 	fprintf(stderr, "FUK %s\n", line);
 	strncpy(s_traceLast, line, sizeof(s_traceLast) - 1);
 	s_traceLast[sizeof(s_traceLast) - 1] = '\0';
+}
+
+// FNV-1a; only used to match sectors in the trace
+static unsigned FUK_Hash(const BYTE* p, int n)
+{
+	unsigned h = 2166136261u;
+	while (n-- > 0) {
+		h ^= *p++;
+		h *= 16777619u;
+	}
+	return h;
+}
+
+// One line per sector, keyed by C/H/R, so that a sector written can be
+// matched with the same sector read back later. The command bytes are
+// cmd, HD/US, C, H, R, N, EOT, ...; with MT set, R wraps to 1 on the
+// other head after EOT.
+static void FUK_TraceSectors(const char* dir, const BYTE* data, int len)
+{
+	const BYTE* c = s_activeCommandList;
+	int size, h, r, off;
+	if (!FUK_TraceEnabled() || s_activeCommandCount < 7) return;
+	size = 128 << (c[5] & 7);
+	h = c[3];
+	r = c[4];
+	for (off = 0; off < len; off += size) {
+		int n = (len - off < size) ? len - off : size;
+		FUK_Trace("sector %s C=%02X H=%02X R=%02X: %d bytes, hash %08X",
+		          dir, c[2], h, r, n, FUK_Hash(data + off, n));
+		if (r >= c[6] && (c[0] & 0x80)) {
+			h ^= 1;
+			r = 1;
+		} else {
+			r++;
+		}
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -398,6 +440,12 @@ static void FUK_EventByte(BYTE b)
 				s_recvDeadline = -1;
 				s_isReadCommandR = 0;
 				FUK_Trace("read data in: %d bytes to $%06X (count %d)", s_recvDataSize, (unsigned)s_mar, s_mtc);
+				if (s_recvDataSize > 7 && s_recvDataSize <= FUK_DATA_SIZE) {
+					const BYTE* st = s_recvData + s_recvDataSize - 7;
+					FUK_TraceSectors("in ", s_recvData, s_recvDataSize - 7);
+					FUK_Trace("read result %02X %02X %02X  C=%02X H=%02X R=%02X N=%02X",
+					          st[0], st[1], st[2], st[3], st[4], st[5], st[6]);
+				}
 				FUK_OnReceivedData();
 			}
 		}
@@ -440,6 +488,14 @@ static void FUK_EventByte(BYTE b)
 				s_writeData[j++] = dma_readmem24((mar + k) & 0xFFFFFF);
 			}
 			s_writeDataCounter = count;
+			FUK_Trace("write data out: %d bytes from $%06X (cmd $%02X)", j - 1, (unsigned)mar, s_activeCommandList[0]);
+			if (FUK_IsWriteIdTransCommand(s_activeCommandList[0])) {
+				if (FUK_TraceEnabled()) {
+					FUK_Trace("format ids: %d bytes, hash %08X", j - 1, FUK_Hash(s_writeData + 1, j - 1));
+				}
+			} else {
+				FUK_TraceSectors("out", s_writeData + 1, j - 1);
+			}
 			FUK_Send(2, s_writeData, j);
 		}
 		break;
