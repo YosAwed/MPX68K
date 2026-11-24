@@ -297,8 +297,10 @@ static void FUK_DrainPort1(void)
 // meanwhile, as XEiJ+t's listener thread does. Returns -1 if the link is lost.
 static int FUK_WaitAnswer(void)
 {
-	long long start = s_io->clock_ms();
+	long long start;
 	BYTE b;
+	if (!s_active) return -1;      // the request itself may have lost the link
+	start = s_io->clock_ms();
 	for (;;) {
 		int n;
 		if (!s_active) return -1;
@@ -309,6 +311,7 @@ static int FUK_WaitAnswer(void)
 			return -1;
 		}
 		FUK_PumpEvents();
+		if (!s_active) return -1;
 		if (s_io->clock_ms() - start > FUK_ANSWER_TIMEOUT_MS) {
 			FUK_LinkLost("no answer from the unit");
 			return -1;
@@ -429,7 +432,8 @@ static void FUK_EventByte(BYTE b)
 			s_recvDataSize |= (int)b << 8;
 			s_recvDataPos = 0;
 		} else {
-			if (s_recvDataPos < s_mtc) {
+			// the last seven bytes are the FDC result, not sector data
+			if (s_recvDataPos < s_mtc && s_recvDataPos < s_recvDataSize - 7) {
 				dma_writemem24((s_mar + s_recvDataPos) & 0xFFFFFF, b);
 			}
 			if (s_recvDataPos < FUK_DATA_SIZE) {
