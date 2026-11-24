@@ -1589,7 +1589,11 @@ extension GameViewController: NSDraggingDestination {
         for hddUrl in hddUrls {
             load(hddUrl)
         }
-        
+
+        // Dropped media can satisfy a pending boot-media prompt, just like
+        // media connected from the menu: close the prompt and resume boot.
+        bootMediaBecameAvailable()
+
         return true
     }
     
