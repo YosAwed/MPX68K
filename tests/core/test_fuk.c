@@ -2,7 +2,8 @@
  * FLOPPY Ukun register relay (fuk.c) against a scripted fake unit.
  * Checks the bytes sent on port 1, the predicted status values, a READ DATA
  * transfer delivered on port 2 (memory, DMAC channel 0, FDC interrupt and the
- * result phase), the SENSE DEVICE STATUS cache, forced ready and link loss.
+ * result phase), the SENSE DEVICE STATUS cache, forced ready, late or stray
+ * read packets and link loss.
  */
 #include <stdio.h>
 #include <string.h>
@@ -173,6 +174,40 @@ static void read_sector_short(int size, int sent)
 
 /* READ DATA of one sector of 'size' bytes into $1000. */
 static void read_sector(int size) { read_sector_short(size, size); }
+
+/* Issues READ DATA for 'size' bytes into $1000; the unit sends nothing yet. */
+static void start_read(int size)
+{
+	static const BYTE cmd[9] = { 0x46, 0x00, 0x00, 0x00, 0x01, 0x03, 0x01, 0x1b, 0xff };
+	int i;
+	DMA[0].MAR = 0x1000;
+	DMA[0].MTC = (WORD)size;
+	DMA[0].CSR = 0x08;
+	DMA[0].CCR = 0x80;
+	for (i = 0; i < 9; i++) FUK_Write(0x03, cmd[i]);
+	g_out1Len = 0;
+}
+
+/* The rest of an 'R' packet after its 'R': length, 'size' data bytes with
+   'C' at offset 100, and seven result bytes $A0-$A6. */
+static int r_packet_body(BYTE* p, int size)
+{
+	int i, n = 0, len = size + 7;
+	p[n++] = (BYTE)(len & 0xff);
+	p[n++] = (BYTE)(len >> 8);
+	for (i = 0; i < size; i++) p[n++] = (i == 100) ? 'C' : 0x00;
+	for (i = 0; i < 7; i++) p[n++] = (BYTE)(0xa0 + i);
+	return n;
+}
+
+static int out1_has(BYTE reg, BYTE value)
+{
+	int i;
+	for (i = 0; i + 1 < g_out1Len; i++) {
+		if (g_out1[i] == reg && g_out1[i + 1] == value) return 1;
+	}
+	return 0;
+}
 
 int main(void)
 {
@@ -354,6 +389,92 @@ int main(void)
 	CHECK_EQ(FUK_Read(0x01), 0xff, "port 2 fails: read gives $FF");
 	CHECK_EQ(FUK_IsActive(), 0, "port 2 fails: detached");
 	CHECK_EQ(g_lostCalls, 1, "port 2 fails: host told once");
+
+	/* --- forced ready follows CT2 even before a RECALIBRATE --- */
+	attach_and_reset();
+	g_out1Len = 0;
+	FUK_SetForceReady(1);
+	FUK_SetForceReady(0);
+	FUK_Write(0x03, 0x07);
+	FUK_Write(0x03, 0x00);
+	FUK_Tick(2000);
+	CHECK_EQ(out1_has(0xa3, 0x40), 0, "forced ready: CT2 back off before RECALIBRATE, nothing sent");
+
+	/* --- CT2 written again while on: "off" still reaches the unit --- */
+	attach_and_reset();
+	g_out1Len = 0;
+	FUK_SetForceReady(1);
+	FUK_Write(0x03, 0x07);
+	FUK_Write(0x03, 0x00);
+	FUK_Tick(2000);
+	g_out1Len = 0;
+	FUK_SetForceReady(1);            /* a sound driver rewrites $1B */
+	FUK_Tick(2000);
+	CHECK_EQ(g_out1Len, 0, "forced ready: repeated on, nothing sent");
+	FUK_SetForceReady(0);
+	FUK_Tick(2000);
+	CHECK_EQ(out1_has(0xa3, 0x00), 1, "forced ready: off sent after a repeated on");
+
+	/* --- a read that times out, then the rest of its packet arrives --- */
+	attach_and_reset();
+	{
+		BYTE body[2 + 0x400 + 7];
+		int n;
+		start_read(0x400);
+		unit_sends((const BYTE*)"R", 1);
+		FUK_Tick(10);
+		g_clock += 2001;                 /* 2 s of wall clock */
+		FUK_Tick(10);
+		CHECK_EQ(IRQH_IRQ[1], 1, "late read: timeout ends the command with an interrupt");
+		CHECK_EQ(FUK_Read(0x03) & 0xc0, 0x40, "late read: made-up result is abnormal termination");
+		for (i = 1; i < 7; i++) FUK_Read(0x03);
+		CHECK_EQ(IRQH_IRQ[1], 0, "late read: interrupt dropped after the result");
+		n = r_packet_body(body, 0x400);
+		unit_sends(body, n);
+		FUK_Tick(10);
+		CHECK_EQ(IRQH_IRQ[1], 0, "late read: 'C' inside the late data is not an event");
+		unit_sends((const BYTE*)"C", 1);
+		FUK_Tick(10);
+		CHECK_EQ(IRQH_IRQ[1], 1, "late read: the next real event is seen");
+	}
+
+	/* --- an 'R' packet with no read waiting is skipped whole --- */
+	attach_and_reset();
+	{
+		BYTE body[2 + 0x400 + 7];
+		int n = r_packet_body(body, 0x400);
+		unit_sends((const BYTE*)"R", 1);
+		unit_sends(body, n);
+		FUK_Tick(10);
+		CHECK_EQ(IRQH_IRQ[1], 0, "stray R packet: its data is not taken for events");
+	}
+
+	/* --- Turbo / No-Wait: emulated time alone does not time a read out --- */
+	attach_and_reset();
+	{
+		BYTE body[2 + 0x400 + 7];
+		int n;
+		start_read(0x400);
+		unit_sends((const BYTE*)"R", 1);
+		FUK_Tick(10);
+		FUK_Tick(50000 * 400 + 1);       /* over 2 s of emulated time */
+		CHECK_EQ(FUK_Read(0x01), 0x10, "turbo: still waiting for the data");
+		n = r_packet_body(body, 0x400);
+		unit_sends(body, n);
+		FUK_Tick(10);
+		CHECK_EQ(FUK_Read(0x03), 0xa0, "turbo: result comes from the unit");
+	}
+
+	/* --- an empty 'R' packet ends the read at once --- */
+	attach_and_reset();
+	{
+		static const BYTE empty[] = { 'R', 0x00, 0x00, 'C' };
+		start_read(0x400);
+		unit_sends(empty, 3);
+		FUK_Tick(10);
+		CHECK_EQ(IRQH_IRQ[1], 1, "empty R: read ended with an interrupt");
+		CHECK_EQ(FUK_Read(0x03) & 0xc0, 0x40, "empty R: abnormal termination result");
+	}
 
 	if (failures) {
 		printf("%d check(s) failed\n", failures);

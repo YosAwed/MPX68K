@@ -43,7 +43,7 @@ extern void* IRQH_CallBack[8];
 #define FUK_TTT              400LL
 #define FUK_POOL_SPAN        2000LL        // 0.2 ms: flush the send pool
 #define FUK_FDD_SPAN         10000LL       // 1 ms: FDD interrupt delay
-#define FUK_RECV_TIMEOUT     (50000LL * FUK_TTT)  // 2 s for a read transfer
+#define FUK_RECV_TIMEOUT_MS  2000         // wall clock limit for a read transfer
 #define FUK_ANSWER_TIMEOUT_MS 1000         // wall clock wait for a port 1 answer
 
 #define FUK_POOL_SIZE  0x1000
@@ -144,8 +144,13 @@ static int s_isReadCommandR = 0;
 static int s_rcCount = 0;
 static DWORD s_mar = 0;
 static int s_mtc = 0;
-static fuk_time s_recvDeadline = -1;
+static long long s_recvDeadlineMs = -1;  // wall clock, from s_io->clock_ms()
 static BYTE s_writeData[FUK_DATA_SIZE + 1];
+
+// An 'R' packet nobody is waiting for (a late one after a timeout) is read
+// to its end by its length and dropped, so its data is not taken for events.
+static int s_skipState = 0;    // 0 none, 1 length low, 2 length high, 3 data
+static int s_skipRemaining = 0;
 
 // interrupt lines
 static BYTE s_signal = 0;      // 0x80 FDC, 0x40 FDD (as in $E9C001)
@@ -410,20 +415,48 @@ static void FUK_OnReceivedData(void)
 
 static void FUK_RecvTimeout(void)
 {
-	BYTE buf[256];
-	s_recvDeadline = -1;
+	s_recvDeadlineMs = -1;
 	if (s_mode != Mode_ReadData_Receive) return;
 	FUK_Trace("read data timed out (%d of %d bytes)", s_recvDataPos, s_recvDataSize);
-	// throw away the rest of the transfer
-	while (s_active && s_io->read(2, buf, sizeof(buf)) > 0) {
+	// Skip whatever is left of this packet when it arrives, rather than
+	// emptying port 2 now: that cut a packet in half, and the rest of its
+	// data was then read as events.
+	if (s_isReadCommandR) {
+		if (s_rcCount == 0) {
+			s_skipState = 1;
+		} else if (s_rcCount == 1) {
+			s_skipRemaining = s_recvDataSize;   // the low byte of the length
+			s_skipState = 2;
+		} else {
+			s_skipRemaining = s_recvDataSize - s_recvDataPos;
+			s_skipState = (s_skipRemaining > 0) ? 3 : 0;
+		}
 	}
 	s_recvDataSize = 0;
 	s_isReadCommandR = 0;
 	FUK_OnReceivedData();
 }
 
+static void FUK_SkipByte(BYTE b)
+{
+	if (s_skipState == 1) {
+		s_skipRemaining = b;
+		s_skipState = 2;
+	} else if (s_skipState == 2) {
+		s_skipRemaining |= (int)b << 8;
+		s_skipState = (s_skipRemaining > 0) ? 3 : 0;
+	} else if (--s_skipRemaining <= 0) {
+		s_skipState = 0;
+		FUK_Trace("late read data dropped");
+	}
+}
+
 static void FUK_EventByte(BYTE b)
 {
+	if (s_skipState) {
+		FUK_SkipByte(b);
+		return;
+	}
 	if (s_isReadCommandR) {
 		if (s_rcCount == 0) {
 			s_recvDataSize = b;
@@ -431,6 +464,13 @@ static void FUK_EventByte(BYTE b)
 			// XEiJ+t combines signed bytes here; the length is unsigned.
 			s_recvDataSize |= (int)b << 8;
 			s_recvDataPos = 0;
+			if (s_recvDataSize == 0) {
+				// nothing follows: end the transfer with a made-up result
+				s_recvDeadlineMs = -1;
+				s_isReadCommandR = 0;
+				FUK_OnReceivedData();
+				return;
+			}
 		} else {
 			// the last seven bytes are the FDC result, not sector data
 			if (s_recvDataPos < s_mtc && s_recvDataPos < s_recvDataSize - 7) {
@@ -442,7 +482,7 @@ static void FUK_EventByte(BYTE b)
 			s_recvDataPos++;
 			if (s_recvDataPos == s_recvDataSize) {
 				// all data and the result are in
-				s_recvDeadline = -1;
+				s_recvDeadlineMs = -1;
 				s_isReadCommandR = 0;
 				FUK_Trace("read data in: %d bytes to $%06X (count %d)", s_recvDataSize, (unsigned)s_mar, s_mtc);
 				if (s_recvDataSize > 7 && s_recvDataSize <= FUK_DATA_SIZE) {
@@ -479,7 +519,12 @@ static void FUK_EventByte(BYTE b)
 			s_isReadCommandR = 1;
 			s_recvDataSize = 0;
 			s_rcCount = 0;
-			s_recvDeadline = s_now + FUK_RECV_TIMEOUT;
+			// Wall clock: in Turbo or No-Wait, emulated time runs ahead of
+			// the USB link.
+			s_recvDeadlineMs = s_io->clock_ms() + FUK_RECV_TIMEOUT_MS;
+		} else {
+			// nobody is waiting for it (it came after a timeout): skip it
+			s_skipState = 1;
 		}
 		break;
 	case 'W':
@@ -557,8 +602,10 @@ static void FUK_ResetState(fuk_time senseDelay)
 	int i;
 	s_poolLength = 0;
 	s_poolDeadline = -1;
-	s_recvDeadline = -1;
+	s_recvDeadlineMs = -1;
 	s_isReadCommandR = 0;
+	s_skipState = 0;
+	s_skipRemaining = 0;
 	s_cmdCount = 0;
 	s_lastCmd = 0;
 	s_tickCounter = s_now;
@@ -669,7 +716,7 @@ void FUK_Tick(int clk10m)
 		s_fddFallAt = -1;
 		FUK_FddInterrupt(0);
 	}
-	if (s_recvDeadline >= 0 && s_now >= s_recvDeadline) {
+	if (s_recvDeadlineMs >= 0 && s_io->clock_ms() >= s_recvDeadlineMs) {
 		FUK_RecvTimeout();
 	}
 }
@@ -1097,12 +1144,11 @@ void FUK_SetForceReady(int ready)
 	// was told "on" (TNB製作所). XEiJ+t looks at bit 6 of every OPM data
 	// write; px68k calls this for register $1B, the one that carries CT2.
 	if (!s_active) return;
-	if (ready) {
-		s_isForceReadyStatus = 1;
+	// The remembered request always follows CT2. "On" is sent at most once
+	// per change (on RECALIBRATE); "off" only when "on" was sent.
+	s_isForceReadyStatus = ready ? 1 : 0;
+	if (!ready && s_isNotifyForceReady) {
 		s_isNotifyForceReady = 0;
-	} else if (s_isNotifyForceReady) {
-		s_isNotifyForceReady = 0;
-		s_isForceReadyStatus = 0;
 		FUK_SendForceReady(0);
 	}
 }
