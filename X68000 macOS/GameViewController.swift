@@ -373,6 +373,19 @@ class MouseCaptureSKView: SKView {
         return super.menu(for: event)
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // AppKit asks the view registered for the dragged types, not its controller.
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        gameViewController?.draggingEntered(sender) ?? []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        gameViewController?.draggingUpdated(sender) ?? []
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        gameViewController?.performDragOperation(sender) ?? false
+    }
 }
 
 class GameViewController: NSViewController {
