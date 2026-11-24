@@ -46,6 +46,8 @@ static int g_armed;              /* a register read is waiting for its answer */
 static long long g_clock;
 static int g_lostCalls;
 static const char* g_lostReason;
+static int g_failWrites;           /* every write fails */
+static int g_failPort2Reads;       /* port 2 reads fail */
 
 static int fake_read(int port, BYTE* buf, int max)
 {
@@ -57,6 +59,7 @@ static int fake_read(int port, BYTE* buf, int max)
 		}
 		return 0;
 	}
+	if (g_failPort2Reads) return -1;
 	{
 		int n = g_in2Len - g_in2Pos;
 		if (n > max) n = max;
@@ -68,6 +71,7 @@ static int fake_read(int port, BYTE* buf, int max)
 
 static int fake_write(int port, const BYTE* buf, int len)
 {
+	if (g_failWrites) return -1;
 	if (port == 1) {
 		int i;
 		memcpy(g_out1 + g_out1Len, buf, (size_t)len);
@@ -95,6 +99,8 @@ static void reset_fake(void)
 	g_out1Len = g_out2Len = g_in2Len = g_in2Pos = 0;
 	g_answerCount = g_answerPos = 0;
 	g_armed = 0;
+	g_failWrites = 0;
+	g_failPort2Reads = 0;
 }
 
 static void answer(int v) { g_answers[g_answerCount++] = v; }
@@ -135,12 +141,13 @@ static void attach_and_reset(void)
 	g_armed = 0;                     /* the init bytes are not a register read */
 }
 
-/* READ DATA of one sector of 'size' bytes into $1000. */
-static void read_sector(int size)
+/* READ DATA programmed for 'size' bytes into $1000; the unit answers with
+   'sent' data bytes and the seven result bytes. */
+static void read_sector_short(int size, int sent)
 {
 	static const BYTE cmd[9] = { 0x46, 0x00, 0x00, 0x00, 0x01, 0x03, 0x01, 0x1b, 0xff };
 	BYTE packet[3 + 0x400 + 7];
-	int i, n = 0, len = size + 7;
+	int i, n = 0, len = sent + 7;
 
 	DMA[0].MAR = 0x1000;
 	DMA[0].MTC = (WORD)size;
@@ -158,11 +165,14 @@ static void read_sector(int size)
 	packet[n++] = 'R';
 	packet[n++] = (BYTE)(len & 0xff);
 	packet[n++] = (BYTE)(len >> 8);
-	for (i = 0; i < size; i++) packet[n++] = (BYTE)(i ^ 0x5a);
+	for (i = 0; i < sent; i++) packet[n++] = (BYTE)(i ^ 0x5a);
 	for (i = 0; i < 7; i++) packet[n++] = (BYTE)(0xa0 + i);
 	unit_sends(packet, n);
 	FUK_Tick(10);
 }
+
+/* READ DATA of one sector of 'size' bytes into $1000. */
+static void read_sector(int size) { read_sector_short(size, size); }
 
 int main(void)
 {
@@ -238,6 +248,27 @@ int main(void)
 	CHECK_EQ(g_mem[0x1000 + 127], (BYTE)(127 ^ 0x5a), "READ DATA 128: last byte written");
 	CHECK_EQ(FUK_Read(0x01), 0xd0, "READ DATA 128: result phase reached");
 
+	/* --- READ DATA that fails: only the result comes back --- */
+	attach_and_reset();
+	g_out1Len = 0;
+	memset(g_mem, 0, sizeof(g_mem));
+	read_sector_short(512, 0);
+	ok = 1;
+	for (i = 0; i < 7; i++) if (g_mem[0x1000 + i] != 0) ok = 0;
+	CHECK_EQ(ok, 1, "READ DATA error: result bytes not written to memory");
+	CHECK_EQ(FUK_Read(0x01), 0xd0, "READ DATA error: result phase reached");
+	CHECK_EQ(FUK_Read(0x03), 0xa0, "READ DATA error: result byte 0 still delivered");
+
+	/* --- READ DATA shorter than the DMAC count --- */
+	attach_and_reset();
+	g_out1Len = 0;
+	memset(g_mem, 0, sizeof(g_mem));
+	read_sector_short(512, 100);
+	CHECK_EQ(g_mem[0x1000 + 99], (BYTE)(99 ^ 0x5a), "READ DATA short: last data byte written");
+	ok = 1;
+	for (i = 100; i < 107; i++) if (g_mem[0x1000 + i] != 0) ok = 0;
+	CHECK_EQ(ok, 1, "READ DATA short: result bytes not written after the data");
+
 	/* --- SENSE DEVICE STATUS: answered once, then from the cache --- */
 	attach_and_reset();
 	g_out1Len = 0;
@@ -305,6 +336,24 @@ int main(void)
 	CHECK_EQ(FUK_Read(0x01), 0xff, "no answer: read gives $FF");
 	CHECK_EQ(FUK_IsActive(), 0, "no answer: detached");
 	CHECK_EQ(g_lostCalls, 1, "no answer: host told once");
+
+	/* --- link loss: the register read cannot be sent --- */
+	attach_and_reset();
+	g_lostCalls = 0;
+	FUK_Write(0x07, 0x80);
+	g_failWrites = 1;
+	CHECK_EQ(FUK_Read(0x01), 0xff, "write fails: read gives $FF");
+	CHECK_EQ(FUK_IsActive(), 0, "write fails: detached");
+	CHECK_EQ(g_lostCalls, 1, "write fails: host told once");
+
+	/* --- link loss: port 2 fails while waiting for the answer --- */
+	attach_and_reset();
+	g_lostCalls = 0;
+	FUK_Write(0x07, 0x80);
+	g_failPort2Reads = 1;
+	CHECK_EQ(FUK_Read(0x01), 0xff, "port 2 fails: read gives $FF");
+	CHECK_EQ(FUK_IsActive(), 0, "port 2 fails: detached");
+	CHECK_EQ(g_lostCalls, 1, "port 2 fails: host told once");
 
 	if (failures) {
 		printf("%d check(s) failed\n", failures);
