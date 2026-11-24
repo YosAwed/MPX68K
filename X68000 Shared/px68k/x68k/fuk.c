@@ -699,6 +699,8 @@ void FUK_Tick(int clk10m)
 	if (!s_active) return;
 	if (s_poolDeadline >= 0 && s_now >= s_poolDeadline) {
 		FUK_PoolFlush();
+		// a failed send detaches the unit and clears s_io
+		if (!s_active) return;
 	}
 	if (s_fddRiseAt >= 0 && s_fddFallAt >= 0) {
 		// both pending: apply them in time order

@@ -390,6 +390,19 @@ int main(void)
 	CHECK_EQ(FUK_IsActive(), 0, "port 2 fails: detached");
 	CHECK_EQ(g_lostCalls, 1, "port 2 fails: host told once");
 
+	/* --- link loss: a pooled write fails while a read waits for its data --- */
+	attach_and_reset();
+	g_lostCalls = 0;
+	start_read(0x400);
+	unit_sends((const BYTE*)"R", 1);
+	FUK_Tick(10);
+	FUK_Write(0x07, 0x80);           /* pooled, sent on a later tick */
+	g_failWrites = 1;
+	FUK_Tick(1000000);               /* flush fails and detaches */
+	CHECK_EQ(FUK_IsActive(), 0, "pooled write fails mid-read: detached");
+	CHECK_EQ(g_lostCalls, 1, "pooled write fails mid-read: host told once");
+	g_failWrites = 0;
+
 	/* --- forced ready follows CT2 even before a RECALIBRATE --- */
 	attach_and_reset();
 	g_out1Len = 0;
