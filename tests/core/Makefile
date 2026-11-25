@@ -84,7 +84,7 @@ test_c68k_singlestep:
 		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c" -lz
 
 singlestep: test_c68k_singlestep
-	./test_c68k_singlestep $(SST)/*.json.gz
+	./test_c68k_singlestep "$(SST)"/*.json.gz
 
 run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_c68k_ops test_fuk
 	./test_disk_d88

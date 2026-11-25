@@ -99,11 +99,13 @@ static void parse_state(state_t *s)
     p++;
 }
 
-/* The exception sequence for an address error reads vector 3 at $00000C. */
+/* An address error pushes a 14-byte frame (7 word writes) and then reads
+ * vector 3 as the words at $00000C and $00000E. Requiring the whole sequence
+ * keeps an ordinary read of address 12 in the normal accounting. */
 static int parse_transactions(void)
 {
     char kind[8], size[8];
-    int ae = 0;
+    int writes = 0, read_c = 0, ae = 0;
     expect('[');
     for (ws(); *p != ']'; ws()) {
         expect('[');
@@ -112,10 +114,13 @@ static int parse_transactions(void)
         else {
             number();                    /* cycles */
             number();                    /* function code */
-            u32 adr = number();
+            u32 adr = number() & 0xffffff;
             string(size, sizeof(size));
             number();
-            if (kind[0] == 'r' && (adr & 0xffffff) == 0x00000c) ae = 1;
+            int word_read = kind[0] == 'r' && size[1] == 'w';
+            if (word_read && read_c && adr == 0x00000e) ae = 1;
+            read_c = word_read && adr == 0x00000c && writes >= 7;
+            if (kind[0] == 'w') writes++;
         }
         expect(']');
     }
@@ -217,7 +222,7 @@ static char *slurp_gz(const char *path)
 
 int main(int argc, char **argv)
 {
-    int verbose = 0, files = 0;
+    int verbose = 0, files = 0, input_errors = 0;
     stats_t total = {0};
     static test_t t;
 
@@ -233,7 +238,7 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-v") && i + 1 < argc) { verbose = atoi(argv[++i]); continue; }
         char *text = slurp_gz(argv[i]);
-        if (!text) continue;
+        if (!text) { input_errors++; continue; }
         stats_t st = {0};
         int shown = 0;
         p = text;
@@ -252,6 +257,8 @@ int main(int argc, char **argv)
             for (int f = 0; f < 20; f++) if (bad & (1u << f)) st.field[f]++;
             if (shown < verbose) { report(&t, bad, got, cycles); shown++; }
         }
+        ws();
+        if (*p != ']') { fprintf(stderr, "%s: truncated or malformed near \"%.40s\"\n", argv[i], p); input_errors++; }
         free(text);
 
         const char *base = strrchr(argv[i], '/');
@@ -273,5 +280,6 @@ int main(int argc, char **argv)
     }
     printf("TOTAL %d files: pass %d, fail %d (address-error vectors failing %d/%d, trace vectors failing %d/%d), cycle count differs in %d\n",
            files, total.pass, total.fail, total.ae_fail, total.ae_total, total.trace_fail, total.trace_total, total.cycles_off);
-    return total.fail ? 1 : 0;
+    if (input_errors) printf("%d input file(s) could not be read completely\n", input_errors);
+    return (total.fail || input_errors || files == 0) ? 1 : 0;
 }
