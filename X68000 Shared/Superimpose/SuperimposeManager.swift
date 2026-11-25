@@ -8,12 +8,33 @@ import SpriteKit
 import AVFoundation
 
 final class SuperimposeManager: NSObject {
+    enum VideoBrightness: String, CaseIterable, Codable {
+        case high, medium, low
+
+        var level: CGFloat {
+            switch self {
+            case .high: return 1.0
+            case .medium: return 0.6
+            case .low: return 0.3
+            }
+        }
+
+        var menuTitle: String {
+            switch self {
+            case .high: return "High (100%)"
+            case .medium: return "Medium (60%)"
+            case .low: return "Low (30%)"
+            }
+        }
+    }
+
     struct Settings: Codable, Equatable {
         var enabled: Bool = false
         var threshold: Float = 0.03
         var softness: Float = 0.04
         var alpha: Float = 1.0
         var videoScale: Float = 0.8  // Scale factor for video (0.8 = 80% of emulator screen)
+        var videoBrightness: VideoBrightness = .high
         var bookmarkedURLData: Data? = nil
     }
 
@@ -146,6 +167,7 @@ final class SuperimposeManager: NSObject {
             let videoNode = SKVideoNode(avPlayer: player)
             videoNode.zPosition = -10
             videoNode.position = .zero
+            videoNode.alpha = self.settings.videoBrightness.level
 
             if let scene = self.scene {
                 scene.addChild(videoNode)
@@ -210,6 +232,12 @@ final class SuperimposeManager: NSObject {
     func setThreshold(_ v: Float) { settings.threshold = max(0, min(0.2, v)) }
     func setSoftness(_ v: Float) { settings.softness = max(0, min(0.2, v)) }
     func setAlpha(_ v: Float) { settings.alpha = max(0, min(1, v)) }
+
+    // The scene background is black, so lowering the node's alpha dims the video.
+    func setVideoBrightness(_ b: VideoBrightness) {
+        settings.videoBrightness = b
+        videoNode?.alpha = b.level
+    }
 
     func adjustVideoScale(matching sprite: SKSpriteNode?) {
         guard let node = videoNode, let scene = scene else { return }
