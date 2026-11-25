@@ -13,7 +13,7 @@ CFLAGS += -Wall -g $(SAN) \
 
 # Test binaries are phony so edits to the (space-containing) core source
 # paths always trigger a rebuild; the builds are cheap.
-.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_fuk
+.PHONY: all run clean test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_c68k_ops test_fuk test_c68k_singlestep singlestep
 
 all: run
 
@@ -70,7 +70,23 @@ test_c68k_buserr:
 	$(CC) $(CFLAGS) -w -DC68K_NO_JUMP_TABLE -DHAVE_C68K -o $@ test_c68k_buserr.c \
 		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c"
 
-run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_fuk
+test_c68k_ops:
+	$(CC) $(CFLAGS) -w -DC68K_NO_JUMP_TABLE -DHAVE_C68K -o $@ test_c68k_ops.c \
+		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c"
+
+# SingleStepTests/680x0 vectors against the 68000 core. Not part of `run`:
+# the vectors (~200MB) live outside the repo. Point SST at a checkout's
+# 68000/v1 directory:  make singlestep SST=/path/to/680x0/68000/v1
+SST ?= 680x0/68000/v1
+test_c68k_singlestep:
+	$(CC) -O2 -Wall -w -DC68K_NO_JUMP_TABLE -DHAVE_C68K \
+		-I "$(PX68K)/m68000" -o $@ test_c68k_singlestep.c \
+		"$(PX68K)/m68000/c68k/c68k.c" "$(PX68K)/m68000/c68k/c68kexec.c" -lz
+
+singlestep: test_c68k_singlestep
+	./test_c68k_singlestep "$(SST)"/*.json.gz
+
+run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_c68k_ops test_fuk
 	./test_disk_d88
 	./test_crtc_timing
 	./test_mfp_hsync
@@ -85,7 +101,8 @@ run: test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp tes
 	./test_sysport
 	./test_scc_rs232c
 	./test_c68k_buserr
+	./test_c68k_ops
 	./test_fuk
 
 clean:
-	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_fuk _test_image.d88
+	rm -f test_disk_d88 test_crtc_timing test_mfp_hsync test_scrbuf test_gvram_sp test_fdd_mount test_fdc_readid test_sram_scsi test_sram_memsize test_dc_block test_adpcm test_sysport test_scc_rs232c test_c68k_buserr test_c68k_ops test_fuk test_c68k_singlestep _test_image.d88

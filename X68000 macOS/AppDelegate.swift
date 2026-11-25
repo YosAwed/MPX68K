@@ -284,8 +284,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
                     self.updateMenuOnFileOperation()
                     self.autoSaveDiskStateIfNeeded()
                     infoLog("SCSI(ID0) image mounted asynchronously: \(url.lastPathComponent)", category: .fileSystem)
-                    self.appendSCSILog("MAC_SCSI_MOUNT calling X68000_Reset")
-                    X68000_Reset()
+                    // A waiting boot-disk prompt closes and resets by itself.
+                    if self.gameViewController?.bootMediaBecameAvailable() != true {
+                        self.appendSCSILog("MAC_SCSI_MOUNT calling X68000_Reset")
+                        X68000_Reset()
+                    }
                     onMounted?()
                 } else {
                     warningLog("SCSI(ID0) async mount failed for \(url.path)", category: .fileSystem)

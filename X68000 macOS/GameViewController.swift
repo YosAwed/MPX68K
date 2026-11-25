@@ -753,8 +753,10 @@ class GameViewController: NSViewController {
         showBootMediaStatus()
         // Menu actions and drag-and-drop can mount media outside this picker.
         // Watch only while waiting for the first disk, then stop permanently.
+        // bootMediaBecameAvailable, not resumeBootIfMediaMounted: the prompt
+        // itself counts as a selection in progress and would block the resume.
         bootMediaTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.resumeBootIfMediaMounted()
+            self?.bootMediaBecameAvailable()
         }
         chooseBootMedia()
     }

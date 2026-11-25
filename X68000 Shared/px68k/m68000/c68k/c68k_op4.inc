@@ -463,7 +463,7 @@ case 0x4080:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	*((u32*)(&CPU->D[(Opcode >> 0) & 7])) = res;
 }
@@ -488,7 +488,7 @@ case 0x4090:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -514,7 +514,7 @@ case 0x4098:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -540,7 +540,7 @@ case 0x40A0:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -567,7 +567,7 @@ case 0x40A8:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -594,7 +594,7 @@ case 0x40B0:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -614,7 +614,7 @@ case 0x40B8:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -634,7 +634,7 @@ case 0x40B9:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -654,7 +654,7 @@ case 0x409F:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -674,7 +674,7 @@ case 0x40A7:
 	res = -(u32)src - ((CPU->flag_X >> 8) & 1);
 	CPU->flag_notZ |= res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1697,7 +1697,7 @@ case 0x4480:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	*((u32*)(&CPU->D[(Opcode >> 0) & 7])) = res;
 }
@@ -1722,7 +1722,7 @@ case 0x4490:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1748,7 +1748,7 @@ case 0x4498:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1774,7 +1774,7 @@ case 0x44A0:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1801,7 +1801,7 @@ case 0x44A8:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1828,7 +1828,7 @@ case 0x44B0:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1848,7 +1848,7 @@ case 0x44B8:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1868,7 +1868,7 @@ case 0x44B9:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1888,7 +1888,7 @@ case 0x449F:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -1908,7 +1908,7 @@ case 0x44A7:
 	res = -(u32)src;
 	CPU->flag_notZ = res;
 	CPU->flag_V = (res & (u32)src) >> 24;
-	CPU->flag_X = CPU->flag_C = (((u32)src & res & 1) + ((u32)src >> 1) + (res >> 1)) >> 23;
+	CPU->flag_X = CPU->flag_C = ((u32)src | res) >> 23;   // borrow out of 0 - src (- X): set unless the result and src are both 0
 	CPU->flag_N = res >> 24;
 	WRITE_LONG_F(adr, res)
 	POST_IO
@@ -5945,8 +5945,10 @@ RET(12)
 // ULNKA7
 case 0x4E5F:
 {
+	u32 res;
 	PRE_IO
-	READ_LONG_F(CPU->A[7], CPU->A[7])
+	READ_LONG_F(CPU->A[7], res)    // not straight into A7: the second word is read at A7+2
+	CPU->A[7] = res;
 	POST_IO
 }
 RET(12)
@@ -6439,7 +6441,10 @@ case 0x4180:
 	pointer src;
 	src = (u16)CPU->D[(Opcode >> 0) & 7];
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6534,7 +6539,10 @@ case 0x4190:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6623,7 +6631,10 @@ case 0x4198:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6712,7 +6723,10 @@ case 0x41A0:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6809,7 +6823,10 @@ case 0x41A8:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6906,7 +6923,10 @@ case 0x41B0:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6947,7 +6967,10 @@ case 0x41B8:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -6988,7 +7011,10 @@ case 0x41B9:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -7029,7 +7055,10 @@ case 0x41BA:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -7070,7 +7099,10 @@ case 0x41BB:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -7108,7 +7140,10 @@ case 0x41BC:
 	src = FETCH_WORD;
 	PC += 2;
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -7148,7 +7183,10 @@ case 0x419F:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
@@ -7189,7 +7227,10 @@ case 0x41A7:
 	PRE_IO
 	READ_WORD_F(adr, src)
 	res = (u16)CPU->D[(Opcode >> 9) & 7];
-	if (((s32)res < 0) || (res > src))
+	// documented to leave Z, V and C undefined; the 68000 clears V and C and sets Z from Dn
+	CPU->flag_V = CPU->flag_C = 0;
+	CPU->flag_notZ = res;
+	if (((s32)(s16)res < 0) || ((s32)(s16)res > (s32)(s16)src))
 	{
 		CPU->flag_N = res >> 8;
 		if (!CPU->flag_S)
