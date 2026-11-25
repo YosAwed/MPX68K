@@ -1,5 +1,7 @@
 # MPX68K
 
+English | [日本語](README.ja.md)
+
 A Sharp X68000 computer emulator for macOS platforms, based on the px68k emulator core.
 This repository is indirectly a fork of Mr. Hissorii's [px68k](https://github.com/hissorii/px68k). Based on his source code, [Goroman](https://github.com/GOROman) converted it for iOS, and I made it works on MacOS.
 
@@ -12,37 +14,46 @@ MPX68K provides authentic Sharp X68000 emulation with modern Swift UI frameworks
 ### Core Emulation
 - **X68000 Hardware Emulation**: CPU, sound, graphics, and I/O
 - **M68000 CPU**: Powered by C68K emulator core
-- **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz
+- **Adjustable Clock Speed**: 1 / 10 / 16 / 24 (default) / 40 / 50 MHz, run at the nominal cycle rate (16 MHz is the XVI's 50/3 MHz)
+- **Emulation Speed**: Normal / Turbo 2x–5x / No-Wait for fast-forwarding (sound keeps its pitch)
 - **FM Sound Synthesis**: High-quality audio via fmgen (OPM + ADPCM)
 - **MIDI Output**: External MIDI or an internal SC-55 using your own ROM dumps, with configurable output delay and buffering
 - **Multiple Disk Formats**: Floppy (.dim, .xdf, .2hd, .d88, .hdm) and hard disk (.hdf, .hds)
+- **Interlaced Video Modes**: Rendered with alternating fields; CRTC timing derived from the guest's CRTC registers
+- **Main Memory Size**: Choose the main memory size from the menu (the same SRAM setting as `SWITCH.X`)
+- **Guest Power-Off**: Software power-off (`$E8E00F`) shows a POWER OFF screen until the next reset
 
 ### Storage
-- **Dual FDD Drives**: Independent management of Drive 0 and Drive 1
+- **Dual FDD Drives**: Independent management of Drive 0 and Drive 1, with per-drive write-protect; image files the host won't let MPX68K write are mounted read-only
 - **SASI Hard Disk**: Classic internal SASI HDD boot
-- **SCSI Hard Disk**: External CZ-6BS1 compatible SCSI boot with runtime bus switching
-- **HDD Authoring**: Create empty HDD images directly from the app (format with `FORMAT.X` under Human68k)
+- **SCSI Hard Disk**: External CZ-6BS1 compatible SCSI boot with runtime bus switching; Human68k tools (`FORMAT.X`, `SWITCH.X`, `HDID.X`) detect the board
+- **SCSI-U (すかじーUくん)**: Use a physical SCSI device through the SCSI-U USB adapter
 - **FLOPPY Ukun**: Read and write real 5-inch floppy disks through TNB製作所's FLOPPY Ukun (ふろっぴU君) USB FDC unit
+- **HDD Authoring**: Create empty SASI (`.hdf`) or SCSI (`.hds`, 100 MB / 250 MB / 500 MB / 1 GB) images directly from the app, then format with `FORMAT.X` under Human68k
 - **Disk State Management**: Auto-mount modes (Disabled / Restore Last Session / Smart Load / Manual) with save/restore and session info
+- **Open From Anywhere**: Disk images can be opened from any folder the sandbox allows (Finder double-click, drag and drop, or the open panel); iCloud images are downloaded before loading
 
 ### Display
 - **CRT Display Pipeline**: Scanlines, bloom, vignette, noise, curvature, chromatic aberration, and persistence
   - Presets: Off / Subtle / Standard / Enhanced
-  - Dedicated SwiftUI settings panel (⌘,)
+  - Dedicated SwiftUI settings panel (⇧⌘,)
 - **Screen Rotation**: 90-degree rotation for vertical games (tate mode)
 - **Background Video Superimpose**: Overlay a local video file as a luma-keyed background, with adjustable threshold / softness / intensity and a three-level video brightness
+- **Screenshot & Recording**: Save the screen as PNG (⇧⌘P) or record video with sound to a `.mov` file (⇧⌘R)
 
 ### Input
 - **Keyboard & Mouse**: Full macOS-native input with SCC compatibility mode for VS.X double-click reliability
   - Select **System → US Keyboard Layout** for ANSI symbol translation. Independently configure F11–F20 in **System → Key Remapping (F11–F20)** on either JPN or US keyboards. Assignments include Ro, Roman, Opt.1/2, Help, Copy, and other X68000 keys. **Default** preserves normal behavior (F12 releases mouse capture); **Disabled** suppresses the key. An explicit F12 assignment overrides capture release; Shift-Command-M remains available to toggle capture. Keys that have never been assigned use the per-key defaults: F13 = Ro, F14 = Roman, F15 = Opt.1, and Disabled for F11, F12, and F16–F20. Assignments stored by earlier versions are kept unchanged. Settings persist across launches. Joycard mode retains its existing keyboard forwarding restrictions.
 - **X68000 Mouse Capture**: Toggle with ⇧⌘M, pointer warping disabled for clean capture behavior
+- **Joycard Mode**: Drive joystick port 0 from the keyboard or the on-screen joycard; printable keys then only drive the joycard
 - **JoyportU Integration**: ATARI-style joystick support with Notify / Command modes
 - **GameController Framework**: External MFi / Xbox / PlayStation controllers
+- **Generic USB HID Joysticks**: Devices GameController doesn't surface, such as the X68000 Z JOYCARD, are read directly and merged into joystick port 0
 
 ### System & Connectivity
-- **Serial Communication**: Mouse-only (default), PTY terminal access, TCP client, TCP server
-- **Machine Monitor Socket**: Optional UNIX domain socket for programmatic emulator control (see below)
-- **Session State**: Secure restorable state on macOS
+- **RS-232C**: Emulated as SCC (Z8530) channel A with baud-rate timing, a 3-deep receive FIFO, CTS/DSR/DCD and interrupts; connect it to a PTY, a TCP server, or a TCP client. CTS/DSR/DCD follow the host connection
+- **Machine Monitor**: A SwiftUI monitor window (**Debug → Machine Monitor**, ⌥⌘M) and an optional UNIX domain socket for programmatic emulator control (see below)
+- **Session State**: Secure restorable state on macOS; saved floppies and HDDs are restored through security-scoped bookmarks under the App Sandbox
 - **iCloud Document Sync**: ROM and disk images sync across your devices
 
 ## System Requirements
@@ -116,11 +127,11 @@ You need Apple Developer Account for using XCode and certification.
    ```
 
 3. **Build the project:**
-   - Select your target platform (macOS)
+   - Select the **X68000 macOS** scheme
    - Build and run (⌘+R)
 
 ### Dependencies
-The project includes a dependency on the c68k CPU emulator which is built automatically.
+The app links against the c68k CPU emulator static library. If the build can't find it, build the `c68k mac` scheme in `c68k/c68k.xcodeproj` first (see [Building](#building)).
 
 ## Usage
 
@@ -138,49 +149,108 @@ Normal disk swaps after startup do not trigger this reset.
 #### FDD Menu
 - **Open Drive 0…** / **Open Drive 1…**: Insert a floppy image
 - **Eject Drive 0** / **Eject Drive 1**: Eject the inserted floppy
+- **Write-Protect Drive 0** / **Write-Protect Drive 1**: Toggle the disk's write-protect tab (cleared on eject, saved with the disk state)
 - **FLOPPY Ukun → Connect / Disconnect**: Hand the floppy controller to a connected FLOPPY Ukun unit, so the emulated X68000 uses the real drives attached to it; Disconnect returns to the disk images. Both reset the system
 - **FLOPPY Ukun → Test Connection**: Check that the unit's two USB serial ports can be opened and identified
 
 #### HDD Menu
 - **Open Hard Disk…** / **Eject Hard Disk**: Mount or eject an HDD image
 - **Create Empty HDD…**: Generate a new empty `.hdf` image (format later with `FORMAT.X` under Human68k)
-- **Save HDD** (⌘S): Persist the current HDD state
+- **Save HDD** (⇧⌘S): Persist the current HDD state
 - **Storage Bus Mode → SASI / SCSI / SCSI-U**: Switch the hard disk bus at runtime
 - **SCSI Devices → Open SCSI (ID 0)… / Eject SCSI (ID 0)**: Manage the external SCSI device
-- **SCSI-U Device → Connect SCSI-U / Disconnect SCSI-U**: Manage the physical SCSI-U bridge
+- **SCSI Devices → Create Empty SCSI HDD…**: Create a blank `.hds` image (100 MB – 1 GB), mount it as SCSI ID 0 and reset. A blank image boots from floppy so you can run `FORMAT.X` on it
+- **SCSI-U Device → Connect SCSI-U / Disconnect SCSI-U**: Connect to the SCSI-U USB adapter; the status line shows the connection state
 
 #### Clock Menu
-- **1 / 10 / 16 / 24 (Default) / 40 / 50 MHz** (keys 1-6): Change CPU clock speed
+- **1 / 10 / 16 / 24 (Default) / 40 / 50 MHz** (⌃1–⌃6): Change CPU clock speed
+- **Normal Speed / Turbo 2x–5x / No-Wait**: Emulation speed (not saved between launches)
 
 #### Display Menu
 - **Rotate Screen** (⌘R): Toggle between landscape and portrait
 - **Landscape Mode** / **Portrait Mode**: Set orientation directly
-- **CRT Settings…** (⌘,): Open the SwiftUI CRT configuration panel
+- **Take Screenshot…** (⇧⌘P): Save the current screen as PNG
+- **Start Recording…** / **Stop Recording** (⇧⌘R): Record the screen and sound to a `.mov` file
+- **CRT Settings…** (⇧⌘,): Open the SwiftUI CRT configuration panel
 - **CRT Display Mode → Off / Subtle / Standard / Enhanced**: Quick CRT preset selection
-- **Background Video → Set Video File…**: Pick a local background video
+- **Background Video → Set Video File… / Remove Video**: Pick or clear a local background video
 - **Background Video → Superimpose**: Toggle luma-key overlay on/off
 - **Background Video → Threshold / Softness / Intensity**: Fine-tune the luma key
 - **Background Video → Video Brightness → High / Medium / Low**: Dim the background video to 100% / 60% / 30%
 
 #### System Menu
 - **Reset System**: Hard-reset the emulator
-- **Use X68000 Mouse** (⇧⌘M): Toggle X68000 mouse capture
-- **Toggle Input Mode**: Switch between input modes
-- **MIDI Output**: Select External MIDI or Internal SC-55; choose a ROM folder and test the internal sound
+- **Use MPX68K Mouse** (⇧⌘M): Toggle X68000 mouse capture
+- **Joycard Mode**: Toggle between keyboard input and joycard input
+- **US Keyboard Layout**: Translate ANSI symbol keys
+- **Key Remapping (F11–F20)**: Assign X68000 keys to F11–F20
+- **MIDI Output → External MIDI / Internal SC-55 / Choose SC-55 ROM Folder… / SC-55 Volume… / Test SC-55 Sound**: Select and set up the MIDI destination
 - **MIDI Output Delay…**: Configure MIDI output delay (applies to either destination)
+- **Main Memory**: Set the main memory size (same setting as `SWITCH.X`; takes effect after Reset)
 - **Delete IPLROM.DAT…**: Remove a cached IPL ROM
-- **Serial Communication → Mouse Only / PTY / TCP Connection… / TCP Server… / Disconnect**: Select serial backend
+- **Serial Communication → Mouse Only (Default) / PTY (Terminal Access) / TCP Connection… / TCP Server… / Disconnect**: Select the RS-232C backend
 - **Serial Communication → Original Mouse SCC (Compat)**: Enable SCC compatibility mode for VS.X double-click
 - **Disk State Management → Auto-Mount Mode**: Disabled / Restore Last Session / Smart Load / Manual Selection
-- **Disk State Management → Save Current State / Clear Saved State / Show State Information**
+- **Disk State Management → Save Current State (⌥⌘S) / Clear Saved State / Show State Information**
 - **JoyportU Settings → Disabled / Notify Mode / Command Mode**
 
+#### Debug Menu
+- **Machine Monitor** (⌥⌘M): Open the monitor window to inspect and edit memory and registers
+
 #### Joycard Input
+In **Joycard Mode**:
 - **Arrow Keys** or **WASD**: 8-direction movement
 - **Space** or **J**: Button A
 - **Z** or **K**: Button B
+- The on-screen joycard can also be clicked; its A/B map to X68000 triggers A/B
 
-## Machine Monitor Socket
+Physical game controllers (GameController and generic USB HID joysticks) drive joystick port 0 regardless of the input mode.
+
+## Internal SC-55 MIDI Sound
+
+Choose **System → MIDI Output → Choose SC-55 ROM Folder…** and select a folder
+containing your own **original SC-55 (mk1)** ROM dumps. Loading the folder enables
+the internal sound module; **Test SC-55 Sound** plays middle C. No external MIDI
+hardware or virtual MIDI cable is needed. Select **External MIDI** to switch back.
+The folder is remembered using a macOS security-scoped bookmark and restored on
+next launch. If the folder is moved or becomes inaccessible, select it again.
+
+| File | Required size |
+| --- | --- |
+| `sc55_rom1.bin` | 32,768 bytes |
+| `sc55_rom2.bin` | 262,144 or 524,288 bytes |
+| `sc55_waverom1.bin` | 1,048,576 bytes |
+| `sc55_waverom2.bin` | 1,048,576 bytes |
+| `sc55_waverom3.bin` | 1,048,576 bytes |
+
+Use a matching MCU, program, and wave ROM set. The upstream core supports SC-55
+firmware 1.00, 1.21 and 2.00; this integration currently exposes only the mk1 model,
+not SC-55mkII, SC-55ST or other Sound Canvas models. File size and empty-data checks
+catch common mistakes; they do not certify firmware authenticity or compatibility.
+ROMs are not supplied, downloaded, or copied into the app by MPX68K.
+
+The existing **MIDI Output Delay…** also applies to the internal module. Adjust it
+if MIDI and FM seem out of sync. **System → MIDI Output → SC-55 Volume…** opens a
+live volume slider for the internal SC-55 only (0% mutes, 100% is the original
+output level). The setting is saved and survives app and sound-module resets.
+Use the Mac's volume controls for the overall output level.
+
+Internal SC-55 MIDI delay is scheduled independently of screen updates, with a
+24 ms audio buffer, to reduce rhythmic jitter. **MIDI Output Delay…** still sets
+the fixed offset used to align MIDI with FM/ADPCM.
+
+A system reset also reboots the internal SC-55.
+The sound module uses a separate audio engine; the app's existing FM/ADPCM audio
+recording tap does not currently include its output.
+
+The implementation uses [Nuked SC-55](https://github.com/nukeykt/Nuked-SC55),
+GPL-2.0-or-later. See `ATTRIBUTION.md` and `X68000 Shared/SC55/README.md`.
+
+## Machine Monitor
+
+**Debug → Machine Monitor** (⌥⌘M) opens a window for inspecting and editing memory and CPU registers while you develop or debug software.
+
+### Machine Monitor Socket
 
 The Machine Monitor socket exposes the emulator's internal state over a UNIX domain socket, allowing external tools (scripts, test harnesses, debuggers) to pause/resume emulation, read and write memory, inspect CPU registers, and hot-swap disk images — all without using the GUI.
 
@@ -201,7 +271,7 @@ When enabled, the socket is created at launch with mode `0600` and removed on qu
 [MPX68K] Machine Monitor socket: /Users/name/Library/Containers/NANKIN.X68000/Data/mpx68k_monitor.sock
 ```
 
-### Protocol
+#### Protocol
 
 The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request is one `\n`-terminated line; each response ends with `OK` on success or `ERROR <message>` on failure.
 
@@ -211,20 +281,21 @@ The protocol is line-oriented UTF-8 over a streaming UNIX socket.  Each request 
 | `PAUSE` | Pause emulation (required before writes) |
 | `RESUME` | Resume emulation |
 | `STATUS` | Returns `PAUSED` or `RUNNING` |
-| `REGS` | Dump D0–D7, A0–A7, PC, SR (hex) |
+| `REGS` | Dump D0–D7, A0–A7, PC, SR (hex) (requires `PAUSE`) |
 | `SETPC <addr>` | Set PC (requires `PAUSE`) |
 | `SETD/SETA <n> <val>` | Set a data/address register (requires `PAUSE`) |
 | `SETSR <val>` | Set SR (requires `PAUSE`) |
 | `TRACE [n]` | Step instructions and print PC/opcode (requires `PAUSE`) |
 | `TRACER [n]` | `TRACE` with D0/D1/A0/A1 (requires `PAUSE`) |
 | `STEPTO <pc> [maxsteps]` | Step until PC reaches the target or limit (requires `PAUSE`) |
-| `READ <addr> <n>` | Hex-dump `n` bytes starting at `addr` |
-| `READB/READW/READD <addr>` | Read byte / 16-bit word / 32-bit dword |
+| `READ <addr> <n>` | Hex-dump `n` bytes starting at `addr` (requires `PAUSE`) |
+| `READB/READW/READD <addr>` | Read byte / 16-bit word / 32-bit dword (requires `PAUSE`) |
 | `WRITE <addr> <b0> [b1…]` | Write bytes (requires `PAUSE`) |
 | `WRITEW/WRITED <addr> <val>` | Write word / dword (requires `PAUSE`) |
-| `HW [section]` | Hardware state snapshot |
-| `MOUNTFDD <drive> <path>` | Hot-swap a disk image into FDD 0 or 1 |
-| `EJECTFDD <drive>` | Eject image from FDD 0 or 1 |
+| `HW [section]` | Hardware state snapshot (requires `PAUSE`) |
+| `MOUNTFDD <drive> <path>` | Hot-swap a disk image into FDD 0 or 1 (requires `PAUSE`) |
+| `EJECTFDD <drive>` | Eject image from FDD 0 or 1 (requires `PAUSE`) |
+| `HELP` | List the commands |
 | `QUIT` | Close connection |
 
 All addresses and values are hexadecimal.  A simple session:
@@ -244,18 +315,22 @@ OK
 
 The server handles one client at a time. `DIAG` reads a synchronized snapshot while emulation runs; commands that access live CPU, memory, or device state require `PAUSE` first to avoid data races.
 
-### FDD disk swapping
+#### FDD disk swapping
 
-`MOUNTFDD` and `EJECTFDD` let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.2hd`, `.d88`, `.hdm`):
+`MOUNTFDD` and `EJECTFDD` (after `PAUSE`) let scripts swap floppy images into either drive without touching the GUI — useful for automating multi-disk games or running test suites that need different disk images across test cases.  The drive number is `0` or `1`; the path is an absolute path to any disk image format supported by the emulator (`.dim`, `.xdf`, `.2hd`, `.d88`, `.hdm`):
 
 ```text
+PAUSE
+OK
 MOUNTFDD 0 /Users/you/Documents/X68000/disk1.xdf
 OK
 EJECTFDD 0
 OK
+RESUME
+OK
 ```
 
-### Building with Socket Support
+#### Building with Socket Support
 
 The socket server is compiled into `X68000 Shared/px68k/x11/winx68k.cpp`, which is already part of the "X68000 macOS" target.  No additional build steps are required — just build the project normally after enabling the feature via `defaults write`.
 
@@ -276,10 +351,10 @@ The socket server is compiled into `X68000 Shared/px68k/x11/winx68k.cpp`, which 
 Hard disk images provide faster access and larger storage capacity compared to floppy disks:
 You can make HDD image using this application, but it requires initialization by using FORMAT.X running by Human68k on the emulator.
 
-1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag `.hdf` / `.hds` files
+1. **Loading HDD Images**: Use **HDD → Open Hard Disk...** menu or drag `.hdf` / `.hds` files (SCSI images can also be opened from **HDD → SCSI Devices → Open SCSI (ID 0)…**)
 2. **Performance**: HDDs offer significantly faster loading times for large applications
 3. **Capacity**: Support for larger disk images suitable for complex software suites
-4. **Persistence**: Use **HDD → Save HDD** (⌘S) to flush the in-memory HDD image back to disk
+4. **Persistence**: Use **HDD → Save HDD** (⇧⌘S) to flush the in-memory HDD image back to disk
 
 #### Boot Order Behavior
 Unlike many emulators, MPX68K reproduces the authentic X68000 boot sequence, which is **not** simply "FDD always wins." The boot device is selected by the SRAM byte `$ED0018` — the same byte that `SWITCH.X` writes on real hardware — and MPX68K preserves whatever value you last saved. The concrete rules are:
@@ -328,24 +403,72 @@ The X68000 emulator supports 90-degree screen rotation for vertical games, commo
 MPX68K uses a multi-layered architecture that bridges modern Swift UI frameworks with low-level C/C++ emulation code.
 
 ### Language Stack
-- **Swift**: UI layer, device management, file system, logging infrastructure
-- **C**: Core emulation engine (CPU, hardware, memory management) 
-- **C++**: Sound generation (fmgen), emulation components
-- **Objective-C**: Bridge layer for legacy compatibility
+- **Swift**: UI layer (AppKit menus, SpriteKit, SwiftUI panels), device management, file system, logging infrastructure
+- **C**: Core emulation engine (CPU, hardware, memory management)
+- **C++**: Sound generation (fmgen), the internal SC-55 (Nuked SC-55), emulation components
+- **Bridging headers** expose the C APIs to Swift
 
 ### Key Components
 - **GameScene.swift**: Main emulation viewport using SpriteKit
 - **FileSystem.swift**: Secure file handling and disk image management  
 - **X68Logger.swift**: Professional logging system with categorization
 - **X68Security.swift**: Input validation and security functions
-- **JoyController.swift**: GameController integration
+- **JoyController.swift**: GameController and generic USB HID joystick integration
 - **X68JoyCard.swift**: Virtual joycard implementation
+- **SCCManager.swift**: Serial (RS-232C) backend selection
+- **MIDIController.swift** / **SC55/**: External MIDI and the internal SC-55 module
+- **CRT/** / **Superimpose/**: CRT display pipeline and background video
+- **MonitorView.swift**: Machine Monitor window (macOS)
 - **px68k/**: Complete X68000 hardware emulation in C/C++
 - **c68k/**: Independent M68000 CPU emulator (static library)
 
 For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Recent Updates
+
+### Version 4.8
+- **FLOPPY Ukun**: Use real floppy drives through TNB製作所's FLOPPY Ukun (FUK.java from XEiJ+t, ported with permission)
+- **68000 Accuracy**: Fixed CHK, NEGX.l, ROXR/ROXL.l, ASL.l by 32, UNLK A7 and DIVS/DIVU overflow, found with the SingleStepTests/680x0 vectors
+- **Background Video Brightness**: High / Medium / Low
+- **Function Keys**: Per-key defaults for keys never assigned; stored assignments are kept
+- **Video & Devices**: Special-priority palette fixes, CRTC operation port, FDC READ ID, MFP RSR buffer-full, `SCSIEXROM.DAT` validated by its SCSIEX signature
+- **Boot Prompt**: Closes once media is mounted from the menu, by drag and drop, or elsewhere
+
+### Version 4.7
+- **Main Memory Menu**: Main memory size shared with `SWITCH.X` instead of forcing 12 MB
+- **Disk Loading**: Images open from any folder the sandbox allows, iCloud images are downloaded first, and failures are reported
+- **ADPCM**: The decoder resets on PLAY while playing, and DC is removed from the mix
+- **Video**: Special priority and translucency honour R2 bit 10 in every mode
+- **RS-232C**: The RS-232C port is now SCC channel A, separate from the mouse channel. It has baud-rate timing, a receive FIFO, CTS/DSR/DCD, and interrupts. The PTY and TCP backends use it, and CTS/DSR/DCD follow the host connection
+- **68000 Bus Error**: Unanswered bus accesses (e.g. the second MIDI board probe) raise a bus error, so EXACT's SMIDRV, and therefore Geograph Seal, starts
+- **US Keyboard Layout & Key Remapping (F11–F20)**: ANSI symbol translation and layout-independent function-key assignment
+- **Fix**: The XDF file handle is restored on the macOS path
+
+### Version 4.6
+- **Generic USB HID Joysticks**: Devices such as the X68000 Z JOYCARD work even though GameController doesn't surface them
+- **Joycard Mode**: Now a checked menu item. In joycard mode, printable keys drive only the joycard
+- **Fix**: Saved floppies are restored again under the App Sandbox
+
+### Version 4.5
+- **Accurate CPU Clock**: The CPU runs at its nominal clock (previously every setting ran about 5x fast). Added **Turbo 2x–5x** and **No-Wait**
+- **FDD Write-Protect** per drive, and automatic read-only mounting of image files that can't be written
+- **Guest Power-Off** screen, machine-class reporting at `$E8E00B`, and the correct ILLEGAL stacked PC (ported from MX68K)
+- **SCSI Setup**: **Create Empty SCSI HDD…**, booting from floppy with a blank SCSI image, and external-board detection by `FORMAT.X` / `SWITCH.X` / `HDID.X`
+- **Release**: `tools/release/make-dmg.sh` builds a drag-to-install DMG
+
+### Version 4.4
+- **Internal SC-55**: MIDI synthesis from your own SC-55 ROMs, with a saved volume setting and reduced timing jitter (see below)
+- **Fixes**: Cancelling boot-media selection and loading feedback, the on-screen joycard A/B mapping, and the apostrophe/colon/semicolon keys
+- Always-on trace logs disabled; unused swift-crypto package removed
+
+### Version 4.3
+- **`.2hd` floppy images**
+- **CRTC Timing**: Per-field timing derived from the CRTC registers, raster copy during the horizontal front porch, and interlaced modes rendered with alternating fields
+- **Screenshot & Recording**: PNG screenshots and `.mov` recording with sound
+- **Machine Monitor**: Monitor window and UNIX-socket interface with FDD hot-swap
+- **SCSI-U (すかじーUくん)** storage bus mode
+- **JoyportU** command-mode read protocol
+- ROM content validation with error dialogs; host-side core unit tests and GitHub Actions CI
 
 ### Version 4.2
 
@@ -374,7 +497,7 @@ For detailed architecture documentation with diagrams, see [ARCHITECTURE.md](ARC
 ### Project Structure
 ```
 MPX68K/
-├── X68000 Shared/          # Cross-platform Swift code
+├── X68000 Shared/          # Shared Swift code and emulation core
 │   ├── px68k/              # C/C++ emulation core
 │   │   ├── x68k/           # X68000 hardware components
 │   │   ├── fmgen/          # FM sound synthesis (C++)
@@ -389,6 +512,8 @@ MPX68K/
 │   └── GameViewController.swift # Main view controller
 ├── c68k/                   # M68000 CPU emulator (static lib)
 │   └── c68k.xcodeproj      # Independent build system
+├── tests/                  # Host-side unit tests (core, keyboard, SC-55)
+├── tools/                  # Self-booting test disks and the DMG release script
 ├── CLAUDE.md               # Development guidelines
 ├── ARCHITECTURE.md         # Detailed architecture docs
 ├── LICENSE                 # License summary for all components
@@ -398,12 +523,14 @@ MPX68K/
 ### Building
 
 #### Prerequisites
-- Xcode 15.0 or later (with the macOS SDK)
+- Xcode 26 or later (the project uses Xcode project format 90)
 - macOS 12.0 (Monterey) or later as the deployment target
-- Swift 5.9+
 
 #### Build Commands
 ```bash
+# Build the C68K static library first
+xcodebuild -project c68k/c68k.xcodeproj -scheme "c68k mac" -configuration Debug
+
 # Clean build
 xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Debug clean build
 
@@ -412,12 +539,21 @@ xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Relea
 
 # Archive for distribution
 xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Release archive
+
+# Universal Release build packed into a drag-to-install DMG (+ zip and SHA256SUMS.txt)
+tools/release/make-dmg.sh
 ```
 
+#### Tests
+```bash
+# Emulation-core unit tests (any platform with a C compiler; CI runs them on Linux)
+make -C tests/core
+```
+CI (GitHub Actions) runs the core tests on Linux and builds the macOS app on every push and pull request.
+
 #### Dependencies Build Order
-1. **C68K Library**: Built automatically as dependency
-2. **Main Project**: Links against libc68k.a
-3. **Package Dependencies**: swift-crypto, swift-asn1 (managed by SPM)
+1. **C68K Library**: Build the `c68k mac` scheme (produces `libc68k_mac.a` / `libc68k_mac_DEBUG.a`)
+2. **Main Project**: Links against the C68K static library
 
 #### Code Quality
 - **Zero Compiler Warnings**: Clean builds with no warnings
@@ -430,7 +566,7 @@ xcodebuild -project X68000.xcodeproj -scheme "X68000 macOS" -configuration Relea
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test on both platforms
+4. Run `make -C tests/core` and build the macOS app
 5. Submit a pull request
 
 Please refer to `CLAUDE.md` for detailed development guidelines and architectural notes.
@@ -464,43 +600,3 @@ No SHARP ROMs are distributed. Users must supply legally-owned ROMs.
 ---
 
 *SHARP X68000 is a trademark of SHARP CORPORATION. This project is not affiliated with SHARP CORPORATION.*
-
-### Internal SC-55 MIDI sound
-
-Choose **System → MIDI Output → Choose SC-55 ROM Folder…** and select a folder
-containing your own **original SC-55 (mk1)** ROM dumps. Loading the folder enables
-the internal sound module; **Test SC-55 Sound** plays middle C. No external MIDI
-hardware or virtual MIDI cable is needed. Select **External MIDI** to switch back.
-The folder is remembered using a macOS security-scoped bookmark and restored on
-next launch. If the folder is moved or becomes inaccessible, select it again.
-
-| File | Required size |
-| --- | --- |
-| `sc55_rom1.bin` | 32,768 bytes |
-| `sc55_rom2.bin` | 262,144 or 524,288 bytes |
-| `sc55_waverom1.bin` | 1,048,576 bytes |
-| `sc55_waverom2.bin` | 1,048,576 bytes |
-| `sc55_waverom3.bin` | 1,048,576 bytes |
-
-Use a matching MCU, program, and wave ROM set. The upstream core supports SC-55
-firmware 1.00, 1.21 and 2.00; this integration currently exposes only the mk1 model,
-not SC-55mkII, SC-55ST or other Sound Canvas models. File size and empty-data checks
-catch common mistakes; they do not certify firmware authenticity or compatibility.
-ROMs are not supplied, downloaded, or copied into the app by MPX68K.
-
-The existing **MIDI Output Delay…** also applies to the internal module. Adjust it
-if MIDI and FM seem out of sync. **System → MIDI Output → SC-55 Volume…** opens a
-live volume slider for the internal SC-55 only (0% mutes, 100% is the original
-output level). The setting is saved and survives app and sound-module resets.
-Use the Mac's volume controls for the overall output level.
-
-Internal SC-55 MIDI delay is scheduled independently of screen updates, with a
-24 ms audio buffer, to reduce rhythmic jitter. **MIDI Output Delay…** still sets
-the fixed offset used to align MIDI with FM/ADPCM.
-
-A system reset also reboots the internal SC-55.
-The sound module uses a separate audio engine; the app's existing FM/ADPCM audio
-recording tap does not currently include its output.
-
-The implementation uses [Nuked SC-55](https://github.com/nukeykt/Nuked-SC55),
-GPL-2.0-or-later. See `ATTRIBUTION.md` and `X68000 Shared/SC55/README.md`.
