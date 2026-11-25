@@ -3931,6 +3931,7 @@ case 0x80C0:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(70)
 		}
 		q &= 0x0000FFFF;
@@ -4046,6 +4047,7 @@ case 0x80D0:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4154,6 +4156,7 @@ case 0x80D8:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4262,6 +4265,7 @@ case 0x80E0:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(76)
 		}
 		q &= 0x0000FFFF;
@@ -4378,6 +4382,7 @@ case 0x80E8:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4494,6 +4499,7 @@ case 0x80F0:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -4554,6 +4560,7 @@ case 0x80F8:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4614,6 +4621,7 @@ case 0x80F9:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(82)
 		}
 		q &= 0x0000FFFF;
@@ -4674,6 +4682,7 @@ case 0x80FA:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4734,6 +4743,7 @@ case 0x80FB:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -4790,6 +4800,7 @@ case 0x80FC:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4850,6 +4861,7 @@ case 0x80DF:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4910,6 +4922,7 @@ case 0x80E7:
 		if (q & 0xFFFF0000)
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(76)
 		}
 		q &= 0x0000FFFF;
@@ -5014,10 +5027,9 @@ case 0x81C0:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(50)
 	}
 	{
@@ -5029,6 +5041,7 @@ case 0x81C0:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -5137,10 +5150,9 @@ case 0x81D0:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(54)
 	}
 	{
@@ -5152,6 +5164,7 @@ case 0x81D0:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -5253,10 +5266,9 @@ case 0x81D8:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(54)
 	}
 	{
@@ -5268,6 +5280,7 @@ case 0x81D8:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -5369,10 +5382,9 @@ case 0x81E0:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(56)
 	}
 	{
@@ -5384,6 +5396,7 @@ case 0x81E0:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(86)
 		}
 		q &= 0x0000FFFF;
@@ -5493,10 +5506,9 @@ case 0x81E8:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(58)
 	}
 	{
@@ -5508,6 +5520,7 @@ case 0x81E8:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5617,10 +5630,9 @@ case 0x81F0:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(60)
 	}
 	{
@@ -5632,6 +5644,7 @@ case 0x81F0:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(90)
 		}
 		q &= 0x0000FFFF;
@@ -5685,10 +5698,9 @@ case 0x81F8:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(58)
 	}
 	{
@@ -5700,6 +5712,7 @@ case 0x81F8:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5753,10 +5766,9 @@ case 0x81F9:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(62)
 	}
 	{
@@ -5768,6 +5780,7 @@ case 0x81F9:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(92)
 		}
 		q &= 0x0000FFFF;
@@ -5821,10 +5834,9 @@ case 0x81FA:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(58)
 	}
 	{
@@ -5836,6 +5848,7 @@ case 0x81FA:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5889,10 +5902,9 @@ case 0x81FB:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(60)
 	}
 	{
@@ -5904,6 +5916,7 @@ case 0x81FB:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(90)
 		}
 		q &= 0x0000FFFF;
@@ -5953,10 +5966,9 @@ case 0x81FC:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(54)
 	}
 	{
@@ -5968,6 +5980,7 @@ case 0x81FC:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -6021,10 +6034,9 @@ case 0x81DF:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(54)
 	}
 	{
@@ -6036,6 +6048,7 @@ case 0x81DF:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -6089,10 +6102,9 @@ case 0x81E7:
 	dst = (u32)CPU->D[(Opcode >> 9) & 7];
 	if ((dst == 0x80000000) && (src == -1))
 	{
-		CPU->flag_notZ = CPU->flag_N = 0;
-		CPU->flag_V = CPU->flag_C = 0;
-		res = 0;
-	*((u32*)(&CPU->D[(Opcode >> 9) & 7])) = res;
+		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
+		CPU->flag_V = C68K_SR_V;
+		CPU->flag_C = 0;
 	RET(56)
 	}
 	{
@@ -6104,6 +6116,7 @@ case 0x81E7:
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
 			CPU->flag_V = C68K_SR_V;
+			CPU->flag_C = 0;
 	RET(86)
 		}
 		q &= 0x0000FFFF;

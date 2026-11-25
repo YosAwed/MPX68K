@@ -15,3 +15,6 @@ test_sysport
 test_fuk
 *.dSYM/
 _test_image.d88
+test_c68k_ops
+test_c68k_singlestep
+680x0/

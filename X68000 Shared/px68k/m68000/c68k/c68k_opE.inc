@@ -2918,9 +2918,11 @@ case 0xE0B0:
 
 		if (sft != 0)
 		{
-			if (sft == 1) res = ((u32)src >> 1) | ((CPU->flag_X & C68K_SR_X) << (32 - (C68K_SR_X_SFT + 1)));
-			else res = ((u32)src >> sft) | ((u32)src << (33 - sft)) | (((CPU->flag_X & C68K_SR_X) << (32 - (C68K_SR_X_SFT + 1))) >> (sft - 1));
-			CPU->flag_X = ((u32)src >> (32 - sft)) << C68K_SR_X_SFT;
+			// rotate the 33 bits X:src; 64-bit so a count of 32 is no shift by the width
+			u64 v = ((u64)((CPU->flag_X >> C68K_SR_X_SFT) & 1) << 32) | (u32)src;
+			v = ((v >> sft) | (v << (33 - sft))) & 0x1FFFFFFFFULL;
+			res = (u32)v;
+			CPU->flag_X = (u32)(v >> 32) << C68K_SR_X_SFT;
 		}
 		else res = (u32)src;
 		CPU->flag_C = CPU->flag_X;
@@ -3528,7 +3530,7 @@ case 0xE1A0:
 	RET(8)
 		}
 
-		if (sft == 0) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
+		if (sft == 32) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
 		else CPU->flag_C = 0;
 		CPU->flag_X = CPU->flag_C;
 		if (src) CPU->flag_V = C68K_SR_V;
@@ -4122,9 +4124,11 @@ case 0xE1B0:
 
 		if (sft != 0)
 		{
-			if (sft == 1) res = ((u32)src << 1) | ((CPU->flag_X >> ((C68K_SR_X_SFT + 1) - 1)) & 1);
-			else res = ((u32)src << sft) | ((u32)src >> (33 - sft)) | (((CPU->flag_X >> ((C68K_SR_X_SFT + 1) - 1)) & 1) << (sft - 1));
-			CPU->flag_X = ((u32)src >> (32 - sft)) << C68K_SR_X_SFT;
+			// rotate the 33 bits X:src; 64-bit so a count of 32 is no shift by the width
+			u64 v = ((u64)((CPU->flag_X >> C68K_SR_X_SFT) & 1) << 32) | (u32)src;
+			v = ((v << sft) | (v >> (33 - sft))) & 0x1FFFFFFFFULL;
+			res = (u32)v;
+			CPU->flag_X = (u32)(v >> 32) << C68K_SR_X_SFT;
 		}
 		else res = (u32)src;
 		CPU->flag_C = CPU->flag_X;
