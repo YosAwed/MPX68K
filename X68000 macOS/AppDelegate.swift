@@ -969,6 +969,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         alphaItem.identifier = NSUserInterfaceItemIdentifier("BGVideo-Alpha")
         bgMenu.addItem(alphaItem)
 
+        let brightnessItem = NSMenuItem(title: "Video Brightness", action: nil, keyEquivalent: "")
+        let brightnessMenu = NSMenu(title: "Video Brightness")
+        for level in SuperimposeManager.VideoBrightness.allCases {
+            let item = NSMenuItem(title: level.menuTitle, action: #selector(setBGVideoBrightness(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = level.rawValue
+            brightnessMenu.addItem(item)
+        }
+        brightnessItem.submenu = brightnessMenu
+        bgMenu.addItem(brightnessItem)
+
 
         displayMenu.addItem(bgMenuItem)
 
@@ -1858,6 +1869,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
             }
         }
     }
+    @objc func setBGVideoBrightness(_ sender: NSMenuItem) {
+        guard let scene = gameViewController?.gameScene,
+              let raw = sender.representedObject as? String,
+              let level = SuperimposeManager.VideoBrightness(rawValue: raw) else { return }
+        scene.setSuperimposeBrightness(level)
+    }
+
     @objc func adjustBGVideoAlpha(_ sender: Any?) {
         guard let scene = gameViewController?.gameScene else { return }
         let cur = scene.getSuperimposeAlpha()
@@ -3314,6 +3332,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenu
         }
         if menuItem.action == #selector(disconnectFloppyUkun(_:)) {
             return FUK_IsActive() != 0
+        }
+        if menuItem.action == #selector(setBGVideoBrightness(_:)) {
+            let current = gameViewController?.gameScene?.getSuperimposeBrightness().rawValue
+            menuItem.state = (menuItem.representedObject as? String) == current ? .on : .off
+            return gameViewController?.gameScene != nil
         }
         if menuItem.action == #selector(selectCPUClock(_:)) {
             let current = Int(UserDefaults.standard.string(forKey: "clock") ?? "") ?? 24

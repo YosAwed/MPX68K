@@ -2402,6 +2402,10 @@ class GameScene: SKScene {
     func setSuperimposeThreshold(_ v: Float) { superManager.setThreshold(v); applySuperimposeUniforms() }
     func setSuperimposeSoftness(_ v: Float) { superManager.setSoftness(v); applySuperimposeUniforms() }
     func setSuperimposeAlpha(_ v: Float) { superManager.setAlpha(v); applySuperimposeUniforms() }
+    func setSuperimposeBrightness(_ b: SuperimposeManager.VideoBrightness) {
+        superManager.setVideoBrightness(b)
+        showOSD("Video Brightness \(Int(round(b.level * 100)))%")
+    }
     private func applySuperimposeUniforms() {
         let currentState = (superManager.settings.enabled, superManager.settings.threshold, superManager.settings.softness, superManager.settings.alpha)
 
@@ -2466,13 +2470,14 @@ class GameScene: SKScene {
         let t = Int(round(superManager.settings.threshold*100))
         let s = Int(round(superManager.settings.softness*100))
         let a = Int(round(superManager.settings.alpha*100))
+        let b = Int(round(superManager.settings.videoBrightness.level*100))
         _ = superManager.settings.enabled ? "ON" : "OFF"
         if superManager.settings.enabled {
             // Show temporary ON message with parameters
-            showOSD("Superimpose ON  T:\(t)%  S:\(s)%  I:\(a)%")
+            showOSD("Superimpose ON  T:\(t)%  S:\(s)%  I:\(a)%  B:\(b)%")
         } else {
             // Ephemeral notice when turning OFF
-            showOSD("Superimpose OFF  T:\(t)%  S:\(s)%  I:\(a)%")
+            showOSD("Superimpose OFF  T:\(t)%  S:\(s)%  I:\(a)%  B:\(b)%")
         }
         // No persistent OSD used
     }
@@ -2609,6 +2614,7 @@ class GameScene: SKScene {
     func getSuperimposeThreshold() -> Float { superManager.settings.threshold }
     func getSuperimposeSoftness() -> Float { superManager.settings.softness }
     func getSuperimposeAlpha() -> Float { superManager.settings.alpha }
+    func getSuperimposeBrightness() -> SuperimposeManager.VideoBrightness { superManager.settings.videoBrightness }
 
     // MARK: - Persistence overlay
     private func rebuildPersistenceOverlayIfNeeded(size: CGSize) {
