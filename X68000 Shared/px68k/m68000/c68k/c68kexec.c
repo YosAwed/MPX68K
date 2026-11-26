@@ -160,6 +160,86 @@ void TRACE(int PC,c68k_struc *CPU,int Opcode,int CCnt) {
 # endif  // TRACE_WITH_Q68
 #endif  // !C68K_GEN
 
+// BCD and divide flags follow the MC68000 as XEiJ (MC68000.java) and its
+// instructiontest.x measure it, including inputs that are not valid BCD.
+// V and N are undefined in the manual but deterministic on the chip:
+// N is bit 7 of the result, V is the overflow of adding the correction.
+
+static u32 c68k_bcd_finish(c68k_struc *CPU, s32 t, s32 z, int carry)
+{
+    s32 a;
+    CPU->flag_X = CPU->flag_C = carry ? C68K_SR_C : 0;
+    z &= 0xFF;
+    a = z - t;
+    CPU->flag_notZ |= z;
+    CPU->flag_N = z;
+    CPU->flag_V = (((t ^ z) & (a ^ z)) & 0x80) ? C68K_SR_V : 0;
+    return z;
+}
+
+static u32 c68k_abcd(c68k_struc *CPU, u32 dst, u32 src)
+{
+    s32 x = (CPU->flag_X >> C68K_SR_X_SFT) & 1;
+    s32 t = (s32)(dst & 0xFF) + (s32)(src & 0xFF) + x;
+    s32 z = t;
+    int carry;
+    if ((s32)(dst & 0x0F) + (s32)(src & 0x0F) + x >= 0x0A) z += 0x10 - 0x0A;
+    carry = z >= 0xA0;
+    if (carry) z += 0x100 - 0xA0;
+    return c68k_bcd_finish(CPU, t, z, carry);
+}
+
+static u32 c68k_sbcd(c68k_struc *CPU, u32 dst, u32 src)
+{
+    s32 x = (CPU->flag_X >> C68K_SR_X_SFT) & 1;
+    s32 t = (s32)(dst & 0xFF) - (s32)(src & 0xFF) - x;
+    s32 z = t;
+    int borrow;
+    if ((s32)(dst & 0x0F) - (s32)(src & 0x0F) - x < 0) z -= 0x10 - 0x0A;
+    borrow = z < 0;
+    if (borrow && t < 0) z -= 0x100 - 0xA0;
+    return c68k_bcd_finish(CPU, t, z, borrow);
+}
+
+// Dq is unchanged on divide by zero; the CCR it leaves is pushed with the trap.
+static void c68k_divu_zero_flags(c68k_struc *CPU, u32 x)
+{
+    CPU->flag_N = (x >> 24) & C68K_SR_N;
+    CPU->flag_notZ = x >> 16;
+    CPU->flag_V = C68K_SR_V;
+    CPU->flag_C = 0;
+}
+
+static void c68k_divu_overflow_flags(c68k_struc *CPU, u32 x)
+{
+    CPU->flag_N = (x >> 24) & C68K_SR_N;
+    CPU->flag_notZ = 1;
+    CPU->flag_V = C68K_SR_V;
+    CPU->flag_C = 0;
+}
+
+static void c68k_divs_zero_flags(c68k_struc *CPU, u32 x)
+{
+    CPU->flag_N = 0;
+    CPU->flag_notZ = 0;
+    if (x == 0x00008000) CPU->flag_V = (CPU->flag_V & C68K_SR_V) ^ C68K_SR_V;
+    else if (((s32)x >= 0 && x != 0x7FFFFFFF) || x == 0x80000000) CPU->flag_V = C68K_SR_V;
+    else CPU->flag_V &= C68K_SR_V;
+    CPU->flag_C = 0;
+}
+
+// q is the full quotient that did not fit in a word.
+static void c68k_divs_overflow_flags(c68k_struc *CPU, u32 x, u32 q)
+{
+    int n = x == 0x80000000 || (q & 0xFFFF0080) == 0x00000080 || (q & 0xFFFF0080) == 0xFFFF0080;
+    int z = q == 0x00008000 ||
+            (((q & 0xFFFF00FF) == 0x00000000 || (q & 0xFFFF00FF) == 0xFFFF0000) && (q & 0x0000FF00));
+    CPU->flag_N = n ? C68K_SR_N : 0;
+    CPU->flag_notZ = !z;
+    CPU->flag_V = C68K_SR_V;
+    CPU->flag_C = 0;
+}
+
 // main exec function
 //////////////////////
 
