@@ -3552,18 +3552,8 @@ case 0x4800:
 {
 	u32 res;
 	res = (u8)CPU->D[(Opcode >> 0) & 7];
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	*(BYTE_OFF + (u8*)(&CPU->D[(Opcode >> 0) & 7])) = res;
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 }
 RET(6)
 case 0x4811:
@@ -3582,18 +3572,8 @@ case 0x4810:
 	adr = CPU->A[(Opcode >> 0) & 7];
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(12)
@@ -3613,18 +3593,8 @@ case 0x4818:
 	CPU->A[(Opcode >> 0) & 7] += 1;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(12)
@@ -3644,18 +3614,8 @@ case 0x4820:
 	CPU->A[(Opcode >> 0) & 7] = adr;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(14)
@@ -3676,18 +3636,8 @@ case 0x4828:
 	PC += 2;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(16)
@@ -3708,18 +3658,8 @@ case 0x4830:
 	DECODE_EXT_WORD
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(18)
@@ -3733,18 +3673,8 @@ case 0x4838:
 	PC += 2;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(16)
@@ -3758,18 +3688,8 @@ case 0x4839:
 	PC += 4;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(20)
@@ -3783,18 +3703,8 @@ case 0x481F:
 	CPU->A[7] += 2;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(12)
@@ -3808,18 +3718,8 @@ case 0x4827:
 	CPU->A[7] = adr;
 	PRE_IO
 	READ_BYTE_F(adr, res)
-	res = 0x9a - res - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-
-	if (res != 0x9a)
-	{
-		if ((res & 0x0f) == 0xa) res = (res & 0xf0) + 0x10;
-		res &= 0xFF;
+	res = c68k_sbcd(CPU, 0, res);
 	WRITE_BYTE_F(adr, res)
-		CPU->flag_notZ |= res;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_N = res;
 	POST_IO
 }
 RET(14)

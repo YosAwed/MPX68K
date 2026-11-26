@@ -3637,17 +3637,7 @@ case 0xC100:
 	pointer src;
 	src = (u8)CPU->D[(Opcode >> 0) & 7];
 	dst = (u8)CPU->D[(Opcode >> 9) & 7];
-	res = (dst & 0xF) + (src & 0xF) + ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res += 6;
-	res += (dst & 0xF0) + (src & 0xF0);
-	if (res > 0x99)
-	{
-		res -= 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_abcd(CPU, dst, src);
 	*(BYTE_OFF + (u8*)(&CPU->D[(Opcode >> 9) & 7])) = res;
 }
 RET(6)
@@ -3714,17 +3704,7 @@ case 0xC108:
 	adr = CPU->A[(Opcode >> 9) & 7] - 1;
 	CPU->A[(Opcode >> 9) & 7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) + (src & 0xF) + ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res += 6;
-	res += (dst & 0xF0) + (src & 0xF0);
-	if (res > 0x99)
-	{
-		res -= 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_abcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3750,17 +3730,7 @@ case 0xC10F:
 	adr = CPU->A[(Opcode >> 9) & 7] - 1;
 	CPU->A[(Opcode >> 9) & 7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) + (src & 0xF) + ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res += 6;
-	res += (dst & 0xF0) + (src & 0xF0);
-	if (res > 0x99)
-	{
-		res -= 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_abcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3786,17 +3756,7 @@ case 0xCF08:
 	adr = CPU->A[7] - 2;
 	CPU->A[7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) + (src & 0xF) + ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res += 6;
-	res += (dst & 0xF0) + (src & 0xF0);
-	if (res > 0x99)
-	{
-		res -= 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_abcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3816,17 +3776,7 @@ case 0xCF0F:
 	adr = CPU->A[7] - 2;
 	CPU->A[7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) + (src & 0xF) + ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res += 6;
-	res += (dst & 0xF0) + (src & 0xF0);
-	if (res > 0x99)
-	{
-		res -= 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_abcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }

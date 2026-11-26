@@ -3637,17 +3637,7 @@ case 0x8100:
 	pointer src;
 	src = (u8)CPU->D[(Opcode >> 0) & 7];
 	dst = (u8)CPU->D[(Opcode >> 9) & 7];
-	res = (dst & 0xF) - (src & 0xF) - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res -= 6;
-	res += (dst & 0xF0) - (src & 0xF0);
-	if (res > 0x99)
-	{
-		res += 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_sbcd(CPU, dst, src);
 	*(BYTE_OFF + (u8*)(&CPU->D[(Opcode >> 9) & 7])) = res;
 }
 RET(6)
@@ -3714,17 +3704,7 @@ case 0x8108:
 	adr = CPU->A[(Opcode >> 9) & 7] - 1;
 	CPU->A[(Opcode >> 9) & 7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) - (src & 0xF) - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res -= 6;
-	res += (dst & 0xF0) - (src & 0xF0);
-	if (res > 0x99)
-	{
-		res += 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_sbcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3750,17 +3730,7 @@ case 0x810F:
 	adr = CPU->A[(Opcode >> 9) & 7] - 1;
 	CPU->A[(Opcode >> 9) & 7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) - (src & 0xF) - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res -= 6;
-	res += (dst & 0xF0) - (src & 0xF0);
-	if (res > 0x99)
-	{
-		res += 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_sbcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3786,17 +3756,7 @@ case 0x8F08:
 	adr = CPU->A[7] - 2;
 	CPU->A[7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) - (src & 0xF) - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res -= 6;
-	res += (dst & 0xF0) - (src & 0xF0);
-	if (res > 0x99)
-	{
-		res += 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_sbcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3816,17 +3776,7 @@ case 0x8F0F:
 	adr = CPU->A[7] - 2;
 	CPU->A[7] = adr;
 	READ_BYTE_F(adr, dst)
-	res = (dst & 0xF) - (src & 0xF) - ((CPU->flag_X >> C68K_SR_X_SFT) & 1);
-	if (res > 9) res -= 6;
-	res += (dst & 0xF0) - (src & 0xF0);
-	if (res > 0x99)
-	{
-		res += 0xA0;
-		CPU->flag_X = CPU->flag_C = C68K_SR_C;
-	}
-	else CPU->flag_X = CPU->flag_C = 0;
-	CPU->flag_notZ |= res & 0xFF;
-	CPU->flag_N = res;
+	res = c68k_sbcd(CPU, dst, src);
 	WRITE_BYTE_F(adr, res)
 	POST_IO
 }
@@ -3904,6 +3854,7 @@ case 0x80C0:
 	src = (u16)CPU->D[(Opcode >> 0) & 7];
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -3930,8 +3881,7 @@ case 0x80C0:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(70)
 		}
 		q &= 0x0000FFFF;
@@ -4019,6 +3969,7 @@ case 0x80D0:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4046,8 +3997,7 @@ case 0x80D0:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4128,6 +4078,7 @@ case 0x80D8:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4155,8 +4106,7 @@ case 0x80D8:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4237,6 +4187,7 @@ case 0x80E0:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4264,8 +4215,7 @@ case 0x80E0:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(76)
 		}
 		q &= 0x0000FFFF;
@@ -4354,6 +4304,7 @@ case 0x80E8:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4381,8 +4332,7 @@ case 0x80E8:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4471,6 +4421,7 @@ case 0x80F0:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4498,8 +4449,7 @@ case 0x80F0:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -4532,6 +4482,7 @@ case 0x80F8:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4559,8 +4510,7 @@ case 0x80F8:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4593,6 +4543,7 @@ case 0x80F9:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4620,8 +4571,7 @@ case 0x80F9:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(82)
 		}
 		q &= 0x0000FFFF;
@@ -4654,6 +4604,7 @@ case 0x80FA:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4681,8 +4632,7 @@ case 0x80FA:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(78)
 		}
 		q &= 0x0000FFFF;
@@ -4715,6 +4665,7 @@ case 0x80FB:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4742,8 +4693,7 @@ case 0x80FB:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -4773,6 +4723,7 @@ case 0x80FC:
 	PC += 2;
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4799,8 +4750,7 @@ case 0x80FC:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4833,6 +4783,7 @@ case 0x80DF:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4860,8 +4811,7 @@ case 0x80DF:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(74)
 		}
 		q &= 0x0000FFFF;
@@ -4894,6 +4844,7 @@ case 0x80E7:
 	READ_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divu_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -4921,8 +4872,7 @@ case 0x80E7:
 
 		if (q & 0xFFFF0000)
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divu_overflow_flags(CPU, (u32)dst);
 	RET(76)
 		}
 		q &= 0x0000FFFF;
@@ -5007,6 +4957,7 @@ case 0x81C0:
 	src = (s32)(s16)CPU->D[(Opcode >> 0) & 7];
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5028,8 +4979,7 @@ case 0x81C0:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(50)
 	}
 	{
@@ -5040,8 +4990,7 @@ case 0x81C0:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(80)
 		}
 		q &= 0x0000FFFF;
@@ -5129,6 +5078,7 @@ case 0x81D0:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5151,8 +5101,7 @@ case 0x81D0:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(54)
 	}
 	{
@@ -5163,8 +5112,7 @@ case 0x81D0:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -5245,6 +5193,7 @@ case 0x81D8:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5267,8 +5216,7 @@ case 0x81D8:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(54)
 	}
 	{
@@ -5279,8 +5227,7 @@ case 0x81D8:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -5361,6 +5308,7 @@ case 0x81E0:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5383,8 +5331,7 @@ case 0x81E0:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(56)
 	}
 	{
@@ -5395,8 +5342,7 @@ case 0x81E0:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(86)
 		}
 		q &= 0x0000FFFF;
@@ -5485,6 +5431,7 @@ case 0x81E8:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5507,8 +5454,7 @@ case 0x81E8:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(58)
 	}
 	{
@@ -5519,8 +5465,7 @@ case 0x81E8:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5609,6 +5554,7 @@ case 0x81F0:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5631,8 +5577,7 @@ case 0x81F0:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(60)
 	}
 	{
@@ -5643,8 +5588,7 @@ case 0x81F0:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(90)
 		}
 		q &= 0x0000FFFF;
@@ -5677,6 +5621,7 @@ case 0x81F8:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5699,8 +5644,7 @@ case 0x81F8:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(58)
 	}
 	{
@@ -5711,8 +5655,7 @@ case 0x81F8:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5745,6 +5688,7 @@ case 0x81F9:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5767,8 +5711,7 @@ case 0x81F9:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(62)
 	}
 	{
@@ -5779,8 +5722,7 @@ case 0x81F9:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(92)
 		}
 		q &= 0x0000FFFF;
@@ -5813,6 +5755,7 @@ case 0x81FA:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5835,8 +5778,7 @@ case 0x81FA:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(58)
 	}
 	{
@@ -5847,8 +5789,7 @@ case 0x81FA:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(88)
 		}
 		q &= 0x0000FFFF;
@@ -5881,6 +5822,7 @@ case 0x81FB:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5903,8 +5845,7 @@ case 0x81FB:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(60)
 	}
 	{
@@ -5915,8 +5856,7 @@ case 0x81FB:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(90)
 		}
 		q &= 0x0000FFFF;
@@ -5946,6 +5886,7 @@ case 0x81FC:
 	PC += 2;
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -5967,8 +5908,7 @@ case 0x81FC:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(54)
 	}
 	{
@@ -5979,8 +5919,7 @@ case 0x81FC:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -6013,6 +5952,7 @@ case 0x81DF:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -6035,8 +5975,7 @@ case 0x81DF:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(54)
 	}
 	{
@@ -6047,8 +5986,7 @@ case 0x81DF:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(84)
 		}
 		q &= 0x0000FFFF;
@@ -6081,6 +6019,7 @@ case 0x81E7:
 	READSX_WORD_F(adr, src)
 	if (src == 0)
 	{
+		c68k_divs_zero_flags(CPU, (u32)CPU->D[(Opcode >> 9) & 7]);
 		if (!CPU->flag_S)
 		{
 			res = CPU->USP;
@@ -6103,8 +6042,7 @@ case 0x81E7:
 	if ((dst == 0x80000000) && (src == -1))
 	{
 		// the quotient +$80000000 does not fit in a word: overflow, Dn unchanged
-		CPU->flag_V = C68K_SR_V;
-		CPU->flag_C = 0;
+		c68k_divs_overflow_flags(CPU, (u32)dst, 0x80000000);
 	RET(56)
 	}
 	{
@@ -6115,8 +6053,7 @@ case 0x81E7:
 
 		if ((q > 0x7FFF) || (q < -0x8000))
 		{
-			CPU->flag_V = C68K_SR_V;
-			CPU->flag_C = 0;
+			c68k_divs_overflow_flags(CPU, (u32)dst, (u32)q);
 	RET(86)
 		}
 		q &= 0x0000FFFF;

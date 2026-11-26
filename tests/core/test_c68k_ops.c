@@ -30,12 +30,14 @@ static s32 FASTCALL int_ack(s32 level) { (void)level; return C68K_INT_ACK_AUTOVE
 
 #define CODE 0x0400
 #define CHK_HANDLER 0x0600
+#define DIVZ_HANDLER 0x0680
 
 /* Supervisor mode, SSP $8000, the given CCR; `op` (and an optional
  * extension word) at CODE. */
 static void setup(u32 op, u32 ccr)
 {
     memset(mem, 0, sizeof(mem));
+    poke32(5 * 4, DIVZ_HANDLER);
     poke32(6 * 4, CHK_HANDLER);
     poke16(CODE, op);
     C68k_Init(&C68K, int_ack);
@@ -152,7 +154,88 @@ int main(void)
     C68k_Set_DReg(&C68K, 1, 0xffff);         /* -1: the quotient +$80000000 overflows */
     step();
     CHECK(C68k_Get_DReg(&C68K, 0) == 0x80000000, "divs $80000000/-1: Dn unchanged");
-    CHECK((ccr() & (V | C)) == V, "divs $80000000/-1: V set, C clear");
+    CHECK(ccr() == (N | V), "divs $80000000/-1: N and V set");
+
+    /* The cases below fail XEiJ's instructiontest.x on the old core; expected
+     * values follow XEiJ's MC68000 rules, which that test measures on the chip. */
+
+    /* ---- ABCD/SBCD/NBCD on operands that are not valid BCD ---- */
+    setup(0xc101, X | Z);                    /* abcd d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x8f);
+    C68k_Set_DReg(&C68K, 1, 0x04);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xff) == 0x9a, "abcd $8f+$04+X: result $9a");
+    CHECK(ccr() == N, "abcd $8f+$04+X: no decimal carry, Z cleared");
+
+    setup(0x8101, Z);                        /* sbcd d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x0a);
+    C68k_Set_DReg(&C68K, 1, 0x00);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xff) == 0x0a, "sbcd $0a-$00: no half borrow, no correction");
+    CHECK(ccr() == 0, "sbcd $0a-$00: no borrow, Z cleared");
+
+    setup(0x4800, X | Z);                    /* nbcd d0 */
+    C68k_Set_DReg(&C68K, 0, 0x0f);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xff) == 0x8a, "nbcd $0f with X: result $8a");
+    CHECK(ccr() == (X | N | C), "nbcd $0f with X: borrow");
+
+    /* V is the overflow of adding the decimal correction, N is bit 7 */
+    setup(0xc101, 0);                        /* abcd d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x79);
+    C68k_Set_DReg(&C68K, 1, 0x01);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xff) == 0x80, "abcd $79+$01: result $80");
+    CHECK(ccr() == (N | V), "abcd $79+$01: the correction overflows into bit 7");
+
+    /* ---- ASL.b by 8 and ASL.w by 16: the last bit out is bit 0 ---- */
+    setup(0xe320, 0);                        /* asl.b d1,d0 */
+    C68k_Set_DReg(&C68K, 1, 8);
+    C68k_Set_DReg(&C68K, 0, 0x01);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xff) == 0, "asl.b by 8: result is 0");
+    CHECK(ccr() == (X | Z | V | C), "asl.b by 8: X and C from bit 0");
+
+    setup(0xe360, 0);                        /* asl.w d1,d0 */
+    C68k_Set_DReg(&C68K, 1, 16);
+    C68k_Set_DReg(&C68K, 0, 0x0001);
+    step();
+    CHECK((C68k_Get_DReg(&C68K, 0) & 0xffff) == 0, "asl.w by 16: result is 0");
+    CHECK(ccr() == (X | Z | V | C), "asl.w by 16: X and C from bit 0");
+
+    /* ---- DIVU/DIVS by zero set the CCR before trapping ---- */
+    setup(0x80c1, X | C);                    /* divu d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x00001234);
+    C68k_Set_DReg(&C68K, 1, 0);
+    step();
+    CHECK(C68k_Get_PC(&C68K) == DIVZ_HANDLER, "divu by zero: traps");
+    CHECK(ccr() == (X | Z | V), "divu by zero: Z from the upper word, V set, C clear");
+
+    setup(0x81c1, N | C);                    /* divs d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x00001234);
+    C68k_Set_DReg(&C68K, 1, 0);
+    step();
+    CHECK(C68k_Get_PC(&C68K) == DIVZ_HANDLER, "divs by zero: traps");
+    CHECK(ccr() == (Z | V), "divs by zero of a positive dividend: Z and V set");
+
+    /* ---- DIVU/DIVS overflow: N and Z as the chip leaves them ---- */
+    setup(0x80c1, Z);                        /* divu d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x80000000);
+    C68k_Set_DReg(&C68K, 1, 1);
+    step();
+    CHECK(ccr() == (N | V), "divu overflow: N from the dividend, Z clear");
+
+    setup(0x81c1, 0);                        /* divs d1,d0 */
+    C68k_Set_DReg(&C68K, 0, 0x00008080);
+    C68k_Set_DReg(&C68K, 1, 1);
+    step();
+    CHECK(ccr() == (N | V), "divs overflow to $8080: N set");
+
+    setup(0x81c1, 0);
+    C68k_Set_DReg(&C68K, 0, 0x00008000);
+    C68k_Set_DReg(&C68K, 1, 1);
+    step();
+    CHECK(ccr() == (Z | V), "divs overflow to $8000: Z set");
 
     if (failures) {
         printf("%d test(s) failed\n", failures);

@@ -3310,7 +3310,7 @@ case 0xE120:
 	RET(6)
 		}
 
-		if (sft == 256) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
+		if (sft == 8) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
 		else CPU->flag_C = 0;
 		CPU->flag_X = CPU->flag_C;
 		if (src) CPU->flag_V = C68K_SR_V;
@@ -3420,7 +3420,7 @@ case 0xE160:
 	RET(6)
 		}
 
-		if (sft == 65536) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
+		if (sft == 16) CPU->flag_C = (u32)src << C68K_SR_C_SFT;
 		else CPU->flag_C = 0;
 		CPU->flag_X = CPU->flag_C;
 		if (src) CPU->flag_V = C68K_SR_V;
